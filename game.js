@@ -513,15 +513,27 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-F',()=>this.usePotion('hp'));
     this.input.keyboard.on('keydown-G',()=>this.usePotion('mp'));
     this.input.keyboard.on('keydown-Q',()=>this.useSkill());
+    // 敵タップ選択（ジョイスティック領域・ボタン領域以外）
     this.input.on('pointerdown',ptr=>{
-      if(ptr.y>this.scale.height-60)return;
+      const h=this.scale.height;
+      // ジョイスティック領域（左下）
+      if(ptr.x<160&&ptr.y>h-160)return;
+      // スキルボタン領域
+      if(ptr.y>h-60)return;
       const wx=ptr.worldX,wy=ptr.worldY;
       let closest=null,cd=999;
-      this.enemyDataList.forEach(ed=>{if(ed.dead)return;const d=Phaser.Math.Distance.Between(wx,wy,ed.sprite.x,ed.sprite.y);if(d<80&&d<cd){cd=d;closest=ed;}});
-      if(closest){this.target=closest;this.doAttack();}else this.target=null;
+      this.enemyDataList.forEach(ed=>{
+        if(ed.dead)return;
+        const d=Phaser.Math.Distance.Between(wx,wy,ed.sprite.x,ed.sprite.y);
+        if(d<80&&d<cd){cd=d;closest=ed;}
+      });
+      if(closest){this.target=closest;this.autoAtkTimer=0;}
+      else this.target=null;
     });
     this.atkCooldown=0;this.skillCooldown=0;this.target=null;
     this.createHUD();this.createSkillButtons();this.createMinimap();
+    this.createJoystick();
+    this.autoAtkTimer=0;
     // ステージアナウンス
     const ann=this.add.text(this.scale.width/2,80,cfg.name,{fontSize:'28px',fontFamily:'Courier New',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.tweens.add({targets:ann,alpha:0,duration:2000,delay:1500,onComplete:()=>ann.destroy()});
@@ -602,6 +614,97 @@ class GameScene extends Phaser.Scene {
     this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
     this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
   }
+  createJoystick(){
+    const w=this.scale.width,h=this.scale.height;
+    this.joyActive=false; this.joyDx=0; this.joyDy=0;
+    // ジョイスティック外円
+    const JX=90, JY=h-90;
+    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.45).setScrollFactor(0).setDepth(30).setStrokeStyle(2,0xffffff,0.5);
+    this.joyKnob=this.add.circle(JX,JY,24,0xffffff,0.7).setScrollFactor(0).setDepth(31);
+    this.joyLabel=this.add.text(JX,JY,'移動',{fontSize:'9px',fontFamily:'Courier New',color:'#ffffff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(32);
+    this.joyX=JX; this.joyY=JY; this.joyR=30;
+
+    // タッチ入力
+    this.input.on('pointerdown',ptr=>{
+      // ジョイスティック領域（左下エリア）
+      if(ptr.x<160&&ptr.y>h-160){
+        this.joyActive=true;
+        this.joyBase.setPosition(ptr.x,ptr.y);
+        this.joyKnob.setPosition(ptr.x,ptr.y);
+        this.joyLabel.setPosition(ptr.x,ptr.y);
+        this.joyX=ptr.x; this.joyY=ptr.y;
+        ptr.joyCapture=true;
+      }
+    },this);
+    this.input.on('pointermove',ptr=>{
+      if(!this.joyActive)return;
+      const dx=ptr.x-this.joyX, dy=ptr.y-this.joyY;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const maxR=this.joyR;
+      const cx=dist>maxR?this.joyX+dx/dist*maxR:ptr.x;
+      const cy=dist>maxR?this.joyY+dy/dist*maxR:ptr.y;
+      this.joyKnob.setPosition(cx,cy);
+      this.joyLabel.setPosition(cx,cy);
+      this.joyDx=dist>8?dx/Math.max(dist,maxR):0;
+      this.joyDy=dist>8?dy/Math.max(dist,maxR):0;
+    },this);
+    this.input.on('pointerup',ptr=>{
+      this.joyActive=false;
+      this.joyDx=0; this.joyDy=0;
+      // ジョイスティックを元位置に戻す
+      this.joyBase.setPosition(90,h-90);
+      this.joyKnob.setPosition(90,h-90);
+      this.joyLabel.setPosition(90,h-90);
+      this.joyX=90; this.joyY=h-90;
+    },this);
+  }
+
+  updateJoystick(){
+    // キーボード入力とジョイスティックを合算
+    const pd=this.playerData,p=this.player;
+    const kl=this.cursors.left.isDown||this.wasd.A.isDown;
+    const kr=this.cursors.right.isDown||this.wasd.D.isDown;
+    const ku=this.cursors.up.isDown||this.wasd.W.isDown;
+    const kd=this.cursors.down.isDown||this.wasd.S.isDown;
+    let vx=kl?-1:kr?1:this.joyDx||0;
+    let vy=ku?-1:kd?1:this.joyDy||0;
+    const len=Math.sqrt(vx*vx+vy*vy);
+    if(len>1){vx/=len;vy/=len;}
+    p.setVelocity(vx*pd.spd, vy*pd.spd);
+  }
+
+  updateAutoAtk(dt){
+    // タッチで敵をタップ → 自動追跡＆攻撃
+    if(!this.target||this.target.dead){
+      // ターゲット解除時は最近敵を自動選択（スマホ時）
+      if(this.sys.game.device.input.touch){
+        let closest=null,cd=180;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead)return;
+          const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,ed.sprite.x,ed.sprite.y);
+          if(d<cd){cd=d;closest=ed;}
+        });
+        if(closest)this.target=closest;
+      }
+      return;
+    }
+    // ターゲットがいれば自動で向かって攻撃
+    const t=this.target,p=this.player;
+    const dist=Phaser.Math.Distance.Between(p.x,p.y,t.sprite.x,t.sprite.y);
+    if(dist<=160){
+      // 攻撃射程内：攻撃
+      this.autoAtkTimer-=dt;
+      if(this.autoAtkTimer<=0){
+        this.doAttack();
+        this.autoAtkTimer=0.55;
+      }
+    } else if(!this.joyActive&&!this.cursors.left.isDown&&!this.cursors.right.isDown&&!this.cursors.up.isDown&&!this.cursors.down.isDown&&!this.wasd.A.isDown&&!this.wasd.D.isDown&&!this.wasd.W.isDown&&!this.wasd.S.isDown){
+      // 移動入力なし → ターゲットへ自動移動
+      const ang=Phaser.Math.Angle.Between(p.x,p.y,t.sprite.x,t.sprite.y);
+      p.setVelocity(Math.cos(ang)*this.playerData.spd, Math.sin(ang)*this.playerData.spd);
+    }
+  }
+
   updateMinimap(){
     const p=this.player;
     this.mmPlayerDot.setPosition(this.mmX+p.x/this.MW*this.mmW,this.mmY+p.y/this.MH*this.mmH);
@@ -741,11 +844,8 @@ class GameScene extends Phaser.Scene {
   }
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
-    const l=this.cursors.left.isDown||this.wasd.A.isDown;
-    const r=this.cursors.right.isDown||this.wasd.D.isDown;
-    const u=this.cursors.up.isDown||this.wasd.W.isDown;
-    const d=this.cursors.down.isDown||this.wasd.S.isDown;
-    p.setVelocity(l?-pd.spd:r?pd.spd:0,u?-pd.spd:d?pd.spd:0);
+    this.updateJoystick();
+    this.updateAutoAtk(dt);
     if(Phaser.Input.Keyboard.JustDown(this.spaceKey))this.attackNearest();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
     if(this.skillCooldown>0){this.skillCooldown-=dt;this.skillCDOverlay.setFillStyle(0x000000,0.55);this.skillCDTxt.setText(Math.ceil(this.skillCooldown)+'s');}
