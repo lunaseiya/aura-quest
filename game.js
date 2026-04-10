@@ -254,7 +254,7 @@ class TownScene extends Phaser.Scene{
     this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(20).setScrollFactor(0).setVisible(false);
     this.input.keyboard.on('keydown-E',()=>this.tryInteract());
     if(this.playerData.pendingLvUp>0) this.time.delayedCall(500,()=>this.showLvUpScreen());
-    else if((this.playerData.statPts||0)>0) this.time.delayedCall(500,()=>this.showStatScreen());
+    this.createMenuButton();
   }
   createHUD(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
@@ -284,20 +284,34 @@ class TownScene extends Phaser.Scene{
     this.hudGold.setText('💰 '+pd.gold+'G  💊'+(pd.potHP||0)+'  💧'+(pd.potMP||0));
     this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
   }
-  showSkillTree(){
+  openMenu(tab='stat'){
     this.scene.pause();
-    this.scene.launch('SkillTree',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData}});
+    this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData},tab});
   }
   showLvUpScreen(){
     const pd=this.playerData;
-    if(pd.pendingLvUp<=0){if(pd.statPts>0)this.showStatScreen();return;}
+    if(pd.pendingLvUp<=0)return;
     pd.pendingLvUp--;
     this.scene.pause();
     this.scene.launch('LevelUp',{playerData:pd,returnScene:'Town',returnData:{playerData:pd}});
   }
-  showStatScreen(){
-    this.scene.pause();
-    this.scene.launch('StatAlloc',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData}});
+  createMenuButton(){
+    const pd=this.playerData,w=this.scale.width;
+    // キャラアイコンボタン（HUD左上）
+    const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[pd.cls]||'?';
+    this._menuBtn=this.add.rectangle(220,40,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this._menuIcon=this.add.text(220,36,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._menuLabel=this.add.text(220,50,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._menuBadge=this.add.text(236,24,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
+    this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
+    this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
+    this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
+    this._updateMenuBadge();
+  }
+  _updateMenuBadge(){
+    const pd=this.playerData;
+    const pts=(pd.statPts||0)+(pd.jobPts||0);
+    if(this._menuBadge)this._menuBadge.setText(pts>0?'↑'+pts:'');
   }
   tryInteract(){
     const p=this.player;
@@ -347,8 +361,9 @@ class TownScene extends Phaser.Scene{
     for(const b of this.buildings){if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){hint='[E] '+b.label;break;}}
     if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<80)hint='[E] ST.1へ出発！';
     this.hintText.setText(hint);
-    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S'))&&(pd.statPts||0)>0)this.showStatScreen();
-    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.showSkillTree();
+    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
+    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
+    this._updateMenuBadge();
   }
 }
 
@@ -394,75 +409,150 @@ class LevelUpScene extends Phaser.Scene{
 // ============================================================
 //  StatAlloc Scene（ステータス割り振り）①
 // ============================================================
-class StatAllocScene extends Phaser.Scene{
-  constructor(){super('StatAlloc')}
-  init(data){this.playerData=data.playerData;this.returnScene=data.returnScene;this.returnData=data.returnData;}
+class MenuScene extends Phaser.Scene{
+  constructor(){super('Menu')}
+  init(data){
+    this.playerData=data.playerData;
+    this.returnScene=data.returnScene||'Town';
+    this.returnData=data.returnData||{};
+    this.tab=data.tab||'stat';
+  }
   create(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    this.add.rectangle(0,0,w,h,0x000000,0.82).setOrigin(0);
-    this.add.rectangle(w/2,h/2,480,360,0x080820,0.98).setStrokeStyle(3,0x44aaff);
-    this.add.text(w/2,h/2-160,'⚡ ステータス割り振り',{fontSize:'22px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
-    this.ptsLeft=pd.statPts||0;
-    this.ptsText=this.add.text(w/2,h/2-128,'残りポイント: '+this.ptsLeft,{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-
-    // ステータス項目
-    const STATS=[
-      {key:'atk', label:'力 (STR)',   desc:'ATK+2',   col:'#e74c3c'},
-      {key:'spd', label:'素早さ(AGI)',desc:'SPD+12',  col:'#2ecc71'},
-      {key:'mag', label:'魔力 (MAG)', desc:'MAG+2',   col:'#9b59b6'},
-      {key:'mhp', label:'体力 (VIT)', desc:'MaxHP+9', col:'#27ae60'},
-      {key:'luk', label:'運  (LUK)',  desc:'CRIT+1%', col:'#f39c12'},
-      {key:'hit', label:'命中 (DEX)', desc:'HIT+2%',  col:'#3498db'},
-    ];
-    this.statRows=[];
-    STATS.forEach((s,i)=>{
-      const y=h/2-90+i*38;
-      this.add.text(w/2-190,y,s.label,{fontSize:'13px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
-      this.add.text(w/2-20,y,s.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#888888'}).setOrigin(0,0.5);
-      const valTxt=this.add.text(w/2+110,y,this.getStatVal(pd,s.key),{fontSize:'13px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5);
-      // +ボタン
-      const btn=this.add.rectangle(w/2+176,y,30,26,0x44aaff,0.3).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
-      this.add.text(w/2+176,y,'+',{fontSize:'16px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
-      btn.on('pointerdown',()=>this.allocStat(pd,s,valTxt));
-      btn.on('pointerover',()=>btn.setFillStyle(0x44aaff,0.6));
-      btn.on('pointerout', ()=>btn.setFillStyle(0x44aaff,0.3));
-      this.statRows.push({s,valTxt,btn});
+    this.add.rectangle(0,0,w,h,0x000000,0.88).setOrigin(0);
+    this.add.rectangle(w/2,h/2,560,430,0x060916,0.99).setStrokeStyle(2,0x44aaff);
+    this.tabBtns={};this.tabTxts={};
+    [['stat','⚡ ステータス',0x44aaff,-120],['skill','🎯 スキルツリー',0x00e5ff,120]].forEach(([id,label,col,ox])=>{
+      const btn=this.add.rectangle(w/2+ox,h/2-200,210,34,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
+      const txt=this.add.text(w/2+ox,h/2-200,label,{fontSize:'13px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
+      btn.on('pointerdown',()=>this.switchTab(id));
+      this.tabBtns[id]=btn;this.tabTxts[id]=txt;
     });
-
-    // 閉じるボタン
-    const closeBtn=this.add.rectangle(w/2,h/2+150,200,40,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(w/2,h/2+150,'▶ 閉じる',{fontSize:'15px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
-    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.4));
-    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0xffd700,0.2));
-    closeBtn.on('pointerdown',()=>this.close());
-    this.input.keyboard.once('keydown-ESC',()=>this.close());
+    this.statCont=this.add.container(0,0);
+    this.skillCont=this.add.container(0,0);
+    this._buildStat(pd,w,h);
+    this._buildSkill(pd,w,h);
+    const close=this.add.rectangle(w/2,h/2+200,200,34,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
+    this.add.text(w/2,h/2+200,'✕ 閉じる',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
+    close.on('pointerover',()=>close.setFillStyle(0xffd700,0.45));
+    close.on('pointerout', ()=>close.setFillStyle(0xffd700,0.2));
+    close.on('pointerdown',()=>this._close());
+    this.input.keyboard.on('keydown-ESC',()=>this._close());
+    this.switchTab(this.tab);
   }
-  getStatVal(pd,key){
-    if(key==='spd') return String(pd.spd);
-    if(key==='mhp') return String(pd.mhp);
-    return String(pd[key]);
+  switchTab(tab){
+    this.tab=tab;
+    this.statCont.setVisible(tab==='stat');
+    this.skillCont.setVisible(tab==='skill');
+    const COLS={stat:0x44aaff,skill:0x00e5ff};
+    Object.entries(this.tabBtns).forEach(([id,btn])=>{
+      const col=COLS[id];
+      btn.setFillStyle(col,id===tab?0.45:0.1).setStrokeStyle(2,id===tab?col:0x334455);
+      this.tabTxts[id].setColor(id===tab?'#'+col.toString(16).padStart(6,'0'):'#334455');
+    });
   }
-  allocStat(pd,s,valTxt){
-    if(this.ptsLeft<=0)return;
-    this.ptsLeft--;
-    pd.statPts=this.ptsLeft;
-    // 実際に加算
-    if(s.key==='atk'){pd.atk+=2;}
-    else if(s.key==='spd'){pd.spd+=12;}
-    else if(s.key==='mag'){pd.mag+=2;}
-    else if(s.key==='mhp'){pd.mhp+=9;pd.hp=Math.min(pd.hp+9,pd.mhp);}
-    else if(s.key==='luk'){pd.luk+=1;}
-    else if(s.key==='hit'){pd.hit+=2;}
-    valTxt.setText(this.getStatVal(pd,s.key));
-    this.ptsText.setText('残りポイント: '+this.ptsLeft);
-    SE('potion');
+  _buildStat(pd,w,h){
+    const c=this.statCont;
+    const S=[
+      {key:'atk',label:'力  (STR)',desc:'ATK +2/pt',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
+      {key:'spd',label:'素早(AGI)',desc:'SPD+12/pt',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
+      {key:'mag',label:'魔力(MAG)',desc:'MAG +2/pt',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mhp',label:'体力(VIT)',desc:'HP  +9/pt',col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'luk',label:'運  (LUK)',desc:'CRIT+1/pt',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
+      {key:'hit',label:'命中(DEX)',desc:'HIT +2/pt',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
+    ];
+    this._tmp={};S.forEach(s=>{this._tmp[s.key]=0;});
+    this._tmpPts=pd.statPts||0;
+    this._ptsTxt=this.add.text(w/2,h/2-170,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    c.add(this._ptsTxt);this._refreshPts();
+    this._vt={};this._at={};
+    S.forEach((s,i)=>{
+      const y=h/2-130+i*37;
+      const lbl=this.add.text(w/2-250,y,s.label,{fontSize:'12px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
+      const dsc=this.add.text(w/2-130,y,s.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#555'}).setOrigin(0,0.5);
+      const cur=this.add.text(w/2+20,y,this._sv(pd,s.key),{fontSize:'12px',fontFamily:'Courier New',color:'#ddd'}).setOrigin(0,0.5);
+      const add=this.add.text(w/2+100,y,'',{fontSize:'12px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
+      const bm=this.add.rectangle(w/2+172,y,30,26,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
+      this.add.text(w/2+172,y,'−',{fontSize:'15px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
+      bm.on('pointerdown',()=>this._adj(s,-1,cur,add));
+      bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5));
+      bm.on('pointerout', ()=>bm.setFillStyle(0xe74c3c,0.25));
+      const bp=this.add.rectangle(w/2+215,y,30,26,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
+      this.add.text(w/2+215,y,'+',{fontSize:'15px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+      bp.on('pointerdown',()=>this._adj(s,+1,cur,add));
+      bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5));
+      bp.on('pointerout', ()=>bp.setFillStyle(0x44aaff,0.25));
+      c.add([lbl,dsc,cur,add,bm,bp]);
+      this._vt[s.key]=cur;this._at[s.key]=add;
+    });
+    const ok=this.add.rectangle(w/2-60,h/2+160,185,34,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
+    this.add.text(w/2-60,h/2+160,'✔ 確定して反映',{fontSize:'13px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+    ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5));ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
+    ok.on('pointerdown',()=>this._confirm(pd,S));c.add(ok);
+    const rst=this.add.rectangle(w/2+120,h/2+160,110,34,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
+    this.add.text(w/2+120,h/2+160,'↺ リセット',{fontSize:'12px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
+    rst.on('pointerdown',()=>this._reset(S));rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4));rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
+    c.add(rst);
   }
-  close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
+  _sv(pd,key){if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);return String(pd[key]);}
+  _refreshPts(){if(this._ptsTxt)this._ptsTxt.setText('残りポイント: '+this._tmpPts+'pt');}
+  _adj(s,dir,cur,add){
+    const n=this._tmp[s.key]||0;
+    if(dir>0&&this._tmpPts<=0)return;
+    if(dir<0&&n<=0)return;
+    this._tmp[s.key]=n+dir;this._tmpPts-=dir;
+    add.setText(this._tmp[s.key]>0?'(+'+this._tmp[s.key]+')':this._tmp[s.key]<0?'('+this._tmp[s.key]+')':'');
+    this._refreshPts();SE('potion');
+  }
+  _confirm(pd,S){
+    let any=false;
+    S.forEach(s=>{const n=this._tmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}this._tmp[s.key]=0;});
+    pd.statPts=this._tmpPts;
+    S.forEach(s=>{if(this._vt[s.key])this._vt[s.key].setText(this._sv(pd,s.key));if(this._at[s.key])this._at[s.key].setText('');});
+    this._refreshPts();if(any)SE('levelup');
+  }
+  _reset(S){
+    S.forEach(s=>{this._tmpPts+=this._tmp[s.key]||0;this._tmp[s.key]=0;if(this._at[s.key])this._at[s.key].setText('');});
+    this._refreshPts();
+  }
+  _buildSkill(pd,w,h){
+    const c=this.skillCont;
+    const DEFS={
+      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす（Lv×0.3倍率UP）'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP（Lv×3秒追加）'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化・3秒間'}],
+      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ（Lv×0.35倍率UP）'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結（Lv×0.8秒延長）'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾（Lv×6サイズUP）'}],
+      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃（Lv×0.25倍率UP）'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5（Lv×5秒延長）'},{id:'sk3',name:'バルカン',maxLv:10,desc:'2+Lv連射（最大12連射）'}],
+      bomber: [{id:'sk1',name:'大爆弾',maxLv:10,desc:'巨大爆弾（Lv×0.35倍率UP）'},{id:'sk2',name:'クラスター',maxLv:10,desc:'4+Lv方向に子爆弾'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超強力巨大爆弾'}],
+    };
+    const defs=DEFS[pd.cls]||[];
+    const jpTxt=this.add.text(w/2,h/2-170,'JLv'+(pd.jobLv||1)+'  JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    const jbg=this.add.rectangle(w/2,h/2-152,300,8,0x222222).setOrigin(0.5);
+    const jbar=this.add.rectangle(w/2-150,h/2-152,300*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5);
+    c.add([jpTxt,jbg,jbar]);
+    defs.forEach((sk,i)=>{
+      const y=h/2-105+i*88,cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
+      const bg=this.add.rectangle(w/2,y,520,76,col,0.07).setStrokeStyle(1,col);
+      const kl=this.add.text(w/2-240,y-20,['[Q]','[E]','[R]'][i],{fontSize:'10px',fontFamily:'Courier New',color:'#777'}).setOrigin(0,0.5);
+      const nm=this.add.text(w/2-205,y-20,sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
+      const ds=this.add.text(w/2-240,y+4,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#777',wordWrap:{width:310}}).setOrigin(0,0.5);
+      for(let j=0;j<sk.maxLv;j++){c.add(this.add.rectangle(w/2+60+j*16,y-20,13,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366));}
+      const lvt=this.add.text(w/2+240,y-20,'Lv'+cur+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
+      c.add([bg,kl,nm,ds,lvt]);
+      if(!maxed){
+        const btn=this.add.rectangle(w/2+215,y+20,120,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
+        const bt=this.add.text(w/2+215,y+20,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
+        btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.45));btn.on('pointerout',()=>btn.setFillStyle(0x00e5ff,0.2));
+        btn.on('pointerdown',()=>{
+          if((pd.jobPts||0)<1)return;
+          pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
+          this.scene.restart({playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
+        });
+        c.add([btn,bt]);
+      }else{c.add(this.add.text(w/2+215,y+20,'MAX',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
+    });
+  }
+  _close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
 }
 
-// ============================================================
-//  GameClear Scene
-// ============================================================
 class GameClearScene extends Phaser.Scene{
   constructor(){super('GameClear')}
   init(data){this.playerData=data.playerData}
@@ -954,7 +1044,32 @@ class GameScene extends Phaser.Scene{
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
     this.bossHPTxt=this.add.text(w/2,h-44,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(12).setVisible(false);
     this.killTxt=this.add.text(2,100,'',{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
+    // キャラアイコンボタン
+    const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[this.playerData.cls]||'?';
+    this._menuBtn=this.add.rectangle(282,50,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this.add.text(282,46,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this.add.text(282,60,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._menuBadge=this.add.text(298,30,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
+    this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
+    this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
+    this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
     this.updateHUD();
+  }
+  openMenu(tab='stat'){
+    this.physics.pause();
+    if(this.bgmTimer)this.bgmTimer.remove();
+    this.scene.pause();
+    this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Game',returnData:{playerData:this.playerData,stage:this.stage},tab});
+    // Menuが閉じたら再開
+    this.scene.get('Menu').events.once('shutdown',()=>{
+      this.physics.resume();
+      if(this.bgmTimer)this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
+    });
+  }
+  _updateMenuBadge(){
+    const pd=this.playerData;
+    const pts=(pd.statPts||0)+(pd.jobPts||0);
+    if(this._menuBadge)this._menuBadge.setText(pts>0?'↑'+pts:'');
   }
   updateHUD(){
     const pd=this.playerData;
@@ -1403,87 +1518,6 @@ class GameScene extends Phaser.Scene{
 // ============================================================
 //  SkillTree Scene（ジョブスキルツリー）④
 // ============================================================
-class SkillTreeScene extends Phaser.Scene{
-  constructor(){super('SkillTree')}
-  init(data){this.playerData=data.playerData;this.returnScene=data.returnScene;this.returnData=data.returnData;}
-  create(){
-    const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    this.add.rectangle(0,0,w,h,0x000000,0.85).setOrigin(0);
-    this.add.rectangle(w/2,h/2,520,380,0x080820,0.98).setStrokeStyle(3,0x00e5ff);
-    this.add.text(w/2,h/2-175,'⚡ ジョブスキルツリー',{fontSize:'20px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
-    this.add.text(w/2,h/2-148,'JLv '+(pd.jobLv||1)+'  JP残り: '+(pd.jobPts||0),{fontSize:'14px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-
-    const SKILL_DEFS={
-      warrior:[
-        {id:'sk1',name:'烈風斬',    maxLv:10,desc:'周囲の敵を吹き飛ばす（Lv×0.3倍率UP）'},
-        {id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP（Lv×3秒追加）'},
-        {id:'sk3',name:'パリィ',    maxLv:5, desc:'攻撃無効化・3秒間（Lv/10確率）'},
-      ],
-      mage:[
-        {id:'sk1',name:'大爆発',    maxLv:10,desc:'広範囲大ダメージ（Lv×0.35倍率UP）'},
-        {id:'sk2',name:'フロスト',  maxLv:10,desc:'広範囲凍結（Lv×0.8秒延長）'},
-        {id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾（Lv×6サイズUP）'},
-      ],
-      archer:[
-        {id:'sk1',name:'5方向射撃', maxLv:10,desc:'5方向同時射撃（Lv×0.25倍率UP）'},
-        {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5（Lv×5秒延長）'},
-        {id:'sk3',name:'バルカン',  maxLv:10,desc:'2+Lv連射（最大12連射）'},
-      ],
-      bomber:[
-        {id:'sk1',name:'大爆弾',    maxLv:10,desc:'巨大爆弾（Lv×0.35倍率UP）'},
-        {id:'sk2',name:'クラスター',maxLv:10,desc:'4+Lv方向に子爆弾'},
-        {id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超強力巨大爆弾（Lv×0.8倍率UP）'},
-      ],
-    };
-    const defs=SKILL_DEFS[pd.cls]||[];
-    this.ptsText=this.add.text(w/2,h/2-128,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-    this.updatePts(pd);
-
-    defs.forEach((sk,i)=>{
-      const y=h/2-90+i*80;
-      const curLv=pd[sk.id]||0;
-      const maxed=curLv>=sk.maxLv;
-      const col=curLv>0?0x00e5ff:0x444444;
-      this.add.rectangle(w/2,y,460,66,col,0.1).setStrokeStyle(1,col);
-      this.add.text(w/2-210,y-18,['[Q]','[E]','[R]'][i]+' '+sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
-      this.add.text(w/2-210,y+4,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#888888',wordWrap:{width:280}}).setOrigin(0,0.5);
-      // Lvバー
-      for(let j=0;j<sk.maxLv;j++){
-        const bx=w/2+50+j*14,fill=j<curLv?0x00e5ff:0x222222;
-        this.add.rectangle(bx,y,11,18,fill).setStrokeStyle(1,0x444444);
-      }
-      this.add.text(w/2+210,y,'Lv '+curLv+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5);
-      // 習得/強化ボタン
-      if(!maxed){
-        const cost=1;
-        const btn=this.add.rectangle(w/2+230,y,52,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
-        this.add.text(w/2+230,y,curLv===0?'習得':'強化',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
-        btn.on('pointerdown',()=>{
-          if((pd.jobPts||0)<cost)return;
-          pd.jobPts-=cost;pd[sk.id]=(pd[sk.id]||0)+1;
-          SE('potion');
-          this.updatePts(pd);
-          this.scene.stop();
-          this.scene.resume(this.returnScene,this.returnData);
-          // 再起動して反映
-          this.time.delayedCall(100,()=>{this.scene.launch('SkillTree',{playerData:pd,returnScene:this.returnScene,returnData:this.returnData});});
-        });
-        btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.4));
-        btn.on('pointerout', ()=>btn.setFillStyle(0x00e5ff,0.2));
-      }
-    });
-
-    const closeBtn=this.add.rectangle(w/2,h/2+158,200,38,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(w/2,h/2+158,'▶ 閉じる',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
-    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.4));
-    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0xffd700,0.2));
-    closeBtn.on('pointerdown',()=>this.close());
-    this.input.keyboard.once('keydown-ESC',()=>this.close());
-  }
-  updatePts(pd){if(this.ptsText)this.ptsText.setText('JP残り: '+(pd.jobPts||0)+'pt  （習得/強化: 各1pt）');}
-  close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
-}
-
 // ============================================================
 //  起動
 // ============================================================
@@ -1492,5 +1526,5 @@ new Phaser.Game({
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:800,height:600},
   backgroundColor:'#000000',
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,StatAllocScene,SkillTreeScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,MenuScene,GameScene,GameClearScene]
 });
