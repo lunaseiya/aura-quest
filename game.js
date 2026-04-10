@@ -93,6 +93,10 @@ function makePlayerData(cls){
     gold:50,potHP:3,potMP:3,kills:0,
     statPts:0,      // 未割り振りポイント
     pendingLvUp:0,
+    // ジョブシステム
+    jobLv:1, jobExp:0, jobExpNext:80, jobPts:0,
+    // スキルレベル（各職業3スキル、Lv0=未習得）
+    sk1:0, sk2:0, sk3:0,
   };
 }
 
@@ -280,6 +284,10 @@ class TownScene extends Phaser.Scene{
     this.hudGold.setText('💰 '+pd.gold+'G  💊'+(pd.potHP||0)+'  💧'+(pd.potMP||0));
     this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
   }
+  showSkillTree(){
+    this.scene.pause();
+    this.scene.launch('SkillTree',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData}});
+  }
   showLvUpScreen(){
     const pd=this.playerData;
     if(pd.pendingLvUp<=0){if(pd.statPts>0)this.showStatScreen();return;}
@@ -340,6 +348,7 @@ class TownScene extends Phaser.Scene{
     if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<80)hint='[E] ST.1へ出発！';
     this.hintText.setText(hint);
     if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S'))&&(pd.statPts||0)>0)this.showStatScreen();
+    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.showSkillTree();
   }
 }
 
@@ -580,11 +589,13 @@ class GameScene extends Phaser.Scene{
       if(bull.getData('dead'))return;
       const ed=this.enemyDataList.find(e=>e.sprite===enemySp&&!e.dead);
       if(!ed)return;
-      bull.setData('dead',true);
+      const pierce=bull.getData('pierce')||false;
+      if(!pierce)bull.setData('dead',true);
       const dmg=bull.getData('dmg')||1;
       const isCrit=bull.getData('isCrit')||false;
-      this.hitEnemy(ed,dmg,isCrit);
-      bull.destroy();
+      if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888');SE('miss');}
+      else this.hitEnemy(ed,dmg,isCrit);
+      if(!pierce)bull.destroy();
     });
     // ドロップ
     this.drops=this.physics.add.staticGroup();
@@ -602,7 +613,9 @@ class GameScene extends Phaser.Scene{
     this.spaceKey=this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.input.keyboard.on('keydown-F',()=>this.usePotion('hp'));
     this.input.keyboard.on('keydown-G',()=>this.usePotion('mp'));
-    this.input.keyboard.on('keydown-Q',()=>this.useSkill());
+    this.input.keyboard.on('keydown-Q',()=>this.useSkill(1));
+    this.input.keyboard.on('keydown-E',()=>this.useSkill(2));
+    this.input.keyboard.on('keydown-R',()=>this.useSkill(3));
     // タッチ/クリック
     this.input.on('pointerdown',ptr=>{
       const h=this.scale.height;
@@ -752,33 +765,144 @@ class GameScene extends Phaser.Scene{
   }
 
   // ── スキル ────────────────────────────────────
-  useSkill(){
-    if(this.skillCooldown>0)return;
+  // ── スキル定義（④ 3スキル対応）────────────────
+  getSkillDefs(){
+    // 各職業のスキル3種定義（要件書§4）
+    return {
+      warrior:[
+        {id:'sk1',name:'烈風斬',    cost:20,cd:4,  desc:'周囲140px全敵に4倍ダメージ'},
+        {id:'sk2',name:'ハードガード',cost:15,cd:8, desc:'DEF+30・6秒間（Lv×3秒追加）'},
+        {id:'sk3',name:'パリィ',    cost:10,cd:12, desc:'3秒間ダメージ無効化'},
+      ],
+      mage:[
+        {id:'sk1',name:'大爆発',    cost:30,cd:5,  desc:'周囲220px全敵に6倍魔法ダメージ'},
+        {id:'sk2',name:'フロスト',  cost:25,cd:7,  desc:'周囲160pxの敵を3秒凍結'},
+        {id:'sk3',name:'ボルテックス',cost:20,cd:4,desc:'貫通する雷の弾を発射'},
+      ],
+      archer:[
+        {id:'sk1',name:'5方向射撃', cost:15,cd:3,  desc:'5方向同時に矢を放つ'},
+        {id:'sk2',name:'グロリアスショット',cost:20,cd:10,desc:'10秒間クリティカル率×5'},
+        {id:'sk3',name:'バルカン',  cost:30,cd:6,  desc:'前方に6連射'},
+      ],
+      bomber:[
+        {id:'sk1',name:'大爆弾',    cost:25,cd:5,  desc:'範囲100pxの巨大爆弾'},
+        {id:'sk2',name:'クラスター',cost:20,cd:6,  desc:'4方向に子爆弾'},
+        {id:'sk3',name:'ハイパーボム',cost:35,cd:8,desc:'超巨大爆弾・範囲150px'}
+      ],
+    }[this.playerData.cls]||[];
+  }
+
+  useSkill(num=1){
     const pd=this.playerData,p=this.player;
-    const cost={warrior:20,mage:30,archer:15,bomber:25}[pd.cls]||20;
-    if(pd.sp<cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db');return;}
-    pd.sp-=cost;SE('skill');
+    const defs=this.getSkillDefs();
+    const sk=defs[num-1]; if(!sk)return;
+    const skKey='sk'+num;
+    if(pd[skKey]===0){this.showFloat(p.x,p.y-50,'スキル未習得','#888888');return;}
+    const cdKey='skillCD'+num;
+    if((this[cdKey]||0)>0)return;
+    if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db');return;}
+    pd.sp-=sk.cost; SE('skill');
+
+    // ─ 剣士 ─
     if(pd.cls==='warrior'){
-      this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<140){const res=rollAttack(pd,ed.def,ed.spd);if(!res.miss)this.hitEnemy(ed,Math.max(1,pd.atk*4),res.isCrit);}});
-      this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);this.skillCooldown=4;
-    }else if(pd.cls==='mage'){
-      this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<220){const dmg=Math.max(1,pd.mag*6);this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd));}});
-      this.showFloat(p.x,p.y-60,'💥 大爆発！','#9b59b6');this.cameras.main.shake(300,0.015);this.skillCooldown=5;
-    }else if(pd.cls==='archer'){
-      const ang=this.getFacingAngle();
-      for(let i=-2;i<=2;i++){
-        const a=ang+i*0.22;
-        const res=rollAttack(pd,0,0);
-        this.fireBullet(p.x,p.y,a,'proj_arrow',{spd:540,maxDist:600,dmg:res.miss?0:Math.max(1,pd.atk*3),isCrit:!res.miss&&res.isCrit,miss:res.miss,sz:14});
+      if(num===1){ // 烈風斬
+        const range=140*(1+(pd.sk1-1)*0.1);
+        this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,pd.atk*(4+pd.sk1*0.3));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd));}});
+        this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);
+      }else if(num===2){ // ハードガード
+        const dur=(6+pd.sk2*1.5)*1000;
+        this._guardDef=pd.def; pd.def+=30;
+        this.showFloat(p.x,p.y-60,'🛡 ハードガード！','#3498db');
+        const flash=this.add.rectangle(p.x,p.y,60,80,0x3498db,0.3).setDepth(20);
+        this.tweens.add({targets:flash,alpha:0,duration:dur,onComplete:()=>{flash.destroy();pd.def=this._guardDef;}});
+      }else if(num===3){ // パリィ
+        pd._parry=true;
+        this.showFloat(p.x,p.y-60,'🛡 パリィ！','#ffd700');
+        this.time.delayedCall(3000,()=>{pd._parry=false;});
       }
-      this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');this.skillCooldown=3;
-    }else if(pd.cls==='bomber'){
-      // 大爆弾：より大きな範囲
-      const ang=this.getFacingAngle();
-      const tx=p.x+Math.cos(ang)*200,ty=p.y+Math.sin(ang)*200;
-      this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*6+pd.mag*3),isCrit:Math.random()*100<calcCrit(pd),radius:100});
-      this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');this.skillCooldown=5;
     }
+    // ─ マジャン ─
+    else if(pd.cls==='mage'){
+      if(num===1){ // 大爆発
+        const range=220*(1+(pd.sk1-1)*0.08);
+        this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,pd.mag*(6+pd.sk1*0.35));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd));}});
+        this.showFloat(p.x,p.y-60,'💥 大爆発！','#9b59b6');this.cameras.main.shake(300,0.015);
+      }else if(num===2){ // フロストアタック（凍結）
+        const range=160+pd.sk2*20;
+        const dur=(3+pd.sk2*0.8)*1000;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead)return;
+          if(Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){
+            ed.frozen=true;ed.frozenTimer=dur/1000;
+            ed.sprite.setTint(0x88ccff);
+            const ice=this.add.image(ed.sprite.x,ed.sprite.y,'fx_freeze').setDisplaySize(40,40).setDepth(8).setAlpha(0.8);
+            ed._iceImg=ice;
+          }
+        });
+        this.showFloat(p.x,p.y-60,'❄ フロスト！','#88ccff');SE('skill');
+      }else if(num===3){ // ボルテックスボール（貫通）
+        const ang=this.getFacingAngle();
+        const sz=10+pd.sk3*6;
+        const bull=this.fireBullet(p.x,p.y,ang,'proj_vortexball',{spd:400,maxDist:700,dmg:Math.max(1,pd.mag*(1.2+pd.sk3*0.1)),isCrit:Math.random()*100<calcCrit(pd),sz});
+        bull.setData('pierce',true); // 貫通フラグ
+        this.showFloat(p.x,p.y-60,'⚡ ボルテックス！','#44ffff');
+      }
+    }
+    // ─ アーチャー ─
+    else if(pd.cls==='archer'){
+      if(num===1){ // 5方向射撃
+        const ang=this.getFacingAngle();
+        for(let i=-2;i<=2;i++){
+          const a=ang+i*0.22;
+          const res=rollAttack(pd,0,0);
+          const dmg=res.miss?0:Math.max(1,pd.atk*(1+pd.sk1*0.25));
+          this.fireBullet(p.x,p.y,a,'proj_arrow',{spd:540,maxDist:600,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
+        }
+        this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');
+      }else if(num===2){ // グロリアスショット（クリ率UP）
+        const dur=(5+pd.sk2*5)*1000;
+        pd._gloryLuk=pd.luk; pd.luk*=5;
+        this.showFloat(p.x,p.y-60,'✨ グロリアスショット！','#ffd700');
+        this.time.delayedCall(dur,()=>{pd.luk=pd._gloryLuk;});
+      }else if(num===3){ // バルカンショット（連射）
+        const shots=2+pd.sk3;
+        const ang=this.getFacingAngle();
+        for(let i=0;i<shots;i++){
+          this.time.delayedCall(i*80,()=>{
+            const res=rollAttack(pd,0,0);
+            const dmg=res.miss?0:Math.max(1,pd.atk*2);
+            this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
+          });
+        }
+        this.showFloat(p.x,p.y-60,'🏹 バルカン'+shots+'連射！','#27ae60');SE('arrow');
+      }
+    }
+    // ─ ボマー ─
+    else if(pd.cls==='bomber'){
+      if(num===1){ // 大爆弾
+        const ang=this.getFacingAngle();
+        const radius=55*(1+pd.sk1*0.12);
+        const tx=p.x+Math.cos(ang)*200,ty=p.y+Math.sin(ang)*200;
+        this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(1.5+pd.sk1*0.35)),isCrit:Math.random()*100<calcCrit(pd),radius});
+        this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');
+      }else if(num===2){ // クラスター爆弾
+        const dirs=4+pd.sk2;
+        for(let i=0;i<dirs;i++){
+          const a=i/dirs*Math.PI*2;
+          const tx=p.x+Math.cos(a)*120,ty=p.y+Math.sin(a)*120;
+          this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(0.8+pd.sk2*0.15)),isCrit:Math.random()*100<calcCrit(pd),radius:40});
+        }
+        this.showFloat(p.x,p.y-60,'💥 クラスター！','#f39c12');
+      }else if(num===3){ // ハイパーボム
+        const ang=this.getFacingAngle();
+        const radius=150*(1+pd.sk3*0.2);
+        const tx=p.x+Math.cos(ang)*220,ty=p.y+Math.sin(ang)*220;
+        this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(3+pd.sk3*0.8)),isCrit:Math.random()*100<calcCrit(pd),radius});
+        this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600');this.cameras.main.shake(500,0.025);
+      }
+    }
+
+    this[cdKey]=sk.cd;
     this.updateHUD();
   }
 
@@ -793,38 +917,67 @@ class GameScene extends Phaser.Scene{
     if(closest){this.target=closest;this.normalAttack();}
   }
 
-  // ── HUD ──────────────────────────────────────
+  // ── HUD（⑦ EXPバー・ジョブEXPバー追加）─────────
   createHUD(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    this.add.rectangle(0,0,265,82,0x000000,0.78).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.add.rectangle(44,14,180,10,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudHPBar=this.add.rectangle(44,14,180*(pd.hp/pd.mhp),10,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.rectangle(44,30,180,10,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudSPBar=this.add.rectangle(44,30,180*(pd.sp/pd.msp),10,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,12,'HP',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
-    this.add.text(2,28,'SP',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    this.hudHPTxt=this.add.text(228,12,'',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
-    this.hudSPTxt=this.add.text(228,28,'',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    this.hudInfo=this.add.text(4,46,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
-    this.hudSub=this.add.text(4,62,'',{fontSize:'9px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
+    // 背景（高さ110に拡張してEXPバー×2追加）
+    this.add.rectangle(0,0,265,110,0x000000,0.80).setOrigin(0).setScrollFactor(0).setDepth(10);
+    // HP
+    this.add.rectangle(44,12,180,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudHPBar=this.add.rectangle(44,12,180*(pd.hp/pd.mhp),9,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,11,'HP',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
+    this.hudHPTxt=this.add.text(228,11,'',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
+    // SP
+    this.add.rectangle(44,26,180,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudSPBar=this.add.rectangle(44,26,180*(pd.sp/pd.msp),9,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,25,'SP',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
+    this.hudSPTxt=this.add.text(228,25,'',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
+    // EXPバー（橙）⑦
+    this.add.rectangle(44,40,180,7,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudEXPBar=this.add.rectangle(44,40,0,7,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,39,'EX',{fontSize:'8px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
+    this.hudEXPTxt=this.add.text(228,39,'',{fontSize:'8px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
+    // ジョブEXPバー（シアン）⑦
+    this.add.rectangle(44,52,180,7,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudJEXPBar=this.add.rectangle(44,52,0,7,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,51,'JB',{fontSize:'8px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
+    this.hudJEXPTxt=this.add.text(228,51,'',{fontSize:'8px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
+    // 情報行
+    this.hudInfo=this.add.text(2,64,'',{fontSize:'9px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
+    this.hudSub=this.add.text(2,78,'',{fontSize:'8px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
+    this.hudSub2=this.add.text(2,90,'',{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
+    // ステージバッジ
     this.add.rectangle(w-4,0,90,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
     this.add.text(w-24,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
+    // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
     this.bossHPTxt=this.add.text(w/2,h-44,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(12).setVisible(false);
-    this.killTxt=this.add.text(4,72,'',{fontSize:'9px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
+    this.killTxt=this.add.text(2,100,'',{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
     this.updateHUD();
   }
   updateHUD(){
     const pd=this.playerData;
     const hp=Math.max(0,pd.hp),sp=Math.max(0,pd.sp);
     const hpP=hp/pd.mhp,spP=sp/pd.msp;
-    this.hudHPBar.setSize(180*hpP,10).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
-    this.hudSPBar.setSize(180*spP,10);
+    this.hudHPBar.setSize(180*hpP,9).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
+    this.hudSPBar.setSize(180*spP,9);
     this.hudHPTxt.setText(Math.ceil(hp)+'/'+pd.mhp);
     this.hudSPTxt.setText(Math.ceil(sp)+'/'+pd.msp);
-    this.hudInfo.setText('Lv'+pd.lv+' 💰'+pd.gold+'G 💊'+(pd.potHP||0)+' 💧'+(pd.potMP||0));
-    this.hudSub.setText('ATK'+pd.atk+' DEF'+pd.def+' MAG'+pd.mag+' HIT'+pd.hit+'% CRIT'+pd.luk+'%  討伐:'+pd.kills);
+    // EXPバー
+    const expP=Math.min(1,pd.exp/pd.expNext);
+    this.hudEXPBar.setSize(180*expP,7);
+    this.hudEXPTxt.setText(pd.exp+'/'+pd.expNext);
+    // ジョブEXPバー
+    const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
+    this.hudJEXPBar.setSize(180*jexpP,7);
+    this.hudJEXPTxt.setText('JLv'+(pd.jobLv||1)+' '+(pd.jobExp||0)+'/'+(pd.jobExpNext||80));
+    // 情報
+    this.hudInfo.setText('Lv'+pd.lv+' 💰'+pd.gold+'G 💊'+(pd.potHP||0)+' 💧'+(pd.potMP||0)+(pd.statPts>0?' ⚡'+pd.statPts+'pt':''));
+    this.hudSub.setText('ATK'+pd.atk+' DEF'+pd.def+' MAG'+pd.mag+' HIT'+pd.hit+'% CRT'+pd.luk+'%  討伐:'+pd.kills);
+    // スキルレベル表示
+    const sk=['SK1:'+pd.sk1,'SK2:'+pd.sk2,'SK3:'+pd.sk3].join(' ') + (pd.jobPts>0?' [JP残'+pd.jobPts+']':'');
+    this.hudSub2.setText(sk);
     const thresh=this.cfg.bossThreshold;
     this.killTxt.setText(!this.bossSpawned?('ボス出現まで '+Math.max(0,thresh-this.killCount)+'体'):this.bossData?'⚠ BOSS出現中！':'✅ ボス撃破！');
   }
@@ -840,27 +993,41 @@ class GameScene extends Phaser.Scene{
   createSkillButtons(){
     const w=this.scale.width,h=this.scale.height,pd=this.playerData;
     const skillCols={warrior:0xe74c3c,mage:0x9b59b6,archer:0x27ae60,bomber:0xf39c12};
-    const skillNames={warrior:'烈風斬',mage:'大爆発',archer:'5方向射撃',bomber:'大爆弾'};
     const col=skillCols[pd.cls]||0xffd700;
+    const defs=this.getSkillDefs();
     this.add.rectangle(0,h-56,w,56,0x000000,0.7).setOrigin(0).setScrollFactor(0).setDepth(10);
-    const btnQ=this.add.rectangle(70,h-28,100,38,col,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
-    this.add.text(70,h-36,'[Q] スキル',{fontSize:'11px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.add.text(70,h-18,skillNames[pd.cls]||'スキル',{fontSize:'10px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnQ.on('pointerdown',()=>this.useSkill());btnQ.on('pointerover',()=>btnQ.setFillStyle(col,0.5));btnQ.on('pointerout',()=>btnQ.setFillStyle(col,0.25));
-    const btnF=this.add.rectangle(190,h-28,80,38,0x2ecc71,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x2ecc71).setInteractive({useHandCursor:true});
-    this.add.text(190,h-36,'[F] 💊',{fontSize:'11px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potHPTxt=this.add.text(190,h-18,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    // スキル3ボタン（Q/E/R）
+    this.skillCDOverlays=[];this.skillCDTexts=[];
+    [[70,'Q',1],[155,'E',2],[240,'R',3]].forEach(([bx,key,num])=>{
+      const sk=defs[num-1]||{name:'---'};
+      const hasSkill=pd['sk'+num]>0;
+      const c=hasSkill?col:0x555555;
+      const btn=this.add.rectangle(bx,h-28,78,38,c,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,c).setInteractive({useHandCursor:true});
+      this.add.text(bx,h-37,'['+key+']',{fontSize:'9px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+      this.add.text(bx,h-26,sk.name,{fontSize:'9px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#666666'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+      this.add.text(bx,h-16,'Lv'+(pd['sk'+num]||0),{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+      btn.on('pointerdown',()=>this.useSkill(num));
+      btn.on('pointerover',()=>btn.setFillStyle(c,hasSkill?0.5:0.1));
+      btn.on('pointerout', ()=>btn.setFillStyle(c,0.25));
+      const ov=this.add.rectangle(bx,h-28,78,38,0x000000,0).setScrollFactor(0).setDepth(13);
+      const ct=this.add.text(bx,h-28,'',{fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(14);
+      this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
+    });
+    // [F] HPポーション
+    const btnF=this.add.rectangle(340,h-28,72,38,0x2ecc71,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x2ecc71).setInteractive({useHandCursor:true});
+    this.add.text(340,h-37,'[F] 💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potHPTxt=this.add.text(340,h-20,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
     btnF.on('pointerdown',()=>this.usePotion('hp'));btnF.on('pointerover',()=>btnF.setFillStyle(0x2ecc71,0.5));btnF.on('pointerout',()=>btnF.setFillStyle(0x2ecc71,0.25));
-    const btnG=this.add.rectangle(290,h-28,80,38,0x3498db,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x3498db).setInteractive({useHandCursor:true});
-    this.add.text(290,h-36,'[G] 💧',{fontSize:'11px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potMPTxt=this.add.text(290,h-18,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    // [G] MPポーション
+    const btnG=this.add.rectangle(420,h-28,72,38,0x3498db,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x3498db).setInteractive({useHandCursor:true});
+    this.add.text(420,h-37,'[G] 💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potMPTxt=this.add.text(420,h-20,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
     btnG.on('pointerdown',()=>this.usePotion('mp'));btnG.on('pointerover',()=>btnG.setFillStyle(0x3498db,0.5));btnG.on('pointerout',()=>btnG.setFillStyle(0x3498db,0.25));
-    const btnAtk=this.add.rectangle(w-80,h-28,120,38,0xffd700,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(w-80,h-36,'[Space]',{fontSize:'11px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.add.text(w-80,h-18,'攻撃',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    // [Space] 攻撃
+    const btnAtk=this.add.rectangle(w-75,h-28,110,38,0xffd700,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0xffd700).setInteractive({useHandCursor:true});
+    this.add.text(w-75,h-37,'[Space]',{fontSize:'9px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.add.text(w-75,h-20,'攻撃',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
     btnAtk.on('pointerdown',()=>this.normalAttack());btnAtk.on('pointerover',()=>btnAtk.setFillStyle(0xffd700,0.5));btnAtk.on('pointerout',()=>btnAtk.setFillStyle(0xffd700,0.25));
-    this.skillCDOverlay=this.add.rectangle(70,h-28,100,38,0x000000,0).setScrollFactor(0).setDepth(13);
-    this.skillCDTxt=this.add.text(70,h-28,'',{fontSize:'16px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(14);
   }
 
   createMinimap(){
@@ -946,7 +1113,20 @@ class GameScene extends Phaser.Scene{
     const def=ENEMY_DEFS[id]||ENEMY_DEFS.slime;
     const sp=this.enemies.create(x,y,'enemy_'+id).setDisplaySize(def.sz,def.sz).setDepth(4);
     sp.setCollideWorldBounds(true);
-    const ed={id,sprite:sp,hp:def.hp,mhp:def.hp,atk:def.atk,def:def.def,spd:def.spd,exp:def.exp,gold:def.gold,rng:def.rng,acd:def.acd,attackTimer:def.acd+Math.random()*def.acd,isBoss:!!def.isBoss,dead:false};
+    const ed={
+      id,sprite:sp,hp:def.hp,mhp:def.hp,atk:def.atk,def:def.def,spd:def.spd,
+      exp:def.exp,gold:def.gold,rng:def.rng,acd:def.acd,
+      attackTimer:def.acd+Math.random()*def.acd,
+      isBoss:!!def.isBoss,dead:false,
+      // ⑤ 追加フラグ
+      sleeping:true,        // スリープ状態（索敵範囲外）
+      wanderTimer:0,        // ふらつきタイマー
+      wanderVx:0,wanderVy:0,
+      frozen:false,         // 凍結
+      frozenTimer:0,
+      knockTimer:0,         // ノックバック
+      knockVx:0,knockVy:0,
+    };
     ed.hpBarBg=this.add.rectangle(x,y-def.sz/2-6,def.sz,5,0x333333).setDepth(5);
     ed.hpBar=this.add.rectangle(x-def.sz/2,y-def.sz/2-6,def.sz,5,0xe74c3c).setOrigin(0,0.5).setDepth(6);
     this.enemyDataList.push(ed);
@@ -966,7 +1146,13 @@ class GameScene extends Phaser.Scene{
   // ── ヒット処理（③命中/クリティカル対応）─────────
   hitEnemy(ed,dmg,isCrit=false){
     if(ed.dead)return;
+    // 凍結中はダメージ1.5倍・解除
+    if(ed.frozen){dmg=Math.floor(dmg*1.5);ed.frozen=false;ed.sprite.clearTint();if(ed._iceImg){ed._iceImg.destroy();ed._iceImg=null;}}
     ed.hp-=dmg;
+    // ノックバック
+    const p=this.player;
+    const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+    ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
     if(isCrit){
       SE('crit');
       this.showFloat(ed.sprite.x,ed.sprite.y-ed.sprite.displayHeight/2,'★ CRIT!! '+dmg,'#ff4400');
@@ -993,6 +1179,8 @@ class GameScene extends Phaser.Scene{
     SE('exp');
     this.showFloat(ed.sprite.x,ed.sprite.y-40,'+'+ed.exp+'EXP','#f39c12');
     this.showFloat(ed.sprite.x,ed.sprite.y-60,'+'+ed.gold+'G','#ffd700');
+    // ジョブEXP付与（通常EXPの60%）
+    this.addJobExp(Math.floor(ed.exp*0.6));
     // ドロップ（§11準拠）
     if(ed.isBoss){
       // ボス確定ドロップ：HP×1 + MP×2
@@ -1028,13 +1216,24 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     while(pd.exp>=pd.expNext){
       pd.exp-=pd.expNext;pd.lv++;pd.expNext=Math.floor(pd.expNext*1.4);
-      // 自動上昇
       pd.mhp+=8;pd.hp=pd.mhp;pd.atk+=1;pd.def+=1;pd.msp+=5;pd.sp=pd.msp;
-      // ステータスポイント付与（①）
       pd.statPts=(pd.statPts||0)+3;
       pd.pendingLvUp=(pd.pendingLvUp||0)+1;
       SE('levelup');this.cameras.main.flash(300,255,215,0);
       this.showFloat(this.player.x,this.player.y-80,'✨ LEVEL UP! Lv'+pd.lv,'#ffd700');
+    }
+  }
+  // ⑦ ジョブEXP処理
+  addJobExp(amount){
+    const pd=this.playerData;
+    pd.jobExp=(pd.jobExp||0)+amount;
+    while(pd.jobExp>=(pd.jobExpNext||80)){
+      pd.jobExp-=(pd.jobExpNext||80);
+      pd.jobLv=(pd.jobLv||1)+1;
+      pd.jobExpNext=Math.floor((pd.jobExpNext||80)*1.5);
+      pd.jobPts=(pd.jobPts||0)+1;
+      this.showFloat(this.player.x,this.player.y-100,'⚡ JOB LV UP! JLv'+pd.jobLv,'#00e5ff');
+      this.showFloat(this.player.x,this.player.y-120,'ジョブポイント+1（SK画面で習得）','#00e5ff');
     }
   }
 
@@ -1076,8 +1275,7 @@ class GameScene extends Phaser.Scene{
     this.updateAutoAtk(dt);
     if(Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
-    if(this.skillCooldown>0){this.skillCooldown-=dt;this.skillCDOverlay.setFillStyle(0x000000,0.55);this.skillCDTxt.setText(Math.ceil(this.skillCooldown)+'s');}
-    else{this.skillCDOverlay.setFillStyle(0x000000,0);this.skillCDTxt.setText('');}
+    // スキルCD（createSkillButtons内のoverlayで処理）
     if(!this.bossSpawned&&this.killCount>=this.cfg.bossThreshold)this.spawnBoss();
     // 弾の距離チェック（maxDist超えたら消去）
     this.bullets.getChildren().forEach(b=>{
@@ -1088,24 +1286,105 @@ class GameScene extends Phaser.Scene{
       b.setData('dist',nd);
       if(nd>b.getData('maxDist'))b.destroy();
     });
-    // 敵AI
+    // ⑤ 敵AI（スリープ・凍結・ノックバック対応）
+    const SLEEP_RANGE=280, WAKE_RANGE=240;
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
-      const sp=ed.sprite,dist=Phaser.Math.Distance.Between(p.x,p.y,sp.x,sp.y);
-      if(dist<350){const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);sp.setVelocity(Math.cos(ang)*ed.spd,Math.sin(ang)*ed.spd);}
-      else sp.setVelocity(0,0);
+      const sp=ed.sprite;
+      const dist=Phaser.Math.Distance.Between(p.x,p.y,sp.x,sp.y);
+
+      // 凍結中
+      if(ed.frozen){
+        ed.frozenTimer-=dt;
+        if(ed.frozenTimer<=0){
+          ed.frozen=false;sp.clearTint();
+          if(ed._iceImg){ed._iceImg.destroy();ed._iceImg=null;}
+        }
+        sp.setVelocity(0,0);
+        ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
+        ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        return;
+      }
+
+      // ノックバック中
+      if(ed.knockTimer>0){
+        ed.knockTimer-=dt;
+        sp.setVelocity(ed.knockVx,ed.knockVy);
+        ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
+        ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        return;
+      }
+
+      // スリープ判定（索敵範囲外）
+      if(dist>SLEEP_RANGE){
+        ed.sleeping=true;
+        // ふらつき
+        ed.wanderTimer-=dt;
+        if(ed.wanderTimer<=0){
+          ed.wanderTimer=Phaser.Math.FloatBetween(1.5,3.5);
+          const ang=Math.random()*Math.PI*2;
+          ed.wanderVx=Math.cos(ang)*ed.spd*0.25;
+          ed.wanderVy=Math.sin(ang)*ed.spd*0.25;
+        }
+        sp.setVelocity(ed.wanderVx,ed.wanderVy);
+      }else{
+        // アクティブ：プレイヤーへ追跡
+        ed.sleeping=false;
+        const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
+        sp.setVelocity(Math.cos(ang)*ed.spd,Math.sin(ang)*ed.spd);
+        // 攻撃
+        ed.attackTimer-=dt;
+        if(ed.attackTimer<=0&&dist<ed.rng){
+          ed.attackTimer=ed.acd;
+          // パリィ判定
+          if(pd._parry){
+            this.showFloat(p.x,p.y-40,'PARRY!','#ffd700');
+            pd._parry=false;
+          }else{
+            const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
+            pd.hp=Math.max(0,pd.hp-dmg);
+            this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
+            this.cameras.main.shake(120,0.004);
+            if(pd.hp<=0){this.gameOver();return;}
+          }
+        }
+      }
+
       ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
       ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
-      ed.attackTimer-=dt;
-      if(ed.attackTimer<=0&&dist<ed.rng){
-        ed.attackTimer=ed.acd;
-        const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
-        pd.hp=Math.max(0,pd.hp-dmg);
-        this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
-        this.cameras.main.shake(120,0.004);
-        if(pd.hp<=0){this.gameOver();return;}
-      }
+      if(ed._iceImg)ed._iceImg.setPosition(sp.x,sp.y);
     });
+
+    // ⑤ リスポーン処理（残存50%以下で復活）
+    if(!this._respawnCd)this._respawnCd=0;
+    this._respawnCd-=dt;
+    if(this._respawnCd<=0&&!this.bossSpawned){
+      this._respawnCd=8;
+      const alive=this.enemyDataList.filter(e=>!e.dead&&!e.isBoss).length;
+      const total=this.cfg.enemies.length;
+      if(alive<Math.floor(total*0.5)){
+        // ランダムに1体復活
+        const dead=this.enemyDataList.filter(e=>e.dead&&!e.isBoss);
+        if(dead.length>0){
+          const pick=dead[Math.floor(Math.random()*dead.length)];
+          const ex=Phaser.Math.Between(100,this.MW-100),ey=Phaser.Math.Between(100,this.MH-100);
+          const newEd=this.spawnEnemy(pick.id,ex,ey);
+          // リスポーンフラッシュ
+          this.tweens.add({targets:newEd.sprite,alpha:0.2,duration:200,yoyo:true,repeat:2});
+        }
+      }
+    }
+
+    // スキルCD更新
+    if(this.skillCDOverlays){
+      this.skillCDOverlays.forEach(({key,ov,ct})=>{
+        if((this[key]||0)>0){
+          this[key]-=dt;
+          ov.setFillStyle(0x000000,0.55);
+          ct.setText(Math.ceil(this[key])+'s');
+        }else{ov.setFillStyle(0x000000,0);ct.setText('');}
+      });
+    }
     // ポータル
     if(Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<60){
       if(this.bgmTimer)this.bgmTimer.remove();
@@ -1122,6 +1401,90 @@ class GameScene extends Phaser.Scene{
 }
 
 // ============================================================
+//  SkillTree Scene（ジョブスキルツリー）④
+// ============================================================
+class SkillTreeScene extends Phaser.Scene{
+  constructor(){super('SkillTree')}
+  init(data){this.playerData=data.playerData;this.returnScene=data.returnScene;this.returnData=data.returnData;}
+  create(){
+    const pd=this.playerData,w=this.scale.width,h=this.scale.height;
+    this.add.rectangle(0,0,w,h,0x000000,0.85).setOrigin(0);
+    this.add.rectangle(w/2,h/2,520,380,0x080820,0.98).setStrokeStyle(3,0x00e5ff);
+    this.add.text(w/2,h/2-175,'⚡ ジョブスキルツリー',{fontSize:'20px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
+    this.add.text(w/2,h/2-148,'JLv '+(pd.jobLv||1)+'  JP残り: '+(pd.jobPts||0),{fontSize:'14px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+
+    const SKILL_DEFS={
+      warrior:[
+        {id:'sk1',name:'烈風斬',    maxLv:10,desc:'周囲の敵を吹き飛ばす（Lv×0.3倍率UP）'},
+        {id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP（Lv×3秒追加）'},
+        {id:'sk3',name:'パリィ',    maxLv:5, desc:'攻撃無効化・3秒間（Lv/10確率）'},
+      ],
+      mage:[
+        {id:'sk1',name:'大爆発',    maxLv:10,desc:'広範囲大ダメージ（Lv×0.35倍率UP）'},
+        {id:'sk2',name:'フロスト',  maxLv:10,desc:'広範囲凍結（Lv×0.8秒延長）'},
+        {id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾（Lv×6サイズUP）'},
+      ],
+      archer:[
+        {id:'sk1',name:'5方向射撃', maxLv:10,desc:'5方向同時射撃（Lv×0.25倍率UP）'},
+        {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5（Lv×5秒延長）'},
+        {id:'sk3',name:'バルカン',  maxLv:10,desc:'2+Lv連射（最大12連射）'},
+      ],
+      bomber:[
+        {id:'sk1',name:'大爆弾',    maxLv:10,desc:'巨大爆弾（Lv×0.35倍率UP）'},
+        {id:'sk2',name:'クラスター',maxLv:10,desc:'4+Lv方向に子爆弾'},
+        {id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超強力巨大爆弾（Lv×0.8倍率UP）'},
+      ],
+    };
+    const defs=SKILL_DEFS[pd.cls]||[];
+    this.ptsText=this.add.text(w/2,h/2-128,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    this.updatePts(pd);
+
+    defs.forEach((sk,i)=>{
+      const y=h/2-90+i*80;
+      const curLv=pd[sk.id]||0;
+      const maxed=curLv>=sk.maxLv;
+      const col=curLv>0?0x00e5ff:0x444444;
+      this.add.rectangle(w/2,y,460,66,col,0.1).setStrokeStyle(1,col);
+      this.add.text(w/2-210,y-18,['[Q]','[E]','[R]'][i]+' '+sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
+      this.add.text(w/2-210,y+4,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#888888',wordWrap:{width:280}}).setOrigin(0,0.5);
+      // Lvバー
+      for(let j=0;j<sk.maxLv;j++){
+        const bx=w/2+50+j*14,fill=j<curLv?0x00e5ff:0x222222;
+        this.add.rectangle(bx,y,11,18,fill).setStrokeStyle(1,0x444444);
+      }
+      this.add.text(w/2+210,y,'Lv '+curLv+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5);
+      // 習得/強化ボタン
+      if(!maxed){
+        const cost=1;
+        const btn=this.add.rectangle(w/2+230,y,52,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
+        this.add.text(w/2+230,y,curLv===0?'習得':'強化',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
+        btn.on('pointerdown',()=>{
+          if((pd.jobPts||0)<cost)return;
+          pd.jobPts-=cost;pd[sk.id]=(pd[sk.id]||0)+1;
+          SE('potion');
+          this.updatePts(pd);
+          this.scene.stop();
+          this.scene.resume(this.returnScene,this.returnData);
+          // 再起動して反映
+          this.time.delayedCall(100,()=>{this.scene.launch('SkillTree',{playerData:pd,returnScene:this.returnScene,returnData:this.returnData});});
+        });
+        btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.4));
+        btn.on('pointerout', ()=>btn.setFillStyle(0x00e5ff,0.2));
+      }
+    });
+
+    const closeBtn=this.add.rectangle(w/2,h/2+158,200,38,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
+    this.add.text(w/2,h/2+158,'▶ 閉じる',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
+    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.4));
+    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0xffd700,0.2));
+    closeBtn.on('pointerdown',()=>this.close());
+    this.input.keyboard.once('keydown-ESC',()=>this.close());
+  }
+  updatePts(pd){if(this.ptsText)this.ptsText.setText('JP残り: '+(pd.jobPts||0)+'pt  （習得/強化: 各1pt）');}
+  close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
+}
+
+// ============================================================
 //  起動
 // ============================================================
 new Phaser.Game({
@@ -1129,5 +1492,5 @@ new Phaser.Game({
   scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:800,height:600},
   backgroundColor:'#000000',
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,StatAllocScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,StatAllocScene,SkillTreeScene,GameScene,GameClearScene]
 });
