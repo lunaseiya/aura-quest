@@ -252,7 +252,7 @@ class TownScene extends Phaser.Scene{
     this.createHUD();
     this.hintText=this.add.text(this.scale.width/2,this.scale.height-24,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#00000088',padding:{x:6,y:3}}).setOrigin(0.5).setScrollFactor(0).setDepth(11);
     this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(20).setScrollFactor(0).setVisible(false);
-    this.input.keyboard.on('keydown-E',()=>this.tryInteract());
+    // Eキー不要 - 近づいたら自動遷移・インタラクション
     if(this.playerData.pendingLvUp>0) this.time.delayedCall(500,()=>this.showLvUpScreen());
     this.createMenuButton();
   }
@@ -314,12 +314,10 @@ class TownScene extends Phaser.Scene{
     if(this._menuBadge)this._menuBadge.setText(pts>0?'↑'+pts:'');
   }
   tryInteract(){
+    // タップ/クリックでインタラクション（建物）
     const p=this.player;
-    if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<80){
-      this.bgmTimer.remove();this.scene.start('Game',{playerData:this.playerData,stage:1});return;
-    }
     for(const b of this.buildings){
-      if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+40&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+40){this.openBuilding(b);return;}
+      if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){this.openBuilding(b);return;}
     }
   }
   openBuilding(b){
@@ -358,9 +356,20 @@ class TownScene extends Phaser.Scene{
     p.setVelocity(l?-spd:r?spd:0,u?-spd:d?spd:0);
     if(this.mmDot)this.mmDot.setPosition(this.mmX+p.x/this.TW*this.mmW,this.mmY+p.y/this.TH*this.mmH);
     let hint='';
-    for(const b of this.buildings){if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){hint='[E] '+b.label;break;}}
-    if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<80)hint='[E] ST.1へ出発！';
-    this.hintText.setText(hint);
+    for(const b of this.buildings){
+      if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){
+        hint='👆 '+b.label+'（タップで入る）';
+        break;
+      }
+    }
+    // ポータルに近づいたら自動遷移（スマホ対応）
+    if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<72){
+      this.bgmTimer.remove();
+      this.scene.start('Game',{playerData:this.playerData,stage:1});
+      return;
+    }
+    if(hint==='')this.hintText.setText('');
+    else this.hintText.setText(hint);
     if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
     if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
     this._updateMenuBadge();
@@ -704,7 +713,7 @@ class GameScene extends Phaser.Scene{
     this.input.keyboard.on('keydown-F',()=>this.usePotion('hp'));
     this.input.keyboard.on('keydown-G',()=>this.usePotion('mp'));
     this.input.keyboard.on('keydown-Q',()=>this.useSkill(1));
-    this.input.keyboard.on('keydown-E',()=>this.useSkill(2));
+    this.input.keyboard.on('keydown-E',()=>this.useSkill(2)); // スキル2
     this.input.keyboard.on('keydown-R',()=>this.useSkill(3));
     // タッチ/クリック
     this.input.on('pointerdown',ptr=>{
@@ -1166,13 +1175,16 @@ class GameScene extends Phaser.Scene{
   createJoystick(){
     const w=this.scale.width,h=this.scale.height;
     this.joyActive=false;this.joyDx=0;this.joyDy=0;
-    const JX=90,JY=h-90;
-    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.45).setScrollFactor(0).setDepth(30).setStrokeStyle(2,0xffffff,0.5);
-    this.joyKnob=this.add.circle(JX,JY,24,0xffffff,0.7).setScrollFactor(0).setDepth(31);
+    // スキルボタンバー(h-56)の上に配置
+    const JX=75,JY=h-130;
+    this.joyBase=this.add.circle(JX,JY,52,0x000000,0.55).setScrollFactor(0).setDepth(30).setStrokeStyle(2,0xffffff,0.6);
+    this.joyKnob=this.add.circle(JX,JY,22,0xffffff,0.8).setScrollFactor(0).setDepth(31);
     this.joyLabel=this.add.text(JX,JY,'移動',{fontSize:'9px',fontFamily:'Courier New',color:'#ffffff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    this.joyX=JX;this.joyY=JY;this.joyR=30;
+    this.joyX=JX;this.joyY=JY;this.joyR=32;
+    this._joyInitX=JX;this._joyInitY=JY;
     this.input.on('pointerdown',ptr=>{
-      if(ptr.x<160&&ptr.y>h-160){
+      // ジョイスティック領域：左下エリア（ボタンバーより上）
+      if(ptr.x<170&&ptr.y>h-260&&ptr.y<h-56){
         this.joyActive=true;
         this.joyBase.setPosition(ptr.x,ptr.y);this.joyKnob.setPosition(ptr.x,ptr.y);this.joyLabel.setPosition(ptr.x,ptr.y);
         this.joyX=ptr.x;this.joyY=ptr.y;
