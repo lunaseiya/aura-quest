@@ -280,6 +280,7 @@ class TownScene extends Phaser.Scene{
     // Eキー不要 - 近づいたら自動遷移・インタラクション
     if(this.playerData.pendingLvUp>0) this.time.delayedCall(500,()=>this.showLvUpScreen());
     this.createMenuButton();
+    this.createTownJoystick();
   }
   createHUD(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
@@ -320,7 +321,50 @@ class TownScene extends Phaser.Scene{
     this.scene.pause();
     this.scene.launch('LevelUp',{playerData:pd,returnScene:'Town',returnData:{playerData:pd}});
   }
-  createMenuButton(){
+  createTownJoystick(){
+    const w=this.scale.width, h=this.scale.height;
+    this.townJoyActive=false; this.townJoyDx=0; this.townJoyDy=0;
+    this.townJoyPtrId=null;
+    const JX=80, JY=h-120;
+    this.townJoyX=JX; this.townJoyY=JY;
+    this.townJoyR=44;
+    // 外円
+    this.townJoyBase=this.add.circle(JX,JY,54,0x000000,0.55).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0x2ecc71,0.8);
+    // 内円
+    this.townJoyKnob=this.add.circle(JX,JY,26,0x2ecc71,0.85).setScrollFactor(0).setDepth(51);
+    this.add.text(JX,JY,'移動',{fontSize:'10px',fontFamily:'Courier New',color:'#ffffffaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(52);
+    // タッチ開始
+    this.input.on('pointerdown',(ptr)=>{
+      if(this.townJoyPtrId!==null)return;
+      if(ptr.x<w*0.45&&ptr.y<h-10&&ptr.y>h*0.35){
+        this.townJoyActive=true; this.townJoyPtrId=ptr.id;
+        this.townJoyX=ptr.x; this.townJoyY=ptr.y;
+        this.townJoyBase.setPosition(ptr.x,ptr.y);
+        this.townJoyKnob.setPosition(ptr.x,ptr.y);
+      }
+    },this);
+    this.input.on('pointermove',(ptr)=>{
+      if(!this.townJoyActive||ptr.id!==this.townJoyPtrId)return;
+      const dx=ptr.x-this.townJoyX, dy=ptr.y-this.townJoyY;
+      const dist=Math.sqrt(dx*dx+dy*dy), maxR=this.townJoyR;
+      const cx=dist>maxR?this.townJoyX+dx/dist*maxR:ptr.x;
+      const cy=dist>maxR?this.townJoyY+dy/dist*maxR:ptr.y;
+      this.townJoyKnob.setPosition(cx,cy);
+      this.townJoyDx=dist>6?dx/Math.max(dist,maxR):0;
+      this.townJoyDy=dist>6?dy/Math.max(dist,maxR):0;
+    },this);
+    const onUp=(ptr)=>{
+      if(ptr.id!==this.townJoyPtrId)return;
+      this.townJoyActive=false; this.townJoyPtrId=null;
+      this.townJoyDx=0; this.townJoyDy=0;
+      this.townJoyBase.setPosition(JX,JY);
+      this.townJoyKnob.setPosition(JX,JY);
+      this.townJoyX=JX; this.townJoyY=JY;
+    };
+    this.input.on('pointerup',onUp,this);
+    this.input.on('pointercancel',onUp,this);
+  }
+    createMenuButton(){
     const pd=this.playerData,w=this.scale.width;
     // キャラアイコンボタン（HUD左上）
     const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[pd.cls]||'?';
@@ -378,7 +422,12 @@ class TownScene extends Phaser.Scene{
     const r=this.cursors.right.isDown||this.wasd.D.isDown;
     const u=this.cursors.up.isDown||this.wasd.W.isDown;
     const d=this.cursors.down.isDown||this.wasd.S.isDown;
-    p.setVelocity(l?-spd:r?spd:0,u?-spd:d?spd:0);
+    // キーボード + タウンジョイスティック合算
+    let tvx=l?-1:r?1:(this.townJoyDx||0);
+    let tvy=u?-1:d?1:(this.townJoyDy||0);
+    const tlen=Math.sqrt(tvx*tvx+tvy*tvy);
+    if(tlen>1){tvx/=tlen;tvy/=tlen;}
+    p.setVelocity(tvx*spd, tvy*spd);
     // ボマーアニメ（Town）
     if(pd.cls==='bomber'){
       const mvx=l?-1:r?1:0, mvy=u?-1:d?1:0;
@@ -1229,38 +1278,30 @@ class GameScene extends Phaser.Scene{
     this.joyActive=false; this.joyDx=0; this.joyDy=0;
     this.joyPointerId=null;
 
-    // ジョイスティック固定位置（左下、ボタンバー上）
-    const JX=90, JY=h-110;
+    // ジョイスティック固定位置: 左下、ボタンバー(h-56)より上に余裕を持って配置
+    const JX=80, JY=h-140;
     this.joyInitX=JX; this.joyInitY=JY;
     this.joyX=JX; this.joyY=JY;
-    this.joyR=42;
+    this.joyR=44;
 
-    // 外円
-    this.joyBase=this.add.circle(JX,JY,52,0x001133,0.75)
+    // 外円（常に表示・半透明）
+    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.55)
       .setScrollFactor(0).setDepth(50)
-      .setStrokeStyle(3,0x44aaff,0.9);
-    // 内円
-    this.joyKnob=this.add.circle(JX,JY,24,0x44aaff,0.9)
+      .setStrokeStyle(3,0x44aaff,0.8);
+    // 内円（ノブ）
+    this.joyKnob=this.add.circle(JX,JY,26,0x44aaff,0.85)
       .setScrollFactor(0).setDepth(51);
-    // アイコン
-    this.joyLabel=this.add.text(JX,JY,'✛',{
-      fontSize:'20px',fontFamily:'Courier New',color:'#ffffff'
+    // ラベル
+    this.joyLabel=this.add.text(JX,JY,'移動',{
+      fontSize:'10px',fontFamily:'Courier New',color:'#ffffffaa'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(52);
 
-    // ===== ポインタ座標変換ヘルパー =====
-    // Phaserのptr.x/yはゲーム座標（FITスケール後に自動変換済み）
-    // ただし念のためscale.displayScaleを使って手動変換も用意
-    const toGame=(ptr)=>{
-      // ptr.x/yはすでにゲーム座標のはずだが念のため
-      return {x:ptr.x, y:ptr.y};
-    };
-
-    // タッチ開始
+    // ── タッチ開始 ──
+    // 反応エリア: 画面左半分・かつボタンバーより上
     this.input.on('pointerdown',(ptr)=>{
       if(this.joyPointerId!==null)return;
-      const {x,y}=toGame(ptr);
-      // 左38%・下40%エリア
-      if(x < w*0.38 && y > h*0.60){
+      const x=ptr.x, y=ptr.y;
+      if(x < w*0.45 && y < h-56 && y > h*0.35){
         this.joyActive=true;
         this.joyPointerId=ptr.id;
         this.joyX=x; this.joyY=y;
@@ -1270,22 +1311,21 @@ class GameScene extends Phaser.Scene{
       }
     },this);
 
-    // タッチ移動
+    // ── タッチ移動 ──
     this.input.on('pointermove',(ptr)=>{
       if(!this.joyActive||ptr.id!==this.joyPointerId)return;
-      const {x,y}=toGame(ptr);
-      const dx=x-this.joyX, dy=y-this.joyY;
+      const dx=ptr.x-this.joyX, dy=ptr.y-this.joyY;
       const dist=Math.sqrt(dx*dx+dy*dy);
       const maxR=this.joyR;
-      const cx=dist>maxR?this.joyX+dx/dist*maxR:x;
-      const cy=dist>maxR?this.joyY+dy/dist*maxR:y;
+      const cx=dist>maxR?this.joyX+dx/dist*maxR:ptr.x;
+      const cy=dist>maxR?this.joyY+dy/dist*maxR:ptr.y;
       this.joyKnob.setPosition(cx,cy);
       this.joyLabel.setPosition(cx,cy);
       this.joyDx=dist>6?dx/Math.max(dist,maxR):0;
       this.joyDy=dist>6?dy/Math.max(dist,maxR):0;
     },this);
 
-    // タッチ終了（pointerupとpointercancel両対応）
+    // ── タッチ終了 ──
     const onUp=(ptr)=>{
       if(ptr.id!==this.joyPointerId)return;
       this.joyActive=false;
