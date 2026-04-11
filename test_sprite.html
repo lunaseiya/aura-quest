@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スプライトテスト</title>
+  <style>* {margin:0;padding:0;background:#000;}</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<script>
+const BASE = 'https://lunaseiya.github.io/aura-quest/';
+
+class TestScene extends Phaser.Scene {
+  constructor() { super('Test'); }
+
+  preload() {
+    // スプライトシート読み込みテスト
+    this.load.spritesheet('bomber_sheet',
+      BASE + 'players/final_sheet_cc.png',
+      { frameWidth: 64, frameHeight: 64 }
+    );
+
+    this.load.on('loaderror', (file) => {
+      document.body.innerHTML = `
+        <div style="color:red;font-size:20px;padding:20px;font-family:monospace;">
+          ❌ 読み込み失敗: ${file.src}<br><br>
+          players/ フォルダに final_sheet_cc.png があるか確認してください
+        </div>`;
+    });
+  }
+
+  create() {
+    const w = this.scale.width, h = this.scale.height;
+    this.add.text(w/2, 20, 'スプライトシート読み込みテスト', {
+      fontSize: '16px', fontFamily: 'Courier New', color: '#ffd700'
+    }).setOrigin(0.5);
+
+    // アニメーション定義
+    const ANIMS = [
+      { key:'front_idle',  row:0, frames:[0],    rate:1,  label:'front idle' },
+      { key:'front_walk',  row:0, frames:[1,2],  rate:6,  label:'front walk' },
+      { key:'front_atk',   row:0, frames:[3,4],  rate:6,  label:'front attack' },
+      { key:'back_idle',   row:1, frames:[0],    rate:1,  label:'back idle' },
+      { key:'back_walk',   row:1, frames:[1,2],  rate:6,  label:'back walk' },
+      { key:'side_idle',   row:2, frames:[0],    rate:1,  label:'side idle' },
+      { key:'side_walk',   row:2, frames:[1,2],  rate:6,  label:'side walk' },
+      { key:'side_atk',    row:2, frames:[3,4],  rate:6,  label:'side attack' },
+    ];
+    ANIMS.forEach(a => {
+      this.anims.create({
+        key: a.key,
+        frames: a.frames.map(f => ({ key:'bomber_sheet', frame: a.row*5 + f })),
+        frameRate: a.rate,
+        repeat: -1
+      });
+    });
+
+    // 各アニメを並べて表示
+    const display = [
+      'front_idle','front_walk','front_atk',
+      'back_idle', 'back_walk',
+      'side_idle', 'side_walk', 'side_atk',
+    ];
+    display.forEach((key, i) => {
+      const x = 80 + (i % 4) * 160;
+      const y = 100 + Math.floor(i / 4) * 160;
+      const sp = this.add.sprite(x, y, 'bomber_sheet').setScale(2);
+      sp.play(key);
+      this.add.text(x, y + 70, key, {
+        fontSize: '11px', fontFamily: 'Courier New', color: '#aaaaaa'
+      }).setOrigin(0.5);
+    });
+
+    // 成功メッセージ
+    this.add.text(w/2, h - 20,
+      '✅ 読み込み成功！ 5×3 スプライトシート正常動作',
+      { fontSize: '13px', fontFamily: 'Courier New', color: '#2ecc71' }
+    ).setOrigin(0.5);
+  }
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO,
+  width: 720, height: 480,
+  backgroundColor: '#111122',
+  scene: TestScene
+});
+</script>
+</body>
+</html>

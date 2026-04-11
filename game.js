@@ -134,7 +134,9 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    ['warrior','mage','archer','bomber'].forEach(k=>this.load.image('player_'+k,BASE+'players/'+k+'.png'));
+    ['warrior','mage','archer'].forEach(k=>this.load.image('player_'+k,BASE+'players/'+k+'.png'));
+    // bomber はスプライトシート
+    this.load.spritesheet('player_bomber', BASE+'players/final_sheet_cc.png', {frameWidth:64,frameHeight:64});
     ['bat','boss1','boss2','boss3','dragon','goblin','sandworm','scorpion','skeleton','slime','troll','wolf'].forEach(k=>this.load.image('enemy_'+k,BASE+'enemies/'+k+'.png'));
     ['bridge','cliff','cobble','dark_forest','flower','grass','lava','oasis_grass','sand_beach','sand_desert','sea','town_path','town_wall','volcanic','water'].forEach(k=>this.load.image('tile_'+k,BASE+'tiles/'+k+'.png'));
     ['barrel','desert_rock','lava_rock','palm','rock','tree'].forEach(k=>this.load.image('obj_'+k,BASE+'objects/'+k+'.png'));
@@ -143,7 +145,29 @@ class BootScene extends Phaser.Scene{
     ['explosion','freeze','shockwave','slash'].forEach(k=>this.load.image('fx_'+k,BASE+'effects/'+k+'.png'));
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
   }
-  create(){this.scene.start('Title')}
+  create(){
+    // ボマー スプライトアニメーション定義（5×3シート、64×64px/コマ）
+    // 行0=front: idx 0-4 / 行1=back: idx 5-9 / 行2=side: idx 10-14
+    const BA=[
+      {key:'bomber_front_idle',frames:[0],    rate:2, rep:-1},
+      {key:'bomber_front_walk',frames:[1,2],  rate:8, rep:-1},
+      {key:'bomber_front_atk', frames:[3,4],  rate:8, rep:0 },
+      {key:'bomber_back_idle', frames:[5],    rate:2, rep:-1},
+      {key:'bomber_back_walk', frames:[6,7],  rate:8, rep:-1},
+      {key:'bomber_back_atk',  frames:[8,9],  rate:8, rep:0 },
+      {key:'bomber_side_idle', frames:[10],   rate:2, rep:-1},
+      {key:'bomber_side_walk', frames:[11,12],rate:8, rep:-1},
+      {key:'bomber_side_atk',  frames:[13,14],rate:8, rep:0 },
+    ];
+    BA.forEach(a=>{
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_bomber',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    this.scene.start('Title');
+  }
 }
 
 // ============================================================
@@ -245,7 +269,8 @@ class TownScene extends Phaser.Scene{
     });
     this.add.image(TW/2,TH-160,'portal_st1').setDisplaySize(96,64);
     this.add.text(TW/2,TH-110,'🌿 野外へ (ST.1)',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5);
-    this.player=this.physics.add.sprite(200,300,'player_'+this.playerData.cls).setDisplaySize(48,60).setCollideWorldBounds(true);
+    this.player=this.physics.add.sprite(200,300,'player_'+this.playerData.cls).setDisplaySize(64,64).setCollideWorldBounds(true);
+    if(this.playerData.cls==='bomber') this.player.play('bomber_front_idle');
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     this.cursors=this.input.keyboard.createCursorKeys();
     this.wasd=this.input.keyboard.addKeys('W,A,S,D');
@@ -354,6 +379,22 @@ class TownScene extends Phaser.Scene{
     const u=this.cursors.up.isDown||this.wasd.W.isDown;
     const d=this.cursors.down.isDown||this.wasd.S.isDown;
     p.setVelocity(l?-spd:r?spd:0,u?-spd:d?spd:0);
+    // ボマーアニメ（Town）
+    if(pd.cls==='bomber'){
+      const mvx=l?-1:r?1:0, mvy=u?-1:d?1:0;
+      const moving=mvx!==0||mvy!==0;
+      let facing=this._townBomberFacing||'front';
+      let flip=this._townBomberFlip||false;
+      if(moving){
+        if(Math.abs(mvy)>Math.abs(mvx)*0.5){facing=mvy<0?'back':'front';flip=false;}
+        else{facing='side';flip=mvx<0;}
+      }
+      this._townBomberFacing=facing;this._townBomberFlip=flip;
+      p.setFlipX(flip);
+      const key='bomber_'+facing+'_'+(moving?'walk':'idle');
+      const cur=p.anims.currentAnim;
+      if(!cur||cur.key!==key)p.play(key,true);
+    }
     if(this.mmDot)this.mmDot.setPosition(this.mmX+p.x/this.TW*this.mmW,this.mmY+p.y/this.TH*this.mmH);
     let hint='';
     for(const b of this.buildings){
@@ -674,7 +715,11 @@ class GameScene extends Phaser.Scene{
       this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:false};
     }
     // プレイヤー
-    this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(48,60).setCollideWorldBounds(true).setDepth(5);
+    this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(64,64).setCollideWorldBounds(true).setDepth(5);
+    // ボマーの場合は初期アニメ再生
+    if(pd.cls==='bomber') this.player.play('bomber_front_idle');
+    this._bomberFacing='front'; // 向き管理: 'front','back','side'
+    this._bomberFlip=false;     // side左向き反転フラグ
     this.physics.add.collider(this.player,this.obstacles);
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     // 弾グループ
@@ -717,8 +762,9 @@ class GameScene extends Phaser.Scene{
     this.input.keyboard.on('keydown-R',()=>this.useSkill(3));
     // タッチ/クリック
     this.input.on('pointerdown',ptr=>{
-      const h=this.scale.height;
-      if(ptr.x<160&&ptr.y>h-160)return;
+      const w=this.scale.width,h=this.scale.height;
+      // ジョイスティック領域・ボタンバーはスキップ
+      if(ptr.x<w*0.38&&ptr.y>h*0.55)return;
       if(ptr.y>h-60)return;
       const wx=ptr.worldX,wy=ptr.worldY;
       let closest=null,cd=999;
@@ -809,6 +855,8 @@ class GameScene extends Phaser.Scene{
       });
       SE('explode');
       this.atkCooldown=0.9;
+      // 攻撃アニメ
+      this.playBomberAtk();
     }
   }
 
@@ -984,6 +1032,7 @@ class GameScene extends Phaser.Scene{
         const tx=p.x+Math.cos(ang)*200,ty=p.y+Math.sin(ang)*200;
         this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(1.5+pd.sk1*0.35)),isCrit:Math.random()*100<calcCrit(pd),radius});
         this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');
+      if(this.playerData.cls==='bomber')this.playBomberAtk();
       }else if(num===2){ // クラスター爆弾
         const dirs=4+pd.sk2;
         for(let i=0;i<dirs;i++){
@@ -992,12 +1041,14 @@ class GameScene extends Phaser.Scene{
           this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(0.8+pd.sk2*0.15)),isCrit:Math.random()*100<calcCrit(pd),radius:40});
         }
         this.showFloat(p.x,p.y-60,'💥 クラスター！','#f39c12');
+      if(this.playerData.cls==='bomber')this.playBomberAtk();
       }else if(num===3){ // ハイパーボム
         const ang=this.getFacingAngle();
         const radius=150*(1+pd.sk3*0.2);
         const tx=p.x+Math.cos(ang)*220,ty=p.y+Math.sin(ang)*220;
         this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(3+pd.sk3*0.8)),isCrit:Math.random()*100<calcCrit(pd),radius});
         this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600');this.cameras.main.shake(500,0.025);
+      if(this.playerData.cls==='bomber')this.playBomberAtk();
       }
     }
 
@@ -1119,10 +1170,11 @@ class GameScene extends Phaser.Scene{
     const skillCols={warrior:0xe74c3c,mage:0x9b59b6,archer:0x27ae60,bomber:0xf39c12};
     const col=skillCols[pd.cls]||0xffd700;
     const defs=this.getSkillDefs();
-    this.add.rectangle(0,h-56,w,56,0x000000,0.7).setOrigin(0).setScrollFactor(0).setDepth(10);
+    // ボタンバー背景：左180pxはジョイスティックエリアのため除外
+    this.add.rectangle(180,h-56,w-180,56,0x000000,0.7).setOrigin(0).setScrollFactor(0).setDepth(10);
     // スキル3ボタン（Q/E/R）
     this.skillCDOverlays=[];this.skillCDTexts=[];
-    [[70,'Q',1],[155,'E',2],[240,'R',3]].forEach(([bx,key,num])=>{
+    [[230,'Q',1],[318,'E',2],[406,'R',3]].forEach(([bx,key,num])=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0;
       const c=hasSkill?col:0x555555;
@@ -1138,14 +1190,14 @@ class GameScene extends Phaser.Scene{
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
     });
     // [F] HPポーション
-    const btnF=this.add.rectangle(340,h-28,72,38,0x2ecc71,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x2ecc71).setInteractive({useHandCursor:true});
-    this.add.text(340,h-37,'[F] 💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potHPTxt=this.add.text(340,h-20,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    const btnF=this.add.rectangle(494,h-28,62,38,0x2ecc71,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x2ecc71).setInteractive({useHandCursor:true});
+    this.add.text(494,h-37,'[F] 💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potHPTxt=this.add.text(494,h-20,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
     btnF.on('pointerdown',()=>this.usePotion('hp'));btnF.on('pointerover',()=>btnF.setFillStyle(0x2ecc71,0.5));btnF.on('pointerout',()=>btnF.setFillStyle(0x2ecc71,0.25));
     // [G] MPポーション
-    const btnG=this.add.rectangle(420,h-28,72,38,0x3498db,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x3498db).setInteractive({useHandCursor:true});
-    this.add.text(420,h-37,'[G] 💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potMPTxt=this.add.text(420,h-20,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    const btnG=this.add.rectangle(564,h-28,62,38,0x3498db,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x3498db).setInteractive({useHandCursor:true});
+    this.add.text(564,h-37,'[G] 💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potMPTxt=this.add.text(564,h-20,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
     btnG.on('pointerdown',()=>this.usePotion('mp'));btnG.on('pointerover',()=>btnG.setFillStyle(0x3498db,0.5));btnG.on('pointerout',()=>btnG.setFillStyle(0x3498db,0.25));
     // [Space] 攻撃
     const btnAtk=this.add.rectangle(w-75,h-28,110,38,0xffd700,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0xffd700).setInteractive({useHandCursor:true});
@@ -1173,37 +1225,82 @@ class GameScene extends Phaser.Scene{
   }
 
   createJoystick(){
-    const w=this.scale.width,h=this.scale.height;
-    this.joyActive=false;this.joyDx=0;this.joyDy=0;
-    // スキルボタンバー(h-56)の上に配置
-    const JX=75,JY=h-130;
-    this.joyBase=this.add.circle(JX,JY,52,0x000000,0.55).setScrollFactor(0).setDepth(30).setStrokeStyle(2,0xffffff,0.6);
-    this.joyKnob=this.add.circle(JX,JY,22,0xffffff,0.8).setScrollFactor(0).setDepth(31);
-    this.joyLabel=this.add.text(JX,JY,'移動',{fontSize:'9px',fontFamily:'Courier New',color:'#ffffff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(32);
-    this.joyX=JX;this.joyY=JY;this.joyR=32;
-    this._joyInitX=JX;this._joyInitY=JY;
-    this.input.on('pointerdown',ptr=>{
-      // ジョイスティック領域：左下エリア（ボタンバーより上）
-      if(ptr.x<170&&ptr.y>h-260&&ptr.y<h-56){
+    const w=this.scale.width, h=this.scale.height;
+    this.joyActive=false; this.joyDx=0; this.joyDy=0;
+    this.joyPointerId=null;
+
+    // ジョイスティック固定位置（左下、ボタンバー上）
+    const JX=90, JY=h-110;
+    this.joyInitX=JX; this.joyInitY=JY;
+    this.joyX=JX; this.joyY=JY;
+    this.joyR=42;
+
+    // 外円
+    this.joyBase=this.add.circle(JX,JY,52,0x001133,0.75)
+      .setScrollFactor(0).setDepth(50)
+      .setStrokeStyle(3,0x44aaff,0.9);
+    // 内円
+    this.joyKnob=this.add.circle(JX,JY,24,0x44aaff,0.9)
+      .setScrollFactor(0).setDepth(51);
+    // アイコン
+    this.joyLabel=this.add.text(JX,JY,'✛',{
+      fontSize:'20px',fontFamily:'Courier New',color:'#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(52);
+
+    // ===== ポインタ座標変換ヘルパー =====
+    // Phaserのptr.x/yはゲーム座標（FITスケール後に自動変換済み）
+    // ただし念のためscale.displayScaleを使って手動変換も用意
+    const toGame=(ptr)=>{
+      // ptr.x/yはすでにゲーム座標のはずだが念のため
+      return {x:ptr.x, y:ptr.y};
+    };
+
+    // タッチ開始
+    this.input.on('pointerdown',(ptr)=>{
+      if(this.joyPointerId!==null)return;
+      const {x,y}=toGame(ptr);
+      // 左38%・下40%エリア
+      if(x < w*0.38 && y > h*0.60){
         this.joyActive=true;
-        this.joyBase.setPosition(ptr.x,ptr.y);this.joyKnob.setPosition(ptr.x,ptr.y);this.joyLabel.setPosition(ptr.x,ptr.y);
-        this.joyX=ptr.x;this.joyY=ptr.y;
+        this.joyPointerId=ptr.id;
+        this.joyX=x; this.joyY=y;
+        this.joyBase.setPosition(x,y);
+        this.joyKnob.setPosition(x,y);
+        this.joyLabel.setPosition(x,y);
       }
     },this);
-    this.input.on('pointermove',ptr=>{
-      if(!this.joyActive)return;
-      const dx=ptr.x-this.joyX,dy=ptr.y-this.joyY,dist=Math.sqrt(dx*dx+dy*dy),maxR=this.joyR;
-      const cx=dist>maxR?this.joyX+dx/dist*maxR:ptr.x,cy=dist>maxR?this.joyY+dy/dist*maxR:ptr.y;
-      this.joyKnob.setPosition(cx,cy);this.joyLabel.setPosition(cx,cy);
-      this.joyDx=dist>8?dx/Math.max(dist,maxR):0;this.joyDy=dist>8?dy/Math.max(dist,maxR):0;
+
+    // タッチ移動
+    this.input.on('pointermove',(ptr)=>{
+      if(!this.joyActive||ptr.id!==this.joyPointerId)return;
+      const {x,y}=toGame(ptr);
+      const dx=x-this.joyX, dy=y-this.joyY;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const maxR=this.joyR;
+      const cx=dist>maxR?this.joyX+dx/dist*maxR:x;
+      const cy=dist>maxR?this.joyY+dy/dist*maxR:y;
+      this.joyKnob.setPosition(cx,cy);
+      this.joyLabel.setPosition(cx,cy);
+      this.joyDx=dist>6?dx/Math.max(dist,maxR):0;
+      this.joyDy=dist>6?dy/Math.max(dist,maxR):0;
     },this);
-    this.input.on('pointerup',()=>{
-      this.joyActive=false;this.joyDx=0;this.joyDy=0;
-      this.joyBase.setPosition(JX,JY);this.joyKnob.setPosition(JX,JY);this.joyLabel.setPosition(JX,JY);
-      this.joyX=JX;this.joyY=JY;
-    },this);
+
+    // タッチ終了（pointerupとpointercancel両対応）
+    const onUp=(ptr)=>{
+      if(ptr.id!==this.joyPointerId)return;
+      this.joyActive=false;
+      this.joyPointerId=null;
+      this.joyDx=0; this.joyDy=0;
+      this.joyBase.setPosition(JX,JY);
+      this.joyKnob.setPosition(JX,JY);
+      this.joyLabel.setPosition(JX,JY);
+      this.joyX=JX; this.joyY=JY;
+    };
+    this.input.on('pointerup',onUp,this);
+    this.input.on('pointercancel',onUp,this);
   }
-  updateJoystick(){
+
+    updateJoystick(){
     const pd=this.playerData,p=this.player;
     const kl=this.cursors.left.isDown||this.wasd.A.isDown;
     const kr=this.cursors.right.isDown||this.wasd.D.isDown;
@@ -1214,6 +1311,48 @@ class GameScene extends Phaser.Scene{
     const len=Math.sqrt(vx*vx+vy*vy);
     if(len>1){vx/=len;vy/=len;}
     p.setVelocity(vx*pd.spd,vy*pd.spd);
+    // ボマーアニメ更新
+    if(pd.cls==='bomber') this._updateBomberAnim(vx,vy);
+  }
+
+  _updateBomberAnim(vx,vy){
+    const p=this.player;
+    // 攻撃中は割り込まない
+    const cur=p.anims.currentAnim;
+    if(cur&&cur.key.endsWith('_atk')&&!p.anims.isPlaying===false&&p.anims.currentFrame&&p.anims.currentFrame.index<p.anims.currentAnim.frames.length-1) return;
+
+    const moving=Math.abs(vx)>0.1||Math.abs(vy)>0.1;
+    let facing=this._bomberFacing||'front';
+    let flip=this._bomberFlip||false;
+
+    if(moving){
+      // 向き判定（上下が優先）
+      if(Math.abs(vy)>Math.abs(vx)*0.5){
+        facing=vy<0?'back':'front';
+        flip=false;
+      }else{
+        facing='side';
+        flip=vx<0; // 左向きは反転
+      }
+    }
+
+    this._bomberFacing=facing;
+    this._bomberFlip=flip;
+    p.setFlipX(flip);
+
+    const key='bomber_'+facing+'_'+(moving?'walk':'idle');
+    if(!cur||cur.key!==key) p.play(key,true);
+  }
+
+  playBomberAtk(){
+    const p=this.player;
+    const key='bomber_'+(this._bomberFacing||'front')+'_atk';
+    p.play(key,true);
+    // 攻撃終了後にidle復帰
+    p.once('animationcomplete',()=>{
+      const idleKey='bomber_'+(this._bomberFacing||'front')+'_idle';
+      p.play(idleKey,true);
+    });
   }
   updateAutoAtk(dt){
     if(!this.target||this.target.dead){
@@ -1535,8 +1674,12 @@ class GameScene extends Phaser.Scene{
 // ============================================================
 new Phaser.Game({
   type:Phaser.AUTO,
-  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:800,height:600},
+  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:960,height:540},
   backgroundColor:'#000000',
+  input:{
+    activePointers:4,        // マルチタッチ4本対応
+    touch:{capture:true},
+  },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,MenuScene,GameScene,GameClearScene]
 });
