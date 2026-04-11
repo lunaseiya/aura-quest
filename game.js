@@ -278,7 +278,19 @@ class TownScene extends Phaser.Scene{
     this.add.image(TW/2,TH-160,'portal_st1').setDisplaySize(96,64);
     this.add.text(TW/2,TH-110,'🌿 野外へ (ST.1)',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5);
     this.player=this.physics.add.sprite(200,300,'player_'+this.playerData.cls).setDisplaySize(64,64).setCollideWorldBounds(true);
-    if(this.playerData.cls==='bomber') this.player.play('bomber_front_idle');
+    // ボマー：アニメが登録済みなら再生、未登録なら少し待って再試行
+    if(this.playerData.cls==='bomber'){
+      this._townBomberFacing='front';
+      this._townBomberFlip=false;
+      const startAnim=()=>{
+        if(this.anims.exists('bomber_front_idle')){
+          this.player.play('bomber_front_idle');
+        }else{
+          this.time.delayedCall(200,startAnim);
+        }
+      };
+      startAnim();
+    }
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     this.cursors=this.input.keyboard.createCursorKeys();
     this.wasd=this.input.keyboard.addKeys('W,A,S,D');
@@ -436,21 +448,29 @@ class TownScene extends Phaser.Scene{
     const tlen=Math.sqrt(tvx*tvx+tvy*tvy);
     if(tlen>1){tvx/=tlen;tvy/=tlen;}
     p.setVelocity(tvx*spd, tvy*spd);
-    // ボマーアニメ（Town）
+    // ボマーアニメ（Town）- ジョイスティック入力も含めて向き判定
     if(pd.cls==='bomber'){
-      const mvx=l?-1:r?1:0, mvy=u?-1:d?1:0;
-      const moving=mvx!==0||mvy!==0;
+      // キーボードとジョイスティック両方を考慮
+      const mvx=tvx; // 既に合算済みの速度を使用
+      const mvy=tvy;
+      const moving=Math.abs(mvx)>0.1||Math.abs(mvy)>0.1;
       let facing=this._townBomberFacing||'front';
       let flip=this._townBomberFlip||false;
       if(moving){
-        if(Math.abs(mvy)>Math.abs(mvx)*0.5){facing=mvy<0?'back':'front';flip=false;}
-        else{facing='side';flip=mvx<0;}
+        if(Math.abs(mvy)>Math.abs(mvx)*0.5){
+          facing=mvy<0?'back':'front';
+          flip=false;
+        }else{
+          facing='side';
+          flip=mvx<0;
+        }
       }
-      this._townBomberFacing=facing;this._townBomberFlip=flip;
+      this._townBomberFacing=facing;
+      this._townBomberFlip=flip;
       p.setFlipX(flip);
       const key='bomber_'+facing+'_'+(moving?'walk':'idle');
       const cur=p.anims.currentAnim;
-      if(!cur||cur.key!==key)p.play(key,true);
+      if(!cur||cur.key!==key) p.play(key,true);
     }
     if(this.mmDot)this.mmDot.setPosition(this.mmX+p.x/this.TW*this.mmW,this.mmY+p.y/this.TH*this.mmH);
     let hint='';
@@ -827,22 +847,22 @@ class GameScene extends Phaser.Scene{
     this.input.keyboard.on('keydown-E',()=>this.useSkill(2)); // スキル2
     this.input.keyboard.on('keydown-R',()=>this.useSkill(3));
     // タッチ/クリック
+    // タップはターゲット選択のみ（攻撃はボタンで手動）
     this.input.on('pointerdown',ptr=>{
       const w=this.scale.width,h=this.scale.height;
-      // ジョイスティック領域・ボタンバーはスキップ
-      if(ptr.x<w*0.38&&ptr.y>h*0.55)return;
-      if(ptr.y>h-60)return;
+      if(ptr.x<w*0.25&&ptr.y>h*0.4)return; // ジョイスティック領域
+      if(ptr.x>w*0.55&&ptr.y>h*0.55)return; // 右下ボタン領域
+      if(ptr.y>h-120)return; // ボタンバー領域
       const wx=ptr.worldX,wy=ptr.worldY;
-      let closest=null,cd=999;
+      let closest=null,cd=120;
       this.enemyDataList.forEach(ed=>{
         if(ed.dead)return;
         const d=Phaser.Math.Distance.Between(wx,wy,ed.sprite.x,ed.sprite.y);
-        if(d<80&&d<cd){cd=d;closest=ed;}
+        if(d<cd){cd=d;closest=ed;}
       });
-      if(closest){this.target=closest;this.autoAtkTimer=0;}
-      else{this.target=null;this.normalAttack();}
+      if(closest) this.target=closest;
     });
-    this.atkCooldown=0;this.skillCooldown=0;this.target=null;this.autoAtkTimer=0;
+    this.atkCooldown=0;this.skillCooldown=0;this.target=null;
     // 攻撃向き
     this.facingAngle=0;
     this.input.on('pointermove',ptr=>{
@@ -927,11 +947,20 @@ class GameScene extends Phaser.Scene{
   }
 
   getFacingAngle(){
-    // ターゲットがいれば向かう方向、なければマウス向き
-    if(this.target&&!this.target.dead){
-      return Phaser.Math.Angle.Between(this.player.x,this.player.y,this.target.sprite.x,this.target.sprite.y);
+    // ジョイスティック入力があればその向き（スマホ優先）
+    if(this.joyDx!==0||this.joyDy!==0){
+      return Math.atan2(this.joyDy,this.joyDx);
     }
-    return this.facingAngle||0;
+    // キーボード入力
+    const kl=this.cursors.left.isDown||this.wasd.A.isDown;
+    const kr=this.cursors.right.isDown||this.wasd.D.isDown;
+    const ku=this.cursors.up.isDown||this.wasd.W.isDown;
+    const kd=this.cursors.down.isDown||this.wasd.S.isDown;
+    const vx=kl?-1:kr?1:0;
+    const vy=ku?-1:kd?1:0;
+    if(vx!==0||vy!==0) return Math.atan2(vy,vx);
+    // どちらもなければ最後に動いた向き（_lastAngle）
+    return this._lastAngle||0;
   }
 
   fireBullet(x,y,ang,texture,opt){
@@ -1236,40 +1265,73 @@ class GameScene extends Phaser.Scene{
     const skillCols={warrior:0xe74c3c,mage:0x9b59b6,archer:0x27ae60,bomber:0xf39c12};
     const col=skillCols[pd.cls]||0xffd700;
     const defs=this.getSkillDefs();
-    // ボタンバー背景：左180pxはジョイスティックエリアのため除外
-    this.add.rectangle(180,h-56,w-180,56,0x000000,0.7).setOrigin(0).setScrollFactor(0).setDepth(10);
-    // スキル3ボタン（Q/E/R）
-    this.skillCDOverlays=[];this.skillCDTexts=[];
-    [[230,'Q',1],[318,'E',2],[406,'R',3]].forEach(([bx,key,num])=>{
+
+    // ── レイアウト ──────────────────────────────
+    // 右下: 大攻撃ボタン（⚔）
+    // その左: スキル3つ縦並び（小さめ）
+    // 左中央: ポーション2つ
+    // 左下: ジョイスティック（別メソッドで生成済み）
+
+    const BTN_SIZE=70;  // 攻撃ボタンサイズ
+    const SK_W=72, SK_H=36; // スキルボタンサイズ
+
+    // 攻撃ボタン（右下）
+    const atkX=w-BTN_SIZE/2-8, atkY=h-BTN_SIZE/2-8;
+    const btnAtk=this.add.circle(atkX,atkY,BTN_SIZE/2,0xffd700,0.25)
+      .setScrollFactor(0).setDepth(11)
+      .setStrokeStyle(3,0xffd700,0.9)
+      .setInteractive({useHandCursor:true});
+    this.add.text(atkX,atkY-8,'⚔',{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.add.text(atkX,atkY+14,'攻撃',{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    btnAtk.on('pointerdown',()=>{btnAtk.setFillStyle(0xffd700,0.6);this.normalAttack();});
+    btnAtk.on('pointerup',  ()=>btnAtk.setFillStyle(0xffd700,0.25));
+    btnAtk.on('pointerout', ()=>btnAtk.setFillStyle(0xffd700,0.25));
+
+    // スキルボタン3つ（攻撃ボタンの左、縦並び）
+    this.skillCDOverlays=[];
+    const skLabels=['Q','E','R'];
+    [1,2,3].forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0;
       const c=hasSkill?col:0x555555;
-      const btn=this.add.rectangle(bx,h-28,78,38,c,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,c).setInteractive({useHandCursor:true});
-      this.add.text(bx,h-37,'['+key+']',{fontSize:'9px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-      this.add.text(bx,h-26,sk.name,{fontSize:'9px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#666666'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-      this.add.text(bx,h-16,'Lv'+(pd['sk'+num]||0),{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-      btn.on('pointerdown',()=>this.useSkill(num));
-      btn.on('pointerover',()=>btn.setFillStyle(c,hasSkill?0.5:0.1));
+      const bx=w-BTN_SIZE-SK_W/2-20;
+      const by=h-SK_H*3+SK_H*i+SK_H/2-4;
+      const btn=this.add.rectangle(bx,by,SK_W,SK_H-4,c,0.25)
+        .setScrollFactor(0).setDepth(11)
+        .setStrokeStyle(2,c,hasSkill?0.9:0.4)
+        .setInteractive({useHandCursor:true});
+      this.add.text(bx-SK_W/2+8,by,'['+skLabels[i]+']',{fontSize:'9px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')}).setOrigin(0,0.5).setScrollFactor(0).setDepth(12);
+      const skNameTxt=this.add.text(bx+4,by-6,sk.name,{fontSize:'9px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#555555'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+      const lvTxt=this.add.text(bx+SK_W/2-4,by+7,'Lv'+(pd['sk'+num]||0),{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(12);
+      btn.on('pointerdown',()=>{btn.setFillStyle(c,hasSkill?0.6:0.1);this.useSkill(num);});
+      btn.on('pointerup',  ()=>btn.setFillStyle(c,0.25));
       btn.on('pointerout', ()=>btn.setFillStyle(c,0.25));
-      const ov=this.add.rectangle(bx,h-28,78,38,0x000000,0).setScrollFactor(0).setDepth(13);
-      const ct=this.add.text(bx,h-28,'',{fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(14);
+      // CDオーバーレイ
+      const ov=this.add.rectangle(bx,by,SK_W,SK_H-4,0x000000,0).setScrollFactor(0).setDepth(13);
+      const ct=this.add.text(bx,by,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(14);
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
     });
-    // [F] HPポーション
-    const btnF=this.add.rectangle(494,h-28,62,38,0x2ecc71,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x2ecc71).setInteractive({useHandCursor:true});
-    this.add.text(494,h-37,'[F] 💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potHPTxt=this.add.text(494,h-20,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnF.on('pointerdown',()=>this.usePotion('hp'));btnF.on('pointerover',()=>btnF.setFillStyle(0x2ecc71,0.5));btnF.on('pointerout',()=>btnF.setFillStyle(0x2ecc71,0.25));
-    // [G] MPポーション
-    const btnG=this.add.rectangle(564,h-28,62,38,0x3498db,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0x3498db).setInteractive({useHandCursor:true});
-    this.add.text(564,h-37,'[G] 💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potMPTxt=this.add.text(564,h-20,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnG.on('pointerdown',()=>this.usePotion('mp'));btnG.on('pointerover',()=>btnG.setFillStyle(0x3498db,0.5));btnG.on('pointerout',()=>btnG.setFillStyle(0x3498db,0.25));
-    // [Space] 攻撃
-    const btnAtk=this.add.rectangle(w-75,h-28,110,38,0xffd700,0.25).setScrollFactor(0).setDepth(11).setStrokeStyle(1,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(w-75,h-37,'[Space]',{fontSize:'9px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.add.text(w-75,h-20,'攻撃',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnAtk.on('pointerdown',()=>this.normalAttack());btnAtk.on('pointerover',()=>btnAtk.setFillStyle(0xffd700,0.5));btnAtk.on('pointerout',()=>btnAtk.setFillStyle(0xffd700,0.25));
+
+    // ポーションボタン（左下エリア右寄り、ジョイスティックの右）
+    const potX=185;
+    // HP
+    const btnF=this.add.rectangle(potX,h-36,56,32,0x2ecc71,0.25)
+      .setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x2ecc71,0.8)
+      .setInteractive({useHandCursor:true});
+    this.add.text(potX,h-43,'[F]💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potHPTxt=this.add.text(potX,h-26,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    btnF.on('pointerdown',()=>{btnF.setFillStyle(0x2ecc71,0.6);this.usePotion('hp');});
+    btnF.on('pointerup',  ()=>btnF.setFillStyle(0x2ecc71,0.25));
+    btnF.on('pointerout', ()=>btnF.setFillStyle(0x2ecc71,0.25));
+    // MP
+    const btnG=this.add.rectangle(potX+64,h-36,56,32,0x3498db,0.25)
+      .setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x3498db,0.8)
+      .setInteractive({useHandCursor:true});
+    this.add.text(potX+64,h-43,'[G]💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    this.potMPTxt=this.add.text(potX+64,h-26,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
+    btnG.on('pointerdown',()=>{btnG.setFillStyle(0x3498db,0.6);this.usePotion('mp');});
+    btnG.on('pointerup',  ()=>btnG.setFillStyle(0x3498db,0.25));
+    btnG.on('pointerout', ()=>btnG.setFillStyle(0x3498db,0.25));
   }
 
   createMinimap(){
@@ -1391,6 +1453,8 @@ class GameScene extends Phaser.Scene{
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
     if(pd.cls==='bomber') this._updateBomberAnim(vx,vy);
+    // 最後に動いた向きを記録（攻撃方向決定用）
+    if(vx!==0||vy!==0) this._lastAngle=Math.atan2(vy,vx);
   }
 
   _registerBomberAnims(){
@@ -1454,23 +1518,7 @@ class GameScene extends Phaser.Scene{
     });
   }
   updateAutoAtk(dt){
-    if(!this.target||this.target.dead){
-      if(this.sys.game.device.input.touch){
-        let closest=null,cd=180;
-        this.enemyDataList.forEach(ed=>{if(ed.dead)return;const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,ed.sprite.x,ed.sprite.y);if(d<cd){cd=d;closest=ed;}});
-        if(closest)this.target=closest;
-      }
-      return;
-    }
-    const t=this.target,p=this.player;
-    const dist=Phaser.Math.Distance.Between(p.x,p.y,t.sprite.x,t.sprite.y);
-    if(dist<=160){
-      this.autoAtkTimer-=dt;
-      if(this.autoAtkTimer<=0){this.normalAttack();this.autoAtkTimer=0.55;}
-    }else if(!this.joyActive&&!this.cursors.left.isDown&&!this.cursors.right.isDown&&!this.cursors.up.isDown&&!this.cursors.down.isDown&&!this.wasd.A.isDown&&!this.wasd.D.isDown&&!this.wasd.W.isDown&&!this.wasd.S.isDown){
-      const ang=Phaser.Math.Angle.Between(p.x,p.y,t.sprite.x,t.sprite.y);
-      p.setVelocity(Math.cos(ang)*this.playerData.spd,Math.sin(ang)*this.playerData.spd);
-    }
+    // 自動攻撃廃止 - ボタンで手動攻撃
   }
 
   // ── 敵スポーン ────────────────────────────────
@@ -1637,7 +1685,7 @@ class GameScene extends Phaser.Scene{
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
     this.updateJoystick();
-    this.updateAutoAtk(dt);
+    // 自動攻撃なし（ボタンで手動攻撃）
     if(Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
     // スキルCD（createSkillButtons内のoverlayで処理）
