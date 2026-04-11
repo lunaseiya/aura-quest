@@ -1278,30 +1278,46 @@ class GameScene extends Phaser.Scene{
     this.joyActive=false; this.joyDx=0; this.joyDy=0;
     this.joyPointerId=null;
 
-    // ジョイスティック固定位置: 左下、ボタンバー(h-56)より上に余裕を持って配置
+    // 固定位置: 左下 ボタンバー(h-56)より上
     const JX=80, JY=h-140;
     this.joyInitX=JX; this.joyInitY=JY;
     this.joyX=JX; this.joyY=JY;
     this.joyR=44;
 
-    // 外円（常に表示・半透明）
-    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.55)
+    // 外円（常時表示）
+    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.60)
       .setScrollFactor(0).setDepth(50)
-      .setStrokeStyle(3,0x44aaff,0.8);
+      .setStrokeStyle(3,0x44aaff,1.0);
     // 内円（ノブ）
-    this.joyKnob=this.add.circle(JX,JY,26,0x44aaff,0.85)
+    this.joyKnob=this.add.circle(JX,JY,26,0x44aaff,0.95)
       .setScrollFactor(0).setDepth(51);
     // ラベル
     this.joyLabel=this.add.text(JX,JY,'移動',{
-      fontSize:'10px',fontFamily:'Courier New',color:'#ffffffaa'
+      fontSize:'10px',fontFamily:'Courier New',color:'#ffffff'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(52);
 
-    // ── タッチ開始 ──
-    // 反応エリア: 画面左半分・かつボタンバーより上
+    // iPhoneではptr.x/yがスクリーン座標で来る場合があるため
+    // scale.displayScale で正規化して判定する
+    const getGameXY=(ptr)=>{
+      const ds=this.scale.displayScale;
+      const bounds=this.scale.canvasBounds;
+      const gx=(ptr.event.clientX - bounds.left) / ds.x;
+      const gy=(ptr.event.clientY - bounds.top)  / ds.y;
+      return {x:gx, y:gy};
+    };
+
+    // タッチ開始
     this.input.on('pointerdown',(ptr)=>{
       if(this.joyPointerId!==null)return;
-      const x=ptr.x, y=ptr.y;
-      if(x < w*0.45 && y < h-56 && y > h*0.35){
+      // まずptr.x/yを使い、念のためgetGameXYも試す
+      let x=ptr.x, y=ptr.y;
+      // iOSでずれる場合の補正
+      if(ptr.event && ptr.event.clientX){
+        const g=getGameXY(ptr);
+        if(g.x>=0&&g.x<=w&&g.y>=0&&g.y<=h){x=g.x;y=g.y;}
+      }
+      // 反応エリア: 左45% かつ ボタンバーより上 かつ 画面上35%より下
+      if(x < w*0.45 && y > h*0.30 && y < h-50){
         this.joyActive=true;
         this.joyPointerId=ptr.id;
         this.joyX=x; this.joyY=y;
@@ -1311,21 +1327,26 @@ class GameScene extends Phaser.Scene{
       }
     },this);
 
-    // ── タッチ移動 ──
+    // タッチ移動
     this.input.on('pointermove',(ptr)=>{
       if(!this.joyActive||ptr.id!==this.joyPointerId)return;
-      const dx=ptr.x-this.joyX, dy=ptr.y-this.joyY;
+      let x=ptr.x, y=ptr.y;
+      if(ptr.event && ptr.event.clientX){
+        const g=getGameXY(ptr);
+        if(g.x>=0&&g.x<=w&&g.y>=0&&g.y<=h){x=g.x;y=g.y;}
+      }
+      const dx=x-this.joyX, dy=y-this.joyY;
       const dist=Math.sqrt(dx*dx+dy*dy);
       const maxR=this.joyR;
-      const cx=dist>maxR?this.joyX+dx/dist*maxR:ptr.x;
-      const cy=dist>maxR?this.joyY+dy/dist*maxR:ptr.y;
+      const cx=dist>maxR?this.joyX+dx/dist*maxR:x;
+      const cy=dist>maxR?this.joyY+dy/dist*maxR:y;
       this.joyKnob.setPosition(cx,cy);
       this.joyLabel.setPosition(cx,cy);
       this.joyDx=dist>6?dx/Math.max(dist,maxR):0;
       this.joyDy=dist>6?dy/Math.max(dist,maxR):0;
     },this);
 
-    // ── タッチ終了 ──
+    // タッチ終了
     const onUp=(ptr)=>{
       if(ptr.id!==this.joyPointerId)return;
       this.joyActive=false;
@@ -1340,7 +1361,7 @@ class GameScene extends Phaser.Scene{
     this.input.on('pointercancel',onUp,this);
   }
 
-    updateJoystick(){
+  updateJoystick(){
     const pd=this.playerData,p=this.player;
     const kl=this.cursors.left.isDown||this.wasd.A.isDown;
     const kr=this.cursors.right.isDown||this.wasd.D.isDown;
