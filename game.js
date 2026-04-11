@@ -1872,22 +1872,15 @@ class GameScene extends Phaser.Scene{
 
   checkLevelUp(){
     const pd=this.playerData;
-    let leveled=false;
     while(pd.exp>=pd.expNext){
       pd.exp-=pd.expNext;pd.lv++;pd.expNext=Math.floor(pd.expNext*1.4);
       pd.mhp+=8;pd.hp=pd.mhp;pd.atk+=1;pd.def+=1;pd.msp+=5;pd.sp=pd.msp;
       pd.statPts=(pd.statPts||0)+3;
-      pd.pendingLvUp=(pd.pendingLvUp||0)+1;
-      leveled=true;
       SE('levelup');this.cameras.main.flash(300,255,215,0);
-      this.showFloat(this.player.x,this.player.y-80,'✨ LEVEL UP! Lv'+pd.lv,'#ffd700');
+      this.showFloat(this.player.x,this.player.y-80,'✨ LEVEL UP! Lv'+pd.lv+'  ↑MENUでST振り','#ffd700');
     }
-    // ステージ上でレベルアップ→少し待ってからMenuを開く
-    if(leveled&&!this._menuOpen){
-      this.time.delayedCall(1200,()=>{
-        if(!this._menuOpen) this.openMenu('stat');
-      });
-    }
+    // バッジ更新のみ（自動Menu表示なし）
+    this._updateMenuBadge();
   }
   // ⑦ ジョブEXP処理
   addJobExp(amount){
@@ -1903,12 +1896,8 @@ class GameScene extends Phaser.Scene{
       SE('levelup');
       this.showFloat(this.player.x,this.player.y-100,'⚡ JOB LV UP! JLv'+pd.jobLv,'#00e5ff');
     }
-    // ジョブLvUP→少し待ってMenuを開く（LvUPと重複しない場合のみ）
-    if(jobLeveled&&!this._menuOpen&&!(pd.pendingLvUp>0)){
-      this.time.delayedCall(1400,()=>{
-        if(!this._menuOpen) this.openMenu('skill');
-      });
-    }
+    // バッジ更新のみ（自動Menu表示なし）
+    if(jobLeveled) this._updateMenuBadge();
   }
 
   usePotion(type){
