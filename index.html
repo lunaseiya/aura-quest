@@ -14,14 +14,13 @@
       background: #000;
       overflow: hidden;
       overscroll-behavior: none;
+      -webkit-overflow-scrolling: none;
       touch-action: none;
-    }
-    #game-container {
-      width: 100vw;
-      height: 100vh;
     }
     canvas {
       display: block;
+      width: 100% !important;
+      height: 100% !important;
       touch-action: none;
     }
     #rotate-msg {
@@ -47,7 +46,6 @@
     <div>端末を横向きにしてください</div>
     <div style="font-size:14px;color:#aaa;">Please rotate your device</div>
   </div>
-  <div id="game-container"></div>
 
   <script>
     function checkOrientation() {
@@ -57,8 +55,10 @@
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
     window.addEventListener('load', checkOrientation);
-    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-    document.addEventListener('touchstart', e => { if(e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchstart', function(e){
+      if(e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
   </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>

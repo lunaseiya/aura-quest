@@ -546,21 +546,29 @@ class MenuScene extends Phaser.Scene{
   }
   create(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
+    // 960×540 に収まるパネル: 幅90% 高さ92%
+    const PW=Math.min(w*0.92,860), PH=Math.min(h*0.92,500);
+    const PX=w/2, PY=h/2;
     this.add.rectangle(0,0,w,h,0x000000,0.88).setOrigin(0);
-    this.add.rectangle(w/2,h/2,560,430,0x060916,0.99).setStrokeStyle(2,0x44aaff);
+    this.add.rectangle(PX,PY,PW,PH,0x060916,0.99).setStrokeStyle(2,0x44aaff);
+
+    // タブ
     this.tabBtns={};this.tabTxts={};
-    [['stat','⚡ ステータス',0x44aaff,-120],['skill','🎯 スキルツリー',0x00e5ff,120]].forEach(([id,label,col,ox])=>{
-      const btn=this.add.rectangle(w/2+ox,h/2-200,210,34,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
-      const txt=this.add.text(w/2+ox,h/2-200,label,{fontSize:'13px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
+    [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
+      const btn=this.add.rectangle(PX+ox,PY-PH/2+20,PW/2-8,32,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
+      const txt=this.add.text(PX+ox,PY-PH/2+20,label,{fontSize:'12px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
       btn.on('pointerdown',()=>this.switchTab(id));
       this.tabBtns[id]=btn;this.tabTxts[id]=txt;
     });
+
     this.statCont=this.add.container(0,0);
     this.skillCont=this.add.container(0,0);
-    this._buildStat(pd,w,h);
-    this._buildSkill(pd,w,h);
-    const close=this.add.rectangle(w/2,h/2+200,200,34,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(w/2,h/2+200,'✕ 閉じる',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
+    this._buildStat(pd,w,h,PW,PH,PX,PY);
+    this._buildSkill(pd,w,h,PW,PH,PX,PY);
+
+    // 閉じるボタン
+    const close=this.add.rectangle(PX,PY+PH/2-18,160,30,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
+    this.add.text(PX,PY+PH/2-18,'✕ 閉じる',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
     close.on('pointerover',()=>close.setFillStyle(0xffd700,0.45));
     close.on('pointerout', ()=>close.setFillStyle(0xffd700,0.2));
     close.on('pointerdown',()=>this._close());
@@ -578,46 +586,54 @@ class MenuScene extends Phaser.Scene{
       this.tabTxts[id].setColor(id===tab?'#'+col.toString(16).padStart(6,'0'):'#334455');
     });
   }
-  _buildStat(pd,w,h){
+  _buildStat(pd,w,h,PW,PH,PX,PY){
     const c=this.statCont;
     const S=[
-      {key:'atk',label:'力  (STR)',desc:'ATK +2/pt',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
-      {key:'spd',label:'素早(AGI)',desc:'SPD+12/pt',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
-      {key:'mag',label:'魔力(MAG)',desc:'MAG +2/pt',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力(VIT)',desc:'HP  +9/pt',col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
-      {key:'luk',label:'運  (LUK)',desc:'CRIT+1/pt',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
-      {key:'hit',label:'命中(DEX)',desc:'HIT +2/pt',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
+      {key:'atk',label:'力  STR',desc:'ATK+2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
+      {key:'spd',label:'素早 AGI',desc:'SPD+12',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
+      {key:'mag',label:'魔力 MAG',desc:'MAG+2',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mhp',label:'体力 VIT',desc:'HP+9', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'luk',label:'運   LUK',desc:'CRIT+1',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
+      {key:'hit',label:'命中 DEX',desc:'HIT+2',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
     this._tmp={};S.forEach(s=>{this._tmp[s.key]=0;});
     this._tmpPts=pd.statPts||0;
-    this._ptsTxt=this.add.text(w/2,h/2-170,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+
+    const TOP=PY-PH/2+46;
+    const ROW_H=(PH-100)/7; // 6行+ヘッダ+ボタン
+
+    this._ptsTxt=this.add.text(PX,TOP,'' ,{fontSize:'12px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
     c.add(this._ptsTxt);this._refreshPts();
+
     this._vt={};this._at={};
+    const LX=PX-PW/2+12; // 左端
     S.forEach((s,i)=>{
-      const y=h/2-130+i*37;
-      const lbl=this.add.text(w/2-250,y,s.label,{fontSize:'12px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
-      const dsc=this.add.text(w/2-130,y,s.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#555'}).setOrigin(0,0.5);
-      const cur=this.add.text(w/2+20,y,this._sv(pd,s.key),{fontSize:'12px',fontFamily:'Courier New',color:'#ddd'}).setOrigin(0,0.5);
-      const add=this.add.text(w/2+100,y,'',{fontSize:'12px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
-      const bm=this.add.rectangle(w/2+172,y,30,26,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
-      this.add.text(w/2+172,y,'−',{fontSize:'15px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
+      const y=TOP+22+i*ROW_H;
+      const lbl=this.add.text(LX,     y,s.label,{fontSize:'11px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
+      const dsc=this.add.text(LX+100, y,s.desc, {fontSize:'10px',fontFamily:'Courier New',color:'#555'}).setOrigin(0,0.5);
+      const cur=this.add.text(LX+190, y,this._sv(pd,s.key),{fontSize:'11px',fontFamily:'Courier New',color:'#ddd'}).setOrigin(0,0.5);
+      const add=this.add.text(LX+255, y,'',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
+      const bm=this.add.rectangle(PX+PW/2-70,y,34,24,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
+      this.add.text(PX+PW/2-70,y,'−',{fontSize:'16px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
       bm.on('pointerdown',()=>this._adj(s,-1,cur,add));
       bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5));
       bm.on('pointerout', ()=>bm.setFillStyle(0xe74c3c,0.25));
-      const bp=this.add.rectangle(w/2+215,y,30,26,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
-      this.add.text(w/2+215,y,'+',{fontSize:'15px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+      const bp=this.add.rectangle(PX+PW/2-30,y,34,24,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
+      this.add.text(PX+PW/2-30,y,'+',{fontSize:'16px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
       bp.on('pointerdown',()=>this._adj(s,+1,cur,add));
       bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5));
       bp.on('pointerout', ()=>bp.setFillStyle(0x44aaff,0.25));
       c.add([lbl,dsc,cur,add,bm,bp]);
       this._vt[s.key]=cur;this._at[s.key]=add;
     });
-    const ok=this.add.rectangle(w/2-60,h/2+160,185,34,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
-    this.add.text(w/2-60,h/2+160,'✔ 確定して反映',{fontSize:'13px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+
+    const BY=PY+PH/2-48;
+    const ok=this.add.rectangle(PX-60,BY,160,28,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
+    this.add.text(PX-60,BY,'✔ 確定して反映',{fontSize:'11px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
     ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5));ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
     ok.on('pointerdown',()=>this._confirm(pd,S));c.add(ok);
-    const rst=this.add.rectangle(w/2+120,h/2+160,110,34,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
-    this.add.text(w/2+120,h/2+160,'↺ リセット',{fontSize:'12px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
+    const rst=this.add.rectangle(PX+100,BY,100,28,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
+    this.add.text(PX+100,BY,'↺ リセット',{fontSize:'11px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
     rst.on('pointerdown',()=>this._reset(S));rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4));rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
     c.add(rst);
   }
@@ -642,31 +658,44 @@ class MenuScene extends Phaser.Scene{
     S.forEach(s=>{this._tmpPts+=this._tmp[s.key]||0;this._tmp[s.key]=0;if(this._at[s.key])this._at[s.key].setText('');});
     this._refreshPts();
   }
-  _buildSkill(pd,w,h){
+  _buildSkill(pd,w,h,PW,PH,PX,PY){
     const c=this.skillCont;
     const DEFS={
-      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす（Lv×0.3倍率UP）'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP（Lv×3秒追加）'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化・3秒間'}],
-      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ（Lv×0.35倍率UP）'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結（Lv×0.8秒延長）'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾（Lv×6サイズUP）'}],
-      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃（Lv×0.25倍率UP）'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5（Lv×5秒延長）'},{id:'sk3',name:'バルカン',maxLv:10,desc:'2+Lv連射（最大12連射）'}],
-      bomber: [{id:'sk1',name:'大爆弾',maxLv:10,desc:'巨大爆弾（Lv×0.35倍率UP）'},{id:'sk2',name:'クラスター',maxLv:10,desc:'4+Lv方向に子爆弾'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超強力巨大爆弾'}],
+      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
+      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
+      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
+      bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
     };
     const defs=DEFS[pd.cls]||[];
-    const jpTxt=this.add.text(w/2,h/2-170,'JLv'+(pd.jobLv||1)+'  JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'13px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-    const jbg=this.add.rectangle(w/2,h/2-152,300,8,0x222222).setOrigin(0.5);
-    const jbar=this.add.rectangle(w/2-150,h/2-152,300*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5);
+    const TOP=PY-PH/2+46;
+    // JOBポイント表示
+    const jpTxt=this.add.text(PX,TOP,'JLv'+(pd.jobLv||1)+'  JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'12px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    // JEXPバー
+    const jbg=this.add.rectangle(PX,TOP+16,PW-24,7,0x222222).setOrigin(0.5);
+    const jbar=this.add.rectangle(PX-(PW-24)/2,TOP+16,(PW-24)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),7,0x00e5ff).setOrigin(0,0.5);
     c.add([jpTxt,jbg,jbar]);
+
+    const SK_H=(PH-120)/3;
     defs.forEach((sk,i)=>{
-      const y=h/2-105+i*88,cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
-      const bg=this.add.rectangle(w/2,y,520,76,col,0.07).setStrokeStyle(1,col);
-      const kl=this.add.text(w/2-240,y-20,['[Q]','[E]','[R]'][i],{fontSize:'10px',fontFamily:'Courier New',color:'#777'}).setOrigin(0,0.5);
-      const nm=this.add.text(w/2-205,y-20,sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
-      const ds=this.add.text(w/2-240,y+4,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#777',wordWrap:{width:310}}).setOrigin(0,0.5);
-      for(let j=0;j<sk.maxLv;j++){c.add(this.add.rectangle(w/2+60+j*16,y-20,13,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366));}
-      const lvt=this.add.text(w/2+240,y-20,'Lv'+cur+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
+      const y=TOP+38+i*SK_H+SK_H/2;
+      const cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
+      const bg=this.add.rectangle(PX,y,PW-20,SK_H-6,col,0.07).setStrokeStyle(1,col);
+      const LX=PX-PW/2+14;
+      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'10px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
+      const nm=this.add.text(LX+36,y-12,sk.name,{fontSize:'13px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
+      const ds=this.add.text(LX,y+6,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#777'}).setOrigin(0,0.5);
+      // Lvバー（最大10マス）
+      const barW=Math.min(sk.maxLv*14, PW/2-20);
+      const bpx=PX-PW/4;
+      for(let j=0;j<sk.maxLv;j++){
+        const bx=bpx+j*(barW/sk.maxLv);
+        c.add(this.add.rectangle(bx,y-12,barW/sk.maxLv-2,12,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5));
+      }
+      const lvt=this.add.text(PX+PW/2-100,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'10px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
       c.add([bg,kl,nm,ds,lvt]);
       if(!maxed){
-        const btn=this.add.rectangle(w/2+215,y+20,120,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
-        const bt=this.add.text(w/2+215,y+20,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
+        const btn=this.add.rectangle(PX+PW/2-52,y+6,88,24,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
+        const bt=this.add.text(PX+PW/2-52,y+6,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'10px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
         btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.45));btn.on('pointerout',()=>btn.setFillStyle(0x00e5ff,0.2));
         btn.on('pointerdown',()=>{
           if((pd.jobPts||0)<1)return;
@@ -674,7 +703,7 @@ class MenuScene extends Phaser.Scene{
           this.scene.restart({playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
         });
         c.add([btn,bt]);
-      }else{c.add(this.add.text(w/2+215,y+20,'MAX',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
+      }else{c.add(this.add.text(PX+PW/2-52,y+6,'MAX',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
     });
   }
   _close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
@@ -938,7 +967,7 @@ class GameScene extends Phaser.Scene{
     }else if(cls==='bomber'){
       // 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
       const ang=this.getFacingAngle();
-      const dist=180;
+      const dist=60;
       const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
       this.throwBomb(p.x,p.y,tx,ty,{
         dmg:Math.max(1,pd.atk*3+Phaser.Math.Between(0,pd.atk*2)),
@@ -1127,29 +1156,42 @@ class GameScene extends Phaser.Scene{
     }
     // ─ ボマー ─
     else if(pd.cls==='bomber'){
-      if(num===1){ // 大爆弾
-        const ang=this.getFacingAngle();
-        const radius=55*(1+pd.sk1*0.12);
-        const tx=p.x+Math.cos(ang)*200,ty=p.y+Math.sin(ang)*200;
-        this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(1.5+pd.sk1*0.35)),isCrit:Math.random()*100<calcCrit(pd),radius});
-        this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');
-      if(this.playerData.cls==='bomber')this.playBomberAtk();
-      }else if(num===2){ // クラスター爆弾
-        const dirs=4+pd.sk2;
+      if(num===1){ // クラスター爆弾（sk1）: 6方向 投擲60px 半径40px
+        const dirs=6;
         for(let i=0;i<dirs;i++){
           const a=i/dirs*Math.PI*2;
-          const tx=p.x+Math.cos(a)*120,ty=p.y+Math.sin(a)*120;
-          this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(0.8+pd.sk2*0.15)),isCrit:Math.random()*100<calcCrit(pd),radius:40});
+          const tx=p.x+Math.cos(a)*60,ty=p.y+Math.sin(a)*60;
+          this.throwBomb(p.x,p.y,tx,ty,{
+            dmg:Math.max(1,pd.atk*(0.8+pd.sk1*0.15)),
+            isCrit:Math.random()*100<calcCrit(pd),
+            radius:40,
+          });
         }
         this.showFloat(p.x,p.y-60,'💥 クラスター！','#f39c12');
-      if(this.playerData.cls==='bomber')this.playBomberAtk();
-      }else if(num===3){ // ハイパーボム
+        this.playBomberAtk();
+      }else if(num===2){ // 大爆弾（sk2）: 投擲100px 半径55×(1+Lv×0.12)
         const ang=this.getFacingAngle();
-        const radius=150*(1+pd.sk3*0.2);
-        const tx=p.x+Math.cos(ang)*220,ty=p.y+Math.sin(ang)*220;
-        this.throwBomb(p.x,p.y,tx,ty,{dmg:Math.max(1,pd.atk*(3+pd.sk3*0.8)),isCrit:Math.random()*100<calcCrit(pd),radius});
-        this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600');this.cameras.main.shake(500,0.025);
-      if(this.playerData.cls==='bomber')this.playBomberAtk();
+        const radius=55*(1+pd.sk2*0.12);
+        const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
+        this.throwBomb(p.x,p.y,tx,ty,{
+          dmg:Math.max(1,pd.atk*(1.5+pd.sk2*0.35)),
+          isCrit:Math.random()*100<calcCrit(pd),
+          radius,
+        });
+        this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');
+        this.playBomberAtk();
+      }else if(num===3){ // ハイパーボム（sk3）: 投擲100px 半径100×(1+Lv×0.2)
+        const ang=this.getFacingAngle();
+        const radius=100*(1+pd.sk3*0.2);
+        const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
+        this.throwBomb(p.x,p.y,tx,ty,{
+          dmg:Math.max(1,pd.atk*(3+pd.sk3*0.8)),
+          isCrit:Math.random()*100<calcCrit(pd),
+          radius,
+        });
+        this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600');
+        this.cameras.main.shake(500,0.025);
+        this.playBomberAtk();
       }
     }
 
@@ -1171,45 +1213,46 @@ class GameScene extends Phaser.Scene{
   // ── HUD（⑦ EXPバー・ジョブEXPバー追加）─────────
   createHUD(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    // 背景（高さ110に拡張してEXPバー×2追加）
-    this.add.rectangle(0,0,265,110,0x000000,0.80).setOrigin(0).setScrollFactor(0).setDepth(10);
+    // 背景（大きめに）
+    this.add.rectangle(0,0,310,130,0x000000,0.82).setOrigin(0).setScrollFactor(0).setDepth(10);
     // HP
-    this.add.rectangle(44,12,180,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudHPBar=this.add.rectangle(44,12,180*(pd.hp/pd.mhp),9,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,11,'HP',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
-    this.hudHPTxt=this.add.text(228,11,'',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
+    this.add.rectangle(52,14,220,12,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudHPBar=this.add.rectangle(52,14,220*(pd.hp/pd.mhp),12,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,13,'HP',{fontSize:'13px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
+    this.hudHPTxt=this.add.text(276,13,'',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
     // SP
-    this.add.rectangle(44,26,180,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudSPBar=this.add.rectangle(44,26,180*(pd.sp/pd.msp),9,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,25,'SP',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    this.hudSPTxt=this.add.text(228,25,'',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    // EXPバー（橙）⑦
-    this.add.rectangle(44,40,180,7,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudEXPBar=this.add.rectangle(44,40,0,7,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,39,'EX',{fontSize:'8px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
-    this.hudEXPTxt=this.add.text(228,39,'',{fontSize:'8px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
-    // ジョブEXPバー（シアン）⑦
-    this.add.rectangle(44,52,180,7,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudJEXPBar=this.add.rectangle(44,52,0,7,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,51,'JB',{fontSize:'8px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
-    this.hudJEXPTxt=this.add.text(228,51,'',{fontSize:'8px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
+    this.add.rectangle(52,32,220,12,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudSPBar=this.add.rectangle(52,32,220*(pd.sp/pd.msp),12,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,31,'SP',{fontSize:'13px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
+    this.hudSPTxt=this.add.text(276,31,'',{fontSize:'12px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
+    // EXPバー
+    this.add.rectangle(52,50,220,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudEXPBar=this.add.rectangle(52,50,0,9,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,49,'EX',{fontSize:'11px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
+    this.hudEXPTxt=this.add.text(276,49,'',{fontSize:'10px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
+    // ジョブEXPバー
+    this.add.rectangle(52,64,220,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudJEXPBar=this.add.rectangle(52,64,0,9,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,63,'JB',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
+    this.hudJEXPTxt=this.add.text(276,63,'',{fontSize:'10px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
     // 情報行
-    this.hudInfo=this.add.text(2,64,'',{fontSize:'9px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
-    this.hudSub=this.add.text(2,78,'',{fontSize:'8px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
-    this.hudSub2=this.add.text(2,90,'',{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
+    this.hudInfo=this.add.text(2,78,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
+    this.hudSub=this.add.text(2,96,'',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
+    this.hudSub2=this.add.text(2,112,'',{fontSize:'11px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
     // ステージバッジ
-    this.add.rectangle(w-4,0,90,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
-    this.add.text(w-24,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
+    // ステージバッジはミニマップ左に配置（右上はミニマップが占有）
+    this.add.rectangle(w-124,0,80,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
+    this.add.text(w-132,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
     // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
     this.bossHPTxt=this.add.text(w/2,h-44,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(12).setVisible(false);
-    this.killTxt=this.add.text(2,100,'',{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
+    this.killTxt=this.add.text(2,126,'',{fontSize:'11px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
     // キャラアイコンボタン
     const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[this.playerData.cls]||'?';
     this._menuBtn=this.add.rectangle(282,50,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
     this.add.text(282,46,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this.add.text(282,60,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this.add.text(282,66,'MENU',{fontSize:'11px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
     this._menuBadge=this.add.text(298,30,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
     this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
@@ -1272,78 +1315,94 @@ class GameScene extends Phaser.Scene{
     const col=skillCols[pd.cls]||0xffd700;
     const defs=this.getSkillDefs();
 
-    // ── レイアウト ──────────────────────────────
-    // 右下: 大攻撃ボタン（⚔）
-    // その左: スキル3つ縦並び（小さめ）
-    // 左中央: ポーション2つ
-    // 左下: ジョイスティック（別メソッドで生成済み）
+    // ── レイアウト（960×540基準）──────────────────
+    // 右下角: 大きな攻撃ボタン（⚔）  径50
+    // 攻撃ボタン左: スキル3つ横並び  各60×50
+    // 左下中央: ポーション2つ  各50×44
+    // ジョイスティックは左下（別メソッド）
 
-    const BTN_SIZE=70;  // 攻撃ボタンサイズ
-    const SK_W=72, SK_H=36; // スキルボタンサイズ
+    const MARGIN = 12; // 画面端からの余白
 
-    // 攻撃ボタン（右下）
-    const atkX=w-BTN_SIZE/2-8, atkY=h-BTN_SIZE/2-8;
-    const btnAtk=this.add.circle(atkX,atkY,BTN_SIZE/2,0xffd700,0.25)
-      .setScrollFactor(0).setDepth(11)
-      .setStrokeStyle(3,0xffd700,0.9)
+    // 攻撃ボタン（右下角・大きめ円）
+    const ATK_R = 44;
+    const atkX = w - ATK_R - MARGIN;
+    const atkY = h - ATK_R - MARGIN;
+    const btnAtk = this.add.circle(atkX,atkY,ATK_R,0xffd700,0.3)
+      .setScrollFactor(0).setDepth(25)
+      .setStrokeStyle(3,0xffd700,1.0)
       .setInteractive({useHandCursor:true});
-    this.add.text(atkX,atkY-8,'⚔',{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.add.text(atkX,atkY+14,'攻撃',{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnAtk.on('pointerdown',()=>{btnAtk.setFillStyle(0xffd700,0.6);this.normalAttack();});
-    btnAtk.on('pointerup',  ()=>btnAtk.setFillStyle(0xffd700,0.25));
-    btnAtk.on('pointerout', ()=>btnAtk.setFillStyle(0xffd700,0.25));
+    this.add.text(atkX,atkY-6,'⚔',{fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    this.add.text(atkX,atkY+18,'攻撃',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    btnAtk.on('pointerdown',()=>{btnAtk.setFillStyle(0xffd700,0.7);this.normalAttack();});
+    btnAtk.on('pointerup',  ()=>btnAtk.setFillStyle(0xffd700,0.3));
+    btnAtk.on('pointerout', ()=>btnAtk.setFillStyle(0xffd700,0.3));
 
-    // スキルボタン3つ（攻撃ボタンの左、縦並び）
+    // スキルボタン3つ（攻撃ボタン左に横並び）
     this.skillCDOverlays=[];
+    const SK_W=62, SK_H=50;
     const skLabels=['Q','E','R'];
     [1,2,3].forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0;
       const c=hasSkill?col:0x555555;
-      const bx=w-BTN_SIZE-SK_W/2-20;
-      const by=h-SK_H*3+SK_H*i+SK_H/2-4;
-      const btn=this.add.rectangle(bx,by,SK_W,SK_H-4,c,0.25)
-        .setScrollFactor(0).setDepth(11)
-        .setStrokeStyle(2,c,hasSkill?0.9:0.4)
+      // 右から攻撃ボタン幅+余白+スキルボタン位置
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (2-i)*(SK_W+6);
+      const by = h - SK_H/2 - MARGIN;
+      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,0.28)
+        .setScrollFactor(0).setDepth(25)
+        .setStrokeStyle(2,c,hasSkill?1.0:0.4)
         .setInteractive({useHandCursor:true});
-      this.add.text(bx-SK_W/2+8,by,'['+skLabels[i]+']',{fontSize:'9px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')}).setOrigin(0,0.5).setScrollFactor(0).setDepth(12);
-      const skNameTxt=this.add.text(bx+4,by-6,sk.name,{fontSize:'9px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#555555'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-      const lvTxt=this.add.text(bx+SK_W/2-4,by+7,'Lv'+(pd['sk'+num]||0),{fontSize:'8px',fontFamily:'Courier New',color:'#888888'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(12);
-      btn.on('pointerdown',()=>{btn.setFillStyle(c,hasSkill?0.6:0.1);this.useSkill(num);});
-      btn.on('pointerup',  ()=>btn.setFillStyle(c,0.25));
-      btn.on('pointerout', ()=>btn.setFillStyle(c,0.25));
+      this.add.text(bx,by-14,'['+skLabels[i]+'] '+sk.name,{
+        fontSize:'12px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      this.add.text(bx,by+2,'Lv'+(pd['sk'+num]||0),{
+        fontSize:'12px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#555555'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      const cdTxt=this.add.text(bx,by+14,'',{
+        fontSize:'8px',fontFamily:'Courier New',color:'#aaaaaa'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      btn.on('pointerdown',()=>{btn.setFillStyle(c,hasSkill?0.7:0.1);this.useSkill(num);});
+      btn.on('pointerup',  ()=>btn.setFillStyle(c,0.28));
+      btn.on('pointerout', ()=>btn.setFillStyle(c,0.28));
       // CDオーバーレイ
-      const ov=this.add.rectangle(bx,by,SK_W,SK_H-4,0x000000,0).setScrollFactor(0).setDepth(13);
-      const ct=this.add.text(bx,by,'',{fontSize:'13px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(14);
+      const ov=this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27);
+      const ct=this.add.text(bx,by,'',{fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(28);
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
     });
 
-    // ポーションボタン（左下エリア右寄り、ジョイスティックの右）
-    const potX=185;
+    // ポーションボタン（ジョイスティック右、下部中央寄り）
+    const POT_W=50, POT_H=44;
+    const potBaseX=200;
     // HP
-    const btnF=this.add.rectangle(potX,h-36,56,32,0x2ecc71,0.25)
-      .setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x2ecc71,0.8)
+    const btnF=this.add.rectangle(potBaseX,h-POT_H/2-MARGIN,POT_W,POT_H,0x2ecc71,0.28)
+      .setScrollFactor(0).setDepth(25).setStrokeStyle(2,0x2ecc71,1.0)
       .setInteractive({useHandCursor:true});
-    this.add.text(potX,h-43,'[F]💊',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potHPTxt=this.add.text(potX,h-26,'x'+(pd.potHP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnF.on('pointerdown',()=>{btnF.setFillStyle(0x2ecc71,0.6);this.usePotion('hp');});
-    btnF.on('pointerup',  ()=>btnF.setFillStyle(0x2ecc71,0.25));
-    btnF.on('pointerout', ()=>btnF.setFillStyle(0x2ecc71,0.25));
+    this.add.text(potBaseX,h-POT_H/2-MARGIN-10,'💊',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    this.potHPTxt=this.add.text(potBaseX,h-POT_H/2-MARGIN+10,'x'+(pd.potHP||0),{
+      fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    btnF.on('pointerdown',()=>{btnF.setFillStyle(0x2ecc71,0.7);this.usePotion('hp');});
+    btnF.on('pointerup',  ()=>btnF.setFillStyle(0x2ecc71,0.28));
+    btnF.on('pointerout', ()=>btnF.setFillStyle(0x2ecc71,0.28));
     // MP
-    const btnG=this.add.rectangle(potX+64,h-36,56,32,0x3498db,0.25)
-      .setScrollFactor(0).setDepth(11).setStrokeStyle(2,0x3498db,0.8)
+    const btnG=this.add.rectangle(potBaseX+58,h-POT_H/2-MARGIN,POT_W,POT_H,0x3498db,0.28)
+      .setScrollFactor(0).setDepth(25).setStrokeStyle(2,0x3498db,1.0)
       .setInteractive({useHandCursor:true});
-    this.add.text(potX+64,h-43,'[G]💧',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    this.potMPTxt=this.add.text(potX+64,h-26,'x'+(pd.potMP||0),{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(12);
-    btnG.on('pointerdown',()=>{btnG.setFillStyle(0x3498db,0.6);this.usePotion('mp');});
-    btnG.on('pointerup',  ()=>btnG.setFillStyle(0x3498db,0.25));
-    btnG.on('pointerout', ()=>btnG.setFillStyle(0x3498db,0.25));
+    this.add.text(potBaseX+58,h-POT_H/2-MARGIN-10,'💧',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    this.potMPTxt=this.add.text(potBaseX+58,h-POT_H/2-MARGIN+10,'x'+(pd.potMP||0),{
+      fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    btnG.on('pointerdown',()=>{btnG.setFillStyle(0x3498db,0.7);this.usePotion('mp');});
+    btnG.on('pointerup',  ()=>btnG.setFillStyle(0x3498db,0.28));
+    btnG.on('pointerout', ()=>btnG.setFillStyle(0x3498db,0.28));
   }
 
   createMinimap(){
-    const w=this.scale.width,h=this.scale.height,mw=100,mh=80,mx=w-mw-6,my=h-mh-62;
+    // 右上に配置（HUDと被らないよう左端は w-110 以降）
+    const w=this.scale.width,h=this.scale.height;
+    const mw=110,mh=80,mx=w-mw-6,my=6;
     this.add.rectangle(mx,my,mw,mh,0x000000,0.72).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0xffd700);
-    this.add.text(mx+mw/2,my-10,'ST.'+this.stage,{fontSize:'9px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+    this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
     this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
     this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
   }
@@ -1829,10 +1888,10 @@ class GameScene extends Phaser.Scene{
 new Phaser.Game({
   type:Phaser.AUTO,
   scale:{
-    mode:Phaser.Scale.RESIZE,   // 画面サイズに合わせてリサイズ
-    autoCenter:Phaser.Scale.CENTER_BOTH,
-    width:960, height:540,
-    parent:'game-container',
+    mode:Phaser.Scale.RESIZE,
+    autoCenter:Phaser.Scale.NO_CENTER,
+    width:window.innerWidth,
+    height:window.innerHeight,
   },
   backgroundColor:'#000000',
   input:{
