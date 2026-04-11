@@ -852,19 +852,29 @@ class MenuScene extends Phaser.Scene{
         btn.on('pointerdown',()=>{
           if((pd.jobPts||0)<1)return;
           pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
-          this.scene.restart({playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
+          // restartではなくstop→launchで確実に再構築
+          const rs=this.returnScene,rd=this.returnData;
+          const target=this.scene.get(rs);
+          if(target&&typeof target.resumeFromMenu==='function')target.resumeFromMenu();
+          this.scene.stop();
+          this.scene.launch('Menu',{playerData:pd,returnScene:rs,returnData:rd,tab:'skill'});
         });
         c.add([btn,bt]);
       }else{c.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
     });
   }
   _close(){
-    this.scene.stop();
-    const target=this.scene.get(this.returnScene);
+    const returnScene=this.returnScene;
+    const returnData=this.returnData;
+    // 先にGameSceneを再開してからMenuを止める
+    const target=this.scene.get(returnScene);
     if(target&&typeof target.resumeFromMenu==='function'){
       target.resumeFromMenu();
-    }else{
-      this.scene.resume(this.returnScene,this.returnData);
+    }
+    this.scene.stop();
+    // TownScene等はresumeが必要
+    if(!target||typeof target.resumeFromMenu!=='function'){
+      this.scene.resume(returnScene,returnData);
     }
   }
 }
@@ -1424,9 +1434,14 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
   }
   openMenu(tab='stat'){
-    // physics停止のみ（BGMは継続）
+    if(this._menuOpen)return; // 二重起動防止
     this.physics.pause();
     this._menuOpen=true;
+    // Menuが既に起動中なら stop してから launch
+    const menuScene=this.scene.get('Menu');
+    if(menuScene&&this.scene.isActive('Menu')){
+      this.scene.stop('Menu');
+    }
     this.scene.launch('Menu',{
       playerData:this.playerData,
       returnScene:'Game',
@@ -1435,7 +1450,6 @@ class GameScene extends Phaser.Scene{
     });
   }
   resumeFromMenu(){
-    // MenuSceneから呼ばれる（Menu._close内で呼び出し）
     this._menuOpen=false;
     this.physics.resume();
     this.updateHUD();
@@ -1671,6 +1685,8 @@ class GameScene extends Phaser.Scene{
 
   updateJoystick(){
     const pd=this.playerData,p=this.player;
+    // Menu表示中は入力を完全に無視して静止
+    if(this._menuOpen){p.setVelocity(0,0);return;}
     const kl=this.cursors.left.isDown||this.wasd.A.isDown;
     const kr=this.cursors.right.isDown||this.wasd.D.isDown;
     const ku=this.cursors.up.isDown||this.wasd.W.isDown;
@@ -1929,8 +1945,13 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
+    // Menu表示中は入力を止めて早期リターン
+    if(this._menuOpen){
+      p.setVelocity(0,0);
+      if(this.atkCooldown>0)this.atkCooldown-=dt;
+      return;
+    }
     this.updateJoystick();
-    // 自動攻撃なし（ボタンで手動攻撃）
     // spaceKey攻撃はPC専用（スマホはボタンで操作）
     if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
