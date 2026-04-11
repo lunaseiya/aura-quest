@@ -227,7 +227,12 @@ class ClassSelectScene extends Phaser.Scene{
     classes.forEach(cls=>{
       const cx=w/2+cls.x,cy=h/2+cls.y;
       const card=this.add.rectangle(cx,cy,280,130,cls.col,0.12).setInteractive({useHandCursor:true}).setStrokeStyle(2,cls.col);
-      this.add.image(cx-90,cy,'player_'+cls.key).setDisplaySize(64,80);
+      // bomberはspritesheet、他はimage
+      if(cls.key==='bomber'){
+        this.add.sprite(cx-90,cy,'player_bomber').setFrame(0).setDisplaySize(64,80);
+      }else{
+        this.add.image(cx-90,cy,'player_'+cls.key).setDisplaySize(64,80);
+      }
       this.add.text(cx+10,cy-32,cls.name,{fontSize:'20px',fontFamily:'Courier New',color:'#'+cls.col.toString(16).padStart(6,'0'),stroke:'#000',strokeThickness:2});
       this.add.text(cx+10,cy-4,cls.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',lineSpacing:4});
       card.on('pointerover',()=>{card.setFillStyle(cls.col,0.35);this.tweens.add({targets:card,scaleX:1.03,scaleY:1.03,duration:100})});
@@ -768,10 +773,19 @@ class GameScene extends Phaser.Scene{
     }
     // プレイヤー
     this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(64,64).setCollideWorldBounds(true).setDepth(5);
-    // ボマーの場合は初期アニメ再生
-    if(pd.cls==='bomber') this.player.play('bomber_front_idle');
-    this._bomberFacing='front'; // 向き管理: 'front','back','side'
-    this._bomberFlip=false;     // side左向き反転フラグ
+    this._bomberFacing='front';
+    this._bomberFlip=false;
+    // ボマーのアニメ初期再生（アニメ存在確認付き）
+    if(pd.cls==='bomber'){
+      if(this.anims.exists('bomber_front_idle')){
+        this.player.play('bomber_front_idle');
+        console.log('[Bomber] アニメ開始: bomber_front_idle');
+      }else{
+        console.warn('[Bomber] アニメが見つかりません。再定義します...');
+        this._registerBomberAnims();
+        this.player.play('bomber_front_idle');
+      }
+    }
     this.physics.add.collider(this.player,this.obstacles);
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     // 弾グループ
@@ -1379,6 +1393,28 @@ class GameScene extends Phaser.Scene{
     if(pd.cls==='bomber') this._updateBomberAnim(vx,vy);
   }
 
+  _registerBomberAnims(){
+    const BA=[
+      {key:'bomber_front_idle',frames:[0],    rate:2, rep:-1},
+      {key:'bomber_front_walk',frames:[1,2],  rate:8, rep:-1},
+      {key:'bomber_front_atk', frames:[3,4],  rate:10,rep:0 },
+      {key:'bomber_back_idle', frames:[5],    rate:2, rep:-1},
+      {key:'bomber_back_walk', frames:[6,7],  rate:8, rep:-1},
+      {key:'bomber_back_atk',  frames:[8,9],  rate:10,rep:0 },
+      {key:'bomber_side_idle', frames:[10],   rate:2, rep:-1},
+      {key:'bomber_side_walk', frames:[11,12],rate:8, rep:-1},
+      {key:'bomber_side_atk',  frames:[13,14],rate:10,rep:0 },
+    ];
+    BA.forEach(a=>{
+      if(this.anims.exists(a.key))return;
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_bomber',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+  }
+
   _updateBomberAnim(vx,vy){
     const p=this.player;
     const cur=p.anims.currentAnim;
@@ -1737,7 +1773,12 @@ class GameScene extends Phaser.Scene{
 // ============================================================
 new Phaser.Game({
   type:Phaser.AUTO,
-  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:960,height:540},
+  scale:{
+    mode:Phaser.Scale.RESIZE,   // 画面サイズに合わせてリサイズ
+    autoCenter:Phaser.Scale.CENTER_BOTH,
+    width:960, height:540,
+    parent:'game-container',
+  },
   backgroundColor:'#000000',
   input:{
     activePointers:4,        // マルチタッチ4本対応
