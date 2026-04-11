@@ -146,24 +146,27 @@ class BootScene extends Phaser.Scene{
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
   }
   create(){
-    // ボマー スプライトアニメーション定義（5×3シート、64×64px/コマ）
-    // 行0=front: idx 0-4 / 行1=back: idx 5-9 / 行2=side: idx 10-14
+    // ボマー スプライトアニメーション定義
+    // グローバルアニメとして登録（全シーンから参照可能）
     const BA=[
       {key:'bomber_front_idle',frames:[0],    rate:2, rep:-1},
       {key:'bomber_front_walk',frames:[1,2],  rate:8, rep:-1},
-      {key:'bomber_front_atk', frames:[3,4],  rate:8, rep:0 },
+      {key:'bomber_front_atk', frames:[3,4],  rate:10,rep:0 },
       {key:'bomber_back_idle', frames:[5],    rate:2, rep:-1},
       {key:'bomber_back_walk', frames:[6,7],  rate:8, rep:-1},
-      {key:'bomber_back_atk',  frames:[8,9],  rate:8, rep:0 },
+      {key:'bomber_back_atk',  frames:[8,9],  rate:10,rep:0 },
       {key:'bomber_side_idle', frames:[10],   rate:2, rep:-1},
       {key:'bomber_side_walk', frames:[11,12],rate:8, rep:-1},
-      {key:'bomber_side_atk',  frames:[13,14],rate:8, rep:0 },
+      {key:'bomber_side_atk',  frames:[13,14],rate:10,rep:0 },
     ];
     BA.forEach(a=>{
+      // 既に登録済みなら skip（シーン再起動時の二重登録防止）
+      if(this.anims.exists(a.key)) return;
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_bomber',frame:f})),
-        frameRate:a.rate, repeat:a.rep,
+        frameRate:a.rate,
+        repeat:a.rep,
       });
     });
     this.scene.start('Title');
@@ -1378,22 +1381,21 @@ class GameScene extends Phaser.Scene{
 
   _updateBomberAnim(vx,vy){
     const p=this.player;
-    // 攻撃中は割り込まない
     const cur=p.anims.currentAnim;
-    if(cur&&cur.key.endsWith('_atk')&&!p.anims.isPlaying===false&&p.anims.currentFrame&&p.anims.currentFrame.index<p.anims.currentAnim.frames.length-1) return;
+    // 攻撃アニメ再生中は割り込まない
+    if(cur && cur.key.endsWith('_atk') && p.anims.isPlaying) return;
 
     const moving=Math.abs(vx)>0.1||Math.abs(vy)>0.1;
     let facing=this._bomberFacing||'front';
     let flip=this._bomberFlip||false;
 
     if(moving){
-      // 向き判定（上下が優先）
       if(Math.abs(vy)>Math.abs(vx)*0.5){
         facing=vy<0?'back':'front';
         flip=false;
       }else{
         facing='side';
-        flip=vx<0; // 左向きは反転
+        flip=vx<0;
       }
     }
 
