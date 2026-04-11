@@ -8,7 +8,7 @@ const TILE=32;
 // ============================================================
 //  BGM / SE
 // ============================================================
-let audioCtx=null,muted=false,bgmKey=null,bgmNodes=[],bgmLoop=null;
+let audioCtx=null,muted=false;
 
 function getAC(){
   if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}};
@@ -16,184 +16,44 @@ function getAC(){
   return audioCtx;
 }
 
-// ── マスターゲイン ──────────────────────────────
-let masterGain=null;
-function getMaster(){
-  const ac=getAC();if(!ac)return null;
-  if(!masterGain){masterGain=ac.createGain();masterGain.gain.value=0.5;masterGain.connect(ac.destination);}
-  return masterGain;
-}
+// ── MP3 BGMプレイヤー ────────────────────────────
+let _bgmAudio=null,_bgmKey=null;
 
-// ── 音符定義（Hz） ──────────────────────────────
-const N={
-  C3:130,D3:146,E3:165,F3:175,G3:196,A3:220,B3:247,
-  C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,
-  C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,B5:988,
-  C6:1047,D6:1175,E6:1319,
-  Bb3:233,Bb4:466,F3s:185,G3s:208,C4s:277,D4s:311,F4s:370,G4s:415,C5s:554,D5s:622,
-  _:0 // 休符
+// BGMキーとファイルのマッピング
+const BGM_FILES={
+  st1: BASE+'bgm/rpg_bgm_brass.mp3',
 };
-
-// ── BGMデータ（各シーン）────────────────────────
-// 構造: { bpm, pattern: { mel, bas, cho, drm } }
-// mel=メロディ bas=ベース cho=コード drm=ドラム(1=kick,2=snare,3=hihat)
-const BGM_DEF={
-  // タイトル: 壮大・ファンタジー風
-  title:{bpm:88,loop:16,
-    mel:[N.E4,N._,N.G4,N.A4,N.C5,N._,N.B4,N.A4, N.G4,N._,N.E4,N.G4,N.A4,N._,N._,N._],
-    bas:[N.C3,N._,N.C3,N._,N.F3,N._,N.F3,N._,    N.G3,N._,N.G3,N._,N.A3,N._,N.A3,N._],
-    cho:[N.C4,N._,N.E4,N._,N.F4,N._,N.A4,N._,    N.G4,N._,N.B4,N._,N.A4,N._,N.C5,N._],
-    drm:[1,0,0,3,2,0,3,3,                          1,0,0,3,2,0,3,0]},
-
-  // 町: のどか・安心感
-  town:{bpm:108,loop:16,
-    mel:[N.G4,N.A4,N.B4,N.C5,N.B4,N.A4,N.G4,N._, N.E4,N.F4,N.G4,N.A4,N.G4,N.F4,N.E4,N._],
-    bas:[N.G3,N._,N.G3,N._,N.C4,N._,N.C4,N._,    N.A3,N._,N.A3,N._,N.D4,N._,N.D4,N._],
-    cho:[N.B3,N._,N.D4,N._,N.E4,N._,N.G4,N._,    N.C4,N._,N.E4,N._,N.F4,N._,N.A4,N._],
-    drm:[1,0,3,0,2,0,3,3,                          1,3,0,3,2,0,3,0]},
-
-  // ST1 草原: 明るい・冒険感
-  st1:{bpm:138,loop:16,
-    mel:[N.C5,N.E5,N.G5,N.E5,N.C5,N.E5,N.D5,N._, N.B4,N.D5,N.F5,N.D5,N.C5,N.E5,N.G5,N._],
-    bas:[N.C3,N.C3,N.G3,N.G3,N.A3,N.A3,N.F3,N.F3,N.G3,N.G3,N.D4,N.D4,N.C4,N.C4,N.G3,N.G3],
-    cho:[N.E4,N.G4,N.E4,N.G4,N.A4,N.C5,N.A4,N.C5,N.G4,N.B4,N.G4,N.B4,N.E4,N.G4,N.E4,N.G4],
-    drm:[1,0,3,0,2,3,3,0,                          1,0,3,3,2,0,3,0]},
-
-  // ST2 溶岩: 重い・緊張感
-  st2:{bpm:144,loop:16,
-    mel:[N.A3,N._,N.Bb3,N._,N.A3,N.G3s,N._,N.A3, N.F3,N._,N.G3,N._,N.A3,N._,N._,N._],
-    bas:[55,N._,55,N._,55,N._,55,N._,44,N._,44,N._,49,N._,49,N._],
-    cho:[N.A3,N.C4,N.A3,N.C4,N.C4s,N.E4,N.C4s,N.E4, N.F3,N.A3,N.F3,N.A3,N.G3,N.B3,N.G3,N.B3],
-    drm:[1,0,3,1,2,0,1,3,                           1,1,3,0,2,1,3,1]},
-
-  // ST3 海岸: 軽快・リズミカル
-  st3:{bpm:124,loop:16,
-    mel:[N.E5,N.D5,N.C5,N.D5,N.E5,N.E5,N.E5,N._, N.D5,N.D5,N.D5,N._,N.E5,N.G5,N.G5,N._],
-    bas:[N.A3,N._,N.A3,N.E3,N.F3,N._,N.C4,N._,   N.D4,N._,N.D4,N.A3,N.G3,N._,N.G3,N._],
-    cho:[N.A4,N.C5,N.E5,N.C5,N.F4,N.A4,N.C5,N.A4,N.D4,N.F4,N.A4,N.F4,N.G4,N.B4,N.D5,N.B4],
-    drm:[1,3,2,3,1,3,2,3,                          1,3,2,3,1,3,2,3]},
-
-  // ST4 砂漠: 神秘的・エキゾチック
-  st4:{bpm:112,loop:16,
-    mel:[N.D4,N.E4,N.F4,N.G4,N.A4,N._,466,N.A4, N.G4,N.F4,N.E4,N.D4,N._,N.E4,N.D4,N._],
-    bas:[N.D3,N._,N.D3,N._,N.A3,N._,N.A3,N._,    N.G3,N._,N.G3,N._,N.D4,N._,N.D4,N._],
-    cho:[N.F3,N.A3,N.F3,N.A3,N.D4,N.F4,N.D4,N.F4,N.G3,N.B3,N.G3,N.B3,N.A3,N.C4,N.A3,N.C4],
-    drm:[1,0,3,0,2,0,3,0,                          1,0,3,0,2,3,0,0]},
-
-  // ボス: 激しい・緊迫
-  boss:{bpm:172,loop:16,
-    mel:[N.A4,N._,N.C5,N.B4,N.A4,N._,N.G4s,N.A4, N.F4,N._,N.A4,N.G4,N.F4,N._,N.E4,N.F4],
-    bas:[55,55,55,55,55,55,55,55,44,44,44,44,41,41,41,41],
-    cho:[N.A3,N.E4,N.A3,N.E4,N.C4s,N.G4s,N.C4s,N.G4s,N.F3,N.C4,N.F3,N.C4,N.E3,N.B3,N.E3,N.B3],
-    drm:[1,3,2,3,1,3,2,3,                           1,3,2,3,1,1,2,3]},
-
-  // クリア: 華やか・達成感
-  clear:{bpm:132,loop:16,
-    mel:[N.C5,N.E5,N.G5,N.C6,988,N._,N.A5,N.G5, N.E5,N.G5,N.A5,988,N.C6,N._,N._,N._],
-    bas:[N.C4,N._,N.G3,N._,N.F3,N._,N.F3,N._,    N.G3,N._,N.G3,N._,N.C4,N._,N.C4,N._],
-    cho:[N.E4,N.G4,N.C5,N.E5,N.G4,N.B4,N.D5,N.G5,N.C5,N.E5,N.G5,N.C6,N.G4,N.B4,N.D5,N.G5],
-    drm:[1,0,3,0,2,3,3,0,                          1,0,3,0,2,0,1,3]},
-};
-
-// ── BGM プレイヤー ──────────────────────────────
-let _bgmKey=null,_bgmStep=0,_bgmNext=0;
 
 function startBGM(key){
   if(_bgmKey===key)return;
-  _bgmKey=key;_bgmStep=0;_bgmNext=0;
-  // 古いノードをすべて停止
-  bgmNodes.forEach(n=>{try{n.stop();}catch(e){}});
-  bgmNodes=[];
+  // 現在のBGMを停止
+  if(_bgmAudio){
+    _bgmAudio.pause();
+    _bgmAudio.currentTime=0;
+    _bgmAudio=null;
+  }
+  _bgmKey=key;
+  const file=BGM_FILES[key];
+  if(!file)return; // 未登録のキーは無音
+  const audio=new Audio(file);
+  audio.loop=true;
+  audio.volume=0.5;
+  audio.play().catch(()=>{}); // autoplay対策
+  _bgmAudio=audio;
 }
 
 function updateBGM(){
-  if(muted||!_bgmKey)return;
-  const ac=getAC();if(!ac)return;
-  const mg=getMaster();if(!mg)return;
-  const def=BGM_DEF[_bgmKey];if(!def)return;
-  const BEAT=60/def.bpm/4; // 16分音符単位
-  const now=ac.currentTime;
-  if(!_bgmNext||_bgmNext<now)_bgmNext=now+0.05;
+  // MP3方式では不要（Audio APIが自動ループ）
+  getAC(); // AudioContextを初期化しておく（SE用）
+}
 
-  while(_bgmNext<now+0.5){
-    const step=_bgmStep%def.loop;
-
-    // メロディ（矩形波 → 三角波でやわらかく）
-    const mf=def.mel[step];
-    if(mf>0){try{
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.type='square';o.frequency.value=mf;
-      o.connect(g);g.connect(mg);
-      g.gain.setValueAtTime(0,_bgmNext);
-      g.gain.linearRampToValueAtTime(0.10,_bgmNext+0.005);
-      g.gain.linearRampToValueAtTime(0.06,_bgmNext+BEAT*0.5);
-      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.92);
-      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
-      bgmNodes.push(o);
-    }catch(e){}}
-
-    // ベース（サイン波）
-    const bf=def.bas[step];
-    if(bf>0){try{
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.type='sine';o.frequency.value=bf;
-      o.connect(g);g.connect(mg);
-      g.gain.setValueAtTime(0,_bgmNext);
-      g.gain.linearRampToValueAtTime(0.12,_bgmNext+0.01);
-      g.gain.linearRampToValueAtTime(0.08,_bgmNext+BEAT*0.4);
-      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.95);
-      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
-      bgmNodes.push(o);
-    }catch(e){}}
-
-    // コード（三角波・低音量）
-    const cf=def.cho[step];
-    if(cf>0){try{
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.type='triangle';o.frequency.value=cf;
-      o.connect(g);g.connect(mg);
-      g.gain.setValueAtTime(0,_bgmNext);
-      g.gain.linearRampToValueAtTime(0.05,_bgmNext+0.01);
-      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.85);
-      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
-      bgmNodes.push(o);
-    }catch(e){}}
-
-    // パーカッション
-    const dr=def.drm[step];
-    if(dr>0){try{
-      const buf=ac.createBuffer(1,ac.sampleRate*0.1,ac.sampleRate);
-      const data=buf.getChannelData(0);
-      if(dr===1){// キック: 低周波バースト
-        for(let i=0;i<data.length;i++){
-          const t=i/ac.sampleRate;
-          data[i]=Math.sin(2*Math.PI*80*t*Math.exp(-t*30))*(1-t*10)||0;
-        }
-      }else if(dr===2){// スネア: ノイズ+トーン
-        for(let i=0;i<data.length;i++){
-          const t=i/ac.sampleRate;
-          data[i]=(Math.random()*2-1)*Math.exp(-t*20)*0.7+
-                   Math.sin(2*Math.PI*200*t)*Math.exp(-t*15)*0.3;
-        }
-      }else{// ハイハット: 高周波ノイズ
-        for(let i=0;i<data.length;i++){
-          const t=i/ac.sampleRate;
-          data[i]=(Math.random()*2-1)*Math.exp(-t*60);
-        }
-      }
-      const src=ac.createBufferSource(),g=ac.createGain();
-      src.buffer=buf;
-      src.connect(g);g.connect(mg);
-      g.gain.value=dr===3?0.04:0.10;
-      src.start(_bgmNext);
-      bgmNodes.push(src);
-    }catch(e){}}
-
-    _bgmNext+=BEAT;
-    _bgmStep++;
-    // 古いノードを定期的にクリア
-    if(_bgmStep%64===0)bgmNodes=bgmNodes.filter(n=>{try{return n.playbackState!==3;}catch(e){return false;}});
+function stopBGM(){
+  if(_bgmAudio){
+    _bgmAudio.pause();
+    _bgmAudio.currentTime=0;
+    _bgmAudio=null;
   }
+  _bgmKey=null;
 }
 
 function SE(type){
@@ -350,8 +210,7 @@ class TitleScene extends Phaser.Scene{
     this.tweens.add({targets:press,alpha:0.1,duration:700,yoyo:true,repeat:-1});
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
-    this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
-    const go=()=>{getAC();this.bgmTimer.remove();this.scene.start('ClassSelect')};
+    const go=()=>{getAC();this.scene.start('ClassSelect')};
     this.input.once('pointerdown',go);
     this.input.keyboard.once('keydown',go);
   }
@@ -365,7 +224,6 @@ class ClassSelectScene extends Phaser.Scene{
   create(){
     const w=this.scale.width,h=this.scale.height;
     startBGM('title');
-    this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
     this.add.text(w/2,36,'⚔ 職業を選ぼう ⚔',{fontSize:'24px',fontFamily:'Courier New',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
     const classes=[
@@ -387,7 +245,7 @@ class ClassSelectScene extends Phaser.Scene{
       this.add.text(cx+10,cy-4,cls.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',lineSpacing:4});
       card.on('pointerover',()=>{card.setFillStyle(cls.col,0.35);this.tweens.add({targets:card,scaleX:1.03,scaleY:1.03,duration:100})});
       card.on('pointerout', ()=>{card.setFillStyle(cls.col,0.12);this.tweens.add({targets:card,scaleX:1,scaleY:1,duration:100})});
-      card.on('pointerdown',()=>{this.bgmTimer.remove();this.scene.start('Town',{playerData:makePlayerData(cls.key)})});
+      card.on('pointerdown',()=>{this.scene.start('Town',{playerData:makePlayerData(cls.key)})});
     });
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
@@ -404,7 +262,6 @@ class TownScene extends Phaser.Scene{
     const TW=1200,TH=800;
     this.TW=TW;this.TH=TH;
     startBGM('town');
-    this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
     this.cameras.main.setBounds(0,0,TW,TH);
     this.physics.world.setBounds(0,0,TW,TH);
     const cols=Math.ceil(TW/TILE),rows=Math.ceil(TH/TILE);
@@ -632,7 +489,7 @@ class TownScene extends Phaser.Scene{
     }
     // ポータルに近づいたら自動遷移（スマホ対応）
     if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<72){
-      this.bgmTimer.remove();
+      
       this.scene.start('Game',{playerData:this.playerData,stage:1});
       return;
     }
@@ -885,7 +742,6 @@ class GameClearScene extends Phaser.Scene{
   create(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
     startBGM('clear');
-    this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
     SE('clear');
     this.add.rectangle(0,0,w,h,0x020810).setOrigin(0);
     for(let i=0;i<8;i++){
@@ -916,7 +772,7 @@ class GameClearScene extends Phaser.Scene{
     this.tweens.add({targets:[btn,btnTxt],alpha:1,duration:500,delay:2000});
     btn.on('pointerover',()=>btn.setFillStyle(0xffd700,0.4));
     btn.on('pointerout', ()=>btn.setFillStyle(0xffd700,0.2));
-    const go=()=>{this.bgmTimer.remove();bgmKey=null;this.scene.start('Title')};
+    const go=()=>{stopBGM();this.scene.start('Title')};
     btn.on('pointerdown',go);
     this.time.delayedCall(2500,()=>this.input.keyboard.once('keydown',go));
   }
@@ -967,7 +823,6 @@ class GameScene extends Phaser.Scene{
     pd.hp=pd.mhp; pd.sp=pd.msp;
 
     startBGM(cfg.bgmKey);
-    this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
     // タイル
@@ -1916,7 +1771,7 @@ class GameScene extends Phaser.Scene{
 
   gameOver(){
     this.physics.pause();
-    if(this.bgmTimer)this.bgmTimer.remove();bgmKey=null;
+    stopBGM();
     const w=this.scale.width,h=this.scale.height;
     this.add.rectangle(w/2,h/2,440,200,0x000000,0.92).setScrollFactor(0).setDepth(40);
     this.add.text(w/2,h/2-50,'✖ GAME OVER',{fontSize:'32px',fontFamily:'Courier New',color:'#e74c3c',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(41);
@@ -1925,7 +1780,7 @@ class GameScene extends Phaser.Scene{
     const revive=()=>{
       const pd=this.playerData;
       pd.hp=1; // §17: HP=1で復活
-      if(this.bgmTimer)this.bgmTimer.remove();
+      
       this.scene.start('Town',{playerData:pd});
     };
     this.input.keyboard.once('keydown-R',revive);
@@ -2056,12 +1911,12 @@ class GameScene extends Phaser.Scene{
     }
     // ポータル
     if(Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<60){
-      if(this.bgmTimer)this.bgmTimer.remove();
+      
       if(this.cfg.portalBack===0)this.scene.start('Town',{playerData:pd});
       else this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack});
     }
     if(this.portalNext&&this.portalNext.open&&Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<60){
-      if(this.bgmTimer)this.bgmTimer.remove();
+      
       if(!this.cfg.portalTo)this.scene.start('GameClear',{playerData:pd});
       else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
     }
