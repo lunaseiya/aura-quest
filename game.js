@@ -850,9 +850,15 @@ class GameScene extends Phaser.Scene{
     // タップはターゲット選択のみ（攻撃はボタンで手動）
     this.input.on('pointerdown',ptr=>{
       const w=this.scale.width,h=this.scale.height;
-      if(ptr.x<w*0.25&&ptr.y>h*0.4)return; // ジョイスティック領域
-      if(ptr.x>w*0.55&&ptr.y>h*0.55)return; // 右下ボタン領域
-      if(ptr.y>h-120)return; // ボタンバー領域
+      // ジョイスティック領域（左下）
+      if(ptr.x<w*0.3&&ptr.y>h*0.35)return;
+      // ボタン領域（右下・下部全体）は完全除外
+      if(ptr.y>h*0.65)return;
+      // HUD領域（左上）
+      if(ptr.x<290&&ptr.y<120)return;
+      // ゲームオブジェクト（interactive）のタップはphaser側で処理済みのためスキップ
+      if(ptr.downElement&&ptr.downElement!==this.game.canvas)return;
+      // ターゲット選択のみ（攻撃はボタンで手動）
       const wx=ptr.worldX,wy=ptr.worldY;
       let closest=null,cd=120;
       this.enemyDataList.forEach(ed=>{
@@ -862,7 +868,7 @@ class GameScene extends Phaser.Scene{
       });
       if(closest) this.target=closest;
     });
-    this.atkCooldown=0;this.skillCooldown=0;this.target=null;
+    this.atkCooldown=0.5;this.skillCooldown=0;this.target=null; // 初期CDを0.5秒に設定（誤発防止）
     // 攻撃向き
     this.facingAngle=0;
     this.input.on('pointermove',ptr=>{
@@ -1686,7 +1692,8 @@ class GameScene extends Phaser.Scene{
     const dt=delta/1000,pd=this.playerData,p=this.player;
     this.updateJoystick();
     // 自動攻撃なし（ボタンで手動攻撃）
-    if(Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
+    // spaceKey攻撃はPC専用（スマホはボタンで操作）
+    if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
     // スキルCD（createSkillButtons内のoverlayで処理）
     if(!this.bossSpawned&&this.killCount>=this.cfg.bossThreshold)this.spawnBoss();
