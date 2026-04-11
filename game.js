@@ -8,44 +8,194 @@ const TILE=32;
 // ============================================================
 //  BGM / SE
 // ============================================================
-let audioCtx=null,muted=false,bgmKey=null,bgmIdx=0,bgmNext=0;
+let audioCtx=null,muted=false,bgmKey=null,bgmNodes=[],bgmLoop=null;
+
 function getAC(){
-  if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}};
   if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
   return audioCtx;
 }
-const BGM_DATA={
-  title:{bpm:90, mel:[523,659,784,659,523,440,523,0,587,698,784,0,659,784,880,0]},
-  town: {bpm:100,mel:[523,659,784,880,784,659,523,0,698,784,880,0,784,659,523,0]},
-  st1:  {bpm:132,mel:[523,659,784,659,523,440,523,0,587,698,784,698,587,523,440,0]},
-  st2:  {bpm:140,mel:[220,0,261,0,220,196,0,0,233,0,277,0,233,220,0,0]},
-  st3:  {bpm:116,mel:[392,440,523,659,523,440,392,0,349,392,440,523,440,392,349,0]},
-  st4:  {bpm:108,mel:[330,0,370,415,0,370,330,0,311,0,349,392,0,349,311,0]},
-  boss: {bpm:160,mel:[440,0,466,0,440,415,0,440,392,0,415,0,392,370,0,392]},
-  clear:{bpm:120,mel:[523,659,784,1047,784,659,523,0,659,784,880,1047,880,784,659,0]},
+
+// ── マスターゲイン ──────────────────────────────
+let masterGain=null;
+function getMaster(){
+  const ac=getAC();if(!ac)return null;
+  if(!masterGain){masterGain=ac.createGain();masterGain.gain.value=0.5;masterGain.connect(ac.destination);}
+  return masterGain;
+}
+
+// ── 音符定義（Hz） ──────────────────────────────
+const N={
+  C3:130,D3:146,E3:165,F3:175,G3:196,A3:220,B3:247,
+  C4:262,D4:294,E4:330,F4:349,G4:392,A4:440,B4:494,
+  C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,B5:988,
+  C6:1047,D6:1175,E6:1319,
+  Bb3:233,Bb4:466,F3s:185,G3s:208,C4s:277,D4s:311,F4s:370,G4s:415,C5s:554,D5s:622,
+  _:0 // 休符
 };
-function startBGM(key){if(bgmKey===key)return;bgmKey=key;bgmIdx=0;bgmNext=0;}
+
+// ── BGMデータ（各シーン）────────────────────────
+// 構造: { bpm, pattern: { mel, bas, cho, drm } }
+// mel=メロディ bas=ベース cho=コード drm=ドラム(1=kick,2=snare,3=hihat)
+const BGM_DEF={
+  // タイトル: 壮大・ファンタジー風
+  title:{bpm:88,loop:16,
+    mel:[N.E4,N._,N.G4,N.A4,N.C5,N._,N.B4,N.A4, N.G4,N._,N.E4,N.G4,N.A4,N._,N._,N._],
+    bas:[N.C3,N._,N.C3,N._,N.F3,N._,N.F3,N._,    N.G3,N._,N.G3,N._,N.A3,N._,N.A3,N._],
+    cho:[N.C4,N._,N.E4,N._,N.F4,N._,N.A4,N._,    N.G4,N._,N.B4,N._,N.A4,N._,N.C5,N._],
+    drm:[1,0,0,3,2,0,3,3,                          1,0,0,3,2,0,3,0]},
+
+  // 町: のどか・安心感
+  town:{bpm:108,loop:16,
+    mel:[N.G4,N.A4,N.B4,N.C5,N.B4,N.A4,N.G4,N._, N.E4,N.F4,N.G4,N.A4,N.G4,N.F4,N.E4,N._],
+    bas:[N.G3,N._,N.G3,N._,N.C4,N._,N.C4,N._,    N.A3,N._,N.A3,N._,N.D4,N._,N.D4,N._],
+    cho:[N.B3,N._,N.D4,N._,N.E4,N._,N.G4,N._,    N.C4,N._,N.E4,N._,N.F4,N._,N.A4,N._],
+    drm:[1,0,3,0,2,0,3,3,                          1,3,0,3,2,0,3,0]},
+
+  // ST1 草原: 明るい・冒険感
+  st1:{bpm:138,loop:16,
+    mel:[N.C5,N.E5,N.G5,N.E5,N.C5,N.E5,N.D5,N._, N.B4,N.D5,N.F5,N.D5,N.C5,N.E5,N.G5,N._],
+    bas:[N.C3,N.C3,N.G3,N.G3,N.A3,N.A3,N.F3,N.F3,N.G3,N.G3,N.D4,N.D4,N.C4,N.C4,N.G3,N.G3],
+    cho:[N.E4,N.G4,N.E4,N.G4,N.A4,N.C5,N.A4,N.C5,N.G4,N.B4,N.G4,N.B4,N.E4,N.G4,N.E4,N.G4],
+    drm:[1,0,3,0,2,3,3,0,                          1,0,3,3,2,0,3,0]},
+
+  // ST2 溶岩: 重い・緊張感
+  st2:{bpm:144,loop:16,
+    mel:[N.A3,N._,N.Bb3,N._,N.A3,N.G3s,N._,N.A3, N.F3,N._,N.G3,N._,N.A3,N._,N._,N._],
+    bas:[55,N._,55,N._,55,N._,55,N._,44,N._,44,N._,49,N._,49,N._],
+    cho:[N.A3,N.C4,N.A3,N.C4,N.C4s,N.E4,N.C4s,N.E4, N.F3,N.A3,N.F3,N.A3,N.G3,N.B3,N.G3,N.B3],
+    drm:[1,0,3,1,2,0,1,3,                           1,1,3,0,2,1,3,1]},
+
+  // ST3 海岸: 軽快・リズミカル
+  st3:{bpm:124,loop:16,
+    mel:[N.E5,N.D5,N.C5,N.D5,N.E5,N.E5,N.E5,N._, N.D5,N.D5,N.D5,N._,N.E5,N.G5,N.G5,N._],
+    bas:[N.A3,N._,N.A3,N.E3,N.F3,N._,N.C4,N._,   N.D4,N._,N.D4,N.A3,N.G3,N._,N.G3,N._],
+    cho:[N.A4,N.C5,N.E5,N.C5,N.F4,N.A4,N.C5,N.A4,N.D4,N.F4,N.A4,N.F4,N.G4,N.B4,N.D5,N.B4],
+    drm:[1,3,2,3,1,3,2,3,                          1,3,2,3,1,3,2,3]},
+
+  // ST4 砂漠: 神秘的・エキゾチック
+  st4:{bpm:112,loop:16,
+    mel:[N.D4,N.E4,N.F4,N.G4,N.A4,N._,466,N.A4, N.G4,N.F4,N.E4,N.D4,N._,N.E4,N.D4,N._],
+    bas:[N.D3,N._,N.D3,N._,N.A3,N._,N.A3,N._,    N.G3,N._,N.G3,N._,N.D4,N._,N.D4,N._],
+    cho:[N.F3,N.A3,N.F3,N.A3,N.D4,N.F4,N.D4,N.F4,N.G3,N.B3,N.G3,N.B3,N.A3,N.C4,N.A3,N.C4],
+    drm:[1,0,3,0,2,0,3,0,                          1,0,3,0,2,3,0,0]},
+
+  // ボス: 激しい・緊迫
+  boss:{bpm:172,loop:16,
+    mel:[N.A4,N._,N.C5,N.B4,N.A4,N._,N.G4s,N.A4, N.F4,N._,N.A4,N.G4,N.F4,N._,N.E4,N.F4],
+    bas:[55,55,55,55,55,55,55,55,44,44,44,44,41,41,41,41],
+    cho:[N.A3,N.E4,N.A3,N.E4,N.C4s,N.G4s,N.C4s,N.G4s,N.F3,N.C4,N.F3,N.C4,N.E3,N.B3,N.E3,N.B3],
+    drm:[1,3,2,3,1,3,2,3,                           1,3,2,3,1,1,2,3]},
+
+  // クリア: 華やか・達成感
+  clear:{bpm:132,loop:16,
+    mel:[N.C5,N.E5,N.G5,N.C6,988,N._,N.A5,N.G5, N.E5,N.G5,N.A5,988,N.C6,N._,N._,N._],
+    bas:[N.C4,N._,N.G3,N._,N.F3,N._,N.F3,N._,    N.G3,N._,N.G3,N._,N.C4,N._,N.C4,N._],
+    cho:[N.E4,N.G4,N.C5,N.E5,N.G4,N.B4,N.D5,N.G5,N.C5,N.E5,N.G5,N.C6,N.G4,N.B4,N.D5,N.G5],
+    drm:[1,0,3,0,2,3,3,0,                          1,0,3,0,2,0,1,3]},
+};
+
+// ── BGM プレイヤー ──────────────────────────────
+let _bgmKey=null,_bgmStep=0,_bgmNext=0;
+
+function startBGM(key){
+  if(_bgmKey===key)return;
+  _bgmKey=key;_bgmStep=0;_bgmNext=0;
+  // 古いノードをすべて停止
+  bgmNodes.forEach(n=>{try{n.stop();}catch(e){}});
+  bgmNodes=[];
+}
+
 function updateBGM(){
-  if(muted||!bgmKey)return;
+  if(muted||!_bgmKey)return;
   const ac=getAC();if(!ac)return;
-  const d=BGM_DATA[bgmKey];if(!d)return;
-  const BEAT=60/d.bpm,now=ac.currentTime;
-  if(!bgmNext||bgmNext<now)bgmNext=now+0.05;
-  while(bgmNext<now+0.4){
-    const f=d.mel[bgmIdx%d.mel.length];
-    if(f>0){try{
+  const mg=getMaster();if(!mg)return;
+  const def=BGM_DEF[_bgmKey];if(!def)return;
+  const BEAT=60/def.bpm/4; // 16分音符単位
+  const now=ac.currentTime;
+  if(!_bgmNext||_bgmNext<now)_bgmNext=now+0.05;
+
+  while(_bgmNext<now+0.5){
+    const step=_bgmStep%def.loop;
+
+    // メロディ（矩形波 → 三角波でやわらかく）
+    const mf=def.mel[step];
+    if(mf>0){try{
       const o=ac.createOscillator(),g=ac.createGain();
-      o.type='triangle';o.frequency.value=f;o.connect(g);g.connect(ac.destination);
-      g.gain.setValueAtTime(0,bgmNext);g.gain.linearRampToValueAtTime(0.06,bgmNext+0.01);g.gain.linearRampToValueAtTime(0,bgmNext+BEAT*0.8);
-      o.start(bgmNext);o.stop(bgmNext+BEAT);
-      const ob=ac.createOscillator(),gb=ac.createGain();
-      ob.type='sine';ob.frequency.value=f/2;ob.connect(gb);gb.connect(ac.destination);
-      gb.gain.setValueAtTime(0,bgmNext);gb.gain.linearRampToValueAtTime(0.03,bgmNext+0.01);gb.gain.linearRampToValueAtTime(0,bgmNext+BEAT*0.5);
-      ob.start(bgmNext);ob.stop(bgmNext+BEAT);
+      o.type='square';o.frequency.value=mf;
+      o.connect(g);g.connect(mg);
+      g.gain.setValueAtTime(0,_bgmNext);
+      g.gain.linearRampToValueAtTime(0.10,_bgmNext+0.005);
+      g.gain.linearRampToValueAtTime(0.06,_bgmNext+BEAT*0.5);
+      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.92);
+      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
+      bgmNodes.push(o);
     }catch(e){}}
-    bgmNext+=BEAT;bgmIdx++;
+
+    // ベース（サイン波）
+    const bf=def.bas[step];
+    if(bf>0){try{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine';o.frequency.value=bf;
+      o.connect(g);g.connect(mg);
+      g.gain.setValueAtTime(0,_bgmNext);
+      g.gain.linearRampToValueAtTime(0.12,_bgmNext+0.01);
+      g.gain.linearRampToValueAtTime(0.08,_bgmNext+BEAT*0.4);
+      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.95);
+      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
+      bgmNodes.push(o);
+    }catch(e){}}
+
+    // コード（三角波・低音量）
+    const cf=def.cho[step];
+    if(cf>0){try{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='triangle';o.frequency.value=cf;
+      o.connect(g);g.connect(mg);
+      g.gain.setValueAtTime(0,_bgmNext);
+      g.gain.linearRampToValueAtTime(0.05,_bgmNext+0.01);
+      g.gain.linearRampToValueAtTime(0,_bgmNext+BEAT*0.85);
+      o.start(_bgmNext);o.stop(_bgmNext+BEAT);
+      bgmNodes.push(o);
+    }catch(e){}}
+
+    // パーカッション
+    const dr=def.drm[step];
+    if(dr>0){try{
+      const buf=ac.createBuffer(1,ac.sampleRate*0.1,ac.sampleRate);
+      const data=buf.getChannelData(0);
+      if(dr===1){// キック: 低周波バースト
+        for(let i=0;i<data.length;i++){
+          const t=i/ac.sampleRate;
+          data[i]=Math.sin(2*Math.PI*80*t*Math.exp(-t*30))*(1-t*10)||0;
+        }
+      }else if(dr===2){// スネア: ノイズ+トーン
+        for(let i=0;i<data.length;i++){
+          const t=i/ac.sampleRate;
+          data[i]=(Math.random()*2-1)*Math.exp(-t*20)*0.7+
+                   Math.sin(2*Math.PI*200*t)*Math.exp(-t*15)*0.3;
+        }
+      }else{// ハイハット: 高周波ノイズ
+        for(let i=0;i<data.length;i++){
+          const t=i/ac.sampleRate;
+          data[i]=(Math.random()*2-1)*Math.exp(-t*60);
+        }
+      }
+      const src=ac.createBufferSource(),g=ac.createGain();
+      src.buffer=buf;
+      src.connect(g);g.connect(mg);
+      g.gain.value=dr===3?0.04:0.10;
+      src.start(_bgmNext);
+      bgmNodes.push(src);
+    }catch(e){}}
+
+    _bgmNext+=BEAT;
+    _bgmStep++;
+    // 古いノードを定期的にクリア
+    if(_bgmStep%64===0)bgmNodes=bgmNodes.filter(n=>{try{return n.playbackState!==3;}catch(e){return false;}});
   }
 }
+
 function SE(type){
   if(muted)return;const ac=getAC();if(!ac)return;const now=ac.currentTime;
   const C={
@@ -331,7 +481,7 @@ class TownScene extends Phaser.Scene{
     this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
   }
   openMenu(tab='stat'){
-    this.scene.pause();
+    // BGMは継続したままMenuを起動
     this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData},tab});
   }
   showLvUpScreen(){
@@ -546,29 +696,35 @@ class MenuScene extends Phaser.Scene{
   }
   create(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    // 960×540 に収まるパネル: 幅90% 高さ92%
-    const PW=Math.min(w*0.92,860), PH=Math.min(h*0.92,500);
+    // パネル: 画面幅96% 高さ96% 余白最小
+    const PW=Math.min(w*0.96,900), PH=Math.min(h*0.96,520);
     const PX=w/2, PY=h/2;
-    this.add.rectangle(0,0,w,h,0x000000,0.88).setOrigin(0);
+    const TAB_H=34, CLOSE_H=32;
+    const INNER_TOP=PY-PH/2+TAB_H+4;
+    const INNER_BOT=PY+PH/2-CLOSE_H-6;
+    const INNER_H=INNER_BOT-INNER_TOP;
+    const LX=PX-PW/2+10;
+
+    this.add.rectangle(0,0,w,h,0x000000,0.85).setOrigin(0);
     this.add.rectangle(PX,PY,PW,PH,0x060916,0.99).setStrokeStyle(2,0x44aaff);
 
     // タブ
     this.tabBtns={};this.tabTxts={};
     [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
-      const btn=this.add.rectangle(PX+ox,PY-PH/2+20,PW/2-8,32,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
-      const txt=this.add.text(PX+ox,PY-PH/2+20,label,{fontSize:'12px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
+      const btn=this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
+      const txt=this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'15px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
       btn.on('pointerdown',()=>this.switchTab(id));
       this.tabBtns[id]=btn;this.tabTxts[id]=txt;
     });
 
     this.statCont=this.add.container(0,0);
     this.skillCont=this.add.container(0,0);
-    this._buildStat(pd,w,h,PW,PH,PX,PY);
-    this._buildSkill(pd,w,h,PW,PH,PX,PY);
+    this._buildStat(pd,PW,PH,PX,PY,LX,INNER_TOP,INNER_BOT,INNER_H);
+    this._buildSkill(pd,PW,PH,PX,PY,LX,INNER_TOP,INNER_BOT,INNER_H);
 
     // 閉じるボタン
-    const close=this.add.rectangle(PX,PY+PH/2-18,160,30,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(PX,PY+PH/2-18,'✕ 閉じる',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
+    const close=this.add.rectangle(PX,PY+PH/2-CLOSE_H/2-2,180,CLOSE_H,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
+    this.add.text(PX,PY+PH/2-CLOSE_H/2-2,'✕ 閉じる [ESC]',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
     close.on('pointerover',()=>close.setFillStyle(0xffd700,0.45));
     close.on('pointerout', ()=>close.setFillStyle(0xffd700,0.2));
     close.on('pointerdown',()=>this._close());
@@ -586,40 +742,39 @@ class MenuScene extends Phaser.Scene{
       this.tabTxts[id].setColor(id===tab?'#'+col.toString(16).padStart(6,'0'):'#334455');
     });
   }
-  _buildStat(pd,w,h,PW,PH,PX,PY){
+  _buildStat(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
     const c=this.statCont;
     const S=[
-      {key:'atk',label:'力  STR',desc:'ATK+2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
+      {key:'atk',label:'力   STR',desc:'ATK +2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
       {key:'spd',label:'素早 AGI',desc:'SPD+12',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
-      {key:'mag',label:'魔力 MAG',desc:'MAG+2',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力 VIT',desc:'HP+9', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'mag',label:'魔力 MAG',desc:'MAG +2',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mhp',label:'体力 VIT',desc:'HP  +9',col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
       {key:'luk',label:'運   LUK',desc:'CRIT+1',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
-      {key:'hit',label:'命中 DEX',desc:'HIT+2',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
+      {key:'hit',label:'命中 DEX',desc:'HIT +2',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
     this._tmp={};S.forEach(s=>{this._tmp[s.key]=0;});
     this._tmpPts=pd.statPts||0;
 
-    const TOP=PY-PH/2+46;
-    const ROW_H=(PH-100)/7; // 6行+ヘッダ+ボタン
-
-    this._ptsTxt=this.add.text(PX,TOP,'' ,{fontSize:'12px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    // ポイント表示
+    this._ptsTxt=this.add.text(PX,ITOP+10,'',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
     c.add(this._ptsTxt);this._refreshPts();
 
+    // 各ステータス行
+    const ROW_H=(IH-50)/6;
     this._vt={};this._at={};
-    const LX=PX-PW/2+12; // 左端
     S.forEach((s,i)=>{
-      const y=TOP+22+i*ROW_H;
-      const lbl=this.add.text(LX,     y,s.label,{fontSize:'11px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
-      const dsc=this.add.text(LX+100, y,s.desc, {fontSize:'10px',fontFamily:'Courier New',color:'#555'}).setOrigin(0,0.5);
-      const cur=this.add.text(LX+190, y,this._sv(pd,s.key),{fontSize:'11px',fontFamily:'Courier New',color:'#ddd'}).setOrigin(0,0.5);
-      const add=this.add.text(LX+255, y,'',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
-      const bm=this.add.rectangle(PX+PW/2-70,y,34,24,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
-      this.add.text(PX+PW/2-70,y,'−',{fontSize:'16px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
+      const y=ITOP+30+i*ROW_H+ROW_H/2;
+      const lbl=this.add.text(LX,y,s.label,{fontSize:'14px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
+      const dsc=this.add.text(LX+120,y,s.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#666'}).setOrigin(0,0.5);
+      const cur=this.add.text(LX+210,y,this._sv(pd,s.key),{fontSize:'14px',fontFamily:'Courier New',color:'#fff'}).setOrigin(0,0.5);
+      const add=this.add.text(LX+265,y,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
+      const bm=this.add.rectangle(PX+PW/2-70,y,38,28,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
+      this.add.text(PX+PW/2-70,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
       bm.on('pointerdown',()=>this._adj(s,-1,cur,add));
       bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5));
       bm.on('pointerout', ()=>bm.setFillStyle(0xe74c3c,0.25));
-      const bp=this.add.rectangle(PX+PW/2-30,y,34,24,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
-      this.add.text(PX+PW/2-30,y,'+',{fontSize:'16px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+      const bp=this.add.rectangle(PX+PW/2-26,y,38,28,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
+      this.add.text(PX+PW/2-26,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
       bp.on('pointerdown',()=>this._adj(s,+1,cur,add));
       bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5));
       bp.on('pointerout', ()=>bp.setFillStyle(0x44aaff,0.25));
@@ -627,13 +782,13 @@ class MenuScene extends Phaser.Scene{
       this._vt[s.key]=cur;this._at[s.key]=add;
     });
 
-    const BY=PY+PH/2-48;
-    const ok=this.add.rectangle(PX-60,BY,160,28,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
-    this.add.text(PX-60,BY,'✔ 確定して反映',{fontSize:'11px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
+    // 確定・リセットボタン
+    const ok=this.add.rectangle(PX-70,IBOT-14,190,30,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
+    this.add.text(PX-70,IBOT-14,'✔ 確定して反映',{fontSize:'14px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
     ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5));ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
     ok.on('pointerdown',()=>this._confirm(pd,S));c.add(ok);
-    const rst=this.add.rectangle(PX+100,BY,100,28,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
-    this.add.text(PX+100,BY,'↺ リセット',{fontSize:'11px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
+    const rst=this.add.rectangle(PX+110,IBOT-14,120,30,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
+    this.add.text(PX+110,IBOT-14,'↺ リセット',{fontSize:'13px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
     rst.on('pointerdown',()=>this._reset(S));rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4));rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
     c.add(rst);
   }
@@ -658,7 +813,7 @@ class MenuScene extends Phaser.Scene{
     S.forEach(s=>{this._tmpPts+=this._tmp[s.key]||0;this._tmp[s.key]=0;if(this._at[s.key])this._at[s.key].setText('');});
     this._refreshPts();
   }
-  _buildSkill(pd,w,h,PW,PH,PX,PY){
+  _buildSkill(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
     const c=this.skillCont;
     const DEFS={
       warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
@@ -667,35 +822,32 @@ class MenuScene extends Phaser.Scene{
       bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
     };
     const defs=DEFS[pd.cls]||[];
-    const TOP=PY-PH/2+46;
-    // JOBポイント表示
-    const jpTxt=this.add.text(PX,TOP,'JLv'+(pd.jobLv||1)+'  JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'12px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-    // JEXPバー
-    const jbg=this.add.rectangle(PX,TOP+16,PW-24,7,0x222222).setOrigin(0.5);
-    const jbar=this.add.rectangle(PX-(PW-24)/2,TOP+16,(PW-24)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),7,0x00e5ff).setOrigin(0,0.5);
+    // JOBポイント・EXPバー
+    const jpTxt=this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
+    const jbg=this.add.rectangle(PX,ITOP+26,PW-30,8,0x222222).setOrigin(0.5);
+    const jbar=this.add.rectangle(PX-(PW-30)/2,ITOP+26,(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5);
     c.add([jpTxt,jbg,jbar]);
 
-    const SK_H=(PH-120)/3;
+    // スキル3行
+    const SK_H=(IH-46)/3;
     defs.forEach((sk,i)=>{
-      const y=TOP+38+i*SK_H+SK_H/2;
+      const y=ITOP+38+i*SK_H+SK_H/2;
       const cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
-      const bg=this.add.rectangle(PX,y,PW-20,SK_H-6,col,0.07).setStrokeStyle(1,col);
-      const LX=PX-PW/2+14;
-      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'10px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
-      const nm=this.add.text(LX+36,y-12,sk.name,{fontSize:'13px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
-      const ds=this.add.text(LX,y+6,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#777'}).setOrigin(0,0.5);
-      // Lvバー（最大10マス）
-      const barW=Math.min(sk.maxLv*14, PW/2-20);
-      const bpx=PX-PW/4;
-      for(let j=0;j<sk.maxLv;j++){
-        const bx=bpx+j*(barW/sk.maxLv);
-        c.add(this.add.rectangle(bx,y-12,barW/sk.maxLv-2,12,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5));
+      const bg=this.add.rectangle(PX,y,PW-16,SK_H-4,col,0.07).setStrokeStyle(1,col);
+      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
+      const nm=this.add.text(LX+38,y-12,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
+      const ds=this.add.text(LX,y+8,sk.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
+      // Lvバー
+      const maxB=sk.maxLv,bW=Math.floor((PW*0.35)/maxB)-2;
+      const bStartX=PX-PW*0.18;
+      for(let j=0;j<maxB;j++){
+        c.add(this.add.rectangle(bStartX+j*(bW+2),y-12,bW,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5));
       }
-      const lvt=this.add.text(PX+PW/2-100,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'10px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
+      const lvt=this.add.text(PX+PW*0.22,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'13px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
       c.add([bg,kl,nm,ds,lvt]);
       if(!maxed){
-        const btn=this.add.rectangle(PX+PW/2-52,y+6,88,24,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
-        const bt=this.add.text(PX+PW/2-52,y+6,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'10px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
+        const btn=this.add.rectangle(PX+PW/2-55,y+8,100,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
+        const bt=this.add.text(PX+PW/2-55,y+8,cur===0?'習得 (1JP)':'強化 (1JP)',{fontSize:'13px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
         btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.45));btn.on('pointerout',()=>btn.setFillStyle(0x00e5ff,0.2));
         btn.on('pointerdown',()=>{
           if((pd.jobPts||0)<1)return;
@@ -703,10 +855,18 @@ class MenuScene extends Phaser.Scene{
           this.scene.restart({playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
         });
         c.add([btn,bt]);
-      }else{c.add(this.add.text(PX+PW/2-52,y+6,'MAX',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
+      }else{c.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
     });
   }
-  _close(){this.scene.stop();this.scene.resume(this.returnScene,this.returnData);}
+  _close(){
+    this.scene.stop();
+    const target=this.scene.get(this.returnScene);
+    if(target&&typeof target.resumeFromMenu==='function'){
+      target.resumeFromMenu();
+    }else{
+      this.scene.resume(this.returnScene,this.returnData);
+    }
+  }
 }
 
 class GameClearScene extends Phaser.Scene{
@@ -1213,62 +1373,73 @@ class GameScene extends Phaser.Scene{
   // ── HUD（⑦ EXPバー・ジョブEXPバー追加）─────────
   createHUD(){
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    // 背景（大きめに）
-    this.add.rectangle(0,0,310,130,0x000000,0.82).setOrigin(0).setScrollFactor(0).setDepth(10);
+    // バー幅: 160px、ラベル幅: 24px、合計約190px
+    const BW=160, LX=24, BX=LX+4;
+    const BG_W=BX+BW+4;
+    // 背景（コンパクト: 4バー分 = 約76px高さ）
+    this.add.rectangle(0,0,BG_W,80,0x000000,0.75).setOrigin(0).setScrollFactor(0).setDepth(10);
     // HP
-    this.add.rectangle(52,14,220,12,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudHPBar=this.add.rectangle(52,14,220*(pd.hp/pd.mhp),12,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,13,'HP',{fontSize:'13px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
-    this.hudHPTxt=this.add.text(276,13,'',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
+    this.add.rectangle(BX,8,BW,11,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudHPBar=this.add.rectangle(BX,8,BW*(pd.hp/pd.mhp),11,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,7,'HP',{fontSize:'10px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
     // SP
-    this.add.rectangle(52,32,220,12,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudSPBar=this.add.rectangle(52,32,220*(pd.sp/pd.msp),12,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,31,'SP',{fontSize:'13px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    this.hudSPTxt=this.add.text(276,31,'',{fontSize:'12px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    // EXPバー
-    this.add.rectangle(52,50,220,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudEXPBar=this.add.rectangle(52,50,0,9,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,49,'EX',{fontSize:'11px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
-    this.hudEXPTxt=this.add.text(276,49,'',{fontSize:'10px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
-    // ジョブEXPバー
-    this.add.rectangle(52,64,220,9,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudJEXPBar=this.add.rectangle(52,64,0,9,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,63,'JB',{fontSize:'11px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
-    this.hudJEXPTxt=this.add.text(276,63,'',{fontSize:'10px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
-    // 情報行
-    this.hudInfo=this.add.text(2,78,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
-    this.hudSub=this.add.text(2,96,'',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
-    this.hudSub2=this.add.text(2,112,'',{fontSize:'11px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
-    // ステージバッジ
-    // ステージバッジはミニマップ左に配置（右上はミニマップが占有）
+    this.add.rectangle(BX,24,BW,11,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudSPBar=this.add.rectangle(BX,24,BW*(pd.sp/pd.msp),11,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,23,'SP',{fontSize:'10px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
+    // EXP（経験値）
+    this.add.rectangle(BX,40,BW,8,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudEXPBar=this.add.rectangle(BX,40,0,8,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,39,'EX',{fontSize:'10px',fontFamily:'Courier New',color:'#f39c12'}).setScrollFactor(0).setDepth(12);
+    // JOB EXP
+    this.add.rectangle(BX,53,BW,8,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.hudJEXPBar=this.add.rectangle(BX,53,0,8,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
+    this.add.text(2,52,'JB',{fontSize:'10px',fontFamily:'Courier New',color:'#00e5ff'}).setScrollFactor(0).setDepth(12);
+    // Lv表示（小さく）
+    this.hudLvTxt=this.add.text(2,65,'',{fontSize:'9px',fontFamily:'Courier New',color:'#aaaaaa'}).setScrollFactor(0).setDepth(12);
+    // ダミー変数（updateHUDで参照するため）
+    this.hudHPTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudSPTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudEXPTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudJEXPTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudInfo=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudSub=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.hudSub2=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    this.killTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
+    // ステージバッジ（ミニマップ左）
     this.add.rectangle(w-124,0,80,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
     this.add.text(w-132,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
     // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
     this.bossHPTxt=this.add.text(w/2,h-44,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(12).setVisible(false);
-    this.killTxt=this.add.text(2,126,'',{fontSize:'11px',fontFamily:'Courier New',color:'#888888'}).setScrollFactor(0).setDepth(12);
-    // キャラアイコンボタン
+    // キャラアイコン（MENUボタン）
     const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[this.playerData.cls]||'?';
-    this._menuBtn=this.add.rectangle(282,50,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this.add.text(282,46,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this.add.text(282,66,'MENU',{fontSize:'11px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._menuBadge=this.add.text(298,30,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
+    this._menuBtn=this.add.rectangle(BG_W+26,36,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this.add.text(BG_W+26,32,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this.add.text(BG_W+26,50,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._menuBadge=this.add.text(BG_W+42,16,'',{fontSize:'9px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
     this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
     this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
     this.updateHUD();
   }
   openMenu(tab='stat'){
+    // physics停止のみ（BGMは継続）
     this.physics.pause();
-    if(this.bgmTimer)this.bgmTimer.remove();
-    this.scene.pause();
-    this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Game',returnData:{playerData:this.playerData,stage:this.stage},tab});
-    // Menuが閉じたら再開
-    this.scene.get('Menu').events.once('shutdown',()=>{
-      this.physics.resume();
-      if(this.bgmTimer)this.bgmTimer=this.time.addEvent({delay:100,loop:true,callback:updateBGM});
+    this._menuOpen=true;
+    this.scene.launch('Menu',{
+      playerData:this.playerData,
+      returnScene:'Game',
+      returnData:{playerData:this.playerData,stage:this.stage},
+      tab,
     });
+  }
+  resumeFromMenu(){
+    // MenuSceneから呼ばれる（Menu._close内で呼び出し）
+    this._menuOpen=false;
+    this.physics.resume();
+    this.updateHUD();
+    this._updateMenuBadge();
   }
   _updateMenuBadge(){
     const pd=this.playerData;
@@ -1277,28 +1448,21 @@ class GameScene extends Phaser.Scene{
   }
   updateHUD(){
     const pd=this.playerData;
+    const BW=160;
     const hp=Math.max(0,pd.hp),sp=Math.max(0,pd.sp);
     const hpP=hp/pd.mhp,spP=sp/pd.msp;
-    this.hudHPBar.setSize(180*hpP,9).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
-    this.hudSPBar.setSize(180*spP,9);
-    this.hudHPTxt.setText(Math.ceil(hp)+'/'+pd.mhp);
-    this.hudSPTxt.setText(Math.ceil(sp)+'/'+pd.msp);
-    // EXPバー
+    // HP（色変化あり）
+    this.hudHPBar.setSize(BW*hpP,11).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
+    // SP
+    this.hudSPBar.setSize(BW*spP,11);
+    // EXP
     const expP=Math.min(1,pd.exp/pd.expNext);
-    this.hudEXPBar.setSize(180*expP,7);
-    this.hudEXPTxt.setText(pd.exp+'/'+pd.expNext);
-    // ジョブEXPバー
+    this.hudEXPBar.setSize(BW*expP,8);
+    // JOB EXP
     const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
-    this.hudJEXPBar.setSize(180*jexpP,7);
-    this.hudJEXPTxt.setText('JLv'+(pd.jobLv||1)+' '+(pd.jobExp||0)+'/'+(pd.jobExpNext||80));
-    // 情報
-    this.hudInfo.setText('Lv'+pd.lv+' 💰'+pd.gold+'G 💊'+(pd.potHP||0)+' 💧'+(pd.potMP||0)+(pd.statPts>0?' ⚡'+pd.statPts+'pt':''));
-    this.hudSub.setText('ATK'+pd.atk+' DEF'+pd.def+' MAG'+pd.mag+' HIT'+pd.hit+'% CRT'+pd.luk+'%  討伐:'+pd.kills);
-    // スキルレベル表示
-    const sk=['SK1:'+pd.sk1,'SK2:'+pd.sk2,'SK3:'+pd.sk3].join(' ') + (pd.jobPts>0?' [JP残'+pd.jobPts+']':'');
-    this.hudSub2.setText(sk);
-    const thresh=this.cfg.bossThreshold;
-    this.killTxt.setText(!this.bossSpawned?('ボス出現まで '+Math.max(0,thresh-this.killCount)+'体'):this.bossData?'⚠ BOSS出現中！':'✅ ボス撃破！');
+    this.hudJEXPBar.setSize(BW*jexpP,8);
+    // Lv表示
+    if(this.hudLvTxt) this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1));
   }
   updateBossHP(ed){
     const w=this.scale.width;
@@ -1692,26 +1856,42 @@ class GameScene extends Phaser.Scene{
 
   checkLevelUp(){
     const pd=this.playerData;
+    let leveled=false;
     while(pd.exp>=pd.expNext){
       pd.exp-=pd.expNext;pd.lv++;pd.expNext=Math.floor(pd.expNext*1.4);
       pd.mhp+=8;pd.hp=pd.mhp;pd.atk+=1;pd.def+=1;pd.msp+=5;pd.sp=pd.msp;
       pd.statPts=(pd.statPts||0)+3;
       pd.pendingLvUp=(pd.pendingLvUp||0)+1;
+      leveled=true;
       SE('levelup');this.cameras.main.flash(300,255,215,0);
       this.showFloat(this.player.x,this.player.y-80,'✨ LEVEL UP! Lv'+pd.lv,'#ffd700');
+    }
+    // ステージ上でレベルアップ→少し待ってからMenuを開く
+    if(leveled&&!this._menuOpen){
+      this.time.delayedCall(1200,()=>{
+        if(!this._menuOpen) this.openMenu('stat');
+      });
     }
   }
   // ⑦ ジョブEXP処理
   addJobExp(amount){
     const pd=this.playerData;
     pd.jobExp=(pd.jobExp||0)+amount;
+    let jobLeveled=false;
     while(pd.jobExp>=(pd.jobExpNext||80)){
       pd.jobExp-=(pd.jobExpNext||80);
       pd.jobLv=(pd.jobLv||1)+1;
       pd.jobExpNext=Math.floor((pd.jobExpNext||80)*1.5);
       pd.jobPts=(pd.jobPts||0)+1;
+      jobLeveled=true;
+      SE('levelup');
       this.showFloat(this.player.x,this.player.y-100,'⚡ JOB LV UP! JLv'+pd.jobLv,'#00e5ff');
-      this.showFloat(this.player.x,this.player.y-120,'ジョブポイント+1（SK画面で習得）','#00e5ff');
+    }
+    // ジョブLvUP→少し待ってMenuを開く（LvUPと重複しない場合のみ）
+    if(jobLeveled&&!this._menuOpen&&!(pd.pendingLvUp>0)){
+      this.time.delayedCall(1400,()=>{
+        if(!this._menuOpen) this.openMenu('skill');
+      });
     }
   }
 
@@ -1876,6 +2056,12 @@ class GameScene extends Phaser.Scene{
       else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
+    // [S][J]キー（Menu未表示時のみ）
+    if(!this._menuOpen){
+      if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
+      if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
+    }
+    this._updateMenuBadge();
   }
 }
 
