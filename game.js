@@ -303,7 +303,7 @@ class ClassSelectScene extends Phaser.Scene{
       this.add.text(cx+10,cy-4,cls.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',lineSpacing:4});
       card.on('pointerover',()=>{card.setFillStyle(cls.col,0.35);this.tweens.add({targets:card,scaleX:1.03,scaleY:1.03,duration:100})});
       card.on('pointerout', ()=>{card.setFillStyle(cls.col,0.12);this.tweens.add({targets:card,scaleX:1,scaleY:1,duration:100})});
-      card.on('pointerdown',()=>{this.scene.start('Town',{playerData:makePlayerData(cls.key)})});
+      card.on('pointerdown',()=>{this.scene.start('Game',{playerData:makePlayerData(cls.key),stage:0})});
     });
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
@@ -313,273 +313,6 @@ class ClassSelectScene extends Phaser.Scene{
 // ============================================================
 //  TownScene
 // ============================================================
-class TownScene extends Phaser.Scene{
-  constructor(){super('Town')}
-  init(data){this.playerData=data.playerData}
-  create(){
-    const TW=1200,TH=800;
-    this.TW=TW;this.TH=TH;
-    startBGM('town');
-    this.cameras.main.setBounds(0,0,TW,TH);
-    this.physics.world.setBounds(0,0,TW,TH);
-    const cols=Math.ceil(TW/TILE),rows=Math.ceil(TH/TILE);
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      let key='tile_cobble';
-      if(c<3||c>cols-4||r<3||r>rows-4)key='tile_town_wall';
-      else if(r>=rows-4)key='tile_town_path';
-      this.add.image(c*TILE+16,r*TILE+16,key).setDisplaySize(TILE,TILE);
-    }
-    this.buildings=[
-      {x:100,y:80, w:180,h:130,label:'🏨 宿屋',   type:'inn',       col:0x5c3317},
-      {x:400,y:80, w:200,h:140,label:'🏪 ショップ',type:'shop',      col:0x1a4a8a},
-      {x:750,y:80, w:180,h:130,label:'⚔ ギルド',  type:'guild',     col:0x4a1a1a},
-      {x:150,y:400,w:160,h:120,label:'🔨 鍛冶屋',  type:'blacksmith',col:0x2a2a2a},
-      {x:600,y:380,w:200,h:150,label:'🔮 魔法店',  type:'magic',     col:0x1a0a3a},
-    ];
-    this.buildings.forEach(b=>{
-      this.add.rectangle(b.x+b.w/2,b.y+b.h/2,b.w,b.h,b.col).setStrokeStyle(2,0x888888);
-      this.add.text(b.x+b.w/2,b.y+b.h-16,b.label,{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
-    });
-    this.add.image(TW/2,TH-160,'portal_st1').setDisplaySize(96,64);
-    this.add.text(TW/2,TH-110,'🌿 野外へ (ST.1)',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5);
-    this.player=this.physics.add.sprite(200,300,'player_'+this.playerData.cls).setDisplaySize(64,64).setCollideWorldBounds(true);
-    // ボマー：アニメが登録済みなら再生、未登録なら少し待って再試行
-    if(this.playerData.cls==='bomber'){
-      this._townBomberFacing='front';
-      this._townBomberFlip=false;
-      const startAnim=()=>{
-        if(this.anims.exists('bomber_front_idle')){
-          this.player.play('bomber_front_idle');
-        }else{
-          this.time.delayedCall(200,startAnim);
-        }
-      };
-      startAnim();
-    }
-    this.cameras.main.startFollow(this.player,true,0.1,0.1);
-    this.cursors=this.input.keyboard.createCursorKeys();
-    this.wasd=this.input.keyboard.addKeys('W,A,S,D');
-    this.createHUD();
-    this.hintText=this.add.text(this.scale.width/2,this.scale.height-24,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#00000088',padding:{x:6,y:3}}).setOrigin(0.5).setScrollFactor(0).setDepth(11);
-    this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(20).setScrollFactor(0).setVisible(false);
-    // Eキー不要 - 近づいたら自動遷移・インタラクション
-    if(this.playerData.pendingLvUp>0) this.time.delayedCall(500,()=>this.showLvUpScreen());
-    this.createMenuButton();
-    this.createTownJoystick();
-  }
-  createHUD(){
-    const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    this.add.rectangle(0,0,240,82,0x000000,0.75).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudHPBar=this.add.rectangle(44,14,180*(pd.hp/pd.mhp),10,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.rectangle(44,14,180,10,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.hudSPBar=this.add.rectangle(44,30,180*(pd.sp/pd.msp),10,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.rectangle(44,30,180,10,0x222222).setOrigin(0).setScrollFactor(0).setDepth(10);
-    this.add.text(2,12,'HP',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setScrollFactor(0).setDepth(12);
-    this.add.text(2,28,'SP',{fontSize:'9px',fontFamily:'Courier New',color:'#3498db'}).setScrollFactor(0).setDepth(12);
-    this.hudGold=this.add.text(4,46,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffd700'}).setScrollFactor(0).setDepth(12);
-    this.hudPts=this.add.text(4,62,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ff6'}).setScrollFactor(0).setDepth(12);
-    this.add.text(w-4,4,'TOWN',{fontSize:'12px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
-    const muteBtn=this.add.text(w-4,24,'🔊',{fontSize:'16px'}).setOrigin(1,0).setScrollFactor(0).setDepth(12).setInteractive({useHandCursor:true});
-    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
-    const mw=100,mh=80,mx=w-mw-6,my=h-mh-6;
-    this.add.rectangle(mx,my,mw,mh,0x000000,0.7).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0x2ecc71);
-    this.add.text(mx+mw/2,my-10,'TOWN',{fontSize:'9px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
-    this.mmDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(22);
-    this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
-    this.updateHUD();
-  }
-  updateHUD(){
-    const pd=this.playerData;
-    this.hudHPBar.setSize(180*(Math.max(0,pd.hp)/pd.mhp),10);
-    this.hudSPBar.setSize(180*(Math.max(0,pd.sp)/pd.msp),10);
-    this.hudGold.setText('💰 '+pd.gold+'G  💊'+(pd.potHP||0)+'  💧'+(pd.potMP||0));
-    this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
-  }
-  openMenu(tab='stat'){
-    this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData},tab});
-    this.scene.pause();
-  }
-  showLvUpScreen(){
-    const pd=this.playerData;
-    if(pd.pendingLvUp<=0)return;
-    pd.pendingLvUp--;
-    this.scene.pause();
-    this.scene.launch('LevelUp',{playerData:pd,returnScene:'Town',returnData:{playerData:pd}});
-  }
-  createTownJoystick(){
-    const w=this.scale.width, h=this.scale.height;
-    this.townJoyActive=false; this.townJoyDx=0; this.townJoyDy=0;
-    this.townJoyPtrId=null;
-    const JX=80, JY=h-120;
-    this.townJoyX=JX; this.townJoyY=JY;
-    this.townJoyR=44;
-    // 外円
-    this.townJoyBase=this.add.circle(JX,JY,54,0x000000,0.55).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0x2ecc71,0.8);
-    // 内円
-    this.townJoyKnob=this.add.circle(JX,JY,26,0x2ecc71,0.85).setScrollFactor(0).setDepth(51);
-    this.add.text(JX,JY,'移動',{fontSize:'10px',fontFamily:'Courier New',color:'#ffffffaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(52);
-    // タッチ開始
-    this.input.on('pointerdown',(ptr)=>{
-      if(this.townJoyPtrId!==null)return;
-      if(ptr.x<w*0.45&&ptr.y<h-10&&ptr.y>h*0.35){
-        this.townJoyActive=true; this.townJoyPtrId=ptr.id;
-        this.townJoyX=ptr.x; this.townJoyY=ptr.y;
-        this.townJoyBase.setPosition(ptr.x,ptr.y);
-        this.townJoyKnob.setPosition(ptr.x,ptr.y);
-      }
-    },this);
-    this.input.on('pointermove',(ptr)=>{
-      if(!this.townJoyActive||ptr.id!==this.townJoyPtrId)return;
-      const dx=ptr.x-this.townJoyX, dy=ptr.y-this.townJoyY;
-      const dist=Math.sqrt(dx*dx+dy*dy), maxR=this.townJoyR;
-      const cx=dist>maxR?this.townJoyX+dx/dist*maxR:ptr.x;
-      const cy=dist>maxR?this.townJoyY+dy/dist*maxR:ptr.y;
-      this.townJoyKnob.setPosition(cx,cy);
-      this.townJoyDx=dist>6?dx/Math.max(dist,maxR):0;
-      this.townJoyDy=dist>6?dy/Math.max(dist,maxR):0;
-    },this);
-    const onUp=(ptr)=>{
-      if(ptr.id!==this.townJoyPtrId)return;
-      this.townJoyActive=false; this.townJoyPtrId=null;
-      this.townJoyDx=0; this.townJoyDy=0;
-      this.townJoyBase.setPosition(JX,JY);
-      this.townJoyKnob.setPosition(JX,JY);
-      this.townJoyX=JX; this.townJoyY=JY;
-    };
-    this.input.on('pointerup',onUp,this);
-    this.input.on('pointercancel',onUp,this);
-  }
-    createMenuButton(){
-    const pd=this.playerData;
-    const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[pd.cls]||'?';
-    const MX=220,MY=40;
-    // 外枠グロー
-    this._menuBtnGlow=this.add.rectangle(MX,MY,64,64,0x44aaff,0.18).setScrollFactor(0).setDepth(14);
-    // ボタン本体
-    this._menuBtn=this.add.rectangle(MX,MY,56,56,0x0a0f2a,0.95).setStrokeStyle(3,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this.add.text(MX,MY-8,cls,{fontSize:'22px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this.add.text(MX,MY+16,'MENU',{fontSize:'9px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._menuBadge=this.add.text(MX+24,MY-24,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#e74c3c',padding:{x:3,y:2}}).setScrollFactor(0).setDepth(17);
-    this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
-    this._menuBtn.on('pointerover',()=>{this._menuBtn.setFillStyle(0x44aaff,0.3);this._menuBtnGlow.setFillStyle(0x44aaff,0.4);});
-    this._menuBtn.on('pointerout', ()=>{this._menuBtn.setFillStyle(0x0a0f2a,0.95);this._menuBtnGlow.setFillStyle(0x44aaff,0.18);});
-    this._menuPulse=this.tweens.add({targets:this._menuBtnGlow,fillAlpha:{from:0.1,to:0.5},duration:600,yoyo:true,repeat:-1,paused:true});
-    // ミュートボタン
-    const muteX=MX+46;
-    this._muteBtn=this.add.rectangle(muteX,MY,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x555555).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this._muteTxt=this.add.text(muteX,MY,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._muteBtn.on('pointerdown',()=>{setMute(!muted);this._muteTxt.setText(muted?'🔇':'🔊');});
-    this._updateMenuBadge();
-  }
-  _updateMenuBadge(){
-    const pd=this.playerData;
-    const pts=(pd.statPts||0)+(pd.jobPts||0);
-    if(!this._menuBadge)return;
-    if(pts>0){
-      // ポイントあり: バッジ表示 + ボタン点滅
-      this._menuBadge.setText('↑'+pts+'pt');
-      if(this._menuPulse&&this._menuPulse.isPaused())this._menuPulse.resume();
-      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0xffff00); // 枠を黄色に
-    }else{
-      // ポイントなし: バッジ非表示 + 点滅停止
-      this._menuBadge.setText('');
-      if(this._menuPulse&&!this._menuPulse.isPaused())this._menuPulse.pause();
-      if(this._menuBtnGlow)this._menuBtnGlow.setFillStyle(0x44aaff,0.18);
-      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0x44aaff); // 枠を青に戻す
-    }
-  }
-  tryInteract(){
-    // タップ/クリックでインタラクション（建物）
-    const p=this.player;
-    for(const b of this.buildings){
-      if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){this.openBuilding(b);return;}
-    }
-  }
-  openBuilding(b){
-    const w=this.scale.width,h=this.scale.height;
-    const msgs={inn:'🏨 宿屋  泊まる？(30G)\n[Y]はい  [N]いいえ',shop:'🏪 ショップ\nHPポーション 30G [1]\nMPポーション 25G [2]',blacksmith:'🔨 鍛冶屋\n鉄の剣 80G ATK+8 [1]\n革の鎧 70G DEF+5/HP+20 [2]\n俊足の靴 60G SPD+20 [3]',magic:'🔮 魔法店\n魔法の杖 90G MAG+8 [1]\n幸運の指輪 100G LUK+8 [2]',guild:'⚔ ギルド\n(準備中)\n[ESC]閉じる'};
-    this.msgText.setText(msgs[b.type]||'準備中').setPosition(w/2-130,h/2-60).setVisible(true);
-    const close=()=>this.msgText.setVisible(false);
-    if(b.type==='inn') this.input.keyboard.once('keydown-Y',()=>{
-      const pd=this.playerData;
-      if(pd.gold>=30){pd.gold-=30;pd.hp=pd.mhp;pd.sp=pd.msp;pd.potHP=(pd.potHP||0)+3;pd.potMP=(pd.potMP||0)+3;SE('potion');this.updateHUD();this.msgText.setText('✨ 完全回復！ポーション3本補充！');}
-      else this.msgText.setText('💰 お金が足りない！');
-      this.time.delayedCall(1500,close);
-    });
-    if(b.type==='shop'){
-      this.input.keyboard.once('keydown-ONE',()=>{const pd=this.playerData;if(pd.gold>=30){pd.gold-=30;pd.potHP=(pd.potHP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💊 HPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{const pd=this.playerData;if(pd.gold>=25){pd.gold-=25;pd.potMP=(pd.potMP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💧 MPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-    }
-    if(b.type==='blacksmith'){
-      this.input.keyboard.once('keydown-ONE',()=>{const pd=this.playerData;if(pd.gold>=80){pd.gold-=80;pd.atk+=8;SE('potion');this.updateHUD();this.msgText.setText('⚔ 鉄の剣！ATK+8');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{const pd=this.playerData;if(pd.gold>=70){pd.gold-=70;pd.def+=5;pd.mhp+=20;pd.hp=Math.min(pd.hp+20,pd.mhp);SE('potion');this.updateHUD();this.msgText.setText('🛡 革の鎧！DEF+5 HP+20');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-THREE',()=>{const pd=this.playerData;if(pd.gold>=60){pd.gold-=60;pd.spd+=20;pd.hit+=3;SE('potion');this.updateHUD();this.msgText.setText('👟 俊足の靴！SPD+20 HIT+3');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-    }
-    if(b.type==='magic'){
-      this.input.keyboard.once('keydown-ONE',()=>{const pd=this.playerData;if(pd.gold>=90){pd.gold-=90;pd.mag+=8;pd.msp+=15;SE('potion');this.updateHUD();this.msgText.setText('🔮 魔法の杖！MAG+8 SP+15');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{const pd=this.playerData;if(pd.gold>=100){pd.gold-=100;pd.luk+=8;pd.hit+=5;SE('potion');this.updateHUD();this.msgText.setText('💍 幸運の指輪！LUK+8 HIT+5%');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-    }
-    this.input.keyboard.once('keydown-N',close);
-    this.input.keyboard.once('keydown-ESC',close);
-  }
-  update(){
-    const p=this.player,pd=this.playerData,spd=pd.spd;
-    const l=this.cursors.left.isDown||this.wasd.A.isDown;
-    const r=this.cursors.right.isDown||this.wasd.D.isDown;
-    const u=this.cursors.up.isDown||this.wasd.W.isDown;
-    const d=this.cursors.down.isDown||this.wasd.S.isDown;
-    // キーボード + タウンジョイスティック合算
-    let tvx=l?-1:r?1:(this.townJoyDx||0);
-    let tvy=u?-1:d?1:(this.townJoyDy||0);
-    const tlen=Math.sqrt(tvx*tvx+tvy*tvy);
-    if(tlen>1){tvx/=tlen;tvy/=tlen;}
-    p.setVelocity(tvx*spd, tvy*spd);
-    // ボマーアニメ（Town）- ジョイスティック入力も含めて向き判定
-    if(pd.cls==='bomber'){
-      // キーボードとジョイスティック両方を考慮
-      const mvx=tvx; // 既に合算済みの速度を使用
-      const mvy=tvy;
-      const moving=Math.abs(mvx)>0.1||Math.abs(mvy)>0.1;
-      let facing=this._townBomberFacing||'front';
-      let flip=this._townBomberFlip||false;
-      if(moving){
-        if(Math.abs(mvy)>Math.abs(mvx)*0.5){
-          facing=mvy<0?'back':'front';
-          flip=false;
-        }else{
-          facing='side';
-          flip=mvx<0;
-        }
-      }
-      this._townBomberFacing=facing;
-      this._townBomberFlip=flip;
-      p.setFlipX(flip);
-      const key='bomber_'+facing+'_'+(moving?'walk':'idle');
-      const cur=p.anims.currentAnim;
-      if(!cur||cur.key!==key) p.play(key,true);
-    }
-    if(this.mmDot)this.mmDot.setPosition(this.mmX+p.x/this.TW*this.mmW,this.mmY+p.y/this.TH*this.mmH);
-    let hint='';
-    for(const b of this.buildings){
-      if(Math.abs(p.x-(b.x+b.w/2))<b.w/2+50&&Math.abs(p.y-(b.y+b.h/2))<b.h/2+50){
-        hint='👆 '+b.label+'（タップで入る）';
-        break;
-      }
-    }
-    // ポータルに近づいたら自動遷移（スマホ対応）
-    if(Phaser.Math.Distance.Between(p.x,p.y,this.TW/2,this.TH-160)<72){
-      
-      this.scene.start('Game',{playerData:this.playerData,stage:1});
-      return;
-    }
-    if(hint==='')this.hintText.setText('');
-    else this.hintText.setText(hint);
-    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
-    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
-    this._updateMenuBadge();
-  }
-}
-
 // ============================================================
 //  LevelUp Scene
 // ============================================================
@@ -629,6 +362,7 @@ class MenuScene extends Phaser.Scene{
     this.returnScene=data.returnScene||'Town';
     this.returnData=data.returnData||{};
     this.tab=data.tab||'stat';
+
   }
   create(){
     // カメラをゲームのスクロールから独立させる
@@ -801,7 +535,6 @@ class MenuScene extends Phaser.Scene{
     });
   }
   _close(){
-    // TownScene・GameScene 共通: stop → resume
     this.scene.stop();
     this.scene.resume(this.returnScene);
   }
@@ -853,6 +586,21 @@ class GameClearScene extends Phaser.Scene{
 //  ステージ設定
 // ============================================================
 const STAGE_CONFIG={
+  0:{name:'TOWN 町',bgmKey:'town',
+    tiles:['tile_cobble','tile_town_wall','tile_town_path'],tileWeights:[80,10,10],
+    mapW:1200,mapH:800,
+    objects:[],objPos:[],
+    enemies:[],boss:null,bossThreshold:999,
+    portalTo:1,portalToLabel:'🌿 ST.1へ出発',portalToKey:'portal_st1',
+    portalBack:null,portalBackLabel:'',portalBackKey:'portal_town',
+    buildings:[
+      {x:100,y:80, w:180,h:130,label:'🏨 宿屋',   type:'inn'},
+      {x:400,y:80, w:200,h:140,label:'🏪 ショップ',type:'shop'},
+      {x:750,y:80, w:180,h:130,label:'⚔ ギルド',  type:'guild'},
+      {x:150,y:400,w:160,h:120,label:'🔨 鍛冶屋',  type:'blacksmith'},
+      {x:600,y:380,w:200,h:150,label:'🔮 魔法店',  type:'magic'},
+    ],
+  },
   1:{name:'ST.1 草原',bgmKey:'st1',tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:['obj_tree'],objPos:[[180,120],[500,90],[740,180],[145,400],[900,290],[350,600],[800,540],[950,700],[420,320],[650,800]],enemies:[['slime',300,200],['slime',700,300],['slime',500,500],['slime',850,200],['slime',170,540],['bat',400,150],['bat',900,400],['bat',210,490],['goblin',600,590],['goblin',160,290],['goblin',970,490],['troll',800,690],['troll',340,740]],boss:{id:'boss1',x:600,y:300},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town'},
   2:{name:'ST.2 溶岩地帯',bgmKey:'st2',tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:['obj_lava_rock'],objPos:[[200,150],[550,100],[780,200],[120,450],[950,300],[380,650],[820,580],[1000,750],[460,340],[700,820]],enemies:[['goblin',300,200],['goblin',700,250],['goblin',300,450],['goblin',900,320],['wolf',550,580],['wolf',800,700],['wolf',400,750],['troll',650,480],['troll',820,560],['troll',250,720],['skeleton',350,550],['skeleton',750,620],['skeleton',600,400]],boss:{id:'boss2',x:600,y:300},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1'},
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
@@ -899,16 +647,39 @@ class GameScene extends Phaser.Scene{
     // タイル
     const cols=Math.ceil(MW/TILE),rows=Math.ceil(MH/TILE);
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      const n=(c*31+r*17)%100;let acc=0,key=cfg.tiles[0];
-      for(let i=0;i<cfg.tileWeights.length;i++){acc+=cfg.tileWeights[i];if(n<acc){key=cfg.tiles[i];break;}}
+      let key;
+      if(this.stage===0){
+        if(c<3||c>cols-4||r<3||r>rows-4) key='tile_town_wall';
+        else if(r>=rows-5) key='tile_town_path';
+        else key='tile_cobble';
+      }else{
+        const n=(c*31+r*17)%100;let acc=0;key=cfg.tiles[0];
+        for(let i=0;i<cfg.tileWeights.length;i++){acc+=cfg.tileWeights[i];if(n<acc){key=cfg.tiles[i];break;}}
+      }
       this.add.image(c*TILE+16,r*TILE+16,key).setDisplaySize(TILE,TILE);
     }
     // 障害物
     this.obstacles=this.physics.add.staticGroup();
-    cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(32,40);o.refreshBody();});
+    if(cfg.objects&&cfg.objects[0]){
+      cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(32,40);o.refreshBody();});
+    }
+    // 町の建物 (stage:0)
+    this.buildings=[];
+    if(this.stage===0&&cfg.buildings){
+      const BCOLS={inn:0x5c3317,shop:0x1a4a8a,guild:0x4a1a1a,blacksmith:0x2a2a2a,magic:0x1a0a3a};
+      cfg.buildings.forEach(b=>{
+        this.buildings.push(b);
+        this.add.rectangle(b.x+b.w/2,b.y+b.h/2,b.w,b.h,BCOLS[b.type]||0x333333).setStrokeStyle(2,0x888888);
+        this.add.text(b.x+b.w/2,b.y+b.h-16,b.label,{fontSize:'12px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
+        const hit=this.add.rectangle(b.x+b.w/2,b.y+b.h/2,b.w+40,b.h+40,0x000000,0).setInteractive();
+        hit.on('pointerdown',()=>this.openBuilding(b));
+      });
+    }
     // ポータル（戻る）
-    this.add.image(80,MH/2,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
-    this.add.text(80,MH/2+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',align:'center'}).setOrigin(0.5);
+    if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
+      this.add.image(80,MH/2,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
+      this.add.text(80,MH/2+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',align:'center'}).setOrigin(0.5);
+    }
     // ポータル（次）
     this.portalNext=null;this.portalNextImg=null;this.portalNextTxt=null;
     if(cfg.portalTo){
@@ -1383,8 +1154,53 @@ class GameScene extends Phaser.Scene{
     });
     this.updateHUD();
   }
+  openBuilding(b){
+    const w=this.scale.width,h=this.scale.height,pd=this.playerData;
+    if(!this.msgText){
+      this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(50).setScrollFactor(0).setVisible(false);
+    }
+    const msgs={
+      inn:'🏨 宿屋  泊まる？(30G)
+[Y]はい  [N]いいえ',
+      shop:'🏪 ショップ
+HPポーション 30G [1]
+MPポーション 25G [2]',
+      blacksmith:'🔨 鍛冶屋
+鉄の剣 80G ATK+8 [1]
+革の鎧 70G DEF+5/HP+20 [2]
+俊足の靴 60G SPD+20 [3]',
+      magic:'🔮 魔法店
+魔法の杖 90G MAG+8 [1]
+幸運の指輪 100G LUK+8 [2]',
+      guild:'⚔ ギルド
+（準備中）
+[ESC]閉じる',
+    };
+    this.msgText.setText(msgs[b.type]||'準備中').setPosition(w/2-140,h/2-70).setVisible(true);
+    const close=()=>this.msgText.setVisible(false);
+    this.input.keyboard.once('keydown-ESC',close);
+    this.input.keyboard.once('keydown-N',close);
+    if(b.type==='inn') this.input.keyboard.once('keydown-Y',()=>{
+      if(pd.gold>=30){pd.gold-=30;pd.hp=pd.mhp;pd.sp=pd.msp;pd.potHP=(pd.potHP||0)+3;pd.potMP=(pd.potMP||0)+3;SE('potion');this.updateHUD();this.msgText.setText('✨ 完全回復！ポーション3本補充！');}
+      else this.msgText.setText('💰 お金が足りない！');
+      this.time.delayedCall(1500,close);
+    });
+    if(b.type==='shop'){
+      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=30){pd.gold-=30;pd.potHP=(pd.potHP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💊 HPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=25){pd.gold-=25;pd.potMP=(pd.potMP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💧 MPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+    }
+    if(b.type==='blacksmith'){
+      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=80){pd.gold-=80;pd.atk+=8;SE('potion');this.updateHUD();this.msgText.setText('⚔ 鉄の剣！ATK+8');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=70){pd.gold-=70;pd.def+=5;pd.mhp+=20;pd.hp=Math.min(pd.hp+20,pd.mhp);SE('potion');this.updateHUD();this.msgText.setText('🛡 革の鎧！DEF+5 HP+20');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+      this.input.keyboard.once('keydown-THREE',()=>{if(pd.gold>=60){pd.gold-=60;pd.spd+=20;pd.hit+=3;SE('potion');this.updateHUD();this.msgText.setText('👟 俊足の靴！SPD+20 HIT+3');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+    }
+    if(b.type==='magic'){
+      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=90){pd.gold-=90;pd.mag+=8;pd.msp+=15;SE('potion');this.updateHUD();this.msgText.setText('🔮 魔法の杖！MAG+8 SP+15');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=100){pd.gold-=100;pd.luk+=8;pd.hit+=5;SE('potion');this.updateHUD();this.msgText.setText('💍 幸運の指輪！LUK+8 HIT+5%');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+    }
+  }
+
   openMenu(tab='stat'){
-    // TownSceneと同じ方式: launch → pause
     this.scene.launch('Menu',{
       playerData:this.playerData,
       returnScene:'Game',
@@ -1876,7 +1692,7 @@ class GameScene extends Phaser.Scene{
       const pd=this.playerData;
       pd.hp=1; // §17: HP=1で復活
       
-      this.scene.start('Town',{playerData:pd});
+      this.scene.start('Game',{playerData:pd,stage:0});
     };
     this.input.keyboard.once('keydown-R',revive);
     this.time.delayedCall(500,()=>this.input.once('pointerdown',revive));
@@ -2001,7 +1817,7 @@ class GameScene extends Phaser.Scene{
     // ポータル
     if(Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<60){
       
-      if(this.cfg.portalBack===0)this.scene.start('Town',{playerData:pd});
+      if(this.cfg.portalBack===0)this.scene.start('Game',{playerData:pd,stage:0});
       else this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack});
     }
     if(this.portalNext&&this.portalNext.open&&Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<60){
@@ -2037,5 +1853,5 @@ new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,ClassSelectScene,TownScene,LevelUpScene,MenuScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,ClassSelectScene,LevelUpScene,MenuScene,GameScene,GameClearScene]
 });
