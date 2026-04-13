@@ -1357,16 +1357,24 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
   }
   openMenu(tab='stat'){
+    console.log('[openMenu] called, _menuOpen='+this._menuOpen);
     if(this._menuOpen)return;
     this._menuOpen=true;
-    // launchしてからpause（逆にするとlaunchが動かない場合がある）
-    this.scene.launch('Menu',{
-      playerData:this.playerData,
-      returnScene:'Game',
-      returnData:{playerData:this.playerData,stage:this.stage},
-      tab,
-    });
-    this.scene.pause();
+    console.log('[openMenu] launching Menu, returnScene=Game, tab='+tab);
+    try{
+      this.scene.launch('Menu',{
+        playerData:this.playerData,
+        returnScene:'Game',
+        returnData:{playerData:this.playerData,stage:this.stage},
+        tab,
+      });
+      console.log('[openMenu] launch OK');
+      this.scene.pause();
+      console.log('[openMenu] pause OK');
+    }catch(e){
+      console.error('[openMenu] ERROR:',e);
+      this._menuOpen=false;
+    }
   }
   resumeFromMenu(){
     this._menuOpen=false;
