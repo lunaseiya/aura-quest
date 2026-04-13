@@ -396,8 +396,8 @@ class TownScene extends Phaser.Scene{
     this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
   }
   openMenu(tab='stat'){
-    this.scene.pause();
     this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData},tab});
+    this.scene.pause();
   }
   showLvUpScreen(){
     const pd=this.playerData;
@@ -1359,18 +1359,21 @@ class GameScene extends Phaser.Scene{
   openMenu(tab='stat'){
     if(this._menuOpen)return;
     this._menuOpen=true;
-    // GameScene自体をpauseしてMenuをlaunch
-    this.scene.pause();
+    // launchしてからpause（逆にするとlaunchが動かない場合がある）
     this.scene.launch('Menu',{
       playerData:this.playerData,
       returnScene:'Game',
       returnData:{playerData:this.playerData,stage:this.stage},
       tab,
     });
+    this.scene.pause();
   }
   resumeFromMenu(){
     this._menuOpen=false;
-    this.scene.resume('Game');
+    // pause中のシーンを再開
+    if(this.scene.isPaused('Game')){
+      this.scene.resume('Game');
+    }
     this.updateHUD();
     this._updateMenuBadge();
   }
