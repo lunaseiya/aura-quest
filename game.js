@@ -26,58 +26,84 @@ const BGM_FILES={
 
 function startBGM(key){
   if(_bgmKey===key)return;
-  // 現在のBGMを停止
-  if(_bgmAudio){
-    _bgmAudio.pause();
-    _bgmAudio.currentTime=0;
-    _bgmAudio=null;
-  }
+  if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
   _bgmKey=key;
+  if(muted)return; // ミュート中は再生しない
   const file=BGM_FILES[key];
-  if(!file)return; // 未登録のキーは無音
+  if(!file)return;
   const audio=new Audio(file);
   audio.loop=true;
   audio.volume=0.5;
-  audio.play().catch(()=>{}); // autoplay対策
+  audio.play().catch(()=>{});
   _bgmAudio=audio;
 }
 
 function updateBGM(){
-  // MP3方式では不要（Audio APIが自動ループ）
-  getAC(); // AudioContextを初期化しておく（SE用）
+  getAC();
 }
 
 function stopBGM(){
-  if(_bgmAudio){
-    _bgmAudio.pause();
-    _bgmAudio.currentTime=0;
-    _bgmAudio=null;
-  }
+  if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
   _bgmKey=null;
 }
 
+function setMute(val){
+  muted=val;
+  if(muted){
+    // ミュートON: BGMを止めてSEも無効に
+    if(_bgmAudio){_bgmAudio.pause();}
+    if(_seMasterGain)_seMasterGain.gain.value=0;
+  }else{
+    // ミュートOFF: BGMを再開
+    if(_bgmAudio){_bgmAudio.play().catch(()=>{});}
+    else if(_bgmKey){startBGM(_bgmKey);}
+    if(_seMasterGain)_seMasterGain.gain.value=0.4;
+  }
+  // 設定を保存
+  try{localStorage.setItem('aq_muted',val?'1':'0');}catch(e){}
+}
+
+// SEマスターゲイン（1つだけ作って使い回す→音量加算を防ぐ）
+let _seMasterGain=null;
+function getSEMaster(){
+  const ac=getAC();if(!ac)return null;
+  if(!_seMasterGain){
+    _seMasterGain=ac.createGain();
+    _seMasterGain.gain.value=0.4; // SE全体の音量上限
+    _seMasterGain.connect(ac.destination);
+  }
+  return _seMasterGain;
+}
+
 function SE(type){
-  if(muted)return;const ac=getAC();if(!ac)return;const now=ac.currentTime;
+  if(muted)return;
+  const ac=getAC();if(!ac)return;
+  const mg=getSEMaster();if(!mg)return;
+  const now=ac.currentTime;
   const C={
-    hit:    [[440,'square',0.08,0.1]],
-    crit:   [[880,'square',0.12,0.08],[660,'sawtooth',0.1,0.15],[1047,'sine',0.08,0.2]],
-    miss:   [[220,'sine',0.04,0.1]],
-    exp:    [[880,'sine',0.06,0.15],[1047,'sine',0.06,0.15]],
-    levelup:[[523,'sine',0.08,0.1],[659,'sine',0.08,0.1],[784,'sine',0.08,0.1],[1047,'sine',0.1,0.4]],
-    boss:   [[110,'sawtooth',0.1,0.5],[220,'sawtooth',0.08,0.3]],
-    clear:  [[523,'sine',0.08,0.1],[659,'sine',0.08,0.1],[784,'sine',0.08,0.1],[880,'sine',0.08,0.1],[1047,'sine',0.12,0.5]],
-    potion: [[660,'sine',0.07,0.2]],
-    skill:  [[330,'sawtooth',0.09,0.15],[440,'sawtooth',0.09,0.15]],
-    arrow:  [[880,'sine',0.05,0.08],[660,'sine',0.04,0.06]],
-    magic:  [[523,'sine',0.07,0.2],[784,'sine',0.06,0.25],[1047,'sine',0.05,0.3]],
-    explode:[[110,'sawtooth',0.1,0.3],[220,'square',0.08,0.2]],
+    hit:    [[440,'square',0.18,0.10]],
+    crit:   [[880,'square',0.22,0.08],[660,'sawtooth',0.18,0.15],[1047,'sine',0.15,0.20]],
+    miss:   [[220,'sine',0.10,0.10]],
+    exp:    [[880,'sine',0.14,0.15],[1047,'sine',0.14,0.15]],
+    levelup:[[523,'sine',0.18,0.10],[659,'sine',0.18,0.10],[784,'sine',0.18,0.10],[1047,'sine',0.22,0.40]],
+    boss:   [[110,'sawtooth',0.22,0.50],[220,'sawtooth',0.18,0.30]],
+    clear:  [[523,'sine',0.18,0.10],[659,'sine',0.18,0.10],[784,'sine',0.18,0.10],[880,'sine',0.18,0.10],[1047,'sine',0.25,0.50]],
+    potion: [[660,'sine',0.16,0.20]],
+    skill:  [[330,'sawtooth',0.20,0.15],[440,'sawtooth',0.20,0.15]],
+    arrow:  [[880,'sine',0.12,0.08],[660,'sine',0.10,0.06]],
+    magic:  [[523,'sine',0.16,0.20],[784,'sine',0.14,0.25],[1047,'sine',0.12,0.30]],
+    explode:[[110,'sawtooth',0.22,0.30],[220,'square',0.18,0.20]],
   };
   const cfg=C[type];if(!cfg)return;
   cfg.forEach(([f,w,v,d],i)=>{try{
     const o=ac.createOscillator(),g=ac.createGain();
-    o.type=w;o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+    o.type=w;o.frequency.value=f;
+    o.connect(g);
+    g.connect(mg); // destinationではなくマスターGainに接続
     const t=now+i*0.08;
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+0.01);g.gain.exponentialRampToValueAtTime(0.001,t+d);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(v,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.001,t+d);
     o.start(t);o.stop(t+d+0.05);
   }catch(e){}});
 }
@@ -190,7 +216,23 @@ class TitleScene extends Phaser.Scene{
   constructor(){super('Title')}
   create(){
     const w=this.scale.width,h=this.scale.height;
-    startBGM('title');
+    // ローカルストレージからミュート設定を復元
+    try{const v=localStorage.getItem('aq_muted');if(v==='1')muted=true;}catch(e){}
+    // BGM確認ダイアログ（初回 or ミュートでない場合）
+    if(!muted){
+      const overlay=this.add.rectangle(w/2,h/2,w,h,0x000000,0.92).setOrigin(0.5).setDepth(100);
+      const title=this.add.text(w/2,h/2-60,'🎵 BGMを流しますか？',{fontSize:'20px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setDepth(101);
+      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は端末の音量をOFFにしてください）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
+      const btnY=this.add.rectangle(w/2-80,h/2+30,160,40,0x2ecc71,0.3).setStrokeStyle(2,0x2ecc71).setDepth(101).setInteractive({useHandCursor:true});
+      this.add.text(w/2-80,h/2+30,'🔊 BGMあり',{fontSize:'15px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setDepth(102);
+      const btnN=this.add.rectangle(w/2+80,h/2+30,160,40,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setDepth(101).setInteractive({useHandCursor:true});
+      this.add.text(w/2+80,h/2+30,'🔇 BGMなし',{fontSize:'15px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5).setDepth(102);
+      const dismiss=()=>{overlay.destroy();title.destroy();sub.destroy();btnY.destroy();btnN.destroy();startBGM('title');};
+      btnY.on('pointerdown',()=>{setMute(false);dismiss();});
+      btnN.on('pointerdown',()=>{setMute(true);[overlay,title,sub,btnY,btnN].forEach(o=>o.destroy());});
+    }else{
+      startBGM('title');
+    }
     this.add.rectangle(0,0,w,h,0x030818).setOrigin(0);
     for(let i=0;i<60;i++){
       const s=this.add.circle(Phaser.Math.Between(0,w),Phaser.Math.Between(0,h*0.75),Phaser.Math.FloatBetween(0.5,2),0xffffff,Phaser.Math.FloatBetween(0.3,1));
@@ -223,7 +265,23 @@ class ClassSelectScene extends Phaser.Scene{
   constructor(){super('ClassSelect')}
   create(){
     const w=this.scale.width,h=this.scale.height;
-    startBGM('title');
+    // ローカルストレージからミュート設定を復元
+    try{const v=localStorage.getItem('aq_muted');if(v==='1')muted=true;}catch(e){}
+    // BGM確認ダイアログ（初回 or ミュートでない場合）
+    if(!muted){
+      const overlay=this.add.rectangle(w/2,h/2,w,h,0x000000,0.92).setOrigin(0.5).setDepth(100);
+      const title=this.add.text(w/2,h/2-60,'🎵 BGMを流しますか？',{fontSize:'20px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setDepth(101);
+      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は端末の音量をOFFにしてください）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
+      const btnY=this.add.rectangle(w/2-80,h/2+30,160,40,0x2ecc71,0.3).setStrokeStyle(2,0x2ecc71).setDepth(101).setInteractive({useHandCursor:true});
+      this.add.text(w/2-80,h/2+30,'🔊 BGMあり',{fontSize:'15px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setDepth(102);
+      const btnN=this.add.rectangle(w/2+80,h/2+30,160,40,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setDepth(101).setInteractive({useHandCursor:true});
+      this.add.text(w/2+80,h/2+30,'🔇 BGMなし',{fontSize:'15px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5).setDepth(102);
+      const dismiss=()=>{overlay.destroy();title.destroy();sub.destroy();btnY.destroy();btnN.destroy();startBGM('title');};
+      btnY.on('pointerdown',()=>{setMute(false);dismiss();});
+      btnN.on('pointerdown',()=>{setMute(true);[overlay,title,sub,btnY,btnN].forEach(o=>o.destroy());});
+    }else{
+      startBGM('title');
+    }
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
     this.add.text(w/2,36,'⚔ 職業を選ぼう ⚔',{fontSize:'24px',fontFamily:'Courier New',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
     const classes=[
@@ -338,7 +396,7 @@ class TownScene extends Phaser.Scene{
     this.hudPts.setText((pd.statPts>0)?'⚡ SP残り'+pd.statPts+'pt [S]で割振':'');
   }
   openMenu(tab='stat'){
-    // BGMは継続したままMenuを起動
+    this.scene.pause();
     this.scene.launch('Menu',{playerData:this.playerData,returnScene:'Town',returnData:{playerData:this.playerData},tab});
   }
   showLvUpScreen(){
@@ -402,6 +460,13 @@ class TownScene extends Phaser.Scene{
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
     this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
     this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
+    // ミュートボタン
+    this._muteBtn=this.add.rectangle(250,40,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this._muteTxt=this.add.text(250,40,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._muteBtn.on('pointerdown',()=>{
+      setMute(!muted);
+      this._muteTxt.setText(muted?'🔇':'🔊');
+    });
     this._updateMenuBadge();
   }
   _updateMenuBadge(){
@@ -709,10 +774,8 @@ class MenuScene extends Phaser.Scene{
         btn.on('pointerdown',()=>{
           if((pd.jobPts||0)<1)return;
           pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
-          // restartではなくstop→launchで確実に再構築
+          // Menuを再起動して表示を更新
           const rs=this.returnScene,rd=this.returnData;
-          const target=this.scene.get(rs);
-          if(target&&typeof target.resumeFromMenu==='function')target.resumeFromMenu();
           this.scene.stop();
           this.scene.launch('Menu',{playerData:pd,returnScene:rs,returnData:rd,tab:'skill'});
         });
@@ -721,17 +784,14 @@ class MenuScene extends Phaser.Scene{
     });
   }
   _close(){
-    const returnScene=this.returnScene;
-    const returnData=this.returnData;
-    // 先にGameSceneを再開してからMenuを止める
-    const target=this.scene.get(returnScene);
+    const rs=this.returnScene;
+    this.scene.stop(); // Menu停止
+    // GameSceneはresumeFromMenuで再開、TownSceneはscene.resume
+    const target=this.scene.get(rs);
     if(target&&typeof target.resumeFromMenu==='function'){
       target.resumeFromMenu();
-    }
-    this.scene.stop();
-    // TownScene等はresumeが必要
-    if(!target||typeof target.resumeFromMenu!=='function'){
-      this.scene.resume(returnScene,returnData);
+    }else{
+      this.scene.resume(rs);
     }
   }
 }
@@ -1286,17 +1346,21 @@ class GameScene extends Phaser.Scene{
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
     this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
     this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
+    // ミュートボタン（MENUボタン右）
+    const muteX=BG_W+58;
+    this._muteBtn=this.add.rectangle(muteX,36,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this._muteTxt=this.add.text(muteX,36,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._muteBtn.on('pointerdown',()=>{
+      setMute(!muted);
+      this._muteTxt.setText(muted?'🔇':'🔊');
+    });
     this.updateHUD();
   }
   openMenu(tab='stat'){
-    if(this._menuOpen)return; // 二重起動防止
-    this.physics.pause();
+    if(this._menuOpen)return;
     this._menuOpen=true;
-    // Menuが既に起動中なら stop してから launch
-    const menuScene=this.scene.get('Menu');
-    if(menuScene&&this.scene.isActive('Menu')){
-      this.scene.stop('Menu');
-    }
+    // GameScene自体をpauseしてMenuをlaunch
+    this.scene.pause();
     this.scene.launch('Menu',{
       playerData:this.playerData,
       returnScene:'Game',
@@ -1306,7 +1370,7 @@ class GameScene extends Phaser.Scene{
   }
   resumeFromMenu(){
     this._menuOpen=false;
-    this.physics.resume();
+    this.scene.resume('Game');
     this.updateHUD();
     this._updateMenuBadge();
   }
@@ -1789,12 +1853,6 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
-    // Menu表示中は入力を止めて早期リターン
-    if(this._menuOpen){
-      p.setVelocity(0,0);
-      if(this.atkCooldown>0)this.atkCooldown-=dt;
-      return;
-    }
     this.updateJoystick();
     // spaceKey攻撃はPC専用（スマホはボタンで操作）
     if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
