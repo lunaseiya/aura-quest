@@ -617,7 +617,9 @@ class MenuScene extends Phaser.Scene{
     this.tab=data.tab||'stat';
   }
   create(){
+    console.log('[MenuScene] create start, returnScene='+this.returnScene+', tab='+this.tab);
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
+    console.log('[MenuScene] w='+w+' h='+h+' pd='+!!pd);
     // パネル: 画面幅96% 高さ96% 余白最小
     const PW=Math.min(w*0.96,900), PH=Math.min(h*0.96,520);
     const PX=w/2, PY=h/2;
@@ -665,6 +667,7 @@ class MenuScene extends Phaser.Scene{
     });
   }
   _buildStat(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
+    console.log('[MenuScene] _buildStat start, statPts='+pd.statPts);
     const c=this.statCont;
     const S=[
       {key:'atk',label:'力   STR',desc:'ATK +2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
