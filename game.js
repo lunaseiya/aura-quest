@@ -355,190 +355,6 @@ class LevelUpScene extends Phaser.Scene{
 // ============================================================
 //  StatAlloc Scene（ステータス割り振り）①
 // ============================================================
-class MenuScene extends Phaser.Scene{
-  constructor(){super('Menu')}
-  init(data){
-    this.playerData=data.playerData;
-    this.returnScene=data.returnScene||'Town';
-    this.returnData=data.returnData||{};
-    this.tab=data.tab||'stat';
-
-  }
-  create(){
-    // カメラをゲームのスクロールから独立させる
-    this.cameras.main.setScroll(0,0);
-    this.cameras.main.setZoom(1);
-    const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    // パネル: 画面幅96% 高さ96% 余白最小
-    const PW=Math.min(w*0.96,900), PH=Math.min(h*0.96,520);
-    const PX=w/2, PY=h/2;
-    const TAB_H=34, CLOSE_H=32;
-    const INNER_TOP=PY-PH/2+TAB_H+4;
-    const INNER_BOT=PY+PH/2-CLOSE_H-6;
-    const INNER_H=INNER_BOT-INNER_TOP;
-    const LX=PX-PW/2+10;
-
-    this.add.rectangle(0,0,w,h,0x000000,0.85).setOrigin(0);
-    this.add.rectangle(PX,PY,PW,PH,0x060916,0.99).setStrokeStyle(2,0x44aaff);
-
-    // タブ
-    this.tabBtns={};this.tabTxts={};
-    [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
-      const btn=this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.15).setStrokeStyle(2,col).setInteractive({useHandCursor:true});
-      const txt=this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'15px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5);
-      btn.on('pointerdown',()=>this.switchTab(id));
-      this.tabBtns[id]=btn;this.tabTxts[id]=txt;
-    });
-
-    this.statCont=this.add.container(0,0);
-    this.skillCont=this.add.container(0,0);
-    this._buildStat(pd,PW,PH,PX,PY,LX,INNER_TOP,INNER_BOT,INNER_H);
-    this._buildSkill(pd,PW,PH,PX,PY,LX,INNER_TOP,INNER_BOT,INNER_H);
-
-    // 閉じるボタン
-    const close=this.add.rectangle(PX,PY+PH/2-CLOSE_H/2-2,180,CLOSE_H,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive({useHandCursor:true});
-    this.add.text(PX,PY+PH/2-CLOSE_H/2-2,'✕ 閉じる [ESC]',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5);
-    close.on('pointerover',()=>close.setFillStyle(0xffd700,0.45));
-    close.on('pointerout', ()=>close.setFillStyle(0xffd700,0.2));
-    close.on('pointerdown',()=>this._close());
-    this.input.keyboard.on('keydown-ESC',()=>this._close());
-    this.switchTab(this.tab);
-  }
-  switchTab(tab){
-    this.tab=tab;
-    this.statCont.setVisible(tab==='stat');
-    this.skillCont.setVisible(tab==='skill');
-    const COLS={stat:0x44aaff,skill:0x00e5ff};
-    Object.entries(this.tabBtns).forEach(([id,btn])=>{
-      const col=COLS[id];
-      btn.setFillStyle(col,id===tab?0.45:0.1).setStrokeStyle(2,id===tab?col:0x334455);
-      this.tabTxts[id].setColor(id===tab?'#'+col.toString(16).padStart(6,'0'):'#334455');
-    });
-  }
-  _buildStat(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
-    const c=this.statCont;
-    const S=[
-      {key:'atk',label:'力   STR',desc:'ATK +2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
-      {key:'spd',label:'素早 AGI',desc:'SPD+12',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
-      {key:'mag',label:'魔力 MAG',desc:'MAG +2',col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力 VIT',desc:'HP  +9',col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
-      {key:'luk',label:'運   LUK',desc:'CRIT+1',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
-      {key:'hit',label:'命中 DEX',desc:'HIT +2',col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
-    ];
-    this._tmp={};S.forEach(s=>{this._tmp[s.key]=0;});
-    this._tmpPts=pd.statPts||0;
-
-    // ポイント表示
-    this._ptsTxt=this.add.text(PX,ITOP+10,'',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-    c.add(this._ptsTxt);this._refreshPts();
-
-    // 各ステータス行
-    const ROW_H=(IH-50)/6;
-    this._vt={};this._at={};
-    S.forEach((s,i)=>{
-      const y=ITOP+30+i*ROW_H+ROW_H/2;
-      const lbl=this.add.text(LX,y,s.label,{fontSize:'14px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5);
-      const dsc=this.add.text(LX+120,y,s.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#666'}).setOrigin(0,0.5);
-      const cur=this.add.text(LX+210,y,this._sv(pd,s.key),{fontSize:'14px',fontFamily:'Courier New',color:'#fff'}).setOrigin(0,0.5);
-      const add=this.add.text(LX+265,y,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5);
-      const bm=this.add.rectangle(PX+PW/2-70,y,38,28,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setInteractive({useHandCursor:true});
-      this.add.text(PX+PW/2-70,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5);
-      bm.on('pointerdown',()=>this._adj(s,-1,cur,add));
-      bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5));
-      bm.on('pointerout', ()=>bm.setFillStyle(0xe74c3c,0.25));
-      const bp=this.add.rectangle(PX+PW/2-26,y,38,28,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setInteractive({useHandCursor:true});
-      this.add.text(PX+PW/2-26,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
-      bp.on('pointerdown',()=>this._adj(s,+1,cur,add));
-      bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5));
-      bp.on('pointerout', ()=>bp.setFillStyle(0x44aaff,0.25));
-      c.add([lbl,dsc,cur,add,bm,bp]);
-      this._vt[s.key]=cur;this._at[s.key]=add;
-    });
-
-    // 確定・リセットボタン
-    const ok=this.add.rectangle(PX-70,IBOT-14,190,30,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
-    this.add.text(PX-70,IBOT-14,'✔ 確定して反映',{fontSize:'14px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5);
-    ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5));ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
-    ok.on('pointerdown',()=>this._confirm(pd,S));c.add(ok);
-    const rst=this.add.rectangle(PX+110,IBOT-14,120,30,0x333,0.25).setStrokeStyle(1,0x666).setInteractive({useHandCursor:true});
-    this.add.text(PX+110,IBOT-14,'↺ リセット',{fontSize:'13px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5);
-    rst.on('pointerdown',()=>this._reset(S));rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4));rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
-    c.add(rst);
-  }
-  _sv(pd,key){if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);return String(pd[key]);}
-  _refreshPts(){if(this._ptsTxt)this._ptsTxt.setText('残りポイント: '+this._tmpPts+'pt');}
-  _adj(s,dir,cur,add){
-    const n=this._tmp[s.key]||0;
-    if(dir>0&&this._tmpPts<=0)return;
-    if(dir<0&&n<=0)return;
-    this._tmp[s.key]=n+dir;this._tmpPts-=dir;
-    add.setText(this._tmp[s.key]>0?'(+'+this._tmp[s.key]+')':this._tmp[s.key]<0?'('+this._tmp[s.key]+')':'');
-    this._refreshPts();SE('potion');
-  }
-  _confirm(pd,S){
-    let any=false;
-    S.forEach(s=>{const n=this._tmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}this._tmp[s.key]=0;});
-    pd.statPts=this._tmpPts;
-    S.forEach(s=>{if(this._vt[s.key])this._vt[s.key].setText(this._sv(pd,s.key));if(this._at[s.key])this._at[s.key].setText('');});
-    this._refreshPts();if(any)SE('levelup');
-  }
-  _reset(S){
-    S.forEach(s=>{this._tmpPts+=this._tmp[s.key]||0;this._tmp[s.key]=0;if(this._at[s.key])this._at[s.key].setText('');});
-    this._refreshPts();
-  }
-  _buildSkill(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
-    const c=this.skillCont;
-    const DEFS={
-      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
-      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
-      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
-      bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
-    };
-    const defs=DEFS[pd.cls]||[];
-    // JOBポイント・EXPバー
-    const jpTxt=this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5);
-    const jbg=this.add.rectangle(PX,ITOP+26,PW-30,8,0x222222).setOrigin(0.5);
-    const jbar=this.add.rectangle(PX-(PW-30)/2,ITOP+26,(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5);
-    c.add([jpTxt,jbg,jbar]);
-
-    // スキル3行
-    const SK_H=(IH-46)/3;
-    defs.forEach((sk,i)=>{
-      const y=ITOP+38+i*SK_H+SK_H/2;
-      const cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
-      const bg=this.add.rectangle(PX,y,PW-16,SK_H-4,col,0.07).setStrokeStyle(1,col);
-      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
-      const nm=this.add.text(LX+38,y-12,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5);
-      const ds=this.add.text(LX,y+8,sk.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5);
-      // Lvバー
-      const maxB=sk.maxLv,bW=Math.floor((PW*0.35)/maxB)-2;
-      const bStartX=PX-PW*0.18;
-      for(let j=0;j<maxB;j++){
-        c.add(this.add.rectangle(bStartX+j*(bW+2),y-12,bW,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5));
-      }
-      const lvt=this.add.text(PX+PW*0.22,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'13px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5);
-      c.add([bg,kl,nm,ds,lvt]);
-      if(!maxed){
-        const btn=this.add.rectangle(PX+PW/2-55,y+8,100,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setInteractive({useHandCursor:true});
-        const bt=this.add.text(PX+PW/2-55,y+8,cur===0?'習得 (1JP)':'強化 (1JP)',{fontSize:'13px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5);
-        btn.on('pointerover',()=>btn.setFillStyle(0x00e5ff,0.45));btn.on('pointerout',()=>btn.setFillStyle(0x00e5ff,0.2));
-        btn.on('pointerdown',()=>{
-          if((pd.jobPts||0)<1)return;
-          pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
-          // Menuを再起動（stop→launch→pause）
-          this.scene.stop();
-          this.scene.launch('Menu',{playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
-          this.scene.pause(this.returnScene);
-        });
-        c.add([btn,bt]);
-      }else{c.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
-    });
-  }
-  _close(){
-    this.scene.stop();
-    this.scene.resume(this.returnScene);
-  }
-}
 
 class GameClearScene extends Phaser.Scene{
   constructor(){super('GameClear')}
@@ -1191,13 +1007,175 @@ class GameScene extends Phaser.Scene{
   }
 
   openMenu(tab='stat'){
-    this.scene.launch('Menu',{
-      playerData:this.playerData,
-      returnScene:'Game',
-      returnData:{playerData:this.playerData,stage:this.stage},
-      tab,
+    if(this._menuOpen) return;
+    this._menuOpen=true;
+    this.physics.pause();
+    this._buildMenuOverlay(tab);
+  }
+
+  _buildMenuOverlay(tab){
+    const pd=this.playerData;
+    const w=this.scale.width, h=this.scale.height;
+    const PW=Math.min(w*0.94,880), PH=Math.min(h*0.94,510);
+    const PX=w/2, PY=h/2;
+    const TAB_H=34, CLOSE_H=32;
+    const ITOP=PY-PH/2+TAB_H+4;
+    const IBOT=PY+PH/2-CLOSE_H-6;
+    const IH=IBOT-ITOP;
+    const LX=PX-PW/2+10;
+    const D=100; // depth基準（HUDより上）
+
+    // オーバーレイコンテナ（全要素をまとめてsetScrollFactor(0)）
+    const root=this.add.container(0,0).setDepth(D);
+    this._menuRoot=root;
+
+    // 背景
+    const bg=this.add.rectangle(PX,PY,w,h,0x000000,0.85).setScrollFactor(0);
+    const panel=this.add.rectangle(PX,PY,PW,PH,0x060916,0.99).setStrokeStyle(2,0x44aaff).setScrollFactor(0);
+    root.add([bg,panel]);
+
+    // タブ
+    const tabBtns={}, tabTxts={};
+    const statCont=this.add.container(0,0);
+    const skillCont=this.add.container(0,0);
+    root.add([statCont,skillCont]);
+
+    const switchTab=(t)=>{
+      statCont.setVisible(t==='stat');
+      skillCont.setVisible(t==='skill');
+      Object.entries(tabBtns).forEach(([id,btn])=>{
+        const col=id==='stat'?0x44aaff:0x00e5ff;
+        btn.setFillStyle(col,id===t?0.45:0.1).setStrokeStyle(2,id===t?col:0x334455);
+        tabTxts[id].setColor(id===t?'#'+col.toString(16).padStart(6,'0'):'#334455');
+      });
+    };
+
+    [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
+      const btn=this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.15).setStrokeStyle(2,col).setScrollFactor(0).setInteractive();
+      const txt=this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'15px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5).setScrollFactor(0);
+      btn.on('pointerdown',()=>switchTab(id));
+      tabBtns[id]=btn; tabTxts[id]=txt;
+      root.add([btn,txt]);
     });
-    this.scene.pause();
+
+    // ── ステータスタブ ──
+    const S=[
+      {key:'atk',label:'力   STR',desc:'ATK+2', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
+      {key:'spd',label:'素早 AGI',desc:'SPD+12',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
+      {key:'mag',label:'魔力 MAG',desc:'MAG+2', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mhp',label:'体力 VIT',desc:'HP+9',  col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'luk',label:'運   LUK',desc:'CRIT+1',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
+      {key:'hit',label:'命中 DEX',desc:'HIT+2', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
+    ];
+    const tmp={}; S.forEach(s=>{tmp[s.key]=0;}); let tmpPts=pd.statPts||0;
+    const ROW_H=(IH-50)/6;
+    const ptsTxt=this.add.text(PX,ITOP+10,'残りポイント: '+tmpPts+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5).setScrollFactor(0);
+    statCont.add(ptsTxt);
+    const vt={}, at={};
+    const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
+    const svStr=(key)=>{if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);return String(pd[key]);};
+    S.forEach((s,i)=>{
+      const y=ITOP+30+i*ROW_H+ROW_H/2;
+      const lbl=this.add.text(LX,y,s.label,{fontSize:'14px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5).setScrollFactor(0);
+      const dsc=this.add.text(LX+120,y,s.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#666'}).setOrigin(0,0.5).setScrollFactor(0);
+      const cur=this.add.text(LX+210,y,svStr(s.key),{fontSize:'14px',fontFamily:'Courier New',color:'#fff'}).setOrigin(0,0.5).setScrollFactor(0);
+      const add=this.add.text(LX+265,y,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5).setScrollFactor(0);
+      const bm=this.add.rectangle(PX+PW/2-70,y,38,28,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setScrollFactor(0).setInteractive();
+      const bmt=this.add.text(PX+PW/2-70,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5).setScrollFactor(0);
+      const bp=this.add.rectangle(PX+PW/2-26,y,38,28,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setScrollFactor(0).setInteractive();
+      const bpt=this.add.text(PX+PW/2-26,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0);
+      const adj=(dir)=>{
+        const n=tmp[s.key]||0;
+        if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
+        tmp[s.key]=n+dir; tmpPts-=dir;
+        add.setText(tmp[s.key]>0?'(+'+tmp[s.key]+')':tmp[s.key]<0?'('+tmp[s.key]+')':'');
+        refreshPts(); SE('potion');
+      };
+      bm.on('pointerdown',()=>adj(-1)); bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5)); bm.on('pointerout',()=>bm.setFillStyle(0xe74c3c,0.25));
+      bp.on('pointerdown',()=>adj(+1)); bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5)); bp.on('pointerout',()=>bp.setFillStyle(0x44aaff,0.25));
+      statCont.add([lbl,dsc,cur,add,bm,bmt,bp,bpt]);
+      vt[s.key]=cur; at[s.key]=add;
+    });
+    const ok=this.add.rectangle(PX-70,IBOT-14,190,30,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setInteractive();
+    const okt=this.add.text(PX-70,IBOT-14,'✔ 確定して反映',{fontSize:'14px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0);
+    ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5)); ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
+    ok.on('pointerdown',()=>{
+      let any=false;
+      S.forEach(s=>{const n=tmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}tmp[s.key]=0;});
+      pd.statPts=tmpPts;
+      S.forEach(s=>{if(vt[s.key])vt[s.key].setText(svStr(s.key));if(at[s.key])at[s.key].setText('');});
+      refreshPts(); if(any)SE('levelup'); this.updateHUD();
+    });
+    const rst=this.add.rectangle(PX+110,IBOT-14,120,30,0x333,0.25).setStrokeStyle(1,0x666).setScrollFactor(0).setInteractive();
+    const rstt=this.add.text(PX+110,IBOT-14,'↺ リセット',{fontSize:'13px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5).setScrollFactor(0);
+    rst.on('pointerdown',()=>{S.forEach(s=>{tmpPts+=tmp[s.key]||0;tmp[s.key]=0;if(at[s.key])at[s.key].setText('');});refreshPts();});
+    rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4)); rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
+    statCont.add([ok,okt,rst,rstt]);
+
+    // ── スキルタブ ──
+    const DEFS={
+      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
+      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
+      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
+      bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
+    };
+    const defs=DEFS[pd.cls]||[];
+    const jpTxt=this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5).setScrollFactor(0);
+    const jbg=this.add.rectangle(PX,ITOP+26,PW-30,8,0x222222).setOrigin(0.5).setScrollFactor(0);
+    const jbar=this.add.rectangle(PX-(PW-30)/2,ITOP+26,(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5).setScrollFactor(0);
+    skillCont.add([jpTxt,jbg,jbar]);
+    const SK_H=(IH-46)/3;
+    defs.forEach((sk,i)=>{
+      const y=ITOP+38+i*SK_H+SK_H/2;
+      const cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
+      const sbg=this.add.rectangle(PX,y,PW-16,SK_H-4,col,0.07).setStrokeStyle(1,col).setScrollFactor(0);
+      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5).setScrollFactor(0);
+      const nm=this.add.text(LX+38,y-12,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5).setScrollFactor(0);
+      const ds=this.add.text(LX,y+8,sk.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5).setScrollFactor(0);
+      const maxB=sk.maxLv,bW=Math.floor((PW*0.35)/maxB)-2;
+      const bStartX=PX-PW*0.18;
+      for(let j=0;j<maxB;j++){
+        skillCont.add(this.add.rectangle(bStartX+j*(bW+2),y-12,bW,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5).setScrollFactor(0));
+      }
+      const lvt=this.add.text(PX+PW*0.22,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'13px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5).setScrollFactor(0);
+      skillCont.add([sbg,kl,nm,ds,lvt]);
+      if(!maxed){
+        const sbtn=this.add.rectangle(PX+PW/2-55,y+8,100,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setScrollFactor(0).setInteractive();
+        const sbt=this.add.text(PX+PW/2-55,y+8,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'13px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5).setScrollFactor(0);
+        sbtn.on('pointerover',()=>sbtn.setFillStyle(0x00e5ff,0.45)); sbtn.on('pointerout',()=>sbtn.setFillStyle(0x00e5ff,0.2));
+        sbtn.on('pointerdown',()=>{
+          if((pd.jobPts||0)<1)return;
+          pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
+          // オーバーレイを閉じて再度開く（内容更新）
+          this._closeMenu();
+          this.time.delayedCall(50,()=>this.openMenu('skill'));
+        });
+        skillCont.add([sbtn,sbt]);
+      }else{skillCont.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0));}
+    });
+
+    // 閉じるボタン
+    const closeBtn=this.add.rectangle(PX,PY+PH/2-CLOSE_H/2-2,180,CLOSE_H,0xffd700,0.2).setStrokeStyle(2,0xffd700).setScrollFactor(0).setInteractive();
+    const closeTxt=this.add.text(PX,PY+PH/2-CLOSE_H/2-2,'✕ 閉じる [ESC]',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0);
+    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.45)); closeBtn.on('pointerout',()=>closeBtn.setFillStyle(0xffd700,0.2));
+    closeBtn.on('pointerdown',()=>this._closeMenu());
+    root.add([closeBtn,closeTxt]);
+
+    // ESCキー
+    this._menuEscKey=this.input.keyboard.addKey('ESC');
+    this._menuEscKey.once('down',()=>this._closeMenu());
+
+    switchTab(tab);
+  }
+
+  _closeMenu(){
+    if(!this._menuOpen)return;
+    this._menuOpen=false;
+    if(this._menuRoot){this._menuRoot.destroy(true);this._menuRoot=null;}
+    if(this._menuEscKey){this._menuEscKey.destroy();this._menuEscKey=null;}
+    this.physics.resume();
+    this.updateHUD();
+    this._updateMenuBadge();
   }
   _updateMenuBadge(){
     const pd=this.playerData;
@@ -1843,5 +1821,5 @@ new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,ClassSelectScene,LevelUpScene,MenuScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene]
 });
