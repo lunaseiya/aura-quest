@@ -617,9 +617,7 @@ class MenuScene extends Phaser.Scene{
     this.tab=data.tab||'stat';
   }
   create(){
-    console.log('[MenuScene] create start, returnScene='+this.returnScene+', tab='+this.tab);
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
-    console.log('[MenuScene] w='+w+' h='+h+' pd='+!!pd);
     // パネル: 画面幅96% 高さ96% 余白最小
     const PW=Math.min(w*0.96,900), PH=Math.min(h*0.96,520);
     const PX=w/2, PY=h/2;
@@ -667,7 +665,6 @@ class MenuScene extends Phaser.Scene{
     });
   }
   _buildStat(pd,PW,PH,PX,PY,LX,ITOP,IBOT,IH){
-    console.log('[MenuScene] _buildStat start, statPts='+pd.statPts);
     const c=this.statCont;
     const S=[
       {key:'atk',label:'力   STR',desc:'ATK +2',col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
@@ -1360,24 +1357,19 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
   }
   openMenu(tab='stat'){
-    console.log('[openMenu] called, _menuOpen='+this._menuOpen);
     if(this._menuOpen)return;
     this._menuOpen=true;
-    console.log('[openMenu] launching Menu, returnScene=Game, tab='+tab);
-    try{
-      this.scene.launch('Menu',{
-        playerData:this.playerData,
-        returnScene:'Game',
-        returnData:{playerData:this.playerData,stage:this.stage},
-        tab,
-      });
-      console.log('[openMenu] launch OK');
+    // launchを先に実行し、次フレームでpause（同フレームだとlaunchがキャンセルされる）
+    this.scene.launch('Menu',{
+      playerData:this.playerData,
+      returnScene:'Game',
+      returnData:{playerData:this.playerData,stage:this.stage},
+      tab,
+    });
+    // 1フレーム後にpause
+    this.time.delayedCall(16,()=>{
       this.scene.pause();
-      console.log('[openMenu] pause OK');
-    }catch(e){
-      console.error('[openMenu] ERROR:',e);
-      this._menuOpen=false;
-    }
+    });
   }
   resumeFromMenu(){
     this._menuOpen=false;
