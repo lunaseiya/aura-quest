@@ -473,6 +473,7 @@ class GameScene extends Phaser.Scene{
     this.stage=data.stage!==undefined?data.stage:1;
     this.killCount=0;
     this.bossSpawned=false;
+    this._transitioning=false;
   }
   create(){
     const cfg=STAGE_CONFIG[this.stage]||STAGE_CONFIG[1];
@@ -523,11 +524,16 @@ class GameScene extends Phaser.Scene{
       this.add.text(80,MH/2+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',align:'center'}).setOrigin(0.5);
     }
     // ポータル（次）
+    // 町(stage:0)は最初から開放、それ以外はボス撃破で開放
     this.portalNext=null;this.portalNextImg=null;this.portalNextTxt=null;
-    if(cfg.portalTo){
-      this.portalNextImg=this.add.image(MW-80,MH/2,cfg.portalToKey).setDisplaySize(80,64).setAlpha(0.25);
-      this.portalNextTxt=this.add.text(MW-80,MH/2+44,cfg.portalToLabel+'\n(ボス撃破で開放)',{fontSize:'9px',fontFamily:'Courier New',color:'#666666',align:'center'}).setOrigin(0.5);
-      this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:false};
+    if(cfg.portalTo!==null&&cfg.portalTo!==undefined){
+      const initiallyOpen=this.stage===0; // 町は最初から開放
+      const alpha=initiallyOpen?1.0:0.25;
+      const label=initiallyOpen?cfg.portalToLabel+'\n[近づいて移動]':cfg.portalToLabel+'\n(ボス撃破で開放)';
+      const labelCol=initiallyOpen?'#00e5ff':'#666666';
+      this.portalNextImg=this.add.image(MW-80,MH/2,cfg.portalToKey).setDisplaySize(80,64).setAlpha(alpha);
+      this.portalNextTxt=this.add.text(MW-80,MH/2+44,label,{fontSize:'9px',fontFamily:'Courier New',color:labelCol,align:'center'}).setOrigin(0.5);
+      this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:initiallyOpen};
     }
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
@@ -1807,16 +1813,25 @@ class GameScene extends Phaser.Scene{
         }else{ov.setFillStyle(0x000000,0);ct.setText('');}
       });
     }
-    // ポータル
-    if(Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<60){
-      
-      if(this.cfg.portalBack===0)this.scene.start('Game',{playerData:pd,stage:0});
-      else this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack});
-    }
-    if(this.portalNext&&this.portalNext.open&&Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<60){
-      
-      if(!this.cfg.portalTo)this.scene.start('GameClear',{playerData:pd});
-      else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
+    // ポータル遷移（重複防止フラグ付き）
+    if(!this._transitioning){
+      // 戻るポータル（左端）
+      if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined&&
+         Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<70){
+        this._transitioning=true;
+        stopBGM();
+        this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack});
+        return;
+      }
+      // 進むポータル（右端）
+      if(this.portalNext&&this.portalNext.open&&
+         Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<70){
+        this._transitioning=true;
+        stopBGM();
+        if(!this.cfg.portalTo) this.scene.start('GameClear',{playerData:pd});
+        else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
+        return;
+      }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
     // [S][J]キー（Menu未表示時のみ）
