@@ -628,14 +628,14 @@ class GameScene extends Phaser.Scene{
   constructor(){super('Game')}
   init(data){
     this.playerData=data.playerData||makePlayerData('warrior');
-    this.stage=data.stage||1;
+    this.stage=data.stage!==undefined?data.stage:1;
     this.killCount=0;
     this.bossSpawned=false;
   }
   create(){
-    const MW=1200,MH=1000;
-    this.MW=MW;this.MH=MH;
     const cfg=STAGE_CONFIG[this.stage]||STAGE_CONFIG[1];
+    const MW=cfg.mapW||1200, MH=cfg.mapH||1000;
+    this.MW=MW;this.MH=MH;
     this.cfg=cfg;
     // ステージ進入時HP/SP全回復 ③要件§10
     const pd=this.playerData;
