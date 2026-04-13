@@ -523,17 +523,12 @@ class GameScene extends Phaser.Scene{
       this.add.image(80,MH/2,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
       this.add.text(80,MH/2+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',align:'center'}).setOrigin(0.5);
     }
-    // ポータル（次）
-    // 町(stage:0)は最初から開放、それ以外はボス撃破で開放
+    // ポータル（次）：常に開放
     this.portalNext=null;this.portalNextImg=null;this.portalNextTxt=null;
     if(cfg.portalTo!==null&&cfg.portalTo!==undefined){
-      const initiallyOpen=this.stage===0; // 町は最初から開放
-      const alpha=initiallyOpen?1.0:0.25;
-      const label=initiallyOpen?cfg.portalToLabel+'\n[近づいて移動]':cfg.portalToLabel+'\n(ボス撃破で開放)';
-      const labelCol=initiallyOpen?'#00e5ff':'#666666';
-      this.portalNextImg=this.add.image(MW-80,MH/2,cfg.portalToKey).setDisplaySize(80,64).setAlpha(alpha);
-      this.portalNextTxt=this.add.text(MW-80,MH/2+44,label,{fontSize:'9px',fontFamily:'Courier New',color:labelCol,align:'center'}).setOrigin(0.5);
-      this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:initiallyOpen};
+      this.portalNextImg=this.add.image(MW-80,MH/2,cfg.portalToKey).setDisplaySize(80,64).setAlpha(1.0);
+      this.portalNextTxt=this.add.text(MW-80,MH/2+44,cfg.portalToLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Courier New',color:'#00e5ff',align:'center'}).setOrigin(0.5);
+      this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:true};
     }
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
