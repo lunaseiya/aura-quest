@@ -170,7 +170,9 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    ['warrior','mage','archer'].forEach(k=>this.load.image('player_'+k,BASE+'players/'+k+'.png'));
+    ['warrior','archer'].forEach(k=>this.load.image('player_'+k,BASE+'players/'+k+'.png'));
+    // mage はスプライトシート (128×128px, 5×3=15コマ)
+    this.load.spritesheet('player_mage', BASE+'players/final_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // bomber はスプライトシート
     this.load.spritesheet('player_bomber', BASE+'players/final_sheet_cc.png', {frameWidth:64,frameHeight:64});
     ['bat','boss1','boss2','boss3','dragon','goblin','sandworm','scorpion','skeleton','slime','troll','wolf'].forEach(k=>this.load.image('enemy_'+k,BASE+'enemies/'+k+'.png'));
@@ -196,11 +198,33 @@ class BootScene extends Phaser.Scene{
       {key:'bomber_side_atk',  frames:[13,14],rate:10,rep:0 },
     ];
     BA.forEach(a=>{
-      // 既に登録済みなら skip（シーン再起動時の二重登録防止）
       if(this.anims.exists(a.key)) return;
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_bomber',frame:f})),
+        frameRate:a.rate,
+        repeat:a.rep,
+      });
+    });
+
+    // マジシャン スプライトアニメーション定義 (128×128px, 5×3)
+    // 行0=front(0-4) 行1=back(5-9) 行2=side(10-14)
+    const MA=[
+      {key:'mage_front_idle',frames:[0],    rate:2, rep:-1},
+      {key:'mage_front_walk',frames:[1,2],  rate:8, rep:-1},
+      {key:'mage_front_atk', frames:[3,4],  rate:10,rep:0 },
+      {key:'mage_back_idle', frames:[5],    rate:2, rep:-1},
+      {key:'mage_back_walk', frames:[6,7],  rate:8, rep:-1},
+      {key:'mage_back_atk',  frames:[8,9],  rate:10,rep:0 },
+      {key:'mage_side_idle', frames:[10],   rate:2, rep:-1},
+      {key:'mage_side_walk', frames:[11,12],rate:8, rep:-1},
+      {key:'mage_side_atk',  frames:[13,14],rate:10,rep:0 },
+    ];
+    MA.forEach(a=>{
+      if(this.anims.exists(a.key)) return;
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_mage',frame:f})),
         frameRate:a.rate,
         repeat:a.rep,
       });
@@ -296,6 +320,8 @@ class ClassSelectScene extends Phaser.Scene{
       // bomberはspritesheet、他はimage
       if(cls.key==='bomber'){
         this.add.sprite(cx-90,cy,'player_bomber').setFrame(0).setDisplaySize(64,80);
+      }else if(cls.key==='mage'){
+        this.add.sprite(cx-90,cy,'player_mage').setFrame(0).setDisplaySize(80,80);
       }else{
         this.add.image(cx-90,cy,'player_'+cls.key).setDisplaySize(64,80);
       }
@@ -503,19 +529,22 @@ class GameScene extends Phaser.Scene{
       this.portalNextTxt=this.add.text(MW-80,MH/2+44,cfg.portalToLabel+'\n(ボス撃破で開放)',{fontSize:'9px',fontFamily:'Courier New',color:'#666666',align:'center'}).setOrigin(0.5);
       this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:false};
     }
-    // プレイヤー
-    this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(64,64).setCollideWorldBounds(true).setDepth(5);
-    this._bomberFacing='front';
-    this._bomberFlip=false;
-    // ボマーのアニメ初期再生（アニメ存在確認付き）
+    // プレイヤー（mageは128x128スプライトシートなので少し大きく）
+    const pSize=pd.cls==='mage'?80:64;
+    this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
+    this._facing='front';  // 共通向き管理
+    this._facingFlip=false;
+    // スプライトシートキャラのアニメ初期再生
     if(pd.cls==='bomber'){
       if(this.anims.exists('bomber_front_idle')){
         this.player.play('bomber_front_idle');
-        console.log('[Bomber] アニメ開始: bomber_front_idle');
       }else{
-        console.warn('[Bomber] アニメが見つかりません。再定義します...');
         this._registerBomberAnims();
         this.player.play('bomber_front_idle');
+      }
+    }else if(pd.cls==='mage'){
+      if(this.anims.exists('mage_front_idle')){
+        this.player.play('mage_front_idle');
       }
     }
     this.physics.add.collider(this.player,this.obstacles);
@@ -1431,7 +1460,7 @@ class GameScene extends Phaser.Scene{
     if(len>1){vx/=len;vy/=len;}
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
-    if(pd.cls==='bomber') this._updateBomberAnim(vx,vy);
+    if(pd.cls==='bomber'||pd.cls==='mage') this._updateSpriteAnim(vx,vy);
     // 最後に動いた向きを記録（攻撃方向決定用）
     if(vx!==0||vy!==0) this._lastAngle=Math.atan2(vy,vx);
   }
@@ -1458,44 +1487,40 @@ class GameScene extends Phaser.Scene{
     });
   }
 
-  _updateBomberAnim(vx,vy){
-    const p=this.player;
+  _updateSpriteAnim(vx,vy){
+    const p=this.player,cls=this.playerData.cls;
+    if(cls!=='bomber'&&cls!=='mage') return;
+    const prefix=cls; // 'bomber' or 'mage'
     const cur=p.anims.currentAnim;
-    // 攻撃アニメ再生中は割り込まない
-    if(cur && cur.key.endsWith('_atk') && p.anims.isPlaying) return;
+    if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
 
     const moving=Math.abs(vx)>0.1||Math.abs(vy)>0.1;
-    let facing=this._bomberFacing||'front';
-    let flip=this._bomberFlip||false;
-
+    let facing=this._facing||'front';
+    let flip=this._facingFlip||false;
     if(moving){
-      if(Math.abs(vy)>Math.abs(vx)*0.5){
-        facing=vy<0?'back':'front';
-        flip=false;
-      }else{
-        facing='side';
-        flip=vx<0;
-      }
+      if(Math.abs(vy)>Math.abs(vx)*0.5){facing=vy<0?'back':'front';flip=false;}
+      else{facing='side';flip=vx<0;}
     }
-
-    this._bomberFacing=facing;
-    this._bomberFlip=flip;
+    this._facing=facing; this._facingFlip=flip;
     p.setFlipX(flip);
-
-    const key='bomber_'+facing+'_'+(moving?'walk':'idle');
+    const key=prefix+'_'+facing+'_'+(moving?'walk':'idle');
     if(!cur||cur.key!==key) p.play(key,true);
   }
 
-  playBomberAtk(){
-    const p=this.player;
-    const key='bomber_'+(this._bomberFacing||'front')+'_atk';
+  // bomber後方互換
+  _updateBomberAnim(vx,vy){ this._updateSpriteAnim(vx,vy); }
+
+  playSpriteAtk(){
+    const p=this.player,cls=this.playerData.cls;
+    if(cls!=='bomber'&&cls!=='mage') return;
+    const key=cls+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
-    // 攻撃終了後にidle復帰
     p.once('animationcomplete',()=>{
-      const idleKey='bomber_'+(this._bomberFacing||'front')+'_idle';
-      p.play(idleKey,true);
+      p.play(cls+'_'+(this._facing||'front')+'_idle',true);
     });
   }
+
+  playBomberAtk(){ this.playSpriteAtk(); }
   updateAutoAtk(dt){
     // 自動攻撃廃止 - ボタンで手動攻撃
   }
