@@ -1160,21 +1160,11 @@ class GameScene extends Phaser.Scene{
       this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(50).setScrollFactor(0).setVisible(false);
     }
     const msgs={
-      inn:'🏨 宿屋  泊まる？(30G)
-[Y]はい  [N]いいえ',
-      shop:'🏪 ショップ
-HPポーション 30G [1]
-MPポーション 25G [2]',
-      blacksmith:'🔨 鍛冶屋
-鉄の剣 80G ATK+8 [1]
-革の鎧 70G DEF+5/HP+20 [2]
-俊足の靴 60G SPD+20 [3]',
-      magic:'🔮 魔法店
-魔法の杖 90G MAG+8 [1]
-幸運の指輪 100G LUK+8 [2]',
-      guild:'⚔ ギルド
-（準備中）
-[ESC]閉じる',
+      inn:'🏨 宿屋  泊まる？(30G)\n[Y]はい  [N]いいえ',
+      shop:'🏪 ショップ\nHPポーション 30G [1]\nMPポーション 25G [2]',
+      blacksmith:'🔨 鍛冶屋\n鉄の剣 80G ATK+8 [1]\n革の鎧 70G DEF+5/HP+20 [2]\n俊足の靴 60G SPD+20 [3]',
+      magic:'🔮 魔法店\n魔法の杖 90G MAG+8 [1]\n幸運の指輪 100G LUK+8 [2]',
+      guild:'⚔ ギルド\n（準備中）\n[ESC]閉じる',
     };
     this.msgText.setText(msgs[b.type]||'準備中').setPosition(w/2-140,h/2-70).setVisible(true);
     const close=()=>this.msgText.setVisible(false);
