@@ -450,29 +450,43 @@ class TownScene extends Phaser.Scene{
     this.input.on('pointercancel',onUp,this);
   }
     createMenuButton(){
-    const pd=this.playerData,w=this.scale.width;
-    // キャラアイコンボタン（HUD左上）
+    const pd=this.playerData;
     const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[pd.cls]||'?';
-    this._menuBtn=this.add.rectangle(220,40,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this._menuIcon=this.add.text(220,36,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._menuLabel=this.add.text(220,50,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._menuBadge=this.add.text(236,24,'',{fontSize:'10px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
+    const MX=220,MY=40;
+    // 外枠グロー
+    this._menuBtnGlow=this.add.rectangle(MX,MY,64,64,0x44aaff,0.18).setScrollFactor(0).setDepth(14);
+    // ボタン本体
+    this._menuBtn=this.add.rectangle(MX,MY,56,56,0x0a0f2a,0.95).setStrokeStyle(3,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this.add.text(MX,MY-8,cls,{fontSize:'22px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this.add.text(MX,MY+16,'MENU',{fontSize:'9px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._menuBadge=this.add.text(MX+24,MY-24,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#e74c3c',padding:{x:3,y:2}}).setScrollFactor(0).setDepth(17);
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
-    this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
-    this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
+    this._menuBtn.on('pointerover',()=>{this._menuBtn.setFillStyle(0x44aaff,0.3);this._menuBtnGlow.setFillStyle(0x44aaff,0.4);});
+    this._menuBtn.on('pointerout', ()=>{this._menuBtn.setFillStyle(0x0a0f2a,0.95);this._menuBtnGlow.setFillStyle(0x44aaff,0.18);});
+    this._menuPulse=this.tweens.add({targets:this._menuBtnGlow,fillAlpha:{from:0.1,to:0.5},duration:600,yoyo:true,repeat:-1,paused:true});
     // ミュートボタン
-    this._muteBtn=this.add.rectangle(250,40,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this._muteTxt=this.add.text(250,40,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._muteBtn.on('pointerdown',()=>{
-      setMute(!muted);
-      this._muteTxt.setText(muted?'🔇':'🔊');
-    });
+    const muteX=MX+46;
+    this._muteBtn=this.add.rectangle(muteX,MY,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x555555).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this._muteTxt=this.add.text(muteX,MY,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    this._muteBtn.on('pointerdown',()=>{setMute(!muted);this._muteTxt.setText(muted?'🔇':'🔊');});
     this._updateMenuBadge();
   }
   _updateMenuBadge(){
     const pd=this.playerData;
     const pts=(pd.statPts||0)+(pd.jobPts||0);
-    if(this._menuBadge)this._menuBadge.setText(pts>0?'↑'+pts:'');
+    if(!this._menuBadge)return;
+    if(pts>0){
+      // ポイントあり: バッジ表示 + ボタン点滅
+      this._menuBadge.setText('↑'+pts+'pt');
+      if(this._menuPulse&&this._menuPulse.isPaused())this._menuPulse.resume();
+      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0xffff00); // 枠を黄色に
+    }else{
+      // ポイントなし: バッジ非表示 + 点滅停止
+      this._menuBadge.setText('');
+      if(this._menuPulse&&!this._menuPulse.isPaused())this._menuPulse.pause();
+      if(this._menuBtnGlow)this._menuBtnGlow.setFillStyle(0x44aaff,0.18);
+      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0x44aaff); // 枠を青に戻す
+    }
   }
   tryInteract(){
     // タップ/クリックでインタラクション（建物）
@@ -774,25 +788,19 @@ class MenuScene extends Phaser.Scene{
         btn.on('pointerdown',()=>{
           if((pd.jobPts||0)<1)return;
           pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
-          // Menuを再起動して表示を更新
-          const rs=this.returnScene,rd=this.returnData;
+          // Menuを再起動（stop→launch→pause）
           this.scene.stop();
-          this.scene.launch('Menu',{playerData:pd,returnScene:rs,returnData:rd,tab:'skill'});
+          this.scene.launch('Menu',{playerData:pd,returnScene:this.returnScene,returnData:this.returnData,tab:'skill'});
+          this.scene.pause(this.returnScene);
         });
         c.add([btn,bt]);
       }else{c.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));}
     });
   }
   _close(){
-    const rs=this.returnScene;
-    this.scene.stop(); // Menu停止
-    // GameSceneはresumeFromMenuで再開、TownSceneはscene.resume
-    const target=this.scene.get(rs);
-    if(target&&typeof target.resumeFromMenu==='function'){
-      target.resumeFromMenu();
-    }else{
-      this.scene.resume(rs);
-    }
+    // TownScene・GameScene 共通: stop → resume
+    this.scene.stop();
+    this.scene.resume(this.returnScene);
   }
 }
 
@@ -1337,19 +1345,35 @@ class GameScene extends Phaser.Scene{
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
     this.bossHPTxt=this.add.text(w/2,h-44,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(12).setVisible(false);
-    // キャラアイコン（MENUボタン）
+    // キャラアイコン（MENUボタン）大きく・目立つ配置
     const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[this.playerData.cls]||'?';
-    this._menuBtn=this.add.rectangle(BG_W+26,36,44,44,0x1a1a3a,0.9).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this.add.text(BG_W+26,32,cls,{fontSize:'18px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this.add.text(BG_W+26,50,'MENU',{fontSize:'8px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-    this._menuBadge=this.add.text(BG_W+42,16,'',{fontSize:'9px',fontFamily:'Courier New',color:'#ffff44',backgroundColor:'#e74c3c',padding:{x:2,y:1}}).setScrollFactor(0).setDepth(17);
+    const MX=BG_W+34, MY=38;
+    // 外枠（発光エフェクト用の外リング）
+    this._menuBtnGlow=this.add.rectangle(MX,MY,64,64,0x44aaff,0.18).setScrollFactor(0).setDepth(14);
+    // ボタン本体
+    this._menuBtn=this.add.rectangle(MX,MY,56,56,0x0a0f2a,0.95).setStrokeStyle(3,0x44aaff).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    // 職業文字
+    this.add.text(MX,MY-8,cls,{fontSize:'22px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    // MENU ラベル
+    this.add.text(MX,MY+16,'MENU',{fontSize:'9px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    // バッジ（ポイントがあると光る）
+    this._menuBadge=this.add.text(MX+24,MY-24,'',{
+      fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',
+      backgroundColor:'#e74c3c',padding:{x:3,y:2}
+    }).setScrollFactor(0).setDepth(17);
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
-    this._menuBtn.on('pointerover',()=>this._menuBtn.setFillStyle(0x44aaff,0.3));
-    this._menuBtn.on('pointerout', ()=>this._menuBtn.setFillStyle(0x1a1a3a,0.9));
+    this._menuBtn.on('pointerover',()=>{this._menuBtn.setFillStyle(0x44aaff,0.3);this._menuBtnGlow.setFillStyle(0x44aaff,0.4);});
+    this._menuBtn.on('pointerout', ()=>{this._menuBtn.setFillStyle(0x0a0f2a,0.95);this._menuBtnGlow.setFillStyle(0x44aaff,0.18);});
+    // ポイントがあるとき点滅アニメ
+    this._menuPulse=this.tweens.add({
+      targets:this._menuBtnGlow,
+      fillAlpha:{from:0.1,to:0.5},
+      duration:600, yoyo:true, repeat:-1, paused:true
+    });
     // ミュートボタン（MENUボタン右）
-    const muteX=BG_W+58;
-    this._muteBtn=this.add.rectangle(muteX,36,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    this._muteTxt=this.add.text(muteX,36,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+    const muteX=MX+46;
+    this._muteBtn=this.add.rectangle(muteX,MY,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x555555).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    this._muteTxt=this.add.text(muteX,MY,muted?'🔇':'🔊',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
     this._muteBtn.on('pointerdown',()=>{
       setMute(!muted);
       this._muteTxt.setText(muted?'🔇':'🔊');
@@ -1357,33 +1381,31 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
   }
   openMenu(tab='stat'){
-    if(this._menuOpen)return;
-    this._menuOpen=true;
-    // launchを先に実行し、次フレームでpause（同フレームだとlaunchがキャンセルされる）
+    // TownSceneと同じ方式: launch → pause
     this.scene.launch('Menu',{
       playerData:this.playerData,
       returnScene:'Game',
       returnData:{playerData:this.playerData,stage:this.stage},
       tab,
     });
-    // 1フレーム後にpause
-    this.time.delayedCall(16,()=>{
-      this.scene.pause();
-    });
-  }
-  resumeFromMenu(){
-    this._menuOpen=false;
-    // pause中のシーンを再開
-    if(this.scene.isPaused('Game')){
-      this.scene.resume('Game');
-    }
-    this.updateHUD();
-    this._updateMenuBadge();
+    this.scene.pause();
   }
   _updateMenuBadge(){
     const pd=this.playerData;
     const pts=(pd.statPts||0)+(pd.jobPts||0);
-    if(this._menuBadge)this._menuBadge.setText(pts>0?'↑'+pts:'');
+    if(!this._menuBadge)return;
+    if(pts>0){
+      // ポイントあり: バッジ表示 + ボタン点滅
+      this._menuBadge.setText('↑'+pts+'pt');
+      if(this._menuPulse&&this._menuPulse.isPaused())this._menuPulse.resume();
+      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0xffff00); // 枠を黄色に
+    }else{
+      // ポイントなし: バッジ非表示 + 点滅停止
+      this._menuBadge.setText('');
+      if(this._menuPulse&&!this._menuPulse.isPaused())this._menuPulse.pause();
+      if(this._menuBtnGlow)this._menuBtnGlow.setFillStyle(0x44aaff,0.18);
+      if(this._menuBtn)this._menuBtn.setStrokeStyle(3,0x44aaff); // 枠を青に戻す
+    }
   }
   updateHUD(){
     const pd=this.playerData;
@@ -1986,10 +2008,8 @@ class GameScene extends Phaser.Scene{
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
     // [S][J]キー（Menu未表示時のみ）
-    if(!this._menuOpen){
-      if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
-      if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
-    }
+    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
+    if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
     this._updateMenuBadge();
   }
 }
