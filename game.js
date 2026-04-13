@@ -631,7 +631,9 @@ class MenuScene extends Phaser.Scene{
     this.tab=data.tab||'stat';
   }
   create(){
-    console.log('[MENU CREATE] tab='+this.tab+' return='+this.returnScene);
+    // カメラをゲームのスクロールから独立させる
+    this.cameras.main.setScroll(0,0);
+    this.cameras.main.setZoom(1);
     const pd=this.playerData,w=this.scale.width,h=this.scale.height;
     // パネル: 画面幅96% 高さ96% 余白最小
     const PW=Math.min(w*0.96,900), PH=Math.min(h*0.96,520);
@@ -1382,7 +1384,6 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
   }
   openMenu(tab='stat'){
-    console.log('[GAME openMenu] tab='+tab+' stage='+this.stage);
     // TownSceneと同じ方式: launch → pause
     this.scene.launch('Menu',{
       playerData:this.playerData,
