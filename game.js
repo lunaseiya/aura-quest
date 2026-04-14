@@ -987,11 +987,29 @@ class GameScene extends Phaser.Scene{
     this._menuBtn.on('pointerover',()=>{this._menuBtn.setFillStyle(0x44aaff,0.3);this._menuBtnGlow.setFillStyle(0x44aaff,0.4);});
     this._menuBtn.on('pointerout', ()=>{this._menuBtn.setFillStyle(0x0a0f2a,0.95);this._menuBtnGlow.setFillStyle(0x44aaff,0.18);});
     // ポイントがあるとき点滅アニメ
-    this._menuPulse=this.tweens.add({
-      targets:this._menuBtnGlow,
-      fillAlpha:{from:0.1,to:0.5},
-      duration:600, yoyo:true, repeat:-1, paused:true
-    });
+    // tweenではなくtimerで点滅（scene遷移時のcutエラー防止）
+    this._menuPulseOn=false;
+    this._menuPulse={
+      _timer:null,
+      _val:0.1,_dir:1,
+      resume:()=>{
+        if(this._menuPulse._timer)return;
+        this._menuPulse._timer=this.time.addEvent({
+          delay:40,loop:true,callback:()=>{
+            if(!this._menuBtnGlow||!this._menuBtnGlow.active)return;
+            this._menuPulse._val+=this._menuPulse._dir*0.03;
+            if(this._menuPulse._val>=0.5){this._menuPulse._val=0.5;this._menuPulse._dir=-1;}
+            if(this._menuPulse._val<=0.1){this._menuPulse._val=0.1;this._menuPulse._dir=1;}
+            this._menuBtnGlow.setFillStyle(0x44aaff,this._menuPulse._val);
+          }
+        });
+      },
+      pause:()=>{
+        if(this._menuPulse._timer){this._menuPulse._timer.remove();this._menuPulse._timer=null;}
+        this._menuPulse._val=0.1;
+      },
+      isPaused:()=>!this._menuPulse._timer,
+    };
     // ミュートボタン（MENUボタン右）
     const muteX=MX+46;
     this._muteBtn=this.add.rectangle(muteX,MY,32,32,0x1a1a3a,0.9).setStrokeStyle(1,0x555555).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
@@ -1863,19 +1881,23 @@ class GameScene extends Phaser.Scene{
   }
 
   _doTransition(sceneKey,sceneData){
-    // 全ての動きを確実に止めてから遷移
     stopBGM();
     this.physics.pause();
-    this.tweens.pauseAll();
+    // tweensを全て即座に削除（pauseAllではscene破棄後も残る）
+    this.tweens.killAll();
     this.time.removeAllEvents();
     if(this.player&&this.player.anims)this.player.anims.stop();
-    // enemyスプライトのanims停止
+    if(this.player)this.player.setVelocity(0,0);
     if(this.enemyDataList){
       this.enemyDataList.forEach(ed=>{
-        if(ed.sprite&&ed.sprite.active&&ed.sprite.anims)ed.sprite.anims.stop();
+        try{
+          if(ed.sprite&&ed.sprite.active){
+            ed.sprite.setVelocity(0,0);
+            if(ed.sprite.anims)ed.sprite.anims.stop();
+          }
+        }catch(e){}
       });
     }
-    // 即座に遷移
     this.scene.start(sceneKey,sceneData);
   }
 
