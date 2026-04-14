@@ -113,10 +113,10 @@ function SE(type){
 // ============================================================
 function makePlayerData(cls){
   const base={
-    warrior:{hp:110,sp:60,atk:6,def:6,mag:5,spd:180,hit:80,luk:5},
-    mage:   {hp:90, sp:70,atk:5,def:4,mag:8,spd:160,hit:75,luk:5},
-    archer: {hp:100,sp:65,atk:6,def:5,mag:5,spd:200,hit:85,luk:8},
-    bomber: {hp:95, sp:80,atk:8,def:4,mag:6,spd:170,hit:78,luk:6},
+    warrior:{hp:110,sp:60,atk:6,def:6,mag:5,spd:180,hit:80,luk:5,agi:0},
+    mage:   {hp:90, sp:70,atk:5,def:4,mag:8,spd:160,hit:75,luk:5,agi:0},
+    archer: {hp:100,sp:65,atk:6,def:5,mag:5,spd:200,hit:85,luk:8,agi:0},
+    bomber: {hp:95, sp:80,atk:8,def:4,mag:6,spd:170,hit:78,luk:6,agi:0},
   }[cls];
   return {
     cls,
@@ -139,20 +139,20 @@ function makePlayerData(cls){
 // ============================================================
 //  命中・クリティカル計算
 // ============================================================
-function calcHit(pd, enemySpd){
-  // 命中率 = hit - 敵SPD×0.08（最低10%、最大99%）
-  return Math.min(99, Math.max(10, pd.hit - (enemySpd||0)*0.08));
+function calcHit(pd, enemyEva){
+  // 命中率 = hit - 敵eva（最低5%、最大99%）
+  return Math.min(99, Math.max(5, pd.hit - (enemyEva||0)));
 }
 function calcCrit(pd){
   return pd.luk; // luk% がクリティカル率
 }
-function rollAttack(pd, enemyDef, enemySpd){
-  // 命中判定
-  const hitRate=calcHit(pd,enemySpd);
+function rollAttack(pd, enemyDef, enemyEva){
+  // 命中判定（hit - 敵eva%）
+  const hitRate=calcHit(pd,enemyEva);
   if(Math.random()*100>hitRate) return {miss:true};
   // クリティカル判定
   const isCrit=Math.random()*100<calcCrit(pd);
-  let dmg=Math.max(1, pd.atk*2 - (enemyDef||0) + Phaser.Math.Between(0,pd.atk));
+  let dmg=Math.max(1, Math.floor(pd.atk*1.5) - (enemyDef||0) + Phaser.Math.Between(0,pd.atk));
   if(isCrit) dmg=Math.floor(dmg*2);
   return {dmg,isCrit,miss:false};
 }
@@ -449,19 +449,19 @@ const STAGE_CONFIG={
   4:{name:'ST.4 砂漠(最終)',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:null,portalToLabel:'',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3'},
 };
 const ENEMY_DEFS={
-  // passive:true=受動（攻撃されたら反撃）  passive:false=能動（近づいたら追跡）
-  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:28,rng:36,acd:1.2, passive:true },
-  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:24,rng:32,acd:0.9, passive:true },
-  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:32,rng:40,acd:1.0, passive:true },
-  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:48,rng:48,acd:1.8, passive:true },
-  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:32,rng:40,acd:0.8, passive:false},
-  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:32,rng:40,acd:1.1, passive:false},
-  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:56,rng:60,acd:1.5, passive:false},
-  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:52,rng:50,acd:2.0, passive:false},
-  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:28,rng:36,acd:0.7, passive:false},
-  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:72,rng:64,acd:1.2, passive:false,isBoss:true},
-  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:80,rng:70,acd:1.0, passive:false,isBoss:true},
-  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:88,rng:80,acd:0.9,passive:false,isBoss:true},
+  // passive:true=受動  eva=回避率%（DEXが低いと当たらない）
+  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:28,rng:36,acd:1.2, passive:true,  eva:0 },
+  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:24,rng:32,acd:0.9, passive:true,  eva:15},
+  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:32,rng:40,acd:1.0, passive:true,  eva:5 },
+  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:48,rng:48,acd:1.8, passive:true,  eva:0 },
+  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:32,rng:40,acd:0.8, passive:false, eva:20},
+  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:32,rng:40,acd:1.1, passive:false, eva:10},
+  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:56,rng:60,acd:1.5, passive:false, eva:15},
+  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:52,rng:50,acd:2.0, passive:false, eva:5 },
+  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:28,rng:36,acd:0.7, passive:false, eva:25},
+  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:72,rng:64,acd:1.2, passive:false, eva:10,isBoss:true},
+  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:80,rng:70,acd:1.0, passive:false, eva:20,isBoss:true},
+  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:88,rng:80,acd:0.9,passive:false,eva:30,isBoss:true},
 };
 
 // ============================================================
@@ -641,7 +641,7 @@ class GameScene extends Phaser.Scene{
         if(d<cd){cd=d;closest=ed;}
       });
       if(!closest)return;
-      const res=rollAttack(pd,closest.def,closest.spd);
+      const res=rollAttack(pd,closest.def,closest.eva||0);
       if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888');SE('miss');}
       else{this.hitEnemy(closest,res.dmg,res.isCrit);}
       // スラッシュエフェクト
@@ -658,7 +658,7 @@ class GameScene extends Phaser.Scene{
       const ang=this.getFacingAngle();
       this.fireBullet(p.x,p.y,ang,'proj_fireball',{
         spd:320,maxDist:520,
-        dmg:Math.max(1,pd.mag*3+Phaser.Math.Between(0,pd.mag)),
+        dmg:Math.max(1,pd.mag*2+Phaser.Math.Between(0,pd.mag)),
         isCrit:Math.random()*100<calcCrit(pd),
         sz:20,
       });
@@ -668,10 +668,10 @@ class GameScene extends Phaser.Scene{
     }else if(cls==='archer'){
       // 矢発射
       const ang=this.getFacingAngle();
-      const res=rollAttack(pd,0,0);
+      const res=rollAttack(pd,0,this._nearestEnemyEva());
       this.fireBullet(p.x,p.y,ang,'proj_arrow',{
         spd:540,maxDist:650,
-        dmg:res.miss?0:Math.max(1,pd.atk*2+Phaser.Math.Between(0,pd.atk)),
+        dmg:res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk)),
         isCrit:!res.miss&&res.isCrit,
         miss:res.miss,
         sz:14,
@@ -685,7 +685,7 @@ class GameScene extends Phaser.Scene{
       const dist=60;
       const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
       this.throwBomb(p.x,p.y,tx,ty,{
-        dmg:Math.max(1,pd.atk*3+Phaser.Math.Between(0,pd.atk*2)),
+        dmg:Math.max(1,pd.atk*2+Phaser.Math.Between(0,pd.atk*2)),
         isCrit:Math.random()*100<calcCrit(pd),
         radius:55,
       });
@@ -784,6 +784,18 @@ class GameScene extends Phaser.Scene{
     }[this.playerData.cls]||[];
   }
 
+  _nearestEnemyEva(){
+    // 最も近い敵のevaを返す（命中計算用）
+    let minD=9999,eva=0;
+    if(this.enemyDataList){
+      this.enemyDataList.forEach(ed=>{
+        if(ed.dead)return;
+        const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,ed.sprite.x,ed.sprite.y);
+        if(d<minD){minD=d;eva=ed.eva||0;}
+      });
+    }
+    return eva;
+  }
   useSkill(num=1){
     const pd=this.playerData,p=this.player;
     const defs=this.getSkillDefs();
@@ -846,7 +858,7 @@ class GameScene extends Phaser.Scene{
         const ang=this.getFacingAngle();
         for(let i=-2;i<=2;i++){
           const a=ang+i*0.22;
-          const res=rollAttack(pd,0,0);
+          const res=rollAttack(pd,0,this._nearestEnemyEva());
           const dmg=res.miss?0:Math.max(1,pd.atk*(1+pd.sk1*0.25));
           this.fireBullet(p.x,p.y,a,'proj_arrow',{spd:540,maxDist:600,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
         }
@@ -861,7 +873,7 @@ class GameScene extends Phaser.Scene{
         const ang=this.getFacingAngle();
         for(let i=0;i<shots;i++){
           this.time.delayedCall(i*80,()=>{
-            const res=rollAttack(pd,0,0);
+            const res=rollAttack(pd,0,this._nearestEnemyEva());
             const dmg=res.miss?0:Math.max(1,pd.atk*2);
             this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
           });
@@ -1069,10 +1081,10 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     const w=this.scale.width, h=this.scale.height;
     // 画面ほぼいっぱいに使う
-    const PW=w*0.96, PH=h*0.96;
+    const PW=Math.min(w*0.78,680), PH=Math.min(h*0.78,440);
     const PX=w/2, PY=h/2;
-    const L=PX-PW/2+14, R=PX+PW/2-14; // 左右端
-    const TAB_H=38, BOT_H=36;
+    const L=PX-PW/2+12, R=PX+PW/2-12; // 左右端
+    const TAB_H=34, BOT_H=32;
     const ITOP=PY-PH/2+TAB_H+6;
     const IBOT=PY+PH/2-BOT_H-8;
     const IH=IBOT-ITOP;
@@ -1125,21 +1137,21 @@ class GameScene extends Phaser.Scene{
     // ════════════════════════════════
     const S=[
       {key:'atk',label:'力   STR',desc:'ATK +2/pt', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
-      {key:'spd',label:'素早 AGI',desc:'SPD+12/pt', col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
+      {key:'agi',label:'素早 AGI',desc:'回避+3/pt', col:'#2ecc71',apply:(p,n)=>{p.agi=(p.agi||0)+n*3}},
       {key:'mag',label:'魔力 MAG',desc:'MAG +2/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
       {key:'mhp',label:'体力 VIT',desc:'HP  +9/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
       {key:'luk',label:'運   LUK',desc:'CRIT+1/pt', col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
     const stmp={}; S.forEach(s=>{stmp[s.key]=0;}); let tmpPts=pd.statPts||0;
-    const svStr=(key)=>{if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);return String(pd[key]);};
+    const svStr=(key)=>{if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);if(key==='agi')return String(pd.agi||0)+'%';return String(pd[key]);};
     const sadd=(o)=>{statCont.add(sf0(o));return o;};
 
     // ポイント残数
     const ptsTxt=sadd(this.add.text(PX,ITOP+14,'残りポイント: '+tmpPts+'pt',{fontSize:'18px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
     const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
 
-    const ROW_H=(IH-60)/6;
+    const ROW_H=(IH-44)/6;
     const vt={}, at={};
     S.forEach((s,i)=>{
       const y=ITOP+40+i*ROW_H+ROW_H/2;
@@ -1209,7 +1221,7 @@ class GameScene extends Phaser.Scene{
     const jbarW=(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
     skadd(this.add.rectangle(PX-(PW-30)/2,ITOP+32,jbarW,10,0x00e5ff).setOrigin(0,0.5));
 
-    const SK_H=(IH-60)/3;
+    const SK_H=(IH-44)/3;
     const skVt={}, skAt={};
     defs.forEach((sk,i)=>{
       const y=ITOP+52+i*SK_H+SK_H/2;
@@ -1219,7 +1231,7 @@ class GameScene extends Phaser.Scene{
       skadd(this.add.rectangle(PX,y,PW-20,SK_H-4,0x0a1525,0.7).setStrokeStyle(2,acol));
       // キー・名前・説明
       skadd(this.add.text(L+4,y-14,['[Q]','[E]','[R]'][i],{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
-      skadd(this.add.text(L+36,y-14,sk.name,{fontSize:'18px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
+      skadd(this.add.text(L+36,y-14,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
       skadd(this.add.text(L+4,y+8,sk.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
       // Lvバー
       const bW=Math.max(8,Math.floor((PW*0.28)/sk.maxLv)-2);
@@ -1374,37 +1386,50 @@ class GameScene extends Phaser.Scene{
 
     // スキルボタン3つ（攻撃ボタン左に横並び）
     this.skillCDOverlays=[];
-    this.skillBtnRefs=[]; // updateHUDから更新するための参照を保存
-    const SK_W=62, SK_H=50;
+    this.skillBtnRefs=[];
+    const SK_W=72, SK_H=58; // 少し大きく
     const skLabels=['Q','E','R'];
+    const skIcons={
+      warrior:['🌪','🛡','✨'], mage:['💥','❄️','⚡'],
+      archer:['🏹','⭐','🔫'], bomber:['💣','💥','🚀']
+    };
+    const icons=skIcons[pd.cls]||['①','②','③'];
     [1,2,3].forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0;
-      const c=hasSkill?col:0x555555;
-      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (2-i)*(SK_W+6);
+      // 未習得は暗いグレー、習得済みは職業カラー（明るめ）
+      const c=hasSkill?col:0x445566;
+      const alpha=hasSkill?0.4:0.12;
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (2-i)*(SK_W+8);
       const by = h - SK_H/2 - MARGIN;
-      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,hasSkill?0.28:0.1)
+      // ボタン本体
+      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,alpha)
         .setScrollFactor(0).setDepth(25)
-        .setStrokeStyle(2,c,hasSkill?1.0:0.3)
+        .setStrokeStyle(hasSkill?2:1,c,hasSkill?1.0:0.4)
         .setInteractive({useHandCursor:true});
-      const nameTxt=this.add.text(bx,by-14,'['+skLabels[i]+'] '+sk.name,{
-        fontSize:'12px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')
+      // スキルアイコン（大きめ絵文字）
+      this.add.text(bx,by-12,icons[i],{fontSize:'18px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      // スキル名（白・小さめ）
+      const nameTxt=this.add.text(bx,by+8,sk.name,{
+        fontSize:'11px',fontFamily:'Courier New',
+        color:hasSkill?'#ffffff':'#667788'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-      const lvTxt=this.add.text(bx,by+2,'Lv'+(pd['sk'+num]||0),{
-        fontSize:'12px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#555555'
+      // Lvテキスト
+      const lvTxt=this.add.text(bx,by+20,'Lv'+(pd['sk'+num]||0),{
+        fontSize:'10px',fontFamily:'Courier New',
+        color:hasSkill?'#aaddff':'#445566'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
       btn.on('pointerdown',()=>{
         const has=this.playerData['sk'+num]>0;
-        btn.setFillStyle(col,has?0.7:0.1);
+        btn.setFillStyle(col,has?0.75:0.15);
         this.useSkill(num);
       });
-      btn.on('pointerup',  ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.28:0.1);});
-      btn.on('pointerout', ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.28:0.1);});
+      btn.on('pointerup',  ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.4:0.12);});
+      btn.on('pointerout', ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.4:0.12);});
       // CDオーバーレイ
       const ov=this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27);
-      const ct=this.add.text(bx,by,'',{fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(28);
+      const ct=this.add.text(bx,by,'',{fontSize:'16px',fontFamily:'Courier New',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28);
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
-      // 更新用参照を保存
       this.skillBtnRefs.push({btn,nameTxt,lvTxt,num,col});
     });
 
@@ -1667,10 +1692,12 @@ class GameScene extends Phaser.Scene{
     ed.hp-=dmg;
     // 攻撃を受けたらaggro（ST1の受動的AI解除）
     ed.aggro=true;
-    // ノックバック
+    // ノックバック（bomberのみ）
     const p=this.player;
-    const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-    ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
+    if(this.playerData.cls==='bomber'){
+      const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+      ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
+    }
     const sx=ed.sprite.x, sy=ed.sprite.y;
     if(isCrit){
       SE('crit');
@@ -2009,10 +2036,15 @@ class GameScene extends Phaser.Scene{
           this.showFloat(p.x,p.y-40,'PARRY!','#ffd700');
           pd._parry=false;
         }else{
-          const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
-          pd.hp=Math.max(0,pd.hp-dmg);
-          this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
-          if(pd.hp<=0){this.gameOver();return;}
+          // AGI回避判定（agi%の確率で回避）
+          if(Math.random()*100<(pd.agi||0)){
+            this.showFloat(p.x,p.y-40,'DODGE!','#2ecc71');
+          }else{
+            const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
+            pd.hp=Math.max(0,pd.hp-dmg);
+            this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
+            if(pd.hp<=0){this.gameOver();return;}
+          }
         }
       }
 
