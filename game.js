@@ -1311,27 +1311,29 @@ class GameScene extends Phaser.Scene{
     const hp=Math.max(0,pd.hp),sp=Math.max(0,pd.sp);
     const hpP=hp/pd.mhp,spP=sp/pd.msp;
     // HP（色変化あり）
-    this.hudHPBar.setSize(BW*hpP,11).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
-    // SP
-    this.hudSPBar.setSize(BW*spP,11);
-    // EXP
+    if(this.hudHPBar&&this.hudHPBar.active)this.hudHPBar.setSize(BW*hpP,11).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
+    if(this.hudSPBar&&this.hudSPBar.active)this.hudSPBar.setSize(BW*spP,11);
     const expP=Math.min(1,pd.exp/pd.expNext);
-    this.hudEXPBar.setSize(BW*expP,8);
-    // JOB EXP
+    if(this.hudEXPBar&&this.hudEXPBar.active)this.hudEXPBar.setSize(BW*expP,8);
     const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
-    this.hudJEXPBar.setSize(BW*jexpP,8);
-    // Lv表示
-    if(this.hudLvTxt) this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1));
-    // スキルボタンの明暗を習得状況に合わせて更新
-    if(this.skillBtnRefs){
-      this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col})=>{
+    if(this.hudJEXPBar&&this.hudJEXPBar.active)this.hudJEXPBar.setSize(BW*jexpP,8);
+    if(this.hudLvTxt&&this.hudLvTxt.active)this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1));
+    // スキルボタン更新は _updateSkillBtns() で行う（updateHUDからは呼ばない）
+    this._updateSkillBtns();
+  }
+  _updateSkillBtns(){
+    if(!this.skillBtnRefs||!this.skillBtnRefs.length)return;
+    const pd=this.playerData;
+    this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col})=>{
+      try{
+        if(!btn||!btn.active||!nameTxt||!nameTxt.active||!lvTxt||!lvTxt.active)return;
         const has=pd['sk'+num]>0;
         const c=has?col:0x555555;
         btn.setFillStyle(c,has?0.28:0.1).setStrokeStyle(2,c,has?1.0:0.3);
         nameTxt.setColor('#'+c.toString(16).padStart(6,'0'));
         lvTxt.setColor(has?'#ffffff':'#555555').setText('Lv'+(pd['sk'+num]||0));
-      });
-    }
+      }catch(e){}
+    });
   }
   updateBossHP(ed){
     const w=this.scale.width;
