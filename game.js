@@ -2019,7 +2019,10 @@ class GameScene extends Phaser.Scene{
          Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<70){
         this._transitioning=true;
         stopBGM();
-        this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack});
+        this.physics.pause();
+        // アニメを止めてから遷移（'cut'エラー防止）
+        if(this.player&&this.player.anims)this.player.anims.stop();
+        this.time.delayedCall(50,()=>this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack}));
         return;
       }
       // 進むポータル（右端）
@@ -2027,8 +2030,13 @@ class GameScene extends Phaser.Scene{
          Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<70){
         this._transitioning=true;
         stopBGM();
-        if(!this.cfg.portalTo) this.scene.start('GameClear',{playerData:pd});
-        else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
+        this.physics.pause();
+        // アニメを止めてから遷移（'cut'エラー防止）
+        if(this.player&&this.player.anims)this.player.anims.stop();
+        this.time.delayedCall(50,()=>{
+          if(!this.cfg.portalTo) this.scene.start('GameClear',{playerData:pd});
+          else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
+        });
         return;
       }
     }
