@@ -449,18 +449,19 @@ const STAGE_CONFIG={
   4:{name:'ST.4 砂漠(最終)',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:null,portalToLabel:'',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3'},
 };
 const ENEMY_DEFS={
-  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:28,rng:36,acd:1.2},
-  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:24,rng:32,acd:0.9},
-  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:32,rng:40,acd:1.0},
-  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:48,rng:48,acd:1.8},
-  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:32,rng:40,acd:0.8},
-  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:32,rng:40,acd:1.1},
-  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:56,rng:60,acd:1.5},
-  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:52,rng:50,acd:2.0},
-  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:28,rng:36,acd:0.7},
-  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:72,rng:64,acd:1.2,isBoss:true},
-  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:80,rng:70,acd:1.0,isBoss:true},
-  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:88,rng:80,acd:0.9,isBoss:true},
+  // passive:true=受動（攻撃されたら反撃）  passive:false=能動（近づいたら追跡）
+  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:28,rng:36,acd:1.2, passive:true },
+  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:24,rng:32,acd:0.9, passive:true },
+  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:32,rng:40,acd:1.0, passive:true },
+  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:48,rng:48,acd:1.8, passive:true },
+  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:32,rng:40,acd:0.8, passive:false},
+  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:32,rng:40,acd:1.1, passive:false},
+  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:56,rng:60,acd:1.5, passive:false},
+  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:52,rng:50,acd:2.0, passive:false},
+  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:28,rng:36,acd:0.7, passive:false},
+  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:72,rng:64,acd:1.2, passive:false,isBoss:true},
+  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:80,rng:70,acd:1.0, passive:false,isBoss:true},
+  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:88,rng:80,acd:0.9,passive:false,isBoss:true},
 };
 
 // ============================================================
@@ -474,6 +475,7 @@ class GameScene extends Phaser.Scene{
     this.killCount=0;
     this.bossSpawned=false;
     this._transitioning=false;
+    this._gameOver=false;
   }
   create(){
     const cfg=STAGE_CONFIG[this.stage]||STAGE_CONFIG[1];
@@ -760,24 +762,24 @@ class GameScene extends Phaser.Scene{
     // 各職業のスキル3種定義（要件書§4）
     return {
       warrior:[
-        {id:'sk1',name:'烈風斬',    cost:20,cd:4,  desc:'周囲140px全敵に4倍ダメージ'},
-        {id:'sk2',name:'ハードガード',cost:15,cd:8, desc:'DEF+30・6秒間（Lv×3秒追加）'},
-        {id:'sk3',name:'パリィ',    cost:10,cd:12, desc:'3秒間ダメージ無効化'},
+        {id:'sk1',name:'烈風斬',    cost:20,cd:2,  desc:'周囲140px全敵に4倍ダメージ'},
+        {id:'sk2',name:'ハードガード',cost:15,cd:4, desc:'DEF+30・6秒間（Lv×3秒追加）'},
+        {id:'sk3',name:'パリィ',    cost:10,cd:6,  desc:'3秒間ダメージ無効化'},
       ],
       mage:[
-        {id:'sk1',name:'大爆発',    cost:30,cd:5,  desc:'周囲220px全敵に6倍魔法ダメージ'},
-        {id:'sk2',name:'フロスト',  cost:25,cd:7,  desc:'周囲160pxの敵を3秒凍結'},
-        {id:'sk3',name:'ボルテックス',cost:20,cd:4,desc:'貫通する雷の弾を発射'},
+        {id:'sk1',name:'大爆発',    cost:30,cd:2.5,desc:'周囲220px全敵に6倍魔法ダメージ'},
+        {id:'sk2',name:'フロスト',  cost:25,cd:3.5,desc:'周囲160pxの敵を3秒凍結'},
+        {id:'sk3',name:'ボルテックス',cost:20,cd:2,desc:'貫通する雷の弾を発射'},
       ],
       archer:[
-        {id:'sk1',name:'5方向射撃', cost:15,cd:3,  desc:'5方向同時に矢を放つ'},
-        {id:'sk2',name:'グロリアスショット',cost:20,cd:10,desc:'10秒間クリティカル率×5'},
-        {id:'sk3',name:'バルカン',  cost:30,cd:6,  desc:'前方に6連射'},
+        {id:'sk1',name:'5方向射撃', cost:15,cd:1.5,desc:'5方向同時に矢を放つ'},
+        {id:'sk2',name:'グロリアスショット',cost:20,cd:5,desc:'10秒間クリティカル率×5'},
+        {id:'sk3',name:'バルカン',  cost:30,cd:3,  desc:'前方に6連射'},
       ],
       bomber:[
-        {id:'sk1',name:'大爆弾',    cost:25,cd:5,  desc:'範囲100pxの巨大爆弾'},
-        {id:'sk2',name:'クラスター',cost:20,cd:6,  desc:'4方向に子爆弾'},
-        {id:'sk3',name:'ハイパーボム',cost:35,cd:8,desc:'超巨大爆弾・範囲150px'}
+        {id:'sk1',name:'大爆弾',    cost:25,cd:2.5,desc:'範囲100pxの巨大爆弾'},
+        {id:'sk2',name:'クラスター',cost:20,cd:3,  desc:'4方向に子爆弾'},
+        {id:'sk3',name:'ハイパーボム',cost:35,cd:4,desc:'超巨大爆弾・範囲150px'}
       ],
     }[this.playerData.cls]||[];
   }
@@ -1046,154 +1048,213 @@ class GameScene extends Phaser.Scene{
   _buildMenuOverlay(tab){
     const pd=this.playerData;
     const w=this.scale.width, h=this.scale.height;
-    const PW=Math.min(w*0.94,880), PH=Math.min(h*0.94,510);
+    // 画面ほぼいっぱいに使う
+    const PW=w*0.96, PH=h*0.96;
     const PX=w/2, PY=h/2;
-    const TAB_H=34, CLOSE_H=32;
-    const ITOP=PY-PH/2+TAB_H+4;
-    const IBOT=PY+PH/2-CLOSE_H-6;
+    const L=PX-PW/2+14, R=PX+PW/2-14; // 左右端
+    const TAB_H=38, BOT_H=36;
+    const ITOP=PY-PH/2+TAB_H+6;
+    const IBOT=PY+PH/2-BOT_H-8;
     const IH=IBOT-ITOP;
-    const LX=PX-PW/2+10;
-    const D=100; // depth基準（HUDより上）
 
-    // オーバーレイコンテナ（全要素をまとめてsetScrollFactor(0)）
-    const root=this.add.container(0,0).setDepth(D);
+    const root=this.add.container(0,0).setDepth(200);
     this._menuRoot=root;
+    const sf0=(o)=>{o.setScrollFactor(0);return o;};
+    const add=(o)=>{root.add(o);return o;};
+    const mk=(o)=>add(sf0(o));
 
-    // 背景
-    const bg=this.add.rectangle(PX,PY,w,h,0x000000,0.85).setScrollFactor(0);
-    const panel=this.add.rectangle(PX,PY,PW,PH,0x060916,0.99).setStrokeStyle(2,0x44aaff).setScrollFactor(0);
-    root.add([bg,panel]);
+    // 背景・パネル
+    mk(this.add.rectangle(PX,PY,w,h,0x000000,0.90));
+    mk(this.add.rectangle(PX,PY,PW,PH,0x080d1a,0.99).setStrokeStyle(3,0x44aaff));
 
     // タブ
     const tabBtns={}, tabTxts={};
-    const statCont=this.add.container(0,0);
-    const skillCont=this.add.container(0,0);
+    const statCont=sf0(this.add.container(0,0));
+    const skillCont=sf0(this.add.container(0,0));
     root.add([statCont,skillCont]);
 
     const switchTab=(t)=>{
       statCont.setVisible(t==='stat');
       skillCont.setVisible(t==='skill');
-      Object.entries(tabBtns).forEach(([id,btn])=>{
+      ['stat','skill'].forEach(id=>{
         const col=id==='stat'?0x44aaff:0x00e5ff;
-        btn.setFillStyle(col,id===t?0.45:0.1).setStrokeStyle(2,id===t?col:0x334455);
-        tabTxts[id].setColor(id===t?'#'+col.toString(16).padStart(6,'0'):'#334455');
+        const on=id===t;
+        tabBtns[id].setFillStyle(col,on?0.5:0.08).setStrokeStyle(2,on?col:0x334455);
+        tabTxts[id].setColor(on?'#'+col.toString(16).padStart(6,'0'):'#334455');
       });
     };
 
     [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
-      const btn=this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.15).setStrokeStyle(2,col).setScrollFactor(0).setInteractive();
-      const txt=this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'15px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5).setScrollFactor(0);
+      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
+      const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'17px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
       btn.on('pointerdown',()=>switchTab(id));
       tabBtns[id]=btn; tabTxts[id]=txt;
-      root.add([btn,txt]);
     });
 
-    // ── ステータスタブ ──
+    // 閉じるボタン
+    const closeBtn=mk(this.add.rectangle(PX,PY+PH/2-BOT_H/2-2,200,BOT_H,0xffd700,0.2).setStrokeStyle(2,0xffd700).setInteractive());
+    mk(this.add.text(PX,PY+PH/2-BOT_H/2-2,'✕ 閉じる [ESC]',{fontSize:'15px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));
+    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.45));
+    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0xffd700,0.2));
+    closeBtn.on('pointerdown',()=>this._closeMenu());
+    this._menuEscKey=this.input.keyboard.addKey('ESC');
+    this._menuEscKey.once('down',()=>this._closeMenu());
+
+    // ════════════════════════════════
+    //  ステータスタブ
+    // ════════════════════════════════
     const S=[
-      {key:'atk',label:'力   STR',desc:'ATK+2', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
-      {key:'spd',label:'素早 AGI',desc:'SPD+12',col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
-      {key:'mag',label:'魔力 MAG',desc:'MAG+2', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力 VIT',desc:'HP+9',  col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
-      {key:'luk',label:'運   LUK',desc:'CRIT+1',col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
-      {key:'hit',label:'命中 DEX',desc:'HIT+2', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
+      {key:'atk',label:'力   STR',desc:'ATK +2/pt', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
+      {key:'spd',label:'素早 AGI',desc:'SPD+12/pt', col:'#2ecc71',apply:(p,n)=>{p.spd+=n*12}},
+      {key:'mag',label:'魔力 MAG',desc:'MAG +2/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mhp',label:'体力 VIT',desc:'HP  +9/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'luk',label:'運   LUK',desc:'CRIT+1/pt', col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
+      {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
-    const tmp={}; S.forEach(s=>{tmp[s.key]=0;}); let tmpPts=pd.statPts||0;
-    const ROW_H=(IH-50)/6;
-    const ptsTxt=this.add.text(PX,ITOP+10,'残りポイント: '+tmpPts+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5).setScrollFactor(0);
-    statCont.add(ptsTxt);
-    const vt={}, at={};
-    const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
+    const stmp={}; S.forEach(s=>{stmp[s.key]=0;}); let tmpPts=pd.statPts||0;
     const svStr=(key)=>{if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);return String(pd[key]);};
+    const sadd=(o)=>{statCont.add(sf0(o));return o;};
+
+    // ポイント残数
+    const ptsTxt=sadd(this.add.text(PX,ITOP+14,'残りポイント: '+tmpPts+'pt',{fontSize:'18px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
+    const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
+
+    const ROW_H=(IH-60)/6;
+    const vt={}, at={};
     S.forEach((s,i)=>{
-      const y=ITOP+30+i*ROW_H+ROW_H/2;
-      const lbl=this.add.text(LX,y,s.label,{fontSize:'14px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5).setScrollFactor(0);
-      const dsc=this.add.text(LX+120,y,s.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#666'}).setOrigin(0,0.5).setScrollFactor(0);
-      const cur=this.add.text(LX+210,y,svStr(s.key),{fontSize:'14px',fontFamily:'Courier New',color:'#fff'}).setOrigin(0,0.5).setScrollFactor(0);
-      const add=this.add.text(LX+265,y,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5).setScrollFactor(0);
-      const bm=this.add.rectangle(PX+PW/2-70,y,38,28,0xe74c3c,0.25).setStrokeStyle(1,0xe74c3c).setScrollFactor(0).setInteractive();
-      const bmt=this.add.text(PX+PW/2-70,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5).setScrollFactor(0);
-      const bp=this.add.rectangle(PX+PW/2-26,y,38,28,0x44aaff,0.25).setStrokeStyle(1,0x44aaff).setScrollFactor(0).setInteractive();
-      const bpt=this.add.text(PX+PW/2-26,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0);
+      const y=ITOP+40+i*ROW_H+ROW_H/2;
+      // 行背景
+      sadd(this.add.rectangle(PX,y,PW-20,ROW_H-3,0x0d1a2e,0.6).setStrokeStyle(1,0x223344));
+      // ラベル
+      sadd(this.add.text(L+4,y,s.label,{fontSize:'16px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5));
+      // 説明
+      sadd(this.add.text(L+130,y,s.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#555566'}).setOrigin(0,0.5));
+      // 現在値
+      const cur=sadd(this.add.text(L+280,y,svStr(s.key),{fontSize:'18px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5));
+      // 仮割り振り表示
+      const addTxt=sadd(this.add.text(L+330,y,'',{fontSize:'16px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5));
+      // ─ ボタン
+      const bm=sadd(this.add.rectangle(R-70,y,42,ROW_H-8,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
+      sadd(this.add.text(R-70,y,'－',{fontSize:'20px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+      // ＋ ボタン
+      const bp=sadd(this.add.rectangle(R-20,y,42,ROW_H-8,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+      sadd(this.add.text(R-20,y,'＋',{fontSize:'20px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
       const adj=(dir)=>{
-        const n=tmp[s.key]||0;
+        const n=stmp[s.key]||0;
         if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
-        tmp[s.key]=n+dir; tmpPts-=dir;
-        add.setText(tmp[s.key]>0?'(+'+tmp[s.key]+')':tmp[s.key]<0?'('+tmp[s.key]+')':'');
+        stmp[s.key]=n+dir; tmpPts-=dir;
+        addTxt.setText(stmp[s.key]>0?'(+'+stmp[s.key]+')':'');
         refreshPts(); SE('potion');
       };
       bm.on('pointerdown',()=>adj(-1)); bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5)); bm.on('pointerout',()=>bm.setFillStyle(0xe74c3c,0.25));
       bp.on('pointerdown',()=>adj(+1)); bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5)); bp.on('pointerout',()=>bp.setFillStyle(0x44aaff,0.25));
-      statCont.add([lbl,dsc,cur,add,bm,bmt,bp,bpt]);
-      vt[s.key]=cur; at[s.key]=add;
+      vt[s.key]=cur; at[s.key]=addTxt;
     });
-    const ok=this.add.rectangle(PX-70,IBOT-14,190,30,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setInteractive();
-    const okt=this.add.text(PX-70,IBOT-14,'✔ 確定して反映',{fontSize:'14px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0);
+
+    // 確定・リセット
+    const BY=IBOT-16;
+    const ok=sadd(this.add.rectangle(PX-80,BY,220,34,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+    sadd(this.add.text(PX-80,BY,'✔ 確定して反映',{fontSize:'15px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
     ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5)); ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
     ok.on('pointerdown',()=>{
       let any=false;
-      S.forEach(s=>{const n=tmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}tmp[s.key]=0;});
+      S.forEach(s=>{const n=stmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}stmp[s.key]=0;});
       pd.statPts=tmpPts;
       S.forEach(s=>{if(vt[s.key])vt[s.key].setText(svStr(s.key));if(at[s.key])at[s.key].setText('');});
-      refreshPts(); if(any)SE('levelup'); this.updateHUD();
+      refreshPts(); if(any){SE('levelup');this.updateHUD();}
     });
-    const rst=this.add.rectangle(PX+110,IBOT-14,120,30,0x333,0.25).setStrokeStyle(1,0x666).setScrollFactor(0).setInteractive();
-    const rstt=this.add.text(PX+110,IBOT-14,'↺ リセット',{fontSize:'13px',fontFamily:'Courier New',color:'#aaa'}).setOrigin(0.5).setScrollFactor(0);
-    rst.on('pointerdown',()=>{S.forEach(s=>{tmpPts+=tmp[s.key]||0;tmp[s.key]=0;if(at[s.key])at[s.key].setText('');});refreshPts();});
-    rst.on('pointerover',()=>rst.setFillStyle(0x666,0.4)); rst.on('pointerout',()=>rst.setFillStyle(0x333,0.25));
-    statCont.add([ok,okt,rst,rstt]);
+    const rst=sadd(this.add.rectangle(PX+100,BY,140,34,0x333333,0.3).setStrokeStyle(1,0x666666).setInteractive());
+    sadd(this.add.text(PX+100,BY,'↺ リセット',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
+    rst.on('pointerdown',()=>{S.forEach(s=>{tmpPts+=stmp[s.key]||0;stmp[s.key]=0;if(at[s.key])at[s.key].setText('');});refreshPts();});
+    rst.on('pointerover',()=>rst.setFillStyle(0x666666,0.4)); rst.on('pointerout',()=>rst.setFillStyle(0x333333,0.3));
 
-    // ── スキルタブ ──
+    // ════════════════════════════════
+    //  スキルタブ（＋/－仮割り振り→確定）
+    // ════════════════════════════════
     const DEFS={
-      warrior:[{id:'sk1',name:'烈風斬',maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
-      mage:   [{id:'sk1',name:'大爆発',maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
+      warrior:[{id:'sk1',name:'烈風斬',   maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
+      mage:   [{id:'sk1',name:'大爆発',   maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
       archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
       bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
     };
     const defs=DEFS[pd.cls]||[];
-    const jpTxt=this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント: '+(pd.jobPts||0)+'pt',{fontSize:'15px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5).setScrollFactor(0);
-    const jbg=this.add.rectangle(PX,ITOP+26,PW-30,8,0x222222).setOrigin(0.5).setScrollFactor(0);
-    const jbar=this.add.rectangle(PX-(PW-30)/2,ITOP+26,(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80)),8,0x00e5ff).setOrigin(0,0.5).setScrollFactor(0);
-    skillCont.add([jpTxt,jbg,jbar]);
-    const SK_H=(IH-46)/3;
+    const skadd=(o)=>{skillCont.add(sf0(o));return o;};
+    const sktmp={}; defs.forEach(sk=>{sktmp[sk.id]=0;}); let tmpJp=pd.jobPts||0;
+
+    // JLv・JP表示
+    const jpTxt=skadd(this.add.text(PX,ITOP+14,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'18px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
+    const refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
+    // JEXPバー
+    const jbg=skadd(this.add.rectangle(PX,ITOP+32,PW-30,10,0x111122).setOrigin(0.5));
+    const jbarW=(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
+    skadd(this.add.rectangle(PX-(PW-30)/2,ITOP+32,jbarW,10,0x00e5ff).setOrigin(0,0.5));
+
+    const SK_H=(IH-60)/3;
+    const skVt={}, skAt={};
     defs.forEach((sk,i)=>{
-      const y=ITOP+38+i*SK_H+SK_H/2;
-      const cur=pd[sk.id]||0,maxed=cur>=sk.maxLv,col=cur>0?0x00e5ff:0x555555;
-      const sbg=this.add.rectangle(PX,y,PW-16,SK_H-4,col,0.07).setStrokeStyle(1,col).setScrollFactor(0);
-      const kl=this.add.text(LX,y-12,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5).setScrollFactor(0);
-      const nm=this.add.text(LX+38,y-12,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0,0.5).setScrollFactor(0);
-      const ds=this.add.text(LX,y+8,sk.desc,{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5).setScrollFactor(0);
-      const maxB=sk.maxLv,bW=Math.floor((PW*0.35)/maxB)-2;
-      const bStartX=PX-PW*0.18;
-      for(let j=0;j<maxB;j++){
-        skillCont.add(this.add.rectangle(bStartX+j*(bW+2),y-12,bW,14,j<cur?0x00e5ff:0x1a1a2e).setStrokeStyle(1,0x333366).setOrigin(0,0.5).setScrollFactor(0));
+      const y=ITOP+52+i*SK_H+SK_H/2;
+      const curLv=pd[sk.id]||0, maxed=curLv>=sk.maxLv;
+      const acol=curLv>0?0x00e5ff:0x556677;
+      // 行背景
+      skadd(this.add.rectangle(PX,y,PW-20,SK_H-4,0x0a1525,0.7).setStrokeStyle(2,acol));
+      // キー・名前・説明
+      skadd(this.add.text(L+4,y-14,['[Q]','[E]','[R]'][i],{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
+      skadd(this.add.text(L+36,y-14,sk.name,{fontSize:'18px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
+      skadd(this.add.text(L+4,y+8,sk.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
+      // Lvバー
+      const bW=Math.max(8,Math.floor((PW*0.28)/sk.maxLv)-2);
+      const bSX=PX-PW*0.15;
+      for(let j=0;j<sk.maxLv;j++){
+        skadd(this.add.rectangle(bSX+j*(bW+2),y-14,bW,16,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
       }
-      const lvt=this.add.text(PX+PW*0.22,y-12,'Lv'+cur+'/'+sk.maxLv,{fontSize:'13px',fontFamily:'Courier New',color:maxed?'#ffd700':'#888'}).setOrigin(0.5).setScrollFactor(0);
-      skillCont.add([sbg,kl,nm,ds,lvt]);
+      // Lv数値
+      const lvTxt=skadd(this.add.text(PX+PW*0.18,y-14,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'14px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
+      // 仮割り振り表示
+      const skAddTxt=skadd(this.add.text(PX+PW*0.18,y+8,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
+      skVt[sk.id]=lvTxt; skAt[sk.id]=skAddTxt;
+      // ─ / ＋ ボタン（MAXでない場合のみ）
       if(!maxed){
-        const sbtn=this.add.rectangle(PX+PW/2-55,y+8,100,28,0x00e5ff,0.2).setStrokeStyle(1,0x00e5ff).setScrollFactor(0).setInteractive();
-        const sbt=this.add.text(PX+PW/2-55,y+8,cur===0?'習得(1JP)':'強化(1JP)',{fontSize:'13px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5).setScrollFactor(0);
-        sbtn.on('pointerover',()=>sbtn.setFillStyle(0x00e5ff,0.45)); sbtn.on('pointerout',()=>sbtn.setFillStyle(0x00e5ff,0.2));
-        sbtn.on('pointerdown',()=>{
-          if((pd.jobPts||0)<1)return;
-          pd.jobPts--;pd[sk.id]=(pd[sk.id]||0)+1;SE('potion');
-          // オーバーレイを閉じて再度開く（内容更新）
-          this._closeMenu();
-          this.time.delayedCall(50,()=>this.openMenu('skill'));
-        });
-        skillCont.add([sbtn,sbt]);
-      }else{skillCont.add(this.add.text(PX+PW/2-55,y+8,'MAX',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0));}
+        const sbm=skadd(this.add.rectangle(R-70,y,42,SK_H-10,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
+        skadd(this.add.text(R-70,y,'－',{fontSize:'20px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+        const sbp=skadd(this.add.rectangle(R-20,y,42,SK_H-10,0x00e5ff,0.2).setStrokeStyle(2,0x00e5ff).setInteractive());
+        skadd(this.add.text(R-20,y,'＋',{fontSize:'20px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5));
+        const adjSk=(dir)=>{
+          const n=sktmp[sk.id]||0;
+          const newLv=curLv+n+dir;
+          if(dir>0&&(tmpJp<=0||newLv>sk.maxLv))return;
+          if(dir<0&&n<=0)return;
+          sktmp[sk.id]=n+dir; tmpJp-=dir;
+          skAddTxt.setText(sktmp[sk.id]>0?'(+'+sktmp[sk.id]+')':'');
+          refreshJp(); SE('potion');
+        };
+        sbm.on('pointerdown',()=>adjSk(-1)); sbm.on('pointerover',()=>sbm.setFillStyle(0xe74c3c,0.5)); sbm.on('pointerout',()=>sbm.setFillStyle(0xe74c3c,0.2));
+        sbp.on('pointerdown',()=>adjSk(+1)); sbp.on('pointerover',()=>sbp.setFillStyle(0x00e5ff,0.5)); sbp.on('pointerout',()=>sbp.setFillStyle(0x00e5ff,0.2));
+      }else{
+        skadd(this.add.text(R-45,y,'MAX',{fontSize:'15px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));
+      }
     });
 
-    // 閉じるボタン
-    const closeBtn=this.add.rectangle(PX,PY+PH/2-CLOSE_H/2-2,180,CLOSE_H,0xffd700,0.2).setStrokeStyle(2,0xffd700).setScrollFactor(0).setInteractive();
-    const closeTxt=this.add.text(PX,PY+PH/2-CLOSE_H/2-2,'✕ 閉じる [ESC]',{fontSize:'14px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0);
-    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0xffd700,0.45)); closeBtn.on('pointerout',()=>closeBtn.setFillStyle(0xffd700,0.2));
-    closeBtn.on('pointerdown',()=>this._closeMenu());
-    root.add([closeBtn,closeTxt]);
-
-    // ESCキー
-    this._menuEscKey=this.input.keyboard.addKey('ESC');
-    this._menuEscKey.once('down',()=>this._closeMenu());
+    // スキル 確定・リセット
+    const skOk=skadd(this.add.rectangle(PX-80,IBOT-16,220,34,0x00e5ff,0.22).setStrokeStyle(2,0x00e5ff).setInteractive());
+    skadd(this.add.text(PX-80,IBOT-16,'✔ 確定して習得',{fontSize:'15px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5));
+    skOk.on('pointerover',()=>skOk.setFillStyle(0x00e5ff,0.5)); skOk.on('pointerout',()=>skOk.setFillStyle(0x00e5ff,0.22));
+    skOk.on('pointerdown',()=>{
+      let any=false;
+      defs.forEach(sk=>{
+        const n=sktmp[sk.id]||0;
+        if(n>0){pd[sk.id]=(pd[sk.id]||0)+n;any=true;}
+        sktmp[sk.id]=0;
+        if(skAt[sk.id])skAt[sk.id].setText('');
+        if(skVt[sk.id]){const lv=pd[sk.id]||0;skVt[sk.id].setText('Lv'+lv+'/'+sk.maxLv);}
+      });
+      pd.jobPts=tmpJp;
+      refreshJp();
+      if(any){SE('levelup');this.updateHUD();}
+    });
+    const skRst=skadd(this.add.rectangle(PX+100,IBOT-16,140,34,0x333333,0.3).setStrokeStyle(1,0x666666).setInteractive());
+    skadd(this.add.text(PX+100,IBOT-16,'↺ リセット',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
+    skRst.on('pointerdown',()=>{defs.forEach(sk=>{tmpJp+=sktmp[sk.id]||0;sktmp[sk.id]=0;if(skAt[sk.id])skAt[sk.id].setText('');});refreshJp();});
+    skRst.on('pointerover',()=>skRst.setFillStyle(0x666666,0.4)); skRst.on('pointerout',()=>skRst.setFillStyle(0x333333,0.3));
 
     switchTab(tab);
   }
@@ -1241,6 +1302,16 @@ class GameScene extends Phaser.Scene{
     this.hudJEXPBar.setSize(BW*jexpP,8);
     // Lv表示
     if(this.hudLvTxt) this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1));
+    // スキルボタンの明暗を習得状況に合わせて更新
+    if(this.skillBtnRefs){
+      this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col})=>{
+        const has=pd['sk'+num]>0;
+        const c=has?col:0x555555;
+        btn.setFillStyle(c,has?0.28:0.1).setStrokeStyle(2,c,has?1.0:0.3);
+        nameTxt.setColor('#'+c.toString(16).padStart(6,'0'));
+        lvTxt.setColor(has?'#ffffff':'#555555').setText('Lv'+(pd['sk'+num]||0));
+      });
+    }
   }
   updateBossHP(ed){
     const w=this.scale.width;
@@ -1281,35 +1352,38 @@ class GameScene extends Phaser.Scene{
 
     // スキルボタン3つ（攻撃ボタン左に横並び）
     this.skillCDOverlays=[];
+    this.skillBtnRefs=[]; // updateHUDから更新するための参照を保存
     const SK_W=62, SK_H=50;
     const skLabels=['Q','E','R'];
     [1,2,3].forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0;
       const c=hasSkill?col:0x555555;
-      // 右から攻撃ボタン幅+余白+スキルボタン位置
       const bx = atkX - ATK_R - MARGIN - SK_W/2 - (2-i)*(SK_W+6);
       const by = h - SK_H/2 - MARGIN;
-      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,0.28)
+      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,hasSkill?0.28:0.1)
         .setScrollFactor(0).setDepth(25)
-        .setStrokeStyle(2,c,hasSkill?1.0:0.4)
+        .setStrokeStyle(2,c,hasSkill?1.0:0.3)
         .setInteractive({useHandCursor:true});
-      this.add.text(bx,by-14,'['+skLabels[i]+'] '+sk.name,{
+      const nameTxt=this.add.text(bx,by-14,'['+skLabels[i]+'] '+sk.name,{
         fontSize:'12px',fontFamily:'Courier New',color:'#'+c.toString(16).padStart(6,'0')
       }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-      this.add.text(bx,by+2,'Lv'+(pd['sk'+num]||0),{
+      const lvTxt=this.add.text(bx,by+2,'Lv'+(pd['sk'+num]||0),{
         fontSize:'12px',fontFamily:'Courier New',color:hasSkill?'#ffffff':'#555555'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-      const cdTxt=this.add.text(bx,by+14,'',{
-        fontSize:'8px',fontFamily:'Courier New',color:'#aaaaaa'
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-      btn.on('pointerdown',()=>{btn.setFillStyle(c,hasSkill?0.7:0.1);this.useSkill(num);});
-      btn.on('pointerup',  ()=>btn.setFillStyle(c,0.28));
-      btn.on('pointerout', ()=>btn.setFillStyle(c,0.28));
+      btn.on('pointerdown',()=>{
+        const has=this.playerData['sk'+num]>0;
+        btn.setFillStyle(col,has?0.7:0.1);
+        this.useSkill(num);
+      });
+      btn.on('pointerup',  ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.28:0.1);});
+      btn.on('pointerout', ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.28:0.1);});
       // CDオーバーレイ
       const ov=this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27);
       const ct=this.add.text(bx,by,'',{fontSize:'14px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(28);
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
+      // 更新用参照を保存
+      this.skillBtnRefs.push({btn,nameTxt,lvTxt,num,col});
     });
 
     // ポーションボタン（ジョイスティック右、下部中央寄り）
@@ -1537,8 +1611,10 @@ class GameScene extends Phaser.Scene{
       attackTimer:def.acd+Math.random()*def.acd,
       isBoss:!!def.isBoss,dead:false,
       // ⑤ 追加フラグ
-      sleeping:true,        // スリープ状態（索敵範囲外）
-      wanderTimer:0,        // ふらつきタイマー
+      sleeping:true,        // スリープ状態
+      passive:!!def.passive, // 受動フラグ（モンスター定義から取得）
+      aggro:false,           // 攻撃を受けたらtrue（受動モンスターが反撃モードに）
+      wanderTimer:0,         // ふらつきタイマー
       wanderVx:0,wanderVy:0,
       frozen:false,         // 凍結
       frozenTimer:0,
@@ -1567,23 +1643,30 @@ class GameScene extends Phaser.Scene{
     // 凍結中はダメージ1.5倍・解除
     if(ed.frozen){dmg=Math.floor(dmg*1.5);ed.frozen=false;ed.sprite.clearTint();if(ed._iceImg){ed._iceImg.destroy();ed._iceImg=null;}}
     ed.hp-=dmg;
+    // 攻撃を受けたらaggro（ST1の受動的AI解除）
+    ed.aggro=true;
     // ノックバック
     const p=this.player;
     const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
     ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
+    const sx=ed.sprite.x, sy=ed.sprite.y;
     if(isCrit){
       SE('crit');
-      this.showFloat(ed.sprite.x,ed.sprite.y-ed.sprite.displayHeight/2,'★ CRIT!! '+dmg,'#ff4400');
-      // 衝撃波エフェクト
-      const sw=this.add.image(ed.sprite.x,ed.sprite.y,'fx_shockwave').setDisplaySize(20,20).setDepth(20).setAlpha(0.8);
-      this.tweens.add({targets:sw,alpha:0,scaleX:4,scaleY:4,duration:300,onComplete:()=>sw.destroy()});
-      this.cameras.main.flash(80,255,100,0);
+      this.showFloat(sx,sy-ed.sprite.displayHeight/2,'★ '+dmg+'!!','#ffee00',true);
+      // クリティカル: 黄色パーティクル爆発 + リング + 画面フラッシュ
+      this.showHitEffect(sx,sy,'crit');
+      this.cameras.main.flash(80,255,180,0);
     }else{
       SE('hit');
-      this.showFloat(ed.sprite.x,ed.sprite.y-ed.sprite.displayHeight/2,'-'+dmg,'#ffffff');
+      this.showFloat(sx,sy-ed.sprite.displayHeight/2,'-'+dmg,'#ffffff',false);
+      // 通常ヒット: 白いリング + 赤フラッシュ
+      this.showHitEffect(sx,sy,'normal');
     }
     const pct=Math.max(0,ed.hp/ed.mhp);
     ed.hpBar.setSize(ed.hpBarBg.width*pct,5).setFillStyle(pct>0.5?0x2ecc71:pct>0.25?0xf39c12:0xe74c3c);
+    // ヒットフラッシュ（敵が赤く光る）
+    ed.sprite.setTint(0xff4444);
+    this.time.delayedCall(120,()=>{if(!ed.dead&&ed.sprite.active)ed.sprite.clearTint();});
     this.tweens.add({targets:ed.sprite,alpha:0.3,duration:80,yoyo:true});
     if(ed.isBoss)this.updateBossHP(ed);
     if(ed.hp<=0)this.killEnemy(ed);
@@ -1609,7 +1692,27 @@ class GameScene extends Phaser.Scene{
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_hp_potion').setDisplaySize(24,24);d.setData('type','hp');d.refreshBody();}
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_mp_potion').setDisplaySize(24,24);d.setData('type','mp');d.refreshBody();}
     }
-    this.tweens.add({targets:ed.sprite,alpha:0,duration:300,onComplete:()=>{ed.sprite.destroy();ed.hpBarBg.destroy();ed.hpBar.destroy();}});
+    // フェードアウト後にスプライト削除 & リスポーンスケジュール
+    const deadId=ed.id;
+    const isBoss=ed.isBoss;
+    this.tweens.add({targets:ed.sprite,alpha:0,duration:300,onComplete:()=>{
+      ed.sprite.destroy();ed.hpBarBg.destroy();ed.hpBar.destroy();
+      // ボス以外: 5〜10秒後にランダム位置でリスポーン
+      if(!isBoss){
+        const delay=Phaser.Math.Between(5000,10000);
+        this.time.delayedCall(delay,()=>{
+          if(!this.scene.isActive())return; // シーン遷移済みなら中止
+          // プレイヤーから遠い位置にスポーン（最低200px離す）
+          let rx,ry,tries=0;
+          do{
+            rx=Phaser.Math.Between(80,this.MW-80);
+            ry=Phaser.Math.Between(80,this.MH-80);
+            tries++;
+          }while(Phaser.Math.Distance.Between(rx,ry,this.player.x,this.player.y)<200&&tries<20);
+          this.spawnEnemy(deadId,rx,ry);
+        });
+      }
+    }});
     if(this.target===ed)this.target=null;
     if(ed.isBoss){
       this.bossData=null;this.updateBossHP(null);startBGM(this.cfg.bgmKey);
@@ -1669,12 +1772,99 @@ class GameScene extends Phaser.Scene{
     if(this.potMPTxt)this.potMPTxt.setText('x'+(pd.potMP||0));
   }
 
-  showFloat(x,y,txt,col){
-    const t=this.add.text(x,y,txt,{fontSize:'14px',fontFamily:'Courier New',color:col,stroke:'#000000',strokeThickness:3}).setOrigin(0.5).setDepth(30);
-    this.tweens.add({targets:t,y:y-50,alpha:0,duration:900,onComplete:()=>t.destroy()});
+  showHitEffect(x,y,type){
+    const isCrit=type==='crit';
+
+    // ── 通常ヒット: 白リング + 白パーティクル ──
+    if(!isCrit){
+      // リング
+      const ring=this.add.circle(x,y,6,0xffffff,0).setStrokeStyle(2,0xffffff,1.0).setDepth(22);
+      this.tweens.add({targets:ring,scaleX:5,scaleY:5,alpha:0,duration:200,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});
+      // パーティクル5粒
+      for(let i=0;i<5;i++){
+        const ang=(i/5)*Math.PI*2;
+        const spd=Phaser.Math.Between(30,70);
+        const dot=this.add.circle(x,y,Phaser.Math.Between(2,4),0xffaaaa,1.0).setDepth(22);
+        this.tweens.add({targets:dot,x:x+Math.cos(ang)*spd,y:y+Math.sin(ang)*spd,alpha:0,scaleX:0.1,scaleY:0.1,duration:220,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+      }
+      return;
+    }
+
+    // ── クリティカル: 黄色爆発エフェクト ──
+
+    // 中心フラッシュ（大きな黄色の円が一瞬出て消える）
+    const flash=this.add.circle(x,y,20,0xffee00,1.0).setDepth(24);
+    this.tweens.add({targets:flash,scaleX:4,scaleY:4,alpha:0,duration:300,ease:'Cubic.easeOut',onComplete:()=>flash.destroy()});
+
+    // 内側リング（黄→橙）
+    const ring1=this.add.circle(x,y,10,0xffcc00,0).setStrokeStyle(4,0xffcc00,1.0).setDepth(23);
+    this.tweens.add({targets:ring1,scaleX:7,scaleY:7,alpha:0,duration:400,ease:'Cubic.easeOut',onComplete:()=>ring1.destroy()});
+
+    // 外側リング（橙→赤）
+    const ring2=this.add.circle(x,y,10,0xff6600,0).setStrokeStyle(3,0xff6600,0.8).setDepth(23);
+    this.tweens.add({targets:ring2,scaleX:10,scaleY:10,alpha:0,duration:550,ease:'Cubic.easeOut',onComplete:()=>ring2.destroy()});
+
+    // パーティクル（12粒: 黄・橙・赤）
+    const critColors=[0xffee00,0xffcc00,0xff8800,0xff4400,0xffffff];
+    for(let i=0;i<12;i++){
+      const ang=(i/12)*Math.PI*2+(Math.random()-0.5)*0.3;
+      const spd=Phaser.Math.Between(70,160);
+      const sz=Phaser.Math.Between(4,10);
+      const col=critColors[Math.floor(Math.random()*critColors.length)];
+      const dot=this.add.circle(x,y,sz,col,1.0).setDepth(24);
+      this.tweens.add({
+        targets:dot,
+        x:x+Math.cos(ang)*spd,
+        y:y+Math.sin(ang)*spd,
+        alpha:0,scaleX:0.1,scaleY:0.1,
+        duration:Phaser.Math.Between(350,550),
+        ease:'Cubic.easeOut',
+        onComplete:()=>dot.destroy()
+      });
+    }
+
+    // 稲妻風ライン（4方向）
+    for(let i=0;i<4;i++){
+      const ang=i*Math.PI/2+(Math.random()-0.5)*0.4;
+      const len=Phaser.Math.Between(30,60);
+      const line=this.add.graphics().setDepth(24);
+      line.lineStyle(3,0xffee00,1.0);
+      line.lineBetween(x,y,x+Math.cos(ang)*len,y+Math.sin(ang)*len);
+      this.tweens.add({targets:line,alpha:0,duration:250,onComplete:()=>line.destroy()});
+    }
+
+    // CRITICAL テキスト
+    const cTxt=this.add.text(x,y-20,'CRITICAL!',{
+      fontSize:'20px',fontFamily:'Courier New',
+      color:'#ffee00',stroke:'#cc4400',strokeThickness:5
+    }).setOrigin(0.5).setDepth(35).setScale(0.5);
+    this.tweens.add({targets:cTxt,scaleX:1.3,scaleY:1.3,y:y-60,alpha:0,duration:700,ease:'Back.easeOut',onComplete:()=>cTxt.destroy()});
+  }
+
+  showFloat(x,y,txt,col,isCrit=false){
+    // クリティカルダメージは大きく・ポップに表示
+    const fs=isCrit?'22px':'16px';
+    const sw=isCrit?5:3;
+    const sc=isCrit?0.6:1.0;
+    const t=this.add.text(x,y,txt,{
+      fontSize:fs,fontFamily:'Courier New',
+      color:col,stroke:'#000000',strokeThickness:sw
+    }).setOrigin(0.5).setDepth(32).setScale(sc);
+    this.tweens.add({
+      targets:t,
+      scaleX:isCrit?1.4:1.0,
+      scaleY:isCrit?1.4:1.0,
+      y:y-(isCrit?70:50),
+      alpha:0,
+      duration:isCrit?1000:800,
+      ease:isCrit?'Back.easeOut':'Cubic.easeOut',
+      onComplete:()=>t.destroy()
+    });
   }
 
   gameOver(){
+    if(this._gameOver)return;
+    this._gameOver=true;
     this.physics.pause();
     stopBGM();
     const w=this.scale.width,h=this.scale.height;
@@ -1694,6 +1884,11 @@ class GameScene extends Phaser.Scene{
 
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
+    // ゲームオーバー中・メニュー表示中は全処理停止
+    if(this._gameOver||this._menuOpen){
+      p.setVelocity(0,0);
+      return;
+    }
     this.updateJoystick();
     // spaceKey攻撃はPC専用（スマホはボタンで操作）
     if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
@@ -1709,8 +1904,7 @@ class GameScene extends Phaser.Scene{
       b.setData('dist',nd);
       if(nd>b.getData('maxDist'))b.destroy();
     });
-    // ⑤ 敵AI（スリープ・凍結・ノックバック対応）
-    const SLEEP_RANGE=280, WAKE_RANGE=240;
+    // 敵AI（凍結・ノックバック・受動/能動）
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
       const sp=ed.sprite;
@@ -1738,10 +1932,27 @@ class GameScene extends Phaser.Scene{
         return;
       }
 
-      // スリープ判定（索敵範囲外）
-      if(dist>SLEEP_RANGE){
-        ed.sleeping=true;
-        // ふらつき
+      // 受動モンスター（passive:true）かつ未aggro → ランダム徘徊のみ
+      if(ed.passive&&!ed.aggro){
+        ed.wanderTimer-=dt;
+        if(ed.wanderTimer<=0){
+          ed.wanderTimer=Phaser.Math.FloatBetween(1.5,4.0);
+          const ang=Math.random()*Math.PI*2;
+          ed.wanderVx=Math.cos(ang)*ed.spd*0.2;
+          ed.wanderVy=Math.sin(ang)*ed.spd*0.2;
+        }
+        sp.setVelocity(ed.wanderVx,ed.wanderVy);
+        ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
+        ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        return;
+      }
+
+      // 能動（passive:false）または受動でaggro済み → プレイヤーへ追跡
+      const CHASE_RANGE=300;
+      if(dist<CHASE_RANGE){
+        const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
+        sp.setVelocity(Math.cos(ang)*ed.spd,Math.sin(ang)*ed.spd);
+      }else{
         ed.wanderTimer-=dt;
         if(ed.wanderTimer<=0){
           ed.wanderTimer=Phaser.Math.FloatBetween(1.5,3.5);
@@ -1750,26 +1961,19 @@ class GameScene extends Phaser.Scene{
           ed.wanderVy=Math.sin(ang)*ed.spd*0.25;
         }
         sp.setVelocity(ed.wanderVx,ed.wanderVy);
-      }else{
-        // アクティブ：プレイヤーへ追跡
-        ed.sleeping=false;
-        const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
-        sp.setVelocity(Math.cos(ang)*ed.spd,Math.sin(ang)*ed.spd);
-        // 攻撃
-        ed.attackTimer-=dt;
-        if(ed.attackTimer<=0&&dist<ed.rng){
-          ed.attackTimer=ed.acd;
-          // パリィ判定
-          if(pd._parry){
-            this.showFloat(p.x,p.y-40,'PARRY!','#ffd700');
-            pd._parry=false;
-          }else{
-            const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
-            pd.hp=Math.max(0,pd.hp-dmg);
-            this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
-            this.cameras.main.shake(120,0.004);
-            if(pd.hp<=0){this.gameOver();return;}
-          }
+      }
+      // 攻撃
+      ed.attackTimer-=dt;
+      if(ed.attackTimer<=0&&dist<ed.rng){
+        ed.attackTimer=ed.acd;
+        if(pd._parry){
+          this.showFloat(p.x,p.y-40,'PARRY!','#ffd700');
+          pd._parry=false;
+        }else{
+          const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
+          pd.hp=Math.max(0,pd.hp-dmg);
+          this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c');this.updateHUD();
+          if(pd.hp<=0){this.gameOver();return;}
         }
       }
 
