@@ -1018,6 +1018,8 @@ class GameScene extends Phaser.Scene{
       setMute(!muted);
       this._muteTxt.setText(muted?'🔇':'🔊');
     });
+    // skillBtnRefsをリセットしてからupdateHUD（古い参照によるエラー防止）
+    this.skillBtnRefs=[];
     this.updateHUD();
   }
   openBuilding(b){
