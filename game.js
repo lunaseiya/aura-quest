@@ -1862,6 +1862,23 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  _doTransition(sceneKey,sceneData){
+    // 全ての動きを確実に止めてから遷移
+    stopBGM();
+    this.physics.pause();
+    this.tweens.pauseAll();
+    this.time.removeAllEvents();
+    if(this.player&&this.player.anims)this.player.anims.stop();
+    // enemyスプライトのanims停止
+    if(this.enemyDataList){
+      this.enemyDataList.forEach(ed=>{
+        if(ed.sprite&&ed.sprite.active&&ed.sprite.anims)ed.sprite.anims.stop();
+      });
+    }
+    // 即座に遷移
+    this.scene.start(sceneKey,sceneData);
+  }
+
   gameOver(){
     if(this._gameOver)return;
     this._gameOver=true;
@@ -2018,25 +2035,16 @@ class GameScene extends Phaser.Scene{
       if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined&&
          Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<70){
         this._transitioning=true;
-        stopBGM();
-        this.physics.pause();
-        // アニメを止めてから遷移（'cut'エラー防止）
-        if(this.player&&this.player.anims)this.player.anims.stop();
-        this.time.delayedCall(50,()=>this.scene.start('Game',{playerData:pd,stage:this.cfg.portalBack}));
+        this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack});
         return;
       }
       // 進むポータル（右端）
       if(this.portalNext&&this.portalNext.open&&
          Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<70){
         this._transitioning=true;
-        stopBGM();
-        this.physics.pause();
-        // アニメを止めてから遷移（'cut'エラー防止）
-        if(this.player&&this.player.anims)this.player.anims.stop();
-        this.time.delayedCall(50,()=>{
-          if(!this.cfg.portalTo) this.scene.start('GameClear',{playerData:pd});
-          else this.scene.start('Game',{playerData:pd,stage:this.portalNext.to});
-        });
+        const nextScene=(!this.cfg.portalTo)?'GameClear':'Game';
+        const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to};
+        this._doTransition(nextScene,nextData);
         return;
       }
     }
