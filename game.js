@@ -1883,22 +1883,18 @@ class GameScene extends Phaser.Scene{
   _doTransition(sceneKey,sceneData){
     stopBGM();
     this.physics.pause();
-    // tweensを全て即座に削除（pauseAllではscene破棄後も残る）
     this.tweens.killAll();
     this.time.removeAllEvents();
-    if(this.player&&this.player.anims)this.player.anims.stop();
-    if(this.player)this.player.setVelocity(0,0);
-    if(this.enemyDataList){
-      this.enemyDataList.forEach(ed=>{
-        try{
-          if(ed.sprite&&ed.sprite.active){
-            ed.sprite.setVelocity(0,0);
-            if(ed.sprite.anims)ed.sprite.anims.stop();
-          }
-        }catch(e){}
-      });
-    }
-    this.scene.start(sceneKey,sceneData);
+    try{if(this.player){this.player.setVelocity(0,0);if(this.player.anims)this.player.anims.stop();}}catch(e){}
+    try{if(this.enemyDataList)this.enemyDataList.forEach(ed=>{try{if(ed.sprite&&ed.sprite.active)ed.sprite.setVelocity(0,0);}catch(e){}});}catch(e){}
+    // _gameOverでupdateを止める
+    this._gameOver=true;
+    // setTimeoutで次フレームに遷移（Phaser内部アニメの後処理が終わってから）
+    const key=sceneKey,data=sceneData;
+    const self=this;
+    setTimeout(()=>{
+      try{self.scene.start(key,data);}catch(e){console.error('transition error:',e);}
+    },50);
   }
 
   gameOver(){
