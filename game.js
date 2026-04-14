@@ -784,6 +784,49 @@ class GameScene extends Phaser.Scene{
     }[this.playerData.cls]||[];
   }
 
+  showBuffTimer(label,color,durationMs){
+    // 既存の同ラベルのバフがあれば削除
+    if(!this._buffTimers)this._buffTimers={};
+    if(this._buffTimers[label]){
+      this._buffTimers[label].forEach(o=>{try{o.destroy();}catch(e){}});
+    }
+    const w=this.scale.width;
+    const bx=w/2, by=36;
+    const BW=180, BH=18;
+    const col=Phaser.Display.Color.HexStringToColor(color.replace('#','')).color;
+    // 背景
+    const bg=this.add.rectangle(bx,by,BW+4,BH+10,0x000000,0.7).setScrollFactor(0).setDepth(60);
+    // ラベル
+    const lbl=this.add.text(bx,by-2,label,{fontSize:'11px',fontFamily:'Courier New',color:color,stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(61);
+    // バー背景
+    const barBg=this.add.rectangle(bx,by+8,BW,6,0x333333).setOrigin(0.5).setScrollFactor(0).setDepth(61);
+    // バー本体（tweenで縮小）
+    const bar=this.add.rectangle(bx-BW/2,by+8,BW,6,col).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
+    // カウントダウン秒数
+    const secTxt=this.add.text(bx+BW/2+6,by+8,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
+    const secs=durationMs/1000;
+    // バーをtweenで縮小
+    this.tweens.add({
+      targets:bar,
+      scaleX:0,
+      duration:durationMs,
+      ease:'Linear',
+      onComplete:()=>{
+        [bg,lbl,barBg,bar,secTxt].forEach(o=>{try{o.destroy();}catch(e){}});
+        if(this._buffTimers)delete this._buffTimers[label];
+      }
+    });
+    // 秒数テキスト更新
+    const timer=this.time.addEvent({
+      delay:100,loop:true,
+      callback:()=>{
+        const remain=Math.max(0,this.tweens.getTweensOf(bar)[0]?.duration*(1-(this.tweens.getTweensOf(bar)[0]?.progress||0))/1000||0);
+        secTxt.setText(remain.toFixed(1)+'s');
+      }
+    });
+    this._buffTimers[label]=[bg,lbl,barBg,bar,secTxt,{destroy:()=>timer.remove()}];
+  }
+
   _nearestEnemyEva(){
     // 最も近い敵のevaを返す（命中計算用）
     let minD=9999,eva=0;
@@ -814,15 +857,17 @@ class GameScene extends Phaser.Scene{
         this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,pd.atk*(4+pd.sk1*0.3));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd));}});
         this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);
       }else if(num===2){ // ハードガード
-        const dur=(6+pd.sk2*1.5)*1000;
+        const dur=20000;
         this._guardDef=pd.def; pd.def+=30;
         this.showFloat(p.x,p.y-60,'🛡 ハードガード！','#3498db');
         const flash=this.add.rectangle(p.x,p.y,60,80,0x3498db,0.3).setDepth(20);
         this.tweens.add({targets:flash,alpha:0,duration:dur,onComplete:()=>{flash.destroy();pd.def=this._guardDef;}});
+        this.showBuffTimer('🛡 ハードガード','#3498db',dur);
       }else if(num===3){ // パリィ
         pd._parry=true;
         this.showFloat(p.x,p.y-60,'🛡 パリィ！','#ffd700');
-        this.time.delayedCall(3000,()=>{pd._parry=false;});
+        this.time.delayedCall(20000,()=>{pd._parry=false;});
+        this.showBuffTimer('✨ パリィ','#ffd700',20000);
       }
     }
     // ─ マジャン ─
@@ -833,7 +878,7 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'💥 大爆発！','#9b59b6');this.cameras.main.shake(300,0.015);
       }else if(num===2){ // フロストアタック（凍結）
         const range=160+pd.sk2*20;
-        const dur=(3+pd.sk2*0.8)*1000;
+        const dur=20000;
         this.enemyDataList.forEach(ed=>{
           if(ed.dead)return;
           if(Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){
@@ -864,10 +909,11 @@ class GameScene extends Phaser.Scene{
         }
         this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');
       }else if(num===2){ // グロリアスショット（クリ率UP）
-        const dur=(5+pd.sk2*5)*1000;
+        const dur=20000;
         pd._gloryLuk=pd.luk; pd.luk*=5;
         this.showFloat(p.x,p.y-60,'✨ グロリアスショット！','#ffd700');
         this.time.delayedCall(dur,()=>{pd.luk=pd._gloryLuk;});
+        this.showBuffTimer('⭐ グロリアスショット','#ffd700',dur);
       }else if(num===3){ // バルカンショット（連射）
         const shots=2+pd.sk3;
         const ang=this.getFacingAngle();
