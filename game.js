@@ -785,46 +785,46 @@ class GameScene extends Phaser.Scene{
   }
 
   showBuffTimer(label,color,durationMs){
-    // 既存の同ラベルのバフがあれば削除
     if(!this._buffTimers)this._buffTimers={};
+    // 既存バフを削除
     if(this._buffTimers[label]){
-      this._buffTimers[label].forEach(o=>{try{o.destroy();}catch(e){}});
+      const old=this._buffTimers[label];
+      if(old.timer)old.timer.remove();
+      [old.bg,old.lbl,old.barBg,old.bar,old.secTxt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
     }
     const w=this.scale.width;
     const bx=w/2, by=36;
-    const BW=180, BH=18;
+    const BW=180;
     const col=Phaser.Display.Color.HexStringToColor(color.replace('#','')).color;
-    // 背景
-    const bg=this.add.rectangle(bx,by,BW+4,BH+10,0x000000,0.7).setScrollFactor(0).setDepth(60);
-    // ラベル
-    const lbl=this.add.text(bx,by-2,label,{fontSize:'11px',fontFamily:'Courier New',color:color,stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(61);
-    // バー背景
-    const barBg=this.add.rectangle(bx,by+8,BW,6,0x333333).setOrigin(0.5).setScrollFactor(0).setDepth(61);
-    // バー本体（tweenで縮小）
-    const bar=this.add.rectangle(bx-BW/2,by+8,BW,6,col).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
-    // カウントダウン秒数
-    const secTxt=this.add.text(bx+BW/2+6,by+8,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
-    const secs=durationMs/1000;
-    // バーをtweenで縮小
-    this.tweens.add({
-      targets:bar,
-      scaleX:0,
-      duration:durationMs,
-      ease:'Linear',
-      onComplete:()=>{
-        [bg,lbl,barBg,bar,secTxt].forEach(o=>{try{o.destroy();}catch(e){}});
-        if(this._buffTimers)delete this._buffTimers[label];
-      }
-    });
-    // 秒数テキスト更新
-    const timer=this.time.addEvent({
+    const bg=this.add.rectangle(bx,by,BW+4,28,0x000000,0.75).setScrollFactor(0).setDepth(60);
+    const lbl=this.add.text(bx,by-6,label,{fontSize:'11px',fontFamily:'Courier New',color:color,stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(61);
+    const barBg=this.add.rectangle(bx,by+6,BW,7,0x333333).setOrigin(0.5).setScrollFactor(0).setDepth(61);
+    const bar=this.add.rectangle(bx-BW/2,by+6,BW,7,col).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
+    const secTxt=this.add.text(bx+BW/2+8,by+6,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
+
+    // 残り時間を自前で管理（tweenのprogressに依存しない）
+    let elapsed=0;
+    const entry={bg,lbl,barBg,bar,secTxt,timer:null};
+    this._buffTimers[label]=entry;
+
+    const cleanup=()=>{
+      if(entry.timer){entry.timer.remove();entry.timer=null;}
+      [bg,lbl,barBg,bar,secTxt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+      if(this._buffTimers&&this._buffTimers[label]===entry)delete this._buffTimers[label];
+    };
+
+    entry.timer=this.time.addEvent({
       delay:100,loop:true,
       callback:()=>{
-        const remain=Math.max(0,this.tweens.getTweensOf(bar)[0]?.duration*(1-(this.tweens.getTweensOf(bar)[0]?.progress||0))/1000||0);
+        elapsed+=100;
+        const remain=Math.max(0,(durationMs-elapsed)/1000);
+        if(!secTxt.active){cleanup();return;}
         secTxt.setText(remain.toFixed(1)+'s');
+        const ratio=Math.max(0,1-elapsed/durationMs);
+        if(bar.active)bar.setScale(ratio,1);
+        if(elapsed>=durationMs)cleanup();
       }
     });
-    this._buffTimers[label]=[bg,lbl,barBg,bar,secTxt,{destroy:()=>timer.remove()}];
   }
 
   _nearestEnemyEva(){
