@@ -507,12 +507,9 @@ class BootScene extends Phaser.Scene{
       g.fillCircle(S*0.58,S*0.50,S*0.07);
       g.fillStyle(0xffffff,1);
       g.fillCircle(S*0.56,S*0.48,S*0.025);
-      // 口（ニコニコ）
-      g.lineStyle(2,0x115544,1);
-      g.beginPath();
-      g.moveTo(S*0.38,S*0.60);
-      g.quadraticBezierTo(S*0.47,S*0.67,S*0.56,S*0.60);
-      g.strokePath();
+      // 口（ニコニコ・小さな楕円で代替）
+      g.fillStyle(0x115544,0.8);
+      g.fillEllipse(S*0.47,S*0.62,S*0.18,S*0.07);
       // アウトライン
       g.lineStyle(2,0x118866,0.7);
       g.strokeEllipse(S/2,S*0.52,S*0.78,S*0.72);
