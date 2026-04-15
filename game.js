@@ -390,7 +390,9 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    ['warrior','archer'].forEach(k=>this.load.image('player_'+k,BASE+'players/'+k+'.png'));
+    this.load.image('player_warrior',BASE+'players/warrior.png');
+    // archer はスプライトシート (128×128px, 5×3=15コマ)
+    this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_mage', BASE+'players/final_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // bomber はスプライトシート
@@ -451,6 +453,27 @@ class BootScene extends Phaser.Scene{
     });
     // ── コード描画テクスチャ生成 ──────────────────
     this._generateEnemyTextures();
+    // アーチャー スプライトアニメーション定義 (128×128px, 5×3)
+    const AA=[
+      {key:'archer_front_idle',frames:[0],    rate:2, rep:-1},
+      {key:'archer_front_walk',frames:[1,2],  rate:8, rep:-1},
+      {key:'archer_front_atk', frames:[3,4],  rate:10,rep:0 },
+      {key:'archer_back_idle', frames:[5],    rate:2, rep:-1},
+      {key:'archer_back_walk', frames:[6,7],  rate:8, rep:-1},
+      {key:'archer_back_atk',  frames:[8,9],  rate:10,rep:0 },
+      {key:'archer_side_idle', frames:[10],   rate:2, rep:-1},
+      {key:'archer_side_walk', frames:[11,12],rate:8, rep:-1},
+      {key:'archer_side_atk',  frames:[13,14],rate:10,rep:0 },
+    ];
+    AA.forEach(a=>{
+      if(this.anims.exists(a.key)) return;
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_archer',frame:f})),
+        frameRate:a.rate,
+        repeat:a.rep,
+      });
+    });
     this.scene.start('Title');
   }
 
@@ -587,6 +610,8 @@ class ClassSelectScene extends Phaser.Scene{
         this.add.sprite(cx-90,cy,'player_bomber').setFrame(0).setDisplaySize(64,80);
       }else if(cls.key==='mage'){
         this.add.sprite(cx-90,cy,'player_mage').setFrame(0).setDisplaySize(80,80);
+      }else if(cls.key==='archer'){
+        this.add.sprite(cx-90,cy,'player_archer').setFrame(0).setDisplaySize(80,80);
       }else{
         this.add.image(cx-90,cy,'player_'+cls.key).setDisplaySize(64,80);
       }
@@ -945,6 +970,7 @@ class GameScene extends Phaser.Scene{
         sz:14,
       });
       SE('arrow');
+      this.playSpriteAtk();
       this.atkCooldown=0.3;
 
     }else if(cls==='bomber'){
@@ -2118,7 +2144,7 @@ class GameScene extends Phaser.Scene{
     if(len>1){vx/=len;vy/=len;}
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
-    if(pd.cls==='bomber'||pd.cls==='mage') this._updateSpriteAnim(vx,vy);
+    if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer') this._updateSpriteAnim(vx,vy);
     // 最後に動いた向きを記録（攻撃方向決定用）
     if(vx!==0||vy!==0) this._lastAngle=Math.atan2(vy,vx);
   }
@@ -2147,7 +2173,7 @@ class GameScene extends Phaser.Scene{
 
   _updateSpriteAnim(vx,vy){
     const p=this.player,cls=this.playerData.cls;
-    if(cls!=='bomber'&&cls!=='mage') return;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer') return;
     const prefix=cls; // 'bomber' or 'mage'
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
@@ -2170,7 +2196,7 @@ class GameScene extends Phaser.Scene{
 
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
-    if(cls!=='bomber'&&cls!=='mage') return;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer') return;
     const key=cls+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
