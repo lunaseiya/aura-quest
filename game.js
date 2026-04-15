@@ -229,6 +229,107 @@ function _playBossBGM(){
   },(totalDur-0.1)*1000);
 }
 
+// ── タイトルBGM：荘厳・壮大なオープニング ──────────────
+function _playTitleBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.14; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=84, B=60/BPM, bar=B*4;
+
+  // メロディー（sine・荘厳）
+  const mel=[
+    [NOTE.C4,B*2],[NOTE.E4,B],[NOTE.G4,B],
+    [NOTE.A4,B*3],[NOTE.G4,B],
+    [NOTE.F4,B*2],[NOTE.E4,B],[NOTE.D4,B],
+    [NOTE.C4,bar],
+    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
+    [NOTE.C5,B*3],[NOTE.B4,B],
+    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.F4,B],
+    [NOTE.E4,bar],
+    [NOTE.E4,B*2],[NOTE.F4,B],[NOTE.G4,B],
+    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.F4,B],
+    [NOTE.G4,B*2],[NOTE.E4,B],[NOTE.C4,B],
+    [NOTE.D4,bar],
+    [NOTE.C4,B*2],[NOTE.E4,B],[NOTE.G4,B],
+    [NOTE.C5,bar*1.5],[NOTE.B4,B*0.5],
+    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.E4,B],
+    [NOTE.C4,bar*2],
+  ];
+  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'sine',0.32,t,d*0.92,0.02,0.08);t+=d;});
+
+  // 和音（重厚感）
+  const chords=[
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.E3,NOTE.G3,NOTE.B3],bar],
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.G3,NOTE.C4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar*2],
+  ];
+  let ct=now;
+  chords.forEach(([notes,d])=>{
+    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.18,ct,d*0.85,0.04,0.15));
+    ct+=d;
+  });
+
+  // ベース（どっしり）
+  const bassNotes=[NOTE.C3,NOTE.C3,NOTE.F3,NOTE.G3,NOTE.A3,NOTE.G3,NOTE.F3,NOTE.E3,NOTE.C3,NOTE.C3,NOTE.F3,NOTE.G3,NOTE.C3,NOTE.C3,NOTE.F3,NOTE.C3];
+  bassNotes.forEach((f,i)=>{
+    _playNote(ac,master,f*0.5,'sine',0.28,now+i*bar,bar*0.9,0.01,0.1);
+    _playNote(ac,master,f,'triangle',0.08,now+i*bar+B,B*0.7,0.01,0.05);
+  });
+
+  const totalDur=bar*16;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='title'&&!muted)_playTitleBGM();
+  },(totalDur-0.1)*1000);
+}
+
+// ── クリアBGM：明るく爽快な勝利ファンファーレ ────────────
+function _playClearBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=120, B=60/BPM, bar=B*4;
+
+  // ファンファーレ（明るいメロディー）
+  const mel=[
+    [NOTE.C4,B*.5],[NOTE.C4,B*.5],[NOTE.C4,B*.5],[NOTE.E4,B*.5],[NOTE.G4,B*.5],[NOTE.C5,B*1.5],
+    [NOTE.G4,B*.5],[NOTE.A4,B*.5],[NOTE.G4,B*.5],[NOTE.F4,B*.5],[NOTE.E4,B*2],
+    [NOTE.E4,B*.5],[NOTE.F4,B*.5],[NOTE.E4,B*.5],[NOTE.D4,B*.5],[NOTE.C4,B*2],
+    [NOTE.D4,B*.5],[NOTE.E4,B*.5],[NOTE.F4,B*.5],[NOTE.G4,B*.5],[NOTE.A4,B*.5],[NOTE.B4,B*.5],[NOTE.C5,B*2],
+    [NOTE.C5,B*.5],[NOTE.B4,B*.5],[NOTE.A4,B],[NOTE.G4,B],[NOTE.E4,B*.5],[NOTE.F4,B*.5],
+    [NOTE.G4,B*3],[NOTE.G4,B],
+    [NOTE.A4,B*.5],[NOTE.G4,B*.5],[NOTE.F4,B],[NOTE.E4,B*.5],[NOTE.D4,B*.5],[NOTE.C4,B],
+    [NOTE.C4,bar*2],
+  ];
+  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'square',0.22,t,d*0.88,0.005,0.04);t+=d;});
+
+  // 伴奏
+  const acc=[
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar*2],
+  ];
+  let at=now;
+  acc.forEach(([notes,d])=>{
+    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.12,at,d*0.8,0.02,0.1));
+    at+=d;
+  });
+
+  const totalDur=bar*9;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='clear'&&!muted)_playClearBGM();
+  },(totalDur-0.1)*1000);
+}
+
 function startBGM(key){
   if(_bgmKey===key)return;
   // 既存BGM停止
@@ -246,9 +347,11 @@ function startBGM(key){
     return;
   }
   // 合成BGM
-  if(key==='town') _playTownBGM();
+  if(key==='title') _playTitleBGM();
+  else if(key==='town') _playTownBGM();
   else if(key==='st2'||key==='st3'||key==='st4') _playStageBGM();
   else if(key==='boss') _playBossBGM();
+  else if(key==='clear') _playClearBGM();
 }
 
 function updateBGM(){
