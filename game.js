@@ -2174,7 +2174,7 @@ class GameScene extends Phaser.Scene{
   _updateSpriteAnim(vx,vy){
     const p=this.player,cls=this.playerData.cls;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer') return;
-    const prefix=cls; // 'bomber' or 'mage'
+    const prefix=cls;
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
 
@@ -2183,7 +2183,11 @@ class GameScene extends Phaser.Scene{
     let flip=this._facingFlip||false;
     if(moving){
       if(Math.abs(vy)>Math.abs(vx)*0.5){facing=vy<0?'back':'front';flip=false;}
-      else{facing='side';flip=vx<0;}
+      else{
+        facing='side';
+        // archerはsideが左向き基準（mage/bomberは右向き基準）なので反転が逆
+        flip=cls==='archer'?vx>0:vx<0;
+      }
     }
     this._facing=facing; this._facingFlip=flip;
     p.setFlipX(flip);
