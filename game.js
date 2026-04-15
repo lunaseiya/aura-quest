@@ -397,7 +397,8 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_mage', BASE+'players/final_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // bomber はスプライトシート
     this.load.spritesheet('player_bomber', BASE+'players/final_sheet_cc.png', {frameWidth:64,frameHeight:64});
-    ['bat','boss1','boss2','boss3','dragon','goblin','sandworm','scorpion','skeleton','slime','troll','wolf'].forEach(k=>this.load.image('enemy_'+k,BASE+'enemies/'+k+'.png'));
+    // slimeはコード描画テクスチャを使用するためロードリストから除外
+    ['bat','boss1','boss2','boss3','dragon','goblin','sandworm','scorpion','skeleton','troll','wolf'].forEach(k=>this.load.image('enemy_'+k,BASE+'enemies/'+k+'.png'));
     ['bridge','cliff','cobble','dark_forest','flower','grass','lava','oasis_grass','sand_beach','sand_desert','sea','town_path','town_wall','volcanic','water'].forEach(k=>this.load.image('tile_'+k,BASE+'tiles/'+k+'.png'));
     ['barrel','desert_rock','lava_rock','palm','rock','tree'].forEach(k=>this.load.image('obj_'+k,BASE+'objects/'+k+'.png'));
     ['portal_st1','portal_st2','portal_st3','portal_st4','portal_town'].forEach(k=>this.load.image(k,BASE+'portals/'+k+'.png'));
@@ -479,7 +480,8 @@ class BootScene extends Phaser.Scene{
 
   _generateEnemyTextures(){
     // スライム（64×64）
-    if(!this.textures.exists('enemy_slime')){
+    // slime: 常にコード描画で生成
+    {
       const g=this.make.graphics({x:0,y:0,add:false});
       const S=64;
       // 影
