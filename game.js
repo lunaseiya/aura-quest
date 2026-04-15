@@ -16,26 +16,239 @@ function getAC(){
   return audioCtx;
 }
 
-// ── MP3 BGMプレイヤー ────────────────────────────
+// ── BGMシステム（MP3 + Web Audio合成）────────────
 let _bgmAudio=null,_bgmKey=null;
+let _bgmNodes=[]; // 合成BGMのノード群
+let _bgmLoopTimer=null; // 合成BGMのループタイマー
 
-// BGMキーとファイルのマッピング
+// MP3ファイルのマッピング（存在するもののみ）
 const BGM_FILES={
   st1: BASE+'bgm/rpg_bgm_brass.mp3',
 };
 
+// ── 音楽理論定数 ──────────────────────────
+const NOTE={
+  C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+  C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,
+  Bb3:233.08,Bb4:466.16,F3s:185.00,C4s:277.18,G4s:415.30,
+};
+
+// ── 合成BGMエンジン ──────────────────────────
+function _playNote(ac,master,freq,type,vol,start,dur,attack=0.01,release=0.05){
+  if(!ac||!master)return;
+  try{
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type=type; o.frequency.value=freq;
+    o.connect(g); g.connect(master);
+    g.gain.setValueAtTime(0,start);
+    g.gain.linearRampToValueAtTime(vol,start+attack);
+    g.gain.setValueAtTime(vol,start+dur-release);
+    g.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+    o.start(start); o.stop(start+dur+0.01);
+    _bgmNodes.push(o,g);
+  }catch(e){}
+}
+
+function _stopSynthBGM(){
+  _bgmNodes.forEach(n=>{try{n.disconnect();if(n.stop)n.stop();}catch(e){}});
+  _bgmNodes=[];
+  if(_bgmLoopTimer){clearTimeout(_bgmLoopTimer);_bgmLoopTimer=null;}
+}
+
+// ── 町BGM：明るくのどかなRPG風 ────────────────
+function _playTownBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=108, B=60/BPM, bar=B*4;
+
+  // メロディー（フルート風・sine）
+  const mel=[
+    [NOTE.E4,B*2],[NOTE.G4,B],[NOTE.A4,B],
+    [NOTE.G4,B*2],[NOTE.E4,B],[NOTE.C4,B],
+    [NOTE.D4,B*2],[NOTE.F4,B],[NOTE.G4,B],
+    [NOTE.E4,bar],[NOTE.E4,B*0.5],[NOTE.D4,B*0.5],[NOTE.E4,B*3],
+    [NOTE.C5,B*2],[NOTE.B4,B],[NOTE.A4,B],
+    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
+    [NOTE.C5,B*2],[NOTE.G4,B],[NOTE.E4,B],
+    [NOTE.D4,bar*2],
+  ];
+  let t=now;
+  mel.forEach(([f,d])=>{_playNote(ac,master,f,'sine',0.35,t,d*0.9);t+=d;});
+
+  // ベースライン（triangle）
+  const bass=[
+    [NOTE.C3,bar],[NOTE.C3,bar],[NOTE.G3,bar],[NOTE.C3,bar],
+    [NOTE.F3,bar],[NOTE.G3,bar],[NOTE.C3,bar],[NOTE.C3,bar],
+  ];
+  let bt=now;
+  bass.forEach(([f,d])=>{
+    _playNote(ac,master,f,'triangle',0.25,bt,d*0.7);
+    _playNote(ac,master,f*2,'triangle',0.10,bt+B,B*0.6);
+    bt+=d;
+  });
+
+  // 和音（piano風・square低音量）
+  const chords=[
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+  ];
+  let ct=now;
+  chords.forEach(([notes,d])=>{
+    notes.forEach(f=>_playNote(ac,master,f,'square',0.04,ct,d*0.8,0.02,0.1));
+    ct+=d;
+  });
+
+  const totalDur=bar*8;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='town'&&!muted)_playTownBGM();
+  },(totalDur-0.1)*1000);
+}
+
+// ── ステージBGM（st2〜4共通）：緊張感のある冒険 ──
+function _playStageBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.15; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=130, B=60/BPM, bar=B*4;
+
+  // メロディー（sawtooth：力強い）
+  const mel=[
+    [NOTE.A4,B],[NOTE.A4,B*0.5],[NOTE.G4,B*0.5],[NOTE.F4,B],[NOTE.E4,B],
+    [NOTE.G4,B],[NOTE.G4,B*0.5],[NOTE.F4,B*0.5],[NOTE.E4,B],[NOTE.D4,B],
+    [NOTE.F4,B],[NOTE.E4,B],[NOTE.D4,B],[NOTE.C4,B],
+    [NOTE.E4,B*2],[NOTE.D4,B],[NOTE.C4,B],
+    [NOTE.A4,B],[NOTE.Bb3,B*0.5],[NOTE.A4,B*0.5],[NOTE.G4,B],[NOTE.F4,B],
+    [NOTE.G4,B*2],[NOTE.F4,B],[NOTE.E4,B],
+    [NOTE.D4,B],[NOTE.E4,B],[NOTE.F4,B],[NOTE.G4,B],
+    [NOTE.A4,bar*1.5],[NOTE.A4,bar*0.5],
+  ];
+  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'sawtooth',0.22,t,d*0.85,0.005,0.04);t+=d;});
+
+  // ベース（square・低い）
+  const bassLine=[
+    NOTE.A3,NOTE.A3,NOTE.G3,NOTE.G3,
+    NOTE.F3,NOTE.F3,NOTE.E3||NOTE.F3,NOTE.E3||NOTE.F3,
+  ];
+  for(let i=0;i<8;i++){
+    const f=bassLine[i]||NOTE.A3;
+    _playNote(ac,master,f,'square',0.18,now+i*bar,B*0.8,0.01,0.05);
+    _playNote(ac,master,f,'square',0.12,now+i*bar+B*2,B*0.8,0.01,0.05);
+  }
+
+  // ドラム風パーカッション（ノイズ代わりにdetuneした短音）
+  for(let i=0;i<8;i++){
+    const bt=now+i*bar;
+    // キック（低音短い）
+    _playNote(ac,master,60,'sine',0.30,bt,0.08,0.001,0.07);
+    _playNote(ac,master,60,'sine',0.30,bt+B*2,0.08,0.001,0.07);
+    // スネア風
+    _playNote(ac,master,200,'square',0.12,bt+B,0.05,0.001,0.04);
+    _playNote(ac,master,200,'square',0.12,bt+B*3,0.05,0.001,0.04);
+    // ハット風
+    for(let h=0;h<4;h++){
+      _playNote(ac,master,8000,'sine',0.03,bt+h*B,0.04,0.001,0.03);
+    }
+  }
+
+  const totalDur=bar*8;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    const k=_bgmKey;
+    if((k==='st2'||k==='st3'||k==='st4')&&!muted)_playStageBGM();
+  },(totalDur-0.1)*1000);
+}
+
+// ── BOSSBGMスポーン時：激しく重い ───────────────
+function _playBossBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=150, B=60/BPM, bar=B*4;
+
+  // メロディー（sawtooth + 不協和）
+  const mel=[
+    [NOTE.A3,B*0.5],[NOTE.A3,B*0.5],[NOTE.G3,B],[NOTE.F3s,B],[NOTE.G3,B],
+    [NOTE.A3,B*0.5],[NOTE.Bb3,B*0.5],[NOTE.A3,B*2],[NOTE.G3,B],
+    [NOTE.F3,B*0.5],[NOTE.F3,B*0.5],[NOTE.E3||NOTE.F3,B],[NOTE.F3,B],[NOTE.G3,B],
+    [NOTE.A3,bar],
+    [NOTE.G3,B*0.5],[NOTE.A3,B*0.5],[NOTE.Bb3,B],[NOTE.A3,B],[NOTE.G3,B],
+    [NOTE.F3s,B*0.5],[NOTE.G3,B*0.5],[NOTE.A3,B*3],
+    [NOTE.C4,B],[NOTE.Bb3,B],[NOTE.A3,B],[NOTE.G3,B],
+    [NOTE.A3,bar],
+  ];
+  let t=now; mel.forEach(([f,d])=>{
+    _playNote(ac,master,f,'sawtooth',0.28,t,d*0.9,0.005,0.03);
+    _playNote(ac,master,f*2,'square',0.08,t,d*0.9,0.005,0.03);
+    t+=d;
+  });
+
+  // 重いベース
+  for(let i=0;i<8;i++){
+    const bt=now+i*bar;
+    const f=i%2===0?NOTE.A3*0.5:NOTE.G3*0.5;
+    _playNote(ac,master,f,'sawtooth',0.28,bt,B*0.9,0.01,0.05);
+    _playNote(ac,master,f,'sawtooth',0.20,bt+B*1.5,B*0.4,0.01,0.04);
+    _playNote(ac,master,f,'sawtooth',0.24,bt+B*2,B*0.9,0.01,0.05);
+    _playNote(ac,master,f*1.5,'sawtooth',0.15,bt+B*3,B*0.4,0.01,0.04);
+  }
+
+  // 激しいドラム
+  for(let i=0;i<8;i++){
+    const bt=now+i*bar;
+    // キック（強め）
+    [0,B*0.5,B*2,B*2.5].forEach(o=>{
+      _playNote(ac,master,55,'sine',0.38,bt+o,0.06,0.001,0.055);
+    });
+    // スネア
+    [B,B*3].forEach(o=>{
+      _playNote(ac,master,180,'square',0.20,bt+o,0.04,0.001,0.035);
+      _playNote(ac,master,280,'square',0.12,bt+o,0.04,0.001,0.035);
+    });
+    // 16分ハット
+    for(let h=0;h<8;h++){
+      _playNote(ac,master,9000,'sine',0.04,bt+h*B*0.5,0.03,0.001,0.025);
+    }
+  }
+
+  const totalDur=bar*8;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='boss'&&!muted)_playBossBGM();
+  },(totalDur-0.1)*1000);
+}
+
 function startBGM(key){
   if(_bgmKey===key)return;
+  // 既存BGM停止
   if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
+  _stopSynthBGM();
   _bgmKey=key;
-  if(muted)return; // ミュート中は再生しない
+  if(muted)return;
+  // MP3があればMP3を優先
   const file=BGM_FILES[key];
-  if(!file)return;
-  const audio=new Audio(file);
-  audio.loop=true;
-  audio.volume=0.5;
-  audio.play().catch(()=>{});
-  _bgmAudio=audio;
+  if(file){
+    const audio=new Audio(file);
+    audio.loop=true; audio.volume=0.5;
+    audio.play().catch(()=>{});
+    _bgmAudio=audio;
+    return;
+  }
+  // 合成BGM
+  if(key==='town') _playTownBGM();
+  else if(key==='st2'||key==='st3'||key==='st4') _playStageBGM();
+  else if(key==='boss') _playBossBGM();
 }
 
 function updateBGM(){
@@ -44,22 +257,23 @@ function updateBGM(){
 
 function stopBGM(){
   if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
+  _stopSynthBGM();
   _bgmKey=null;
 }
 
 function setMute(val){
   muted=val;
   if(muted){
-    // ミュートON: BGMを止めてSEも無効に
     if(_bgmAudio){_bgmAudio.pause();}
+    _stopSynthBGM();
     if(_seMasterGain)_seMasterGain.gain.value=0;
   }else{
-    // ミュートOFF: BGMを再開
     if(_bgmAudio){_bgmAudio.play().catch(()=>{});}
-    else if(_bgmKey){startBGM(_bgmKey);}
+    else if(_bgmKey){
+      const k=_bgmKey; _bgmKey=null; startBGM(k);
+    }
     if(_seMasterGain)_seMasterGain.gain.value=0.4;
   }
-  // 設定を保存
   try{localStorage.setItem('aq_muted',val?'1':'0');}catch(e){}
 }
 
@@ -82,7 +296,7 @@ function SE(type){
   const now=ac.currentTime;
   const C={
     hit:    [[440,'square',0.18,0.10]],
-    crit:   [[880,'square',0.22,0.08],[660,'sawtooth',0.18,0.15],[1047,'sine',0.15,0.20]],
+    crit:   [[110,'sawtooth',0.28,0.12],[440,'square',0.30,0.08],[880,'square',0.25,0.10],[1320,'sine',0.20,0.18],[1760,'sine',0.15,0.22]],
     miss:   [[220,'sine',0.10,0.10]],
     exp:    [[880,'sine',0.14,0.15],[1047,'sine',0.14,0.15]],
     levelup:[[523,'sine',0.18,0.10],[659,'sine',0.18,0.10],[784,'sine',0.18,0.10],[1047,'sine',0.22,0.40]],
@@ -95,14 +309,20 @@ function SE(type){
     explode:[[110,'sawtooth',0.22,0.30],[220,'square',0.18,0.20]],
   };
   const cfg=C[type];if(!cfg)return;
+  const isCritSE=(type==='crit');
   cfg.forEach(([f,w,v,d],i)=>{try{
     const o=ac.createOscillator(),g=ac.createGain();
     o.type=w;o.frequency.value=f;
+    // クリティカルは周波数を急上昇させて爽快感を出す
+    if(isCritSE&&i>=2){
+      o.frequency.setValueAtTime(f*0.7,now+i*0.05);
+      o.frequency.exponentialRampToValueAtTime(f,now+i*0.05+0.06);
+    }
     o.connect(g);
-    g.connect(mg); // destinationではなくマスターGainに接続
-    const t=now+i*0.08;
+    g.connect(mg);
+    const t=now+i*0.05; // クリティカルは間隔を短く
     g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(v,t+0.01);
+    g.gain.linearRampToValueAtTime(v,t+0.008);
     g.gain.exponentialRampToValueAtTime(0.001,t+d);
     o.start(t);o.stop(t+d+0.05);
   }catch(e){}});
