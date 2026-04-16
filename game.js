@@ -1465,7 +1465,7 @@ class GameScene extends Phaser.Scene{
       if(ptr.y<this.scale.height-60)
         this.facingAngle=Phaser.Math.Angle.Between(this.player.x-this.cameras.main.scrollX,this.player.y-this.cameras.main.scrollY,ptr.x,ptr.y);
     });
-    this.createHUD();this.createSkillButtons();this.createMinimap();this.createJoystick();
+    this.createHUD();this.createSkillButtons();this.createMinimap();this.createJoystick();this._createHomeButton();
     const ann=this.add.text(this.scale.width/2,80,cfg.name,{fontSize:'28px',fontFamily:'Courier New',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.tweens.add({targets:ann,alpha:0,duration:2000,delay:1500,onComplete:()=>ann.destroy()});
     const muteBtn=this.add.text(this.scale.width-4,4,'🔊',{fontSize:'16px'}).setOrigin(1,0).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
@@ -1665,15 +1665,18 @@ class GameScene extends Phaser.Scene{
 
   showBuffTimer(label,color,durationMs){
     if(!this._buffTimers)this._buffTimers={};
-    // 既存バフを削除
+    // 既存バフを削除（同ラベルの再発動）
     if(this._buffTimers[label]){
       const old=this._buffTimers[label];
       if(old.timer)old.timer.remove();
       [old.bg,old.lbl,old.barBg,old.bar,old.secTxt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+      delete this._buffTimers[label];
     }
     const w=this.scale.width;
-    const bx=w/2, by=36;
-    const BW=180;
+    const BW=180, ITEM_H=32, BASE_Y=36;
+    // 現在アクティブなバフ数に応じてY座標をずらす
+    const slotIndex=Object.keys(this._buffTimers).length;
+    const bx=w/2, by=BASE_Y+slotIndex*ITEM_H;
     const col=Phaser.Display.Color.HexStringToColor(color.replace('#','')).color;
     const bg=this.add.rectangle(bx,by,BW+4,28,0x000000,0.75).setScrollFactor(0).setDepth(60);
     const lbl=this.add.text(bx,by-6,label,{fontSize:'11px',fontFamily:'Courier New',color:color,stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(61);
@@ -1681,15 +1684,18 @@ class GameScene extends Phaser.Scene{
     const bar=this.add.rectangle(bx-BW/2,by+6,BW,7,col).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
     const secTxt=this.add.text(bx+BW/2+8,by+6,'',{fontSize:'11px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(62);
 
-    // 残り時間を自前で管理（tweenのprogressに依存しない）
     let elapsed=0;
-    const entry={bg,lbl,barBg,bar,secTxt,timer:null};
+    const entry={bg,lbl,barBg,bar,secTxt,timer:null,slotIndex};
     this._buffTimers[label]=entry;
 
     const cleanup=()=>{
       if(entry.timer){entry.timer.remove();entry.timer=null;}
       [bg,lbl,barBg,bar,secTxt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
-      if(this._buffTimers&&this._buffTimers[label]===entry)delete this._buffTimers[label];
+      if(this._buffTimers&&this._buffTimers[label]===entry){
+        delete this._buffTimers[label];
+        // 削除後、残りのバフを詰めて表示
+        this._repackBuffTimers();
+      }
     };
 
     entry.timer=this.time.addEvent({
@@ -1703,6 +1709,22 @@ class GameScene extends Phaser.Scene{
         if(bar.active)bar.setScale(ratio,1);
         if(elapsed>=durationMs)cleanup();
       }
+    });
+  }
+
+  // バフ終了後に残りのバフを上詰め
+  _repackBuffTimers(){
+    if(!this._buffTimers)return;
+    const BW=180, ITEM_H=32, BASE_Y=36;
+    const bx=this.scale.width/2;
+    Object.values(this._buffTimers).forEach((entry,i)=>{
+      const by=BASE_Y+i*ITEM_H;
+      entry.slotIndex=i;
+      if(entry.bg.active)   entry.bg.setPosition(bx,by);
+      if(entry.lbl.active)  entry.lbl.setPosition(bx,by-6);
+      if(entry.barBg.active)entry.barBg.setPosition(bx,by+6);
+      if(entry.bar.active)  entry.bar.setPosition(bx-BW/2,by+6);
+      if(entry.secTxt.active)entry.secTxt.setPosition(bx+BW/2+8,by+6);
     });
   }
 
@@ -1867,7 +1889,7 @@ class GameScene extends Phaser.Scene{
     // ダメージ判定（sz半径）
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
-      if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<sz/2+ed.sprite.displayWidth/3){
+      if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<sz/2+ed.sprite.displayWidth/2){
         this.hitEnemy(ed,dmg,isCrit,true);
       }
     });
@@ -2398,7 +2420,7 @@ class GameScene extends Phaser.Scene{
       {key:'atk',label:'力   STR',desc:'ATK +2/pt', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
       {key:'agi',label:'素早 AGI',desc:'回避+3/pt', col:'#2ecc71',apply:(p,n)=>{p.agi=(p.agi||0)+n*3}},
       {key:'mag',label:'魔力 MAG',desc:'MAG +2/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力 VIT',desc:'HP  +9/pt  HP自動回復+0.5/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp);p.vitPts=(p.vitPts||0)+n;}},
+      {key:'mhp',label:'体力 VIT',desc:'HP+9 回復+0.5/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp);p.vitPts=(p.vitPts||0)+n;}},
       {key:'luk',label:'運   LUK',desc:'CRIT+1/pt', col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
@@ -2410,7 +2432,7 @@ class GameScene extends Phaser.Scene{
     const ptsTxt=sadd(this.add.text(PX,ITOP+14,'残りポイント: '+tmpPts+'pt',{fontSize:'18px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
     const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
 
-    const ROW_H=(IH-44)/6;
+    const ROW_H=(IH-44-54)/6; // 下部に確定ボタン用スペース確保
     const vt={}, at={};
     S.forEach((s,i)=>{
       const y=ITOP+40+i*ROW_H+ROW_H/2;
@@ -2466,7 +2488,7 @@ class GameScene extends Phaser.Scene{
       warrior:[{id:'sk1',name:'烈風斬',   maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
       mage:   [{id:'sk1',name:'大爆発',   maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
       archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
-      bomber: [{id:'sk1',name:'クラスター',maxLv:10,desc:'6方向爆弾'},{id:'sk2',name:'大爆弾',maxLv:10,desc:'前方大爆発'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
+      bomber: [{id:'sk1',name:'設置爆弾',maxLv:10,desc:'最大3個設置・敵接触で爆破'},{id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
     };
     const defs=DEFS[pd.cls]||[];
     const skadd=(o)=>{skillCont.add(sf0(o));return o;};
@@ -2627,6 +2649,25 @@ class GameScene extends Phaser.Scene{
     this.bossHPBg.setVisible(true);
     this.bossHPBar.setVisible(true).setSize(w*0.6*pct,16).setFillStyle(pct>0.5?0xe74c3c:pct>0.25?0xff8800:0xff0000);
     this.bossHPTxt.setVisible(true).setText('⚠ BOSS: '+Math.ceil(ed.hp)+'/'+ed.mhp);
+  }
+
+  _createHomeButton(){
+    const w=this.scale.width,h=this.scale.height;
+    const MARGIN=12;
+    const btn=this.add.rectangle(60,h-20,96,28,0x223344,0.75)
+      .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x445566,0.8)
+      .setInteractive({useHandCursor:true});
+    const txt=this.add.text(60,h-20,'🏠 タイトル',{
+      fontSize:'12px',fontFamily:'Courier New',color:'#8899aa'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    btn.on('pointerover',()=>{btn.setFillStyle(0x334455,0.9);txt.setColor('#aabbcc');});
+    btn.on('pointerout', ()=>{btn.setFillStyle(0x223344,0.75);txt.setColor('#8899aa');});
+    btn.on('pointerdown',()=>{
+      stopBGM();
+      this.physics.pause();
+      this.tweens.killAll();
+      this.scene.start('Title');
+    });
   }
 
   createSkillButtons(){
