@@ -505,7 +505,8 @@ class BootScene extends Phaser.Scene{
     ['bridge','cliff','cobble','dark_forest','flower','grass','lava','oasis_grass','sand_beach','sand_desert','sea','town_path','town_wall','volcanic','water'].forEach(k=>this.load.image('tile_'+k,BASE+'tiles/'+k+'.png'));
     ['barrel','desert_rock','lava_rock','palm','rock','tree'].forEach(k=>this.load.image('obj_'+k,BASE+'objects/'+k+'.png'));
     ['portal_st1','portal_st2','portal_st3','portal_st4','portal_town'].forEach(k=>this.load.image(k,BASE+'portals/'+k+'.png'));
-    ['arrow','bigbomb','bomb','fireball','hyperbomb','vortexball'].forEach(k=>this.load.image('proj_'+k,BASE+'projectiles/'+k+'.png'));
+    // arrow はコード描画テクスチャを使用
+    ['bigbomb','bomb','fireball','hyperbomb','vortexball'].forEach(k=>this.load.image('proj_'+k,BASE+'projectiles/'+k+'.png'));
     ['explosion','freeze','shockwave','slash'].forEach(k=>this.load.image('fx_'+k,BASE+'effects/'+k+'.png'));
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
   }
@@ -582,6 +583,27 @@ class BootScene extends Phaser.Scene{
   }
 
   _generateEnemyTextures(){
+    // ── 矢（proj_arrow）64×16px ──────────────────
+    {
+      const g=this.make.graphics({x:0,y:0,add:false});
+      const W=64,H=16,CY=H/2;
+      // 矢尻（羽根・左端）
+      g.fillStyle(0xcc9944,1);
+      g.fillTriangle(0,CY-4, 10,CY, 0,CY+4);
+      g.fillTriangle(0,CY-4, 10,CY-1, 4,CY-6);
+      g.fillTriangle(0,CY+4, 10,CY+1, 4,CY+6);
+      // 矢柄（シャフト）
+      g.fillStyle(0xaa7733,1);
+      g.fillRect(8,CY-1.5,46,3);
+      // 矢じり（先端・右端）
+      g.fillStyle(0xdddddd,1);
+      g.fillTriangle(54,CY-3, W,CY, 54,CY+3);
+      // ハイライト
+      g.fillStyle(0xffffff,0.3);
+      g.fillRect(8,CY-1.5,46,1);
+      g.generateTexture('proj_arrow',W,H);
+      g.destroy();
+    }
     const mk=(key,S,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
 
     // ── スライム ────────────────────────────────
@@ -1381,9 +1403,19 @@ class GameScene extends Phaser.Scene{
         return;
       }
 
-      if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
-      else this.hitEnemy(ed,dmg,isCrit);
-      if(!pierce)bull.destroy();
+      if(pierce){
+        // 貫通弾：同一敵への多重ヒット防止
+        const hitSet=bull.getData('hitSet')||new Set();
+        if(hitSet.has(ed.sprite)){return;} // 既にヒット済みの敵はスキップ
+        hitSet.add(ed.sprite);
+        bull.setData('hitSet',hitSet);
+        if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
+        else this.hitEnemy(ed,dmg,isCrit);
+      }else{
+        if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
+        else this.hitEnemy(ed,dmg,isCrit);
+        bull.destroy();
+      }
     });
     // ドロップ
     this.drops=this.physics.add.staticGroup();
@@ -2078,7 +2110,7 @@ class GameScene extends Phaser.Scene{
         bombZone.setImmovable(true);
 
         // 残り時間テキスト
-        const timeTxt=this.add.text(bx,by-bombSz/2-8,'10s',{fontSize:'10px',fontFamily:'Courier New',color:'#ff6600',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setDepth(6);
+        const timeTxt=this.add.text(bx,by-bombSz/2-6,'10s',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',stroke:'#000000',strokeThickness:3,backgroundColor:'#00000066',padding:{x:3,y:1}}).setOrigin(0.5).setDepth(7);
 
         const bombData={spr:bombSpr,zone:bombZone,txt:timeTxt,exploded:false};
         this._placedBombs.push(bombData);
@@ -2366,7 +2398,7 @@ class GameScene extends Phaser.Scene{
       {key:'atk',label:'力   STR',desc:'ATK +2/pt', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
       {key:'agi',label:'素早 AGI',desc:'回避+3/pt', col:'#2ecc71',apply:(p,n)=>{p.agi=(p.agi||0)+n*3}},
       {key:'mag',label:'魔力 MAG',desc:'MAG +2/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
-      {key:'mhp',label:'体力 VIT',desc:'HP  +9/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp)}},
+      {key:'mhp',label:'体力 VIT',desc:'HP  +9/pt  HP自動回復+0.5/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp);p.vitPts=(p.vitPts||0)+n;}},
       {key:'luk',label:'運   LUK',desc:'CRIT+1/pt', col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
@@ -2448,7 +2480,8 @@ class GameScene extends Phaser.Scene{
     const jbarW=(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
     skadd(this.add.rectangle(PX-(PW-30)/2,ITOP+32,jbarW,10,0x00e5ff).setOrigin(0,0.5));
 
-    const SK_H=(IH-44)/3;
+    const BOT_RESERVED=54; // 確定ボタン用の予約スペース
+    const SK_H=(IH-44-BOT_RESERVED)/3;
     const skVt={}, skAt={}, skCells={};
     defs.forEach((sk,i)=>{
       const y=ITOP+52+i*SK_H+SK_H/2;
@@ -3150,14 +3183,20 @@ class GameScene extends Phaser.Scene{
 
     const cfg={
       normal:   {fs:'18px',sw:3,sc:1.0,toY:65, dur:1400,ease:'Cubic.easeOut',   startSc:1.0},
-      crit:     {fs:'28px',sw:6,sc:0.5,toY:90, dur:1800,ease:'Back.easeOut',    startSc:0.5},
-      skill:    {fs:'24px',sw:5,sc:0.8,toY:80, dur:1600,ease:'Cubic.easeOut',   startSc:0.8},
-      skillcrit:{fs:'32px',sw:7,sc:0.4,toY:100,dur:2000,ease:'Back.easeOut',    startSc:0.4},
+      crit:     {fs:'28px',sw:6,sc:0.5,toY:100,dur:2400,ease:'Back.easeOut',    startSc:0.5},
+      skill:    {fs:'24px',sw:5,sc:0.8,toY:90, dur:2200,ease:'Cubic.easeOut',   startSc:0.8},
+      skillcrit:{fs:'32px',sw:7,sc:0.4,toY:110,dur:2800,ease:'Back.easeOut',    startSc:0.4},
       info:     {fs:'14px',sw:2,sc:1.0,toY:40, dur:1000,ease:'Cubic.easeOut',   startSc:1.0},
     }[type]||{fs:'18px',sw:3,sc:1.0,toY:65,dur:1400,ease:'Cubic.easeOut',startSc:1.0};
 
+    // ダメージ系はArial Bold、情報系はCourier New
+    const isInfo=(type==='info');
+    const fontFamily=isInfo?'Courier New':'Arial Black, Arial Bold, Arial';
+    const fontStyle=isInfo?'normal':'bold';
     const t=this.add.text(x,y,txt,{
-      fontSize:cfg.fs,fontFamily:'Courier New',
+      fontSize:cfg.fs,
+      fontFamily:fontFamily,
+      fontStyle:fontStyle,
       color:col,
       stroke:'#000000',strokeThickness:cfg.sw,
     }).setOrigin(0.5).setDepth(32).setScale(cfg.startSc);
@@ -3243,6 +3282,24 @@ class GameScene extends Phaser.Scene{
     // spaceKey攻撃はPC専用（スマホはボタンで操作）
     if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
+    // HP/SP 自動回復（VIT/INTステータスに依存）
+    if(!this._regenTimer)this._regenTimer=0;
+    this._regenTimer+=dt;
+    if(this._regenTimer>=1.0){ // 1秒ごとに回復
+      this._regenTimer=0;
+      // HP自動回復: VITポイント × 0.5/秒（最低0）
+      const vitRegen=(pd.vitPts||0)*0.5;
+      if(vitRegen>0&&pd.hp<pd.mhp){
+        pd.hp=Math.min(pd.mhp,pd.hp+vitRegen);
+        this.updateHUD();
+      }
+      // SP自動回復: INTポイント × 0.3/秒（最低0）
+      const intRegen=(pd.intPts||0)*0.3;
+      if(intRegen>0&&pd.sp<pd.msp){
+        pd.sp=Math.min(pd.msp,pd.sp+intRegen);
+        this.updateHUD();
+      }
+    }
     // スキルCD（createSkillButtons内のoverlayで処理）
     if(!this.bossSpawned&&this.killCount>=this.cfg.bossThreshold)this.spawnBoss();
     // 弾の距離チェック（maxDist超えたら消去）
