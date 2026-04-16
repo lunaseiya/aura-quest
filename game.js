@@ -1431,7 +1431,7 @@ class GameScene extends Phaser.Scene{
       const ang=this.getFacingAngle();
       this.fireBullet(p.x,p.y,ang,'proj_fireball',{
         spd:320,maxDist:520,
-        dmg:Math.max(1,pd.mag*2+Phaser.Math.Between(0,pd.mag)),
+        dmg:Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag)),
         isCrit:Math.random()*100<calcCrit(pd),
         sz:20,
       });
@@ -1459,7 +1459,7 @@ class GameScene extends Phaser.Scene{
       const dist=60;
       const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
       this.throwBomb(p.x,p.y,tx,ty,{
-        dmg:Math.max(1,pd.atk*2+Phaser.Math.Between(0,pd.atk*2)),
+        dmg:Math.max(1,Math.floor(pd.atk*2)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
         isCrit:Math.random()*100<calcCrit(pd),
         radius:55,
       });
@@ -1615,6 +1615,15 @@ class GameScene extends Phaser.Scene{
     this.player.setVelocity(0,0);
 
     const p=this.player;
+    const cls=this.playerData.cls;
+    // 詠唱中はattack1フレームで静止（spritesheet系のみ）
+    if(cls==='mage'||cls==='archer'||cls==='bomber'){
+      const facing=this._facing||'front';
+      // front=row0(frame3), back=row1(frame8), side=row2(frame13)
+      const atkFrame={front:3,back:8,side:13}[facing]||3;
+      p.anims.stop();
+      p.setTexture('player_'+cls, atkFrame);
+    }
     const BW=80;
     const OY=-p.displayHeight/2-22;
     const hexCol=parseInt(color.replace('#',''),16);
@@ -1704,6 +1713,12 @@ class GameScene extends Phaser.Scene{
             this.tweens.add({targets:o,alpha:0,duration:200,onComplete:()=>{try{o.destroy();}catch(e){}}});
           });
           this._casting=false;
+          // idleアニメに戻す
+          if(cls==='mage'||cls==='archer'||cls==='bomber'){
+            const facing2=this._facing||'front';
+            const idleKey=cls+'_'+facing2+'_idle';
+            if(this.anims.exists(idleKey))p.play(idleKey,true);
+          }
           callback();
         }
       }
@@ -1749,7 +1764,7 @@ class GameScene extends Phaser.Scene{
     if(pd.cls==='warrior'){
       if(num===1){ // 烈風斬
         const range=140*(1+(pd.sk1-1)*0.1);
-        this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,pd.atk*(4+pd.sk1*0.3));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);}});
+        this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,Math.floor(pd.atk*(4+pd.sk1*0.3)));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);}});
         this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);
       }else if(num===2){ // ハードガード
         const dur=20000;
@@ -1812,7 +1827,7 @@ class GameScene extends Phaser.Scene{
           this.time.delayedCall(50,()=>{
             this.enemyDataList.forEach(ed=>{
               if(!ed.dead&&Phaser.Math.Distance.Between(cx,cy,ed.sprite.x,ed.sprite.y)<range){
-                const dmg=Math.max(1,pd.mag*(6+pd.sk1*0.35));
+                const dmg=Math.max(1,Math.floor(pd.mag*(6+pd.sk1*0.35)));
                 this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);
               }
             });
@@ -1886,7 +1901,7 @@ class GameScene extends Phaser.Scene{
         const sz=28+pd.sk3*13;
         const bull=this.fireBullet(p.x,p.y,ang,'proj_vortexball',{
           spd:400,maxDist:700,
-          dmg:Math.max(1,pd.mag*(1.2+pd.sk3*0.1)),
+          dmg:Math.max(1,Math.floor(pd.mag*(1.2+pd.sk3*0.1))),
           isCrit:Math.random()*100<calcCrit(pd),
           sz,
         });
@@ -1905,7 +1920,7 @@ class GameScene extends Phaser.Scene{
         for(let i=-2;i<=2;i++){
           const a=ang+i*0.22;
           const res=rollAttack(pd,0,this._nearestEnemyEva());
-          const dmg=res.miss?0:Math.max(1,pd.atk*(1+pd.sk1*0.25));
+          const dmg=res.miss?0:Math.max(1,Math.floor(pd.atk*(1+pd.sk1*0.25)));
           this.fireBullet(p.x,p.y,a,'proj_arrow',{spd:540,maxDist:600,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
         }
         this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');
@@ -1921,7 +1936,7 @@ class GameScene extends Phaser.Scene{
         for(let i=0;i<shots;i++){
           this.time.delayedCall(i*80,()=>{
             const res=rollAttack(pd,0,this._nearestEnemyEva());
-            const dmg=res.miss?0:Math.max(1,pd.atk*2);
+            const dmg=res.miss?0:Math.max(1,Math.floor(pd.atk*2));
             this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
           });
         }
@@ -1936,7 +1951,7 @@ class GameScene extends Phaser.Scene{
           const a=i/dirs*Math.PI*2;
           const tx=p.x+Math.cos(a)*60,ty=p.y+Math.sin(a)*60;
           this.throwBomb(p.x,p.y,tx,ty,{
-            dmg:Math.max(1,pd.atk*(0.8+pd.sk1*0.15)),
+            dmg:Math.max(1,Math.floor(pd.atk*(0.8+pd.sk1*0.15))),
             isCrit:Math.random()*100<calcCrit(pd),
             radius:40,
           });
@@ -1948,7 +1963,7 @@ class GameScene extends Phaser.Scene{
         const radius=55*(1+pd.sk2*0.12);
         const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
         this.throwBomb(p.x,p.y,tx,ty,{
-          dmg:Math.max(1,pd.atk*(1.5+pd.sk2*0.35)),
+          dmg:Math.max(1,Math.floor(pd.atk*(1.5+pd.sk2*0.35))),
           isCrit:Math.random()*100<calcCrit(pd),
           radius,
         });
@@ -1959,7 +1974,7 @@ class GameScene extends Phaser.Scene{
         const radius=100*(1+pd.sk3*0.2);
         const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
         this.throwBomb(p.x,p.y,tx,ty,{
-          dmg:Math.max(1,pd.atk*(3+pd.sk3*0.8)),
+          dmg:Math.max(1,Math.floor(pd.atk*(3+pd.sk3*0.8))),
           isCrit:Math.random()*100<calcCrit(pd),
           radius,
         });
@@ -2269,7 +2284,7 @@ class GameScene extends Phaser.Scene{
     skadd(this.add.rectangle(PX-(PW-30)/2,ITOP+32,jbarW,10,0x00e5ff).setOrigin(0,0.5));
 
     const SK_H=(IH-44)/3;
-    const skVt={}, skAt={};
+    const skVt={}, skAt={}, skCells={};
     defs.forEach((sk,i)=>{
       const y=ITOP+52+i*SK_H+SK_H/2;
       const curLv=pd[sk.id]||0, maxed=curLv>=sk.maxLv;
@@ -2280,17 +2295,21 @@ class GameScene extends Phaser.Scene{
       skadd(this.add.text(L+4,y-14,['[Q]','[E]','[R]'][i],{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
       skadd(this.add.text(L+36,y-14,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
       skadd(this.add.text(L+4,y+8,sk.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
-      // Lvバー
+      // Lvバー（確定時に更新できるようセルを保持）
       const bW=Math.max(8,Math.floor((PW*0.28)/sk.maxLv)-2);
       const bSX=PX-PW*0.15;
+      const lvCells=[];
       for(let j=0;j<sk.maxLv;j++){
-        skadd(this.add.rectangle(bSX+j*(bW+2),y-14,bW,16,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
+        const cell=skadd(this.add.rectangle(bSX+j*(bW+2),y-14,bW,16,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
+        lvCells.push(cell);
       }
       // Lv数値
       const lvTxt=skadd(this.add.text(PX+PW*0.18,y-14,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'14px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
       // 仮割り振り表示
       const skAddTxt=skadd(this.add.text(PX+PW*0.18,y+8,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
       skVt[sk.id]=lvTxt; skAt[sk.id]=skAddTxt;
+      // セルも保持（確定時にゲージ更新）
+      skCells[sk.id]={cells:lvCells,maxLv:sk.maxLv};
       // ─ / ＋ ボタン（MAXでない場合のみ）
       if(!maxed){
         const sbm=skadd(this.add.rectangle(R-70,y,42,SK_H-10,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
@@ -2324,7 +2343,16 @@ class GameScene extends Phaser.Scene{
         if(n>0){pd[sk.id]=(pd[sk.id]||0)+n;any=true;}
         sktmp[sk.id]=0;
         if(skAt[sk.id])skAt[sk.id].setText('');
-        if(skVt[sk.id]){const lv=pd[sk.id]||0;skVt[sk.id].setText('Lv'+lv+'/'+sk.maxLv);}
+        const newLv=pd[sk.id]||0;
+        // Lv数値を更新
+        if(skVt[sk.id])skVt[sk.id].setText('Lv'+newLv+'/'+sk.maxLv).setColor(newLv>=sk.maxLv?'#ffd700':'#aaaaaa');
+        // Lvバーのセルを更新（確定時に反映）
+        if(skCells[sk.id]){
+          const {cells,maxLv}=skCells[sk.id];
+          cells.forEach((cell,j)=>{
+            if(cell&&cell.active)cell.setFillStyle(j<newLv?0x00e5ff:0x111133);
+          });
+        }
       });
       pd.jobPts=tmpJp;
       refreshJp();
@@ -2744,6 +2772,7 @@ class GameScene extends Phaser.Scene{
     if(ed.dead)return;
     // 凍結中はダメージ1.5倍・解除
     if(ed.frozen){dmg=Math.floor(dmg*1.5);ed.frozen=false;ed.sprite.clearTint();if(ed._iceImg){ed._iceImg.destroy();ed._iceImg=null;}}
+    dmg=Math.floor(dmg); // 小数点以下切り捨て
     ed.hp-=dmg;
     // 攻撃を受けたらaggro（ST1の受動的AI解除）
     ed.aggro=true;
