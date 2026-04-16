@@ -1341,9 +1341,46 @@ class GameScene extends Phaser.Scene{
       const ed=this.enemyDataList.find(e=>e.sprite===enemySp&&!e.dead);
       if(!ed)return;
       const pierce=bull.getData('pierce')||false;
-      if(!pierce)bull.setData('dead',true);
+      const bowling=bull.getData('bowling')||false;
+      if(!pierce&&!bowling)bull.setData('dead',true);
       const dmg=bull.getData('dmg')||1;
       const isCrit=bull.getData('isCrit')||false;
+
+      if(bowling){
+        // ボーリングボムス: 着弾位置で6方向クラスター爆撃
+        const bx=ed.sprite.x, by=ed.sprite.y;
+        const bDmg=bull.getData('bowlingDmg')||1;
+        const bR=bull.getData('bowlingRadius')||40;
+        const bCrit=bull.getData('bowlingCrit')||false;
+        bull.setData('dead',true);
+        bull.destroy();
+        // 着弾エフェクト（小爆発）
+        const fl=this.add.circle(bx,by,20,0xff6600,0.9).setDepth(25);
+        this.tweens.add({targets:fl,alpha:0,scaleX:3,scaleY:3,duration:250,onComplete:()=>fl.destroy()});
+        // 6方向クラスター爆発
+        for(let i=0;i<6;i++){
+          const a=i/6*Math.PI*2;
+          const ex=bx+Math.cos(a)*bR, ey=by+Math.sin(a)*bR;
+          this.time.delayedCall(i*40,()=>{
+            // 各方向の爆発エフェクト
+            const dot=this.add.circle(bx,by,8,0xffcc00,1.0).setDepth(24);
+            this.tweens.add({targets:dot,x:ex,y:ey,alpha:0,scaleX:0.5,scaleY:0.5,duration:200,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+            const expl=this.add.circle(ex,ey,bR*0.4,0xff6600,0.7).setDepth(24);
+            this.tweens.add({targets:expl,alpha:0,scaleX:2,scaleY:2,duration:250,onComplete:()=>expl.destroy()});
+            // 範囲ダメージ
+            this.enemyDataList.forEach(e2=>{
+              if(e2.dead)return;
+              if(Phaser.Math.Distance.Between(ex,ey,e2.sprite.x,e2.sprite.y)<bR){
+                this.hitEnemy(e2,bDmg,bCrit,true);
+              }
+            });
+          });
+        }
+        SE('explode');
+        this.cameras.main.shake(200,0.008);
+        return;
+      }
+
       if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
       else this.hitEnemy(ed,dmg,isCrit);
       if(!pierce)bull.destroy();
@@ -1519,20 +1556,49 @@ class GameScene extends Phaser.Scene{
       y:{value:ty,duration:320,ease:'Quad.easeIn'},
       onComplete:()=>{
         bomb.destroy();
-        // 爆発エフェクト
-        const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(80,80).setDepth(15);
-        this.tweens.add({targets:exp,alpha:0,scaleX:2,scaleY:2,duration:350,onComplete:()=>exp.destroy()});
+        const R=opt.radius;
+        if(opt.isHyper){
+          // ── ハイパーボム専用エフェクト（攻撃範囲と一致）──
+          // 中心フラッシュ
+          const fl=this.add.circle(tx,ty,R*0.4,0xffffff,1.0).setDepth(26);
+          this.tweens.add({targets:fl,alpha:0,scaleX:0.1,scaleY:0.1,duration:200,onComplete:()=>fl.destroy()});
+          // メインリング（攻撃範囲と完全一致）
+          const r1=this.add.circle(tx,ty,8,0xff6600,0).setStrokeStyle(7,0xff6600,1.0).setDepth(25);
+          this.tweens.add({targets:r1,scaleX:R/8,scaleY:R/8,alpha:0,duration:600,ease:'Cubic.easeOut',onComplete:()=>r1.destroy()});
+          // 外リング
+          const r2=this.add.circle(tx,ty,8,0xffcc00,0).setStrokeStyle(4,0xffcc00,0.8).setDepth(24);
+          this.tweens.add({targets:r2,scaleX:R*1.08/8,scaleY:R*1.08/8,alpha:0,duration:750,ease:'Cubic.easeOut',delay:60,onComplete:()=>r2.destroy()});
+          // 内リング
+          const r3=this.add.circle(tx,ty,8,0xffffff,0).setStrokeStyle(5,0xffffff,0.9).setDepth(26);
+          this.tweens.add({targets:r3,scaleX:R*0.5/8,scaleY:R*0.5/8,alpha:0,duration:300,ease:'Cubic.easeOut',onComplete:()=>r3.destroy()});
+          // 大量パーティクル（20粒・範囲全体）
+          const pcols=[0xff6600,0xffcc00,0xff2200,0xffffff,0xff8800];
+          for(let i=0;i<20;i++){
+            const a=(i/20)*Math.PI*2+(Math.random()-0.5)*0.3;
+            const dist=R*(0.2+Math.random()*0.85);
+            const sz=Phaser.Math.Between(6,16);
+            const dot=this.add.circle(tx,ty,sz,pcols[i%pcols.length],1.0).setDepth(25);
+            this.tweens.add({targets:dot,x:tx+Math.cos(a)*dist,y:ty+Math.sin(a)*dist,alpha:0,scaleX:0.1,scaleY:0.1,duration:Phaser.Math.Between(400,800),ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+          }
+          // 爆発画像も大きく
+          const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(R,R).setDepth(24);
+          this.tweens.add({targets:exp,alpha:0,scaleX:1.5,scaleY:1.5,duration:400,onComplete:()=>exp.destroy()});
+        }else{
+          // 通常爆弾エフェクト
+          const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(80,80).setDepth(15);
+          this.tweens.add({targets:exp,alpha:0,scaleX:2,scaleY:2,duration:350,onComplete:()=>exp.destroy()});
+        }
         // 範囲ダメージ
         this.enemyDataList.forEach(ed=>{
           if(ed.dead)return;
           const d=Phaser.Math.Distance.Between(tx,ty,ed.sprite.x,ed.sprite.y);
-          if(d<=opt.radius){
-            const decay=1-d/opt.radius*0.6;
+          if(d<=R){
+            const decay=1-d/R*0.6;
             const dmg=Math.max(1,Math.floor(opt.dmg*decay));
             this.hitEnemy(ed,dmg,opt.isCrit,opt.isSkill||false);
           }
         });
-        this.cameras.main.shake(200,0.008);
+        this.cameras.main.shake(opt.isHyper?400:200,opt.isHyper?0.02:0.008);
       }
     });
   }
@@ -1558,8 +1624,8 @@ class GameScene extends Phaser.Scene{
         {id:'sk3',name:'バルカン',  cost:30,cd:3,  desc:'前方に6連射'},
       ],
       bomber:[
-        {id:'sk1',name:'大爆弾',    cost:25,cd:2.5,desc:'範囲100pxの巨大爆弾'},
-        {id:'sk2',name:'クラスター',cost:20,cd:3,  desc:'4方向に子爆弾'},
+        {id:'sk1',name:'設置爆弾', cost:5, cd:0,  desc:'最大3個設置・敵接触で爆破'},
+        {id:'sk2',name:'ボーリングボムス',cost:20,cd:3,  desc:'直線貫通→着弾で6方向爆撃'},
         {id:'sk3',name:'ハイパーボム',cost:35,cd:4,desc:'超巨大爆弾・範囲150px'}
       ],
     }[this.playerData.cls]||[];
@@ -1741,6 +1807,40 @@ class GameScene extends Phaser.Scene{
     const agi=this.playerData.agi||0;
     const reduction=Math.min(0.5,agi*0.008);
     return baseSec*(1-reduction);
+  }
+
+  _explodePlacedBomb(bombData,bx,by,dmg,isCrit,sz){
+    if(bombData.exploded)return;
+    bombData.exploded=true;
+    if(bombData.checkTimer)bombData.checkTimer.remove();
+    // オブジェクト削除
+    [bombData.spr,bombData.zone,bombData.txt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+    // _placedBombsから削除
+    if(this._placedBombs){
+      this._placedBombs=this._placedBombs.filter(b=>b!==bombData);
+    }
+    // 爆発エフェクト
+    const fl=this.add.circle(bx,by,sz*0.4,0xffffff,0.9).setDepth(26);
+    this.tweens.add({targets:fl,alpha:0,scaleX:3,scaleY:3,duration:200,onComplete:()=>fl.destroy()});
+    const ring=this.add.circle(bx,by,8,0xff6600,0).setStrokeStyle(5,0xff6600,1.0).setDepth(25);
+    this.tweens.add({targets:ring,scaleX:sz/8,scaleY:sz/8,alpha:0,duration:400,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});
+    const exp=this.add.image(bx,by,'fx_explosion').setDisplaySize(sz,sz).setDepth(24);
+    this.tweens.add({targets:exp,alpha:0,scaleX:1.8,scaleY:1.8,duration:350,onComplete:()=>exp.destroy()});
+    // パーティクル
+    for(let i=0;i<8;i++){
+      const a=(i/8)*Math.PI*2,dist=sz*(0.3+Math.random()*0.5);
+      const dot=this.add.circle(bx,by,Phaser.Math.Between(4,10),i%2===0?0xff6600:0xffcc00,1.0).setDepth(25);
+      this.tweens.add({targets:dot,x:bx+Math.cos(a)*dist,y:by+Math.sin(a)*dist,alpha:0,scaleX:0.1,scaleY:0.1,duration:350,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+    }
+    // ダメージ判定（sz半径）
+    this.enemyDataList.forEach(ed=>{
+      if(ed.dead)return;
+      if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<sz/2+ed.sprite.displayWidth/3){
+        this.hitEnemy(ed,dmg,isCrit,true);
+      }
+    });
+    SE('explode');
+    this.cameras.main.shake(150,0.006);
   }
 
   _nearestEnemyEva(){
@@ -1952,29 +2052,86 @@ class GameScene extends Phaser.Scene{
     }
     // ─ ボマー ─
     else if(pd.cls==='bomber'){
-      if(num===1){ // クラスター爆弾（sk1）: 6方向 投擲60px 半径40px
-        const dirs=6;
-        for(let i=0;i<dirs;i++){
-          const a=i/dirs*Math.PI*2;
-          const tx=p.x+Math.cos(a)*60,ty=p.y+Math.sin(a)*60;
-          this.throwBomb(p.x,p.y,tx,ty,{
-            dmg:Math.max(1,Math.floor(pd.atk*(0.8+pd.sk1*0.15))),
-            isCrit:Math.random()*100<calcCrit(pd),
-            radius:40,
-          });
+      if(num===1){ // 設置爆弾: 最大3個、敵接触で爆破、10秒自動爆破
+        if(!this._placedBombs)this._placedBombs=[];
+        // 最大3個制限
+        if(this._placedBombs.length>=3){
+          this.showFloat(p.x,p.y-50,'最大3個まで','#888888','info');
+          return; // CDとSPを消費しないで終了
         }
-        this.showFloat(p.x,p.y-60,'💥 クラスター！','#f39c12');
-        this.playBomberAtk();
-      }else if(num===2){ // 大爆弾（sk2）: 投擲100px 半径55×(1+Lv×0.12)
-        const ang=this.getFacingAngle();
-        const radius=55*(1+pd.sk2*0.12);
-        const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
-        this.throwBomb(p.x,p.y,tx,ty,{
-          dmg:Math.max(1,Math.floor(pd.atk*(1.5+pd.sk2*0.35))),
-          isCrit:Math.random()*100<calcCrit(pd),
-          radius,
+        // サイズ: Lv1=30px, Lv10=75px（Lvに応じて当たり判定UP）
+        const bombSz=30+pd.sk1*4.5;
+        const bombDmg=Math.max(1,Math.floor(pd.atk*2+Phaser.Math.Between(0,pd.atk)));
+        const bombCrit=Math.random()*100<calcCrit(pd);
+
+        // 設置位置（プレイヤーの足元）
+        const bx=p.x, by=p.y;
+
+        // 爆弾スプライト（静的）
+        const bombSpr=this.add.image(bx,by,'proj_bomb').setDisplaySize(bombSz,bombSz).setDepth(5);
+        // 点滅アニメ（危険感）
+        this.tweens.add({targets:bombSpr,alpha:0.4,duration:400,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+        // 当たり判定用ゾーン（physicsボディ）
+        const bombZone=this.physics.add.image(bx,by,'proj_bomb').setDisplaySize(bombSz,bombSz).setDepth(5).setAlpha(0);
+        bombZone.body.setSize(bombSz,bombSz);
+        bombZone.body.allowGravity=false;
+        bombZone.setImmovable(true);
+
+        // 残り時間テキスト
+        const timeTxt=this.add.text(bx,by-bombSz/2-8,'10s',{fontSize:'10px',fontFamily:'Courier New',color:'#ff6600',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setDepth(6);
+
+        const bombData={spr:bombSpr,zone:bombZone,txt:timeTxt,exploded:false};
+        this._placedBombs.push(bombData);
+
+        let elapsed=0;
+        // 敵との接触判定（update内で処理）
+        bombData.checkTimer=this.time.addEvent({
+          delay:100,loop:true,
+          callback:()=>{
+            if(bombData.exploded)return;
+            elapsed+=0.1;
+            const remain=Math.max(0,10-elapsed);
+            if(timeTxt.active)timeTxt.setText(remain.toFixed(1)+'s');
+            // 敵との距離チェック
+            let hit=false;
+            this.enemyDataList.forEach(ed=>{
+              if(ed.dead||hit)return;
+              if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<bombSz/2+ed.sprite.displayWidth/2){
+                hit=true;
+              }
+            });
+            if(hit||elapsed>=10){
+              this._explodePlacedBomb(bombData,bx,by,bombDmg,bombCrit,bombSz);
+            }
+          }
         });
-        this.showFloat(p.x,p.y-60,'💣 大爆弾！','#f39c12');
+
+        this.showFloat(p.x,p.y-50,'💣 設置！','#f39c12','info');
+        this.playBomberAtk();
+        // CDなし・SPのみ消費（CDを0にしておく）
+        this[cdKey]=0;
+      }else if(num===2){ // ボーリングボムス: 直線貫通弾→着弾で6方向クラスター爆撃
+        const ang=this.getFacingAngle();
+        // 直線上に飛ぶ貫通弾（敵または最大距離400pxで爆発）
+        const clusterDmg=(sk1Lv)=>Math.max(1,Math.floor(pd.atk*(0.8+sk1Lv*0.15)));
+        const clusterRadius=40;
+        const maxDist=400+pd.sk2*30; // スキルLvで射程UP
+
+        // 弾を発射（貫通・最初の敵ヒットで爆発）
+        const bball=this.fireBullet(p.x,p.y,ang,'proj_bomb',{
+          spd:500,maxDist,
+          dmg:0, // 本体ダメージなし（着弾時に爆発）
+          isCrit:false,sz:18,
+        });
+        bball.setData('pierce',false); // 最初の敵ヒットで停止
+        bball.setData('bowling',true); // ボーリングフラグ
+        bball.setData('bowlingAng',ang);
+        bball.setData('bowlingDmg',clusterDmg(pd.sk1));
+        bball.setData('bowlingRadius',clusterRadius);
+        bball.setData('bowlingCrit',Math.random()*100<calcCrit(pd));
+        // 回転エフェクト
+        this.tweens.add({targets:bball,angle:360,duration:300,repeat:-1,ease:'Linear'});
+        this.showFloat(p.x,p.y-60,'🎳 ボーリングボムス！','#f39c12','skill');
         this.playBomberAtk();
       }else if(num===3){ // ハイパーボム（sk3）: 投擲100px 半径100×(1+Lv×0.2)
         const ang=this.getFacingAngle();
@@ -1984,8 +2141,9 @@ class GameScene extends Phaser.Scene{
           dmg:Math.max(1,Math.floor(pd.atk*(3+pd.sk3*0.8))),
           isCrit:Math.random()*100<calcCrit(pd),
           radius,
+          isHyper:true, // ハイパーボムフラグ
         });
-        this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600');
+        this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600','skill');
         this.cameras.main.shake(500,0.025);
         this.playBomberAtk();
       }
@@ -3021,6 +3179,14 @@ class GameScene extends Phaser.Scene{
     stopBGM();
     // 詠唱キャンセル
     if(this._castTimer){try{this._castTimer.remove();}catch(e){}}
+    // 設置爆弾クリア
+    if(this._placedBombs){
+      this._placedBombs.forEach(b=>{
+        if(b.checkTimer)b.checkTimer.remove();
+        [b.spr,b.zone,b.txt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+      });
+      this._placedBombs=[];
+    }
     if(this._castAuraObjs){
       this._castAuraObjs.forEach(o=>{try{if(o.active)o.destroy();}catch(e){}});
       this._castAuraObjs=null;
@@ -3086,7 +3252,23 @@ class GameScene extends Phaser.Scene{
       const cur=b.getData('dist')||0;
       const nd=cur+Math.sqrt(vx*vx+vy*vy)*dt;
       b.setData('dist',nd);
-      if(nd>b.getData('maxDist'))b.destroy();
+      if(nd>b.getData('maxDist')){
+        if(b.getData('bowling')){
+          const bx=b.x,by=b.y,bDmg=b.getData('bowlingDmg')||1,bR=b.getData('bowlingRadius')||40,bCrit=b.getData('bowlingCrit')||false;
+          b.destroy();
+          for(let i=0;i<6;i++){
+            const a=i/6*Math.PI*2,ex=bx+Math.cos(a)*bR,ey=by+Math.sin(a)*bR;
+            this.time.delayedCall(i*40,()=>{
+              const dot=this.add.circle(bx,by,8,0xffcc00,1.0).setDepth(24);
+              this.tweens.add({targets:dot,x:ex,y:ey,alpha:0,scaleX:0.5,scaleY:0.5,duration:200,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+              const expl=this.add.circle(ex,ey,bR*0.4,0xff6600,0.7).setDepth(24);
+              this.tweens.add({targets:expl,alpha:0,scaleX:2,scaleY:2,duration:250,onComplete:()=>expl.destroy()});
+              this.enemyDataList.forEach(e2=>{if(!e2.dead&&Phaser.Math.Distance.Between(ex,ey,e2.sprite.x,e2.sprite.y)<bR)this.hitEnemy(e2,bDmg,bCrit,true);});
+            });
+          }
+          SE('explode');
+        }else{b.destroy();}
+      }
     });
     // 敵AI（凍結・ノックバック・受動/能動）
     this.enemyDataList.forEach(ed=>{
