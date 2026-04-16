@@ -1107,7 +1107,7 @@ class ClassSelectScene extends Phaser.Scene{
     this.add.text(w/2,36,'⚔ 職業を選ぼう ⚔',{fontSize:'24px',fontFamily:'Courier New',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
     const classes=[
       {key:'warrior',name:'剣士',      desc:'近接・高耐久\nパリィ・烈風斬',   col:0xe74c3c,x:-180,y:-60},
-      {key:'mage',   name:'マジャン',  desc:'広範囲魔法\n凍結・大爆発',       col:0x9b59b6,x:180,y:-60},
+      {key:'mage',   name:'マジシャン',  desc:'広範囲魔法\n凍結・大爆発',       col:0x9b59b6,x:180,y:-60},
       {key:'archer', name:'アーチャー',desc:'高速遠距離\n多方向射撃',         col:0x27ae60,x:-180,y:80},
       {key:'bomber', name:'ボマー',    desc:'爆弾投擲\n範囲爆発',             col:0xf39c12,x:180,y:80},
     ];
@@ -1204,7 +1204,7 @@ class GameClearScene extends Phaser.Scene{
     this.tweens.add({targets:t1,alpha:1,duration:800,delay:200});
     const panel=this.add.rectangle(w/2,h*0.56,400,240,0x0a1428,0.95).setAlpha(0).setStrokeStyle(2,0xffd700);
     this.tweens.add({targets:panel,alpha:1,duration:600,delay:600});
-    const cls={warrior:'剣士',mage:'マジャン',archer:'アーチャー',bomber:'ボマー'}[pd.cls]||pd.cls;
+    const cls={warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'}[pd.cls]||pd.cls;
     const scores=[['職業',cls],['最終Lv','Lv '+pd.lv],['ATK/DEF/MAG',pd.atk+'/'+pd.def+'/'+pd.mag],['討伐数',pd.kills+'体'],['獲得Gold',pd.gold+'G']];
     scores.forEach(([k,v],i)=>{
       const y=h*0.41+i*32;
@@ -1333,7 +1333,11 @@ class GameScene extends Phaser.Scene{
     }
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
-    this.player=this.physics.add.sprite(200,MH/2,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
+    // fromPortal:'next'→右端近く, 'back'→左端近く, なし→デフォルト左端
+    const fromPortal=data.fromPortal||null;
+    const spawnX=fromPortal==='next'?(MW-160):200;
+    const spawnY=MH/2;
+    this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
     this._facing='front';  // 共通向き管理
     this._facingFlip=false;
     // スプライトシートキャラのアニメ初期再生
@@ -1941,7 +1945,7 @@ class GameScene extends Phaser.Scene{
         this.showBuffTimer('✨ パリィ','#ffd700',20000);
       }
     }
-    // ─ マジャン ─
+    // ─ マジシャン ─
     else if(pd.cls==='mage'){
       if(num===1){ // 大爆発（詠唱3秒）
         this._startCast('🔮 大爆発',3,()=>{
@@ -2087,9 +2091,20 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');
       }else if(num===2){ // グロリアスショット（クリ率UP）
         const dur=20000;
-        pd._gloryLuk=pd.luk; pd.luk*=5;
+        // 既に発動中なら先に解除してから再適用（重複防止）
+        if(pd._gloryActive){
+          pd.luk=pd._gloryBaseLuk;
+          if(this._gloryTimer){this._gloryTimer.remove();this._gloryTimer=null;}
+        }
+        pd._gloryBaseLuk=pd.luk; // 元のlukを保存
+        pd._gloryActive=true;
+        pd.luk=Math.floor(pd.luk*5);
         this.showFloat(p.x,p.y-60,'✨ グロリアスショット！','#ffd700');
-        this.time.delayedCall(dur,()=>{pd.luk=pd._gloryLuk;});
+        this._gloryTimer=this.time.delayedCall(dur,()=>{
+          pd.luk=pd._gloryBaseLuk; // 確実に元の値に戻す
+          pd._gloryActive=false;
+          this._gloryTimer=null;
+        });
         this.showBuffTimer('⭐ グロリアスショット','#ffd700',dur);
       }else if(num===3){ // バルカンショット（連射）
         const shots=2+pd.sk3;
@@ -2419,7 +2434,7 @@ class GameScene extends Phaser.Scene{
     const S=[
       {key:'atk',label:'力   STR',desc:'ATK +2/pt', col:'#e74c3c',apply:(p,n)=>{p.atk+=n*2}},
       {key:'agi',label:'素早 AGI',desc:'回避+3/pt', col:'#2ecc71',apply:(p,n)=>{p.agi=(p.agi||0)+n*3}},
-      {key:'mag',label:'魔力 MAG',desc:'MAG +2/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2}},
+      {key:'mag',label:'魔力 MAG',desc:'MAG+2 SP回復+0.3/pt', col:'#9b59b6',apply:(p,n)=>{p.mag+=n*2;p.intPts=(p.intPts||0)+n;}},
       {key:'mhp',label:'体力 VIT',desc:'HP+9 回復+0.5/pt', col:'#27ae60',apply:(p,n)=>{p.mhp+=n*9;p.hp=Math.min(p.hp+n*9,p.mhp);p.vitPts=(p.vitPts||0)+n;}},
       {key:'luk',label:'運   LUK',desc:'CRIT+1/pt', col:'#f39c12',apply:(p,n)=>{p.luk+=n}},
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
@@ -2436,22 +2451,31 @@ class GameScene extends Phaser.Scene{
     const vt={}, at={};
     S.forEach((s,i)=>{
       const y=ITOP+40+i*ROW_H+ROW_H/2;
+      // PW基準の相対レイアウト（スマホ対応）
+      const btnW=Math.min(44,PW*0.08);
+      const lblX=L+4;
+      const descX=L+PW*0.22;
+      const curX=L+PW*0.62;
+      const addX=L+PW*0.72;
+      const bpX=R-btnW/2-4;
+      const bmX=R-btnW*1.5-10;
+      const fs=Math.max(11,Math.min(14,PW*0.022));
       // 行背景
       sadd(this.add.rectangle(PX,y,PW-20,ROW_H-3,0x0d1a2e,0.6).setStrokeStyle(1,0x223344));
       // ラベル
-      sadd(this.add.text(L+4,y,s.label,{fontSize:'16px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5));
+      sadd(this.add.text(lblX,y,s.label,{fontSize:fs+'px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5));
       // 説明
-      sadd(this.add.text(L+130,y,s.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#555566'}).setOrigin(0,0.5));
+      sadd(this.add.text(descX,y,s.desc,{fontSize:Math.max(10,fs-2)+'px',fontFamily:'Courier New',color:'#555566'}).setOrigin(0,0.5));
       // 現在値
-      const cur=sadd(this.add.text(L+280,y,svStr(s.key),{fontSize:'18px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5));
+      const cur=sadd(this.add.text(curX,y,svStr(s.key),{fontSize:fs+'px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5));
       // 仮割り振り表示
-      const addTxt=sadd(this.add.text(L+330,y,'',{fontSize:'16px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5));
+      const addTxt=sadd(this.add.text(addX,y,'',{fontSize:fs+'px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5));
       // ─ ボタン
-      const bm=sadd(this.add.rectangle(R-70,y,42,ROW_H-8,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
-      sadd(this.add.text(R-70,y,'－',{fontSize:'20px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+      const bm=sadd(this.add.rectangle(bmX,y,btnW,ROW_H-8,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
+      sadd(this.add.text(bmX,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
       // ＋ ボタン
-      const bp=sadd(this.add.rectangle(R-20,y,42,ROW_H-8,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
-      sadd(this.add.text(R-20,y,'＋',{fontSize:'20px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
+      const bp=sadd(this.add.rectangle(bpX,y,btnW,ROW_H-8,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+      sadd(this.add.text(bpX,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
       const adj=(dir)=>{
         const n=stmp[s.key]||0;
         if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
@@ -2511,22 +2535,33 @@ class GameScene extends Phaser.Scene{
       const acol=curLv>0?0x00e5ff:0x556677;
       // 行背景
       skadd(this.add.rectangle(PX,y,PW-20,SK_H-4,0x0a1525,0.7).setStrokeStyle(2,acol));
-      // キー・名前・説明
-      skadd(this.add.text(L+4,y-14,['[Q]','[E]','[R]'][i],{fontSize:'12px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
-      skadd(this.add.text(L+36,y-14,sk.name,{fontSize:'16px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
-      skadd(this.add.text(L+4,y+8,sk.desc,{fontSize:'13px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
-      // Lvバー（確定時に更新できるようセルを保持）
-      const bW=Math.max(8,Math.floor((PW*0.28)/sk.maxLv)-2);
-      const bSX=PX-PW*0.15;
+
+      // レイアウト定数（パネル幅基準）
+      const btnAreaW=92;           // 右端の±ボタンエリア幅
+      const lvTxtW=64;             // Lv表示幅
+      const barAreaR=R-btnAreaW-lvTxtW; // バー右端
+      const barAreaL=L+4;          // バー左端
+      const barTotalW=barAreaR-barAreaL-8; // バー全体幅
+
+      // キー・スキル名（左上）
+      skadd(this.add.text(L+4,y-SK_H*0.22,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
+      skadd(this.add.text(L+28,y-SK_H*0.22,sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
+      // 説明（左下）
+      skadd(this.add.text(L+4,y+SK_H*0.18,sk.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
+
+      // Lvバー（バー全体幅÷maxLvで均等分割）
+      const bW=Math.max(4,Math.floor(barTotalW/sk.maxLv)-2);
+      const bSX=barAreaL;
       const lvCells=[];
       for(let j=0;j<sk.maxLv;j++){
-        const cell=skadd(this.add.rectangle(bSX+j*(bW+2),y-14,bW,16,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
+        const cell=skadd(this.add.rectangle(bSX+j*(bW+2),y,bW,10,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
         lvCells.push(cell);
       }
-      // Lv数値
-      const lvTxt=skadd(this.add.text(PX+PW*0.18,y-14,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'14px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
+      // Lv数値（バー右）
+      const lvTxtX=barAreaR+lvTxtW/2;
+      const lvTxt=skadd(this.add.text(lvTxtX,y,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'12px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
       // 仮割り振り表示
-      const skAddTxt=skadd(this.add.text(PX+PW*0.18,y+8,'',{fontSize:'14px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
+      const skAddTxt=skadd(this.add.text(lvTxtX,y+SK_H*0.2,'',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
       skVt[sk.id]=lvTxt; skAt[sk.id]=skAddTxt;
       // セルも保持（確定時にゲージ更新）
       skCells[sk.id]={cells:lvCells,maxLv:sk.maxLv};
@@ -2663,10 +2698,20 @@ class GameScene extends Phaser.Scene{
     btn.on('pointerover',()=>{btn.setFillStyle(0x334455,0.9);txt.setColor('#aabbcc');});
     btn.on('pointerout', ()=>{btn.setFillStyle(0x223344,0.75);txt.setColor('#8899aa');});
     btn.on('pointerdown',()=>{
-      stopBGM();
-      this.physics.pause();
-      this.tweens.killAll();
-      this.scene.start('Title');
+      // 確認ダイアログ
+      const W=this.scale.width,H=this.scale.height;
+      const ov=this.add.rectangle(W/2,H/2,W,H,0x000000,0.7).setScrollFactor(0).setDepth(90).setInteractive();
+      const ttl=this.add.text(W/2,H/2-40,'タイトルに戻りますか？',{fontSize:'20px',fontFamily:'Courier New',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(91);
+      const sub=this.add.text(W/2,H/2-10,'キャラクター情報は保存されません',{fontSize:'13px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(91);
+      const btnY=this.add.rectangle(W/2-70,H/2+30,120,36,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setScrollFactor(0).setDepth(91).setInteractive({useHandCursor:true});
+      this.add.text(W/2-70,H/2+30,'はい',{fontSize:'16px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+      const btnN=this.add.rectangle(W/2+70,H/2+30,120,36,0x44aaff,0.3).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(91).setInteractive({useHandCursor:true});
+      this.add.text(W/2+70,H/2+30,'いいえ',{fontSize:'16px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+      const dismiss=()=>[ov,ttl,sub,btnY,btnN].forEach(o=>{try{o.destroy();}catch(e){}});
+      btnY.on('pointerdown',()=>{dismiss();stopBGM();this.physics.pause();this.tweens.killAll();this.scene.start('Title');});
+      btnN.on('pointerdown',()=>dismiss());
+      btnY.on('pointerover',()=>btnY.setFillStyle(0xe74c3c,0.6));btnY.on('pointerout',()=>btnY.setFillStyle(0xe74c3c,0.3));
+      btnN.on('pointerover',()=>btnN.setFillStyle(0x44aaff,0.6));btnN.on('pointerout',()=>btnN.setFillStyle(0x44aaff,0.3));
     });
   }
 
@@ -3487,7 +3532,7 @@ class GameScene extends Phaser.Scene{
       if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined&&
          Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<70){
         this._transitioning=true;
-        this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack});
+        this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'}); // 戻る→到着先の右端近くにスポーン
         return;
       }
       // 進むポータル（右端）
@@ -3495,7 +3540,7 @@ class GameScene extends Phaser.Scene{
          Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<70){
         this._transitioning=true;
         const nextScene=(!this.cfg.portalTo)?'GameClear':'Game';
-        const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to};
+        const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to,fromPortal:'back'}; // 進む→到着先の左端近くにスポーン
         this._doTransition(nextScene,nextData);
         return;
       }
