@@ -340,6 +340,7 @@ function startBGM(key){
   // MP3があればMP3を優先
   const file=BGM_FILES[key];
   if(file){
+    if(muted)return; // ミュート中は再生しない
     const audio=new Audio(file);
     audio.loop=true; audio.volume=0.5;
     audio.play().catch(()=>{});
@@ -1009,12 +1010,15 @@ class TitleScene extends Phaser.Scene{
   create(){
     const w=this.scale.width,h=this.scale.height;
     // ローカルストレージからミュート設定を復元
-    try{const v=localStorage.getItem('aq_muted');if(v==='1')muted=true;}catch(e){}
-    // BGM確認ダイアログ（初回 or ミュートでない場合）
-    if(!muted){
+    let _savedMute=null;
+    try{_savedMute=localStorage.getItem('aq_muted');}catch(e){}
+    if(_savedMute==='1'){muted=true;}
+    else if(_savedMute==='0'){muted=false;}
+    // BGM確認ダイアログは初回のみ（aq_mutedが未設定の場合のみ表示）
+    if(_savedMute===null){
       const overlay=this.add.rectangle(w/2,h/2,w,h,0x000000,0.92).setOrigin(0.5).setDepth(100);
       const title=this.add.text(w/2,h/2-60,'🎵 BGMを流しますか？',{fontSize:'20px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setDepth(101);
-      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は端末の音量をOFFにしてください）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
+      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は🔇ボタンで消音できます）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
       const btnY=this.add.rectangle(w/2-80,h/2+30,160,40,0x2ecc71,0.3).setStrokeStyle(2,0x2ecc71).setDepth(101).setInteractive({useHandCursor:true});
       this.add.text(w/2-80,h/2+30,'🔊 BGMあり',{fontSize:'15px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setDepth(102);
       const btnN=this.add.rectangle(w/2+80,h/2+30,160,40,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setDepth(101).setInteractive({useHandCursor:true});
@@ -1058,12 +1062,15 @@ class ClassSelectScene extends Phaser.Scene{
   create(){
     const w=this.scale.width,h=this.scale.height;
     // ローカルストレージからミュート設定を復元
-    try{const v=localStorage.getItem('aq_muted');if(v==='1')muted=true;}catch(e){}
-    // BGM確認ダイアログ（初回 or ミュートでない場合）
-    if(!muted){
+    let _savedMute=null;
+    try{_savedMute=localStorage.getItem('aq_muted');}catch(e){}
+    if(_savedMute==='1'){muted=true;}
+    else if(_savedMute==='0'){muted=false;}
+    // BGM確認ダイアログは初回のみ（aq_mutedが未設定の場合のみ表示）
+    if(_savedMute===null){
       const overlay=this.add.rectangle(w/2,h/2,w,h,0x000000,0.92).setOrigin(0.5).setDepth(100);
       const title=this.add.text(w/2,h/2-60,'🎵 BGMを流しますか？',{fontSize:'20px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setDepth(101);
-      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は端末の音量をOFFにしてください）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
+      const sub=this.add.text(w/2,h/2-24,'（マナーモード中は🔇ボタンで消音できます）',{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa',wordWrap:{width:500}}).setOrigin(0.5).setDepth(101);
       const btnY=this.add.rectangle(w/2-80,h/2+30,160,40,0x2ecc71,0.3).setStrokeStyle(2,0x2ecc71).setDepth(101).setInteractive({useHandCursor:true});
       this.add.text(w/2-80,h/2+30,'🔊 BGMあり',{fontSize:'15px',fontFamily:'Courier New',color:'#2ecc71'}).setOrigin(0.5).setDepth(102);
       const btnN=this.add.rectangle(w/2+80,h/2+30,160,40,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setDepth(101).setInteractive({useHandCursor:true});
@@ -1459,7 +1466,7 @@ class GameScene extends Phaser.Scene{
       const dist=60;
       const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
       this.throwBomb(p.x,p.y,tx,ty,{
-        dmg:Math.max(1,Math.floor(pd.atk*2)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
+        dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
         isCrit:Math.random()*100<calcCrit(pd),
         radius:55,
       });
@@ -1508,8 +1515,8 @@ class GameScene extends Phaser.Scene{
     const bomb=this.add.image(sx,sy,'proj_bomb').setDisplaySize(20,20).setDepth(7);
     this.tweens.add({
       targets:bomb,
-      x:{value:tx,duration:500,ease:'Linear'},
-      y:{value:ty,duration:500,ease:'Quad.easeIn'},
+      x:{value:tx,duration:320,ease:'Linear'},
+      y:{value:ty,duration:320,ease:'Quad.easeIn'},
       onComplete:()=>{
         bomb.destroy();
         // 爆発エフェクト
