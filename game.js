@@ -3904,34 +3904,39 @@ class GameScene extends Phaser.Scene{
     const ptsTxt=sadd(this.add.text(PX,ITOP+10,'残りポイント: '+tmpPts+'pt',{fontSize:'14px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
     const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
 
-    // 縦3×横2グリッドレイアウト（上に詰める）
+    // 縦3×横2グリッドレイアウト（IHをフル活用）
     const SCOLS=2, SROWS=3;
     const CELL_W=(PW-20)/SCOLS;
-    const CELL_H=(IH-20-BOT_H)/SROWS; // ボタン1行分のみ確保
+    const CELL_H=(IH-22)/SROWS; // 上部テキスト分のみ引く
     const vt={}, at={};
     S.forEach((s,i)=>{
       const col2=i%SCOLS, row2=Math.floor(i/SCOLS);
+      const GAP=14; // 列間の隙間（中央境界線付近の余白）
       const cx=L+col2*CELL_W+CELL_W/2;
       const cy=ITOP+24+row2*CELL_H+CELL_H/2;
-      const cL=L+col2*CELL_W+4, cR=L+(col2+1)*CELL_W-4;
-      const btnW=Math.min(38,CELL_W*0.18);
+      const cL=L+col2*CELL_W+4;
+      // 右端：右列は外側寄り、左列は中央から離す
+      const cR=L+(col2+1)*CELL_W-4-(col2===0?GAP:0);
+      const btnW=Math.min(36,CELL_W*0.16);
       const fs=Math.max(12,Math.min(15,CELL_W*0.06));
 
-      // セル背景
-      sadd(this.add.rectangle(cx,cy,CELL_W-6,CELL_H-6,0x0d1a2e,0.75).setStrokeStyle(1,0x2a3f55));
+      // セル背景（中央に隙間を開ける）
+      const cellW2=CELL_W-6-(col2===0?GAP/2:GAP/2);
+      const cellX2=col2===0?cx-GAP/4:cx+GAP/4;
+      sadd(this.add.rectangle(cellX2,cy,cellW2,CELL_H-6,0x0d1a2e,0.75).setStrokeStyle(1,0x2a3f55));
       // カラーライン（左端）
       sadd(this.add.rectangle(cL+2,cy,3,CELL_H-10,parseInt(s.col.replace('#',''),16),0.9).setOrigin(0.5));
       // ラベル（大きく）
       sadd(this.add.text(cL+10,cy-CELL_H*0.28,s.label,{fontSize:fs+'px',fontFamily:'Courier New',color:s.col,fontStyle:'bold'}).setOrigin(0,0.5));
       // 説明
       sadd(this.add.text(cL+10,cy+CELL_H*0.08,s.desc,{fontSize:Math.max(9,fs-3)+'px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
-      // 現在値（右寄り・大きく）
-      const cur=sadd(this.add.text(cR-btnW*2-12,cy-CELL_H*0.1,svStr(s.key),{fontSize:(fs+3)+'px',fontFamily:'Courier New',color:'#ffffff',fontStyle:'bold'}).setOrigin(1,0.5));
+      // 現在値
+      const cur=sadd(this.add.text(cR-btnW*2-10,cy-CELL_H*0.1,svStr(s.key),{fontSize:(fs+3)+'px',fontFamily:'Courier New',color:'#ffffff',fontStyle:'bold'}).setOrigin(1,0.5));
       // 仮割り振り
-      const addTxt=sadd(this.add.text(cR-btnW*2-12,cy+CELL_H*0.22,'',{fontSize:(fs-1)+'px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(1,0.5));
-      // ─ ボタン
-      const bmX2=cR-btnW*2.4; // ─ボタン
-      const bpX2=cR-btnW*1.2; // ＋ボタン（セル内側に寄せる）
+      const addTxt=sadd(this.add.text(cR-btnW*2-10,cy+CELL_H*0.22,'',{fontSize:(fs-1)+'px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(1,0.5));
+      // ─ ボタン（cRから内側へ）
+      const bmX2=cR-btnW*1.6;
+      const bpX2=cR-btnW*0.5;
       const bm=sadd(this.add.rectangle(bmX2,cy,btnW,CELL_H-16,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
       sadd(this.add.text(bmX2,cy,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
       // ＋ ボタン
@@ -4189,7 +4194,7 @@ class GameScene extends Phaser.Scene{
     // ════════════════════════════════
     //  アイテムタブ
     // ════════════════════════════════
-    const iadd=(o)=>{itemCont.add(sf0(o));return o;};
+    const iadd=(o)=>{o.setScrollFactor(0);itemCont.add(o);return o;};
     // タイトル
     iadd(this.add.text(PX,ITOP+14,'🎒 所持アイテム',{fontSize:'16px',fontFamily:'Courier New',color:'#f39c12'}).setOrigin(0.5));
     const itemTypes=Object.keys(pd.items||{}).filter(k=>(pd.items[k]||0)>0);
@@ -4197,49 +4202,70 @@ class GameScene extends Phaser.Scene{
     iadd(this.add.text(PX,ITOP+32,'種類: '+typeCount+'/'+MAX_ITEM_TYPES,{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
 
     // アイテム一覧（グリッド表示）
-    // アイテムタブはボタンなしなのでパネル下端まで使う
-    const ITEM_BOT=PY+PH/2-8; // ボタンエリア不要なので下端まで
-    const ITEM_COLS=4, ITEM_CW=(PW-24)/ITEM_COLS, ITEM_CH=52;
-    const gridTop=ITOP+48;
-    const allItems=Object.entries(ITEM_DEFS);
+    try{
+    const ITEM_COLS=4;
+    const ITEM_CW=(PW-20)/ITEM_COLS;
+    const ITEM_CH=58;
+    const gridTop=ITOP+46;
+    const ITEM_BOT=PY+PH/2-44;
+
+    // 全ITEM_DEFSを表示（所持中は明るく・未所持は暗く）
+    const allItemIds=Object.keys(ITEM_DEFS);
     let irow=0,icol=0;
-    allItems.forEach(([id,def])=>{
+    allItemIds.forEach((id)=>{
+      const def=ITEM_DEFS[id];
+      if(!def)return;
       const count=(pd.items||{})[id]||0;
-      const cx=L+12+icol*ITEM_CW+ITEM_CW/2;
+      const cx=L+icol*ITEM_CW+ITEM_CW/2;
       const cy=gridTop+irow*ITEM_CH+ITEM_CH/2;
-      if(cy+ITEM_CH/2>ITEM_BOT-4)return; // 画面外スキップ
+      if(cy+ITEM_CH/2>ITEM_BOT)return;
+
+      const hasItem=count>0;
+      const bgCol=hasItem?def.col:0x1a1a2e;
+      const strokeCol=hasItem?def.col:0x334455;
+      const bgAlpha=hasItem?0.25:0.4;
+
       // セル背景
-      const alpha=count>0?0.7:0.15;
-      const col2=count>0?def.col:0x223344;
-      iadd(this.add.rectangle(cx,cy,ITEM_CW-4,ITEM_CH-4,col2,alpha*0.3).setStrokeStyle(1,col2,count>0?0.8:0.2));
+      const bg=iadd(this.add.rectangle(cx,cy,ITEM_CW-4,ITEM_CH-4,bgCol,bgAlpha).setStrokeStyle(1,strokeCol,hasItem?0.9:0.3));
       // アイコン
-      iadd(this.add.text(cx,cy-12,def.icon,{fontSize:'18px'}).setOrigin(0.5));
+      iadd(this.add.text(cx,cy-ITEM_CH*0.28,def.icon,{fontSize:'20px'}).setOrigin(0.5));
       // アイテム名
-      const nameFs=Math.max(9,Math.min(11,ITEM_CW*0.15));
-      iadd(this.add.text(cx,cy+4,def.name,{fontSize:nameFs+'px',fontFamily:'Courier New',color:count>0?'#ffffff':'#445566',wordWrap:{width:ITEM_CW-8}}).setOrigin(0.5));
-      // 個数・売価・使用ボタン
-      if(count>0){
-        iadd(this.add.text(cx+ITEM_CW/2-6,cy-ITEM_CH/2+5,'×'+count,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',stroke:'#000',strokeThickness:2}).setOrigin(1,0));
+      iadd(this.add.text(cx,cy+ITEM_CH*0.04,def.name,{
+        fontSize:'10px',fontFamily:'Courier New',
+        color:hasItem?'#ffffff':'#445566',
+        wordWrap:{width:ITEM_CW-6}
+      }).setOrigin(0.5));
+      // 個数バッジ
+      if(hasItem){
+        iadd(this.add.text(cx+ITEM_CW/2-4,cy-ITEM_CH/2+4,'×'+count,{
+          fontSize:'11px',fontFamily:'Courier New',color:'#ffd700',
+          stroke:'#000000',strokeThickness:3
+        }).setOrigin(1,0));
+        // 使用ボタン or 売価
         if(def.usable){
-          // 使用可能アイテムは「使う」ボタン
-          const useBtn=iadd(this.add.rectangle(cx,cy+ITEM_CH/2-10,ITEM_CW-10,16,0x225522,0.9).setStrokeStyle(1,0x44aa44).setInteractive({useHandCursor:true}));
-          iadd(this.add.text(cx,cy+ITEM_CH/2-10,'▶ 使う',{fontSize:'10px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
+          const useBtn=iadd(this.add.rectangle(cx,cy+ITEM_CH*0.36,ITEM_CW-10,16,0x226622,0.9).setStrokeStyle(1,0x44aa44).setInteractive({useHandCursor:true}));
+          iadd(this.add.text(cx,cy+ITEM_CH*0.36,'▶ 使う',{fontSize:'10px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
           useBtn.on('pointerover',()=>useBtn.setFillStyle(0x336633,0.95));
-          useBtn.on('pointerout', ()=>useBtn.setFillStyle(0x225522,0.9));
+          useBtn.on('pointerout', ()=>useBtn.setFillStyle(0x226622,0.9));
           useBtn.on('pointerdown',()=>this._useItem(id));
         } else if(def.sell>0){
-          iadd(this.add.text(cx,cy+ITEM_CH/2-7,def.sell+'G',{fontSize:'9px',fontFamily:'Courier New',color:'#aaddaa',stroke:'#000',strokeThickness:2}).setOrigin(0.5,1));
+          iadd(this.add.text(cx,cy+ITEM_CH*0.38,def.sell+'G',{
+            fontSize:'10px',fontFamily:'Courier New',color:'#aaddaa'
+          }).setOrigin(0.5));
         }
       } else {
         if(def.sell>0){
-          iadd(this.add.text(cx,cy+ITEM_CH/2-7,def.sell+'G',{fontSize:'9px',fontFamily:'Courier New',color:'#445566'}).setOrigin(0.5,1));
+          iadd(this.add.text(cx,cy+ITEM_CH*0.38,def.sell+'G',{
+            fontSize:'10px',fontFamily:'Courier New',color:'#334455'
+          }).setOrigin(0.5));
         }
       }
       icol++;
       if(icol>=ITEM_COLS){icol=0;irow++;}
     });
+    }catch(e){console.error('item tab error:',e);}
 
-    switchTab(tab);
+    try{switchTab(tab||'stat');}catch(e){console.error('switchTab error:',e);}
   }
 
   // 装備ボーナスを実ステータスに反映（装備変更時に呼ぶ）
