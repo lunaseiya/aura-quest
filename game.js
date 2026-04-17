@@ -5094,14 +5094,6 @@ class GameScene extends Phaser.Scene{
         }else{ov.setFillStyle(0x000000,0);ct.setText('');}
       });
     }
-    // 別ルートポータル（portalAlt）の描画
-    if(cfg.portalAlt){
-      const pa=cfg.portalAlt;
-      this.add.image(pa.x,pa.y,'portal_town').setDisplaySize(60,50).setDepth(3);
-      this.add.text(pa.x,pa.y-36,pa.label,{fontSize:'9px',fontFamily:'Courier New',color:'#f39c12',stroke:'#000',strokeThickness:2,align:'center'}).setOrigin(0.5).setDepth(4);
-      this.add.text(pa.x,pa.y+34,'[近づいて移動]',{fontSize:'8px',fontFamily:'Courier New',color:'#f39c12'}).setOrigin(0.5).setDepth(4);
-    }
-
     // ポータル遷移（重複防止フラグ付き）
     if(!this._transitioning){
       // 別ルートポータル（上部・portalAlt）
