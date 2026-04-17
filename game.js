@@ -1271,6 +1271,7 @@ class GameScene extends Phaser.Scene{
   init(data){
     this.playerData=data.playerData||makePlayerData('warrior');
     this.stage=data.stage!==undefined?data.stage:1;
+    this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
     this.killCount=0;
     this.bossSpawned=false;
     this._transitioning=false;
@@ -1334,7 +1335,7 @@ class GameScene extends Phaser.Scene{
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
     // fromPortal:'next'→右端近く, 'back'→左端近く, なし→デフォルト左端
-    const fromPortal=data.fromPortal||null;
+    const fromPortal=this.fromPortal||null;
     const spawnX=fromPortal==='next'?(MW-160):200;
     const spawnY=MH/2;
     this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
