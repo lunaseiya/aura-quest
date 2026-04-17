@@ -4005,10 +4005,10 @@ class GameScene extends Phaser.Scene{
     const jpTxt=skadd(this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'14px',fontFamily:'Courier New',color:'#ffff44'}).setOrigin(0.5));
     const refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
 
-    // 縦3×横2グリッドレイアウト（バー削除でスペース拡大）
+    // 縦3×横2グリッドレイアウト（ボタン位置まで最大活用）
     const SK_COLS=2, SK_ROWS=3;
     const SK_CW=(PW-20)/SK_COLS;
-    const SK_CH=(IH-30-28)/SK_ROWS;
+    const SK_CH=(IH-22)/SK_ROWS;
     const skVt={}, skAt={}, skCells={};
     defs.forEach((sk,i)=>{
       const skCol=i%SK_COLS, skRow=Math.floor(i/SK_COLS);
@@ -4195,6 +4195,8 @@ class GameScene extends Phaser.Scene{
     //  アイテムタブ
     // ════════════════════════════════
     const iadd=(o)=>{o.setScrollFactor(0);itemCont.add(o);return o;};
+    if(!pd.items)pd.items={};
+    console.log('[ITEM TAB] pd.items=',JSON.stringify(pd.items));
     // タイトル
     iadd(this.add.text(PX,ITOP+14,'🎒 所持アイテム',{fontSize:'16px',fontFamily:'Courier New',color:'#f39c12'}).setOrigin(0.5));
     const itemTypes=Object.keys(pd.items||{}).filter(k=>(pd.items[k]||0)>0);
@@ -4263,7 +4265,7 @@ class GameScene extends Phaser.Scene{
       icol++;
       if(icol>=ITEM_COLS){icol=0;irow++;}
     });
-    }catch(e){console.error('item tab error:',e);}
+    }catch(e){console.error('item tab error:',e.message,e.stack);}
 
     try{switchTab(tab||'stat');}catch(e){console.error('switchTab error:',e);}
   }
