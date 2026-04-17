@@ -1891,15 +1891,15 @@ const ITEM_DEFS={
 // モンスターごとのドロップテーブル
 // {id, rate(0-1), min, max}
 const DROP_TABLE={
-  slime:    [{id:'jelly',       rate:0.6, min:1, max:2}],
-  bat:      [{id:'bat_wing',    rate:0.5, min:1, max:1}],
-  goblin:   [{id:'goblin_ear',  rate:0.5, min:1, max:1}],
-  troll:    [{id:'troll_hide',  rate:0.4, min:1, max:1}],
-  wolf:     [{id:'wolf_fang',   rate:0.5, min:1, max:2}],
-  skeleton: [{id:'bone',        rate:0.6, min:1, max:3}],
-  dragon:   [{id:'dragon_scale',rate:0.4, min:1, max:1}],
-  sandworm: [{id:'sand_core',   rate:0.45,min:1, max:1}],
-  scorpion: [{id:'scorpion_claw',rate:0.5,min:1, max:2}],
+  slime:    [{id:'jelly',       rate:1.0, min:1, max:2}],
+  bat:      [{id:'bat_wing',    rate:1.0, min:1, max:1}],
+  goblin:   [{id:'goblin_ear',  rate:1.0, min:1, max:1}],
+  troll:    [{id:'troll_hide',  rate:1.0, min:1, max:1}],
+  wolf:     [{id:'wolf_fang',   rate:1.0, min:1, max:2}],
+  skeleton: [{id:'bone',        rate:1.0, min:1, max:3}],
+  dragon:   [{id:'dragon_scale',rate:1.0, min:1, max:1}],
+  sandworm: [{id:'sand_core',   rate:1.0, min:1, max:1}],
+  scorpion: [{id:'scorpion_claw',rate:1.0,min:1, max:2}],
   boss1:    [{id:'boss_gem',    rate:1.0, min:1, max:2}],
   boss2:    [{id:'boss_gem',    rate:1.0, min:1, max:1},{id:'boss_core',rate:0.8,min:1,max:1}],
   boss3:    [{id:'boss_gem',    rate:1.0, min:2, max:3},{id:'chaos_shard',rate:0.9,min:1,max:1}],
@@ -2402,6 +2402,32 @@ class GameScene extends Phaser.Scene{
     this.obstacles=this.physics.add.staticGroup();
     if(cfg.objects&&cfg.objects[0]){
       cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(32,40);o.refreshBody();});
+    }
+    // ST5: 渦巻き崖の物理壁を生成
+    if(this.stage===5){
+      const WALL=48; // 壁ブロックサイズ
+      const cols5=Math.ceil(MW/WALL), rows5=Math.ceil(MH/WALL);
+      // 透明テクスチャを1回だけ生成
+      if(!this.textures.exists('wall_block')){
+        const wg=this.make.graphics({x:0,y:0,add:false});
+        wg.fillStyle(0xff0000,0);wg.fillRect(0,0,WALL,WALL);
+        wg.generateTexture('wall_block',WALL,WALL);
+        wg.destroy();
+      }
+      for(let r=0;r<rows5;r++) for(let c=0;c<cols5;c++){
+        const wx=c*WALL+WALL/2, wy=r*WALL+WALL/2;
+        const cx5=wx-MW/2, cy5=wy-MH/2;
+        const dist=Math.sqrt(cx5*cx5+cy5*cy5);
+        const angle=Math.atan2(cy5,cx5);
+        const spiral=((angle+Math.PI)/(Math.PI*2)+dist/600)%1;
+        const onPath=(dist>180&&dist<720)&&(spiral<0.35||dist<250);
+        const onTop=dist<180;
+        // 崖外（歩けないエリア）に壁を置く
+        if(!onPath&&!onTop&&dist<760){
+          const wall=this.obstacles.create(wx,wy,'wall_block').setDisplaySize(WALL,WALL).setAlpha(0);
+          wall.refreshBody();
+        }
+      }
     }
     // 町の建物 (stage:0)
     this.buildings=[];
@@ -3504,17 +3530,23 @@ class GameScene extends Phaser.Scene{
 
   _buildCraftUI(mk,close,showResult,refreshGold,PX,PY,PW,PH,pd){
     if(!pd.items)pd.items={};
-    const L=PX-PW/2+10, R=PX+PW/2-10;
-    const startY=PY-PH/2+65;
-    const ITEM_H=Math.min(46,(PH-90)/CRAFT_RECIPES.length);
-    const scrollArea=PH-120;
+    const L=PX-PW/2+8, R=PX+PW/2-8;
+    const listTop=PY-PH/2+62;
+    const listBot=PY+PH/2-48;
+    const listH=listBot-listTop;
 
-    // スクロール可能なレシピ一覧
-    let scrollY=0;
-    const visibleCount=Math.floor(scrollArea/ITEM_H);
+    // 2列グリッド設定
+    const COLS=2;
+    const CELL_W=(PW-20)/COLS;
+    const CELL_H=80; // 1セルの高さ
+    const visibleRows=Math.floor(listH/CELL_H);
+    const visibleCount=visibleRows*COLS;
+    let scrollOffset=0; // セル単位
+    let dragStartY=null;
+    let dragStartOffset=null;
+    const maxOffset=Math.max(0,CRAFT_RECIPES.length-visibleCount);
 
     const renderRecipes=(offset)=>{
-      // 既存レシピ行を削除（再描画）
       if(this._craftRows){
         this._craftRows.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
       }
@@ -3522,87 +3554,98 @@ class GameScene extends Phaser.Scene{
       const addRow=(o)=>{this._craftRows.push(o);mk(o);return o;};
 
       CRAFT_RECIPES.slice(offset,offset+visibleCount).forEach((recipe,i)=>{
-        const y=startY+i*ITEM_H;
+        const col=i%COLS, row=Math.floor(i/COLS);
+        const cx=L+col*CELL_W+CELL_W/2;
+        const cy=listTop+row*CELL_H+CELL_H/2;
+        const cL=L+col*CELL_W+4, cR=L+(col+1)*CELL_W-4;
         const eDef=EQUIP_DEFS[recipe.result];
         if(!eDef)return;
 
-        // 素材が全て揃っているか確認
         const canCraft=pd.gold>=recipe.fee&&recipe.materials.every(m=>(pd.items[m.id]||0)>=m.count);
-
-        // 行背景
         const bgCol=canCraft?0x0a2010:0x080d18;
         const stCol=canCraft?0x44aa44:0x334455;
-        const bg=addRow(this.add.rectangle(PX,y+ITEM_H/2,PW-20,ITEM_H-3,bgCol,0.85).setStrokeStyle(1,stCol).setScrollFactor(0).setDepth(72));
 
-        // 結果アイテム名
-        addRow(this.add.text(L+4,y+8,eDef.icon+' '+eDef.name,{
+        // セル背景
+        const bg=addRow(this.add.rectangle(cx,cy,CELL_W-6,CELL_H-4,bgCol,0.9).setStrokeStyle(1,stCol).setScrollFactor(0).setDepth(72));
+
+        // アイコン＋装備名（左上）
+        addRow(this.add.text(cL+2,cy-CELL_H*0.32,eDef.icon+' '+eDef.name,{
           fontSize:'13px',fontFamily:'Courier New',
-          color:canCraft?'#ffffff':'#667788',fontStyle:canCraft?'bold':'normal'
+          color:canCraft?'#ffffff':'#556677',fontStyle:canCraft?'bold':'normal'
         }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
 
-        // ステータス
+        // ステータス（左・小）
         const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
-        addRow(this.add.text(L+4,y+22,statStr,{fontSize:'10px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        addRow(this.add.text(cL+2,cy-CELL_H*0.1,statStr,{
+          fontSize:'10px',fontFamily:'Courier New',color:'#667788'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
 
-        // 素材表示
-        const matStrs=recipe.materials.map(m=>{
+        // 素材3つ（下段）
+        recipe.materials.forEach((m,mi)=>{
           const mDef=ITEM_DEFS[m.id];
           const have=pd.items[m.id]||0;
           const ok=have>=m.count;
-          return {text:(mDef?mDef.icon:'?')+' ×'+m.count+'('+have+')', ok};
-        });
-        let mx=PX-60;
-        matStrs.forEach(ms=>{
-          addRow(this.add.text(mx,y+ITEM_H/2,ms.text,{
+          const mx2=cL+4+mi*(CELL_W*0.28);
+          addRow(this.add.text(mx2,cy+CELL_H*0.18,
+            (mDef?mDef.icon:'?')+'×'+m.count+'('+have+')',{
             fontSize:'10px',fontFamily:'Courier New',
-            color:ms.ok?'#44dd88':'#aa4444',stroke:'#000',strokeThickness:2
-          }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
-          mx+=52;
+            color:ok?'#44dd88':'#cc4444',stroke:'#000',strokeThickness:2
+          }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
         });
 
-        // 加工費
-        addRow(this.add.text(R-56,y+10,recipe.fee+'G',{
+        // 加工費＋作るボタン（右下）
+        addRow(this.add.text(cR-36,cy+CELL_H*0.18,recipe.fee+'G',{
           fontSize:'11px',fontFamily:'Courier New',
           color:pd.gold>=recipe.fee?'#ffd700':'#663300'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        }).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
 
-        // 作るボタン
         if(canCraft){
-          const btn=addRow(this.add.rectangle(R-20,y+ITEM_H/2,32,ITEM_H-10,0x226622,0.9).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
-          addRow(this.add.text(R-20,y+ITEM_H/2,'作る',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+          const btn=addRow(this.add.rectangle(cR-14,cy+CELL_H*0.18,28,22,0x226622,0.95).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
+          addRow(this.add.text(cR-14,cy+CELL_H*0.18,'作る',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
           btn.on('pointerover',()=>btn.setFillStyle(0x338833,0.95));
-          btn.on('pointerout', ()=>btn.setFillStyle(0x226622,0.9));
+          btn.on('pointerout', ()=>btn.setFillStyle(0x226622,0.95));
           btn.on('pointerdown',()=>{
-            // 素材消費
             recipe.materials.forEach(m=>{pd.items[m.id]-=m.count;});
             pd.gold-=recipe.fee;
-            // アイテム入手
             pd.items[recipe.result]=(pd.items[recipe.result]||0)+1;
-            showResult(eDef.icon+' '+eDef.name+'を製作しました！装備タブから装備できます','#44ff88');
-            refreshGold();
-            SE('levelup');
-            renderRecipes(scrollY); // 再描画
+            showResult(eDef.icon+' '+eDef.name+'を製作！装備タブから装備できます','#44ff88');
+            refreshGold(); SE('levelup');
+            renderRecipes(scrollOffset);
           });
         }
       });
 
       // ページ表示
-      addRow(this.add.text(PX,PY+PH/2-45,
-        (offset+1)+'〜'+(Math.min(offset+visibleCount,CRAFT_RECIPES.length))+' / '+CRAFT_RECIPES.length,
-        {fontSize:'11px',fontFamily:'Courier New',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+      const cur=Math.floor(offset/visibleCount)+1;
+      const total=Math.ceil(CRAFT_RECIPES.length/visibleCount);
+      addRow(this.add.text(PX,listBot+8,cur+'/'+total+' ページ　('+CRAFT_RECIPES.length+'種)',{
+        fontSize:'10px',fontFamily:'Courier New',color:'#556677'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
     };
 
     renderRecipes(0);
 
-    // 上下スクロールボタン
-    if(CRAFT_RECIPES.length>visibleCount){
-      const upBtn=mk(this.add.rectangle(R-14,startY-14,26,22,0x334455,0.8).setStrokeStyle(1,0x556677).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
-      mk(this.add.text(R-14,startY-14,'▲',{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
-      const dnBtn=mk(this.add.rectangle(R-14,PY+PH/2-62,26,22,0x334455,0.8).setStrokeStyle(1,0x556677).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
-      mk(this.add.text(R-14,PY+PH/2-62,'▼',{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
-      upBtn.on('pointerdown',()=>{if(scrollY>0){scrollY--;renderRecipes(scrollY);}});
-      dnBtn.on('pointerdown',()=>{if(scrollY+visibleCount<CRAFT_RECIPES.length){scrollY++;renderRecipes(scrollY);}});
-    }
+    // ── スワイプ＆ホイールスクロール ──
+    // スクロール領域の透明インタラクト板
+    const scrollZone=mk(this.add.rectangle(PX,PY-10,PW,listH,0x000000,0).setScrollFactor(0).setDepth(75).setInteractive());
+
+    // スワイプ（タッチ・ドラッグ）
+    scrollZone.on('pointerdown',(ptr)=>{dragStartY=ptr.y; dragStartOffset=scrollOffset;});
+    scrollZone.on('pointermove',(ptr)=>{
+      if(dragStartY===null)return;
+      const dy=dragStartY-ptr.y;
+      const newOffset=Math.round(dragStartOffset+dy/CELL_H)*COLS;
+      const clamped=Math.max(0,Math.min(maxOffset,newOffset));
+      if(clamped!==scrollOffset){scrollOffset=clamped;renderRecipes(scrollOffset);}
+    });
+    scrollZone.on('pointerup',()=>{dragStartY=null;});
+    scrollZone.on('pointerout',()=>{dragStartY=null;});
+
+    // ホイールスクロール
+    scrollZone.on('wheel',(_ptr,_dx,dy)=>{
+      const newOffset=Math.max(0,Math.min(maxOffset,scrollOffset+(dy>0?COLS:-COLS)));
+      if(newOffset!==scrollOffset){scrollOffset=newOffset;renderRecipes(scrollOffset);}
+    });
   }
 
   openBuildingUI(b){
@@ -3780,6 +3823,11 @@ class GameScene extends Phaser.Scene{
     const skillCont=sf0(this.add.container(0,0));
     const equipCont=sf0(this.add.container(0,0));
     const itemCont=sf0(this.add.container(0,0));
+    // 全コンテナを最初に非表示にしてからswitchTabで切り替える
+    statCont.setVisible(false);
+    skillCont.setVisible(false);
+    equipCont.setVisible(false);
+    itemCont.setVisible(false);
     root.add([statCont,skillCont,equipCont,itemCont]);
 
     const switchTab=(t)=>{
@@ -3788,7 +3836,8 @@ class GameScene extends Phaser.Scene{
       equipCont.setVisible(t==='equip');
       itemCont.setVisible(t==='item');
       ['stat','skill','equip','item'].forEach(id=>{
-        const col=id==='stat'?0x44aaff:0x00e5ff;
+        const colMap={stat:0x44aaff,skill:0x00e5ff,equip:0xe74c3c,item:0xf39c12};
+        const col=colMap[id]||0x44aaff;
         const on=id===t;
         tabBtns[id].setFillStyle(col,on?0.5:0.08).setStrokeStyle(2,on?col:0x334455);
         tabTxts[id].setColor(on?'#'+col.toString(16).padStart(6,'0'):'#334455');
@@ -4218,7 +4267,7 @@ class GameScene extends Phaser.Scene{
     if(this.hudEXPBar&&this.hudEXPBar.active)this.hudEXPBar.setSize(BW*expP,8);
     const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
     if(this.hudJEXPBar&&this.hudJEXPBar.active)this.hudJEXPBar.setSize(BW*jexpP,8);
-    if(this.hudLvTxt&&this.hudLvTxt.active)this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1));
+    if(this.hudLvTxt&&this.hudLvTxt.active)this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1)+'  💰'+pd.gold+'G');
     // スキルボタン更新は _updateSkillBtns() で行う（updateHUDからは呼ばない）
     this._updateSkillBtns();
   }
