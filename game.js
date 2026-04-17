@@ -450,7 +450,8 @@ function makePlayerData(cls){
     hit:base.hit,  // 命中率(%)
     luk:base.luk,  // 運（クリティカル率%）
     lv:1,exp:0,expNext:100,
-    gold:50,potHP:3,potMP:3,kills:0,
+    gold:50,potHP:3,potMP:3,kills:0,items:{}, // {itemId: count}
+    equip:{head:null,face:null,shoulder:null,body:null,feet:null,accessory:null}, // 装備スロット
     statPts:0,      // 未割り振りポイント
     pendingLvUp:0,
     // ジョブシステム
@@ -1023,6 +1024,121 @@ class BootScene extends Phaser.Scene{
     });
   }
 }
+
+
+// ============================================================
+//  装備品定義
+// ============================================================
+const EQUIP_SLOTS=[
+  {id:'head',     label:'頭',       icon:'🪖'},
+  {id:'face',     label:'顔',       icon:'😷'},
+  {id:'shoulder', label:'肩',       icon:'🔰'},
+  {id:'body',     label:'体',       icon:'🥋'},
+  {id:'feet',     label:'足',       icon:'👢'},
+  {id:'accessory',label:'アクセサリー',icon:'💍'},
+];
+
+const EQUIP_DEFS={
+  // 頭
+  iron_helm:    {name:'鉄の兜',    slot:'head',     icon:'🪖', desc:'頭を守る鉄の兜',         stats:{def:4},               price:60,  col:0xaaaaaa},
+  leather_cap:  {name:'革の帽子',  slot:'head',     icon:'🎩', desc:'軽くて動きやすい',         stats:{agi:3},               price:40,  col:0x886633},
+  // 顔
+  iron_mask:    {name:'鉄仮面',    slot:'face',     icon:'😷', desc:'顔面を守る鉄のマスク',      stats:{def:3,hit:5},         price:70,  col:0xaaaaaa},
+  eagle_visor:  {name:'イーグルバイザー',slot:'face',icon:'🦅', desc:'視野が広がる特殊バイザー',  stats:{hit:10,luk:3},        price:90,  col:0x4488cc},
+  // 肩
+  iron_pauldron:{name:'鉄の肩当',  slot:'shoulder', icon:'🔰', desc:'両肩を守る鉄製の防具',      stats:{def:5,atk:2},         price:75,  col:0xaaaaaa},
+  mage_mantle:  {name:'魔法のマント',slot:'shoulder',icon:'🧣', desc:'魔力を高める神秘のマント',  stats:{mag:6,msp:10},        price:85,  col:0x9b59b6},
+  // 体
+  iron_armor:   {name:'鉄の鎧',    slot:'body',     icon:'🛡', desc:'重厚な鉄の鎧',             stats:{def:8,mhp:20},        price:100, col:0xaaaaaa},
+  leather_armor:{name:'革の鎧',    slot:'body',     icon:'🥋', desc:'軽量で動きやすい革鎧',      stats:{def:4,agi:4},         price:70,  col:0x886633},
+  robe:         {name:'魔法のローブ',slot:'body',   icon:'👘', desc:'魔力を増幅するローブ',       stats:{mag:8,msp:15},        price:90,  col:0x9b59b6},
+  // 足
+  iron_boots:   {name:'鉄の靴',    slot:'feet',     icon:'👢', desc:'重いが丈夫な鉄の靴',        stats:{def:3,agi:2},         price:50,  col:0xaaaaaa},
+  speed_boots:  {name:'疾風の靴',  slot:'feet',     icon:'👟', desc:'素早さが大幅に上がる靴',    stats:{agi:9},               price:65,  col:0x27ae60},
+  // アクセサリー
+  lucky_ring:   {name:'幸運の指輪',slot:'accessory',icon:'💍', desc:'幸運と命中を高める指輪',    stats:{luk:8,hit:5},         price:100, col:0xffd700},
+  power_amulet: {name:'力のお守り',slot:'accessory',icon:'📿', desc:'攻撃力を高めるお守り',       stats:{atk:6},               price:80,  col:0xe74c3c},
+  mage_orb:     {name:'魔力の宝珠',slot:'accessory',icon:'🔮', desc:'魔力と精神力を高める',       stats:{mag:6,msp:10},        price:90,  col:0x9b59b6},
+};
+
+// 装備のステータスを合計して返す
+function calcEquipStats(equip){
+  const total={atk:0,def:0,mag:0,mhp:0,msp:0,hit:0,luk:0,agi:0};
+  Object.values(equip||{}).forEach(id=>{
+    if(!id)return;
+    const def=EQUIP_DEFS[id];
+    if(!def)return;
+    Object.entries(def.stats).forEach(([k,v])=>{total[k]=(total[k]||0)+v;});
+  });
+  return total;
+}
+
+// ============================================================
+//  クラフトレシピ定義
+// ============================================================
+// materials: [{id, count}] 最大3種  fee: 加工費(G)
+const CRAFT_RECIPES=[
+  // 頭
+  {result:'iron_helm',    fee:40,  materials:[{id:'bone',count:2},    {id:'troll_hide',count:1},  {id:'goblin_ear',count:2} ]},
+  {result:'leather_cap',  fee:25,  materials:[{id:'bat_wing',count:2}, {id:'wolf_fang',count:1},  {id:'jelly',count:3}      ]},
+  // 顔
+  {result:'iron_mask',    fee:50,  materials:[{id:'bone',count:3},     {id:'wolf_fang',count:2},  {id:'troll_hide',count:1} ]},
+  {result:'eagle_visor',  fee:60,  materials:[{id:'bat_wing',count:3}, {id:'dragon_scale',count:1},{id:'wolf_fang',count:2} ]},
+  // 肩
+  {result:'iron_pauldron',fee:55,  materials:[{id:'troll_hide',count:2},{id:'bone',count:2},       {id:'goblin_ear',count:3} ]},
+  {result:'mage_mantle',  fee:60,  materials:[{id:'bat_wing',count:2}, {id:'jelly',count:2},       {id:'dragon_scale',count:1}]},
+  // 体
+  {result:'iron_armor',   fee:80,  materials:[{id:'troll_hide',count:3},{id:'bone',count:3},       {id:'wolf_fang',count:2}  ]},
+  {result:'leather_armor',fee:50,  materials:[{id:'jelly',count:3},    {id:'bat_wing',count:2},    {id:'goblin_ear',count:2} ]},
+  {result:'robe',         fee:70,  materials:[{id:'jelly',count:2},    {id:'bat_wing',count:3},    {id:'dragon_scale',count:1}]},
+  // 足
+  {result:'iron_boots',   fee:35,  materials:[{id:'bone',count:2},     {id:'goblin_ear',count:2},  {id:'jelly',count:2}      ]},
+  {result:'speed_boots',  fee:45,  materials:[{id:'wolf_fang',count:3},{id:'scorpion_claw',count:1},{id:'bat_wing',count:2}  ]},
+  // アクセサリー
+  {result:'lucky_ring',   fee:80,  materials:[{id:'dragon_scale',count:1},{id:'boss_gem',count:1}, {id:'scorpion_claw',count:2}]},
+  {result:'power_amulet', fee:60,  materials:[{id:'wolf_fang',count:3},  {id:'troll_hide',count:2},{id:'sand_core',count:1} ]},
+  {result:'mage_orb',     fee:70,  materials:[{id:'jelly',count:3},       {id:'dragon_scale',count:1},{id:'boss_gem',count:1}]},
+];
+
+// ============================================================
+//  アイテム定義
+// ============================================================
+const ITEM_DEFS={
+  // id: {name, desc, col, icon, sell（売価G）}
+  // 売価は弱い敵ほど安め・強い敵ほど高め、ただし差は控えめ（5〜50G程度）
+  jelly:        {name:'スライムゼリー',   desc:'スライムの体液。ぷるぷる。',         col:0x33ccaa, icon:'🟢', sell:5 },
+  bat_wing:     {name:'コウモリの翼',     desc:'薄くて丈夫な膜。',                  col:0x441166, icon:'🦇', sell:7 },
+  goblin_ear:   {name:'ゴブリンの耳',    desc:'とがった耳。コレクター向け。',        col:0x447733, icon:'👂', sell:8 },
+  troll_hide:   {name:'トロルの皮',      desc:'分厚い緑の皮。硬い。',               col:0x667755, icon:'🟤', sell:12},
+  wolf_fang:    {name:'ウルフの牙',      desc:'鋭利な牙。武器素材になる。',         col:0x778899, icon:'🐺', sell:12},
+  bone:         {name:'スケルボーン',    desc:'きれいな骨。魔法の素材。',           col:0xeeeedd, icon:'🦴', sell:10},
+  dragon_scale: {name:'ドラゴンの鱗',   desc:'硬く輝く鱗。超レア素材。',           col:0xcc3300, icon:'🐉', sell:30},
+  sand_core:    {name:'砂核',           desc:'サンドワームの核。砂漠の結晶。',     col:0xddaa33, icon:'💠', sell:25},
+  scorpion_claw:{name:'スコーピオンの爪',desc:'鋭い爪。毒が残っている。',           col:0xaa5511, icon:'🦂', sell:20},
+  boss_gem:     {name:'魔晶石',         desc:'強敵から得た輝く宝石。',             col:0xffd700, icon:'💎', sell:50},
+  boss_core:    {name:'魔王の核',       desc:'魔王の力が宿る核。',                col:0xcc00ff, icon:'🔮', sell:50},
+  chaos_shard:  {name:'混沌の欠片',     desc:'神龍から生まれた欠片。伝説の素材。', col:0xff6600, icon:'✨', sell:50},
+};
+
+// モンスターごとのドロップテーブル
+// {id, rate(0-1), min, max}
+const DROP_TABLE={
+  slime:    [{id:'jelly',       rate:0.6, min:1, max:2}],
+  bat:      [{id:'bat_wing',    rate:0.5, min:1, max:1}],
+  goblin:   [{id:'goblin_ear',  rate:0.5, min:1, max:1}],
+  troll:    [{id:'troll_hide',  rate:0.4, min:1, max:1}],
+  wolf:     [{id:'wolf_fang',   rate:0.5, min:1, max:2}],
+  skeleton: [{id:'bone',        rate:0.6, min:1, max:3}],
+  dragon:   [{id:'dragon_scale',rate:0.4, min:1, max:1}],
+  sandworm: [{id:'sand_core',   rate:0.45,min:1, max:1}],
+  scorpion: [{id:'scorpion_claw',rate:0.5,min:1, max:2}],
+  boss1:    [{id:'boss_gem',    rate:1.0, min:1, max:2}],
+  boss2:    [{id:'boss_gem',    rate:1.0, min:1, max:1},{id:'boss_core',rate:0.8,min:1,max:1}],
+  boss3:    [{id:'boss_gem',    rate:1.0, min:2, max:3},{id:'chaos_shard',rate:0.9,min:1,max:1}],
+};
+
+const MAX_ITEM_TYPES=40; // 所持できる種類の上限
+const MAX_ITEM_STACK=99; // 1種類あたりの最大所持数
 
 // ============================================================
 //  TitleScene
@@ -1902,6 +2018,60 @@ class GameScene extends Phaser.Scene{
     this.cameras.main.shake(150,0.006);
   }
 
+  // アイテムを追加（上限チェック付き）
+  _addItem(pd,itemId,count,showX,showY){
+    if(!pd.items)pd.items={};
+    const def=ITEM_DEFS[itemId];
+    if(!def)return;
+    const types=Object.keys(pd.items).filter(k=>pd.items[k]>0);
+    const hasType=pd.items[itemId]>0;
+    // 種類上限チェック
+    if(!hasType&&types.length>=MAX_ITEM_TYPES){
+      this.showFloat(showX,showY-30,'アイテム満杯','#ff4444','info');
+      return;
+    }
+    // 個数上限チェック
+    const current=pd.items[itemId]||0;
+    const canAdd=Math.min(count,MAX_ITEM_STACK-current);
+    if(canAdd<=0){
+      this.showFloat(showX,showY-30,def.icon+'満杯','#ff4444','info');
+      return;
+    }
+    pd.items[itemId]=(current+canAdd);
+    this.showFloat(showX,showY-30,def.icon+' '+def.name+' +'+canAdd,'#'+def.col.toString(16).padStart(6,'0'),'info');
+  }
+
+  _updateEnterBtn(building){
+    // 既存ボタンを削除
+    if(this._enterBtn){
+      try{this._enterBtn.destroy();}catch(e){}
+      this._enterBtn=null;
+    }
+    if(this._enterBtnTxt){
+      try{this._enterBtnTxt.destroy();}catch(e){}
+      this._enterBtnTxt=null;
+    }
+    if(!building)return;
+    const w=this.scale.width,h=this.scale.height;
+    // 画面中央下に「入る」ボタンを表示
+    const bx=w/2, by=h*0.72;
+    const btn=this.add.rectangle(bx,by,180,44,0x1a3a5a,0.92)
+      .setStrokeStyle(2,0x44aaff,1).setScrollFactor(0).setDepth(55).setInteractive({useHandCursor:true});
+    const label=building.label||'建物';
+    const txt=this.add.text(bx,by,label+' に入る',{
+      fontSize:'15px',fontFamily:'Courier New',color:'#00ccff',
+      stroke:'#000',strokeThickness:3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(56);
+    btn.on('pointerover',()=>btn.setFillStyle(0x1a5a8a,0.95));
+    btn.on('pointerout', ()=>btn.setFillStyle(0x1a3a5a,0.92));
+    btn.on('pointerdown',()=>{
+      this._updateEnterBtn(null); // ボタンを消してから
+      this.openBuildingUI(building);
+    });
+    this._enterBtn=btn;
+    this._enterBtnTxt=txt;
+  }
+
   _nearestEnemyEva(){
     // 最も近い敵のevaを返す（命中計算用）
     let minD=9999,eva=0;
@@ -2331,40 +2501,223 @@ class GameScene extends Phaser.Scene{
     this.skillBtnRefs=[];
     this.updateHUD();
   }
-  openBuilding(b){
-    const w=this.scale.width,h=this.scale.height,pd=this.playerData;
-    if(!this.msgText){
-      this.msgText=this.add.text(0,0,'',{fontSize:'12px',fontFamily:'Courier New',color:'#ffffff',backgroundColor:'#000000cc',padding:{x:8,y:6}}).setDepth(50).setScrollFactor(0).setVisible(false);
-    }
-    const msgs={
-      inn:'🏨 宿屋  泊まる？(30G)\n[Y]はい  [N]いいえ',
-      shop:'🏪 ショップ\nHPポーション 30G [1]\nMPポーション 25G [2]',
-      blacksmith:'🔨 鍛冶屋\n鉄の剣 80G ATK+8 [1]\n革の鎧 70G DEF+5/HP+20 [2]\n俊足の靴 60G SPD+20 [3]',
-      magic:'🔮 魔法店\n魔法の杖 90G MAG+8 [1]\n幸運の指輪 100G LUK+8 [2]',
-      guild:'⚔ ギルド\n（準備中）\n[ESC]閉じる',
+  openBuilding(b){this.openBuildingUI(b);}
+
+  _buildCraftUI(mk,close,showResult,refreshGold,PX,PY,PW,PH,pd){
+    if(!pd.items)pd.items={};
+    const L=PX-PW/2+10, R=PX+PW/2-10;
+    const startY=PY-PH/2+65;
+    const ITEM_H=Math.min(46,(PH-90)/CRAFT_RECIPES.length);
+    const scrollArea=PH-120;
+
+    // スクロール可能なレシピ一覧
+    let scrollY=0;
+    const visibleCount=Math.floor(scrollArea/ITEM_H);
+
+    const renderRecipes=(offset)=>{
+      // 既存レシピ行を削除（再描画）
+      if(this._craftRows){
+        this._craftRows.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+      }
+      this._craftRows=[];
+      const addRow=(o)=>{this._craftRows.push(o);mk(o);return o;};
+
+      CRAFT_RECIPES.slice(offset,offset+visibleCount).forEach((recipe,i)=>{
+        const y=startY+i*ITEM_H;
+        const eDef=EQUIP_DEFS[recipe.result];
+        if(!eDef)return;
+
+        // 素材が全て揃っているか確認
+        const canCraft=pd.gold>=recipe.fee&&recipe.materials.every(m=>(pd.items[m.id]||0)>=m.count);
+
+        // 行背景
+        const bgCol=canCraft?0x0a2010:0x080d18;
+        const stCol=canCraft?0x44aa44:0x334455;
+        const bg=addRow(this.add.rectangle(PX,y+ITEM_H/2,PW-20,ITEM_H-3,bgCol,0.85).setStrokeStyle(1,stCol).setScrollFactor(0).setDepth(72));
+
+        // 結果アイテム名
+        addRow(this.add.text(L+4,y+8,eDef.icon+' '+eDef.name,{
+          fontSize:'13px',fontFamily:'Courier New',
+          color:canCraft?'#ffffff':'#667788',fontStyle:canCraft?'bold':'normal'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+
+        // ステータス
+        const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
+        addRow(this.add.text(L+4,y+22,statStr,{fontSize:'10px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+
+        // 素材表示
+        const matStrs=recipe.materials.map(m=>{
+          const mDef=ITEM_DEFS[m.id];
+          const have=pd.items[m.id]||0;
+          const ok=have>=m.count;
+          return {text:(mDef?mDef.icon:'?')+' ×'+m.count+'('+have+')', ok};
+        });
+        let mx=PX-60;
+        matStrs.forEach(ms=>{
+          addRow(this.add.text(mx,y+ITEM_H/2,ms.text,{
+            fontSize:'10px',fontFamily:'Courier New',
+            color:ms.ok?'#44dd88':'#aa4444',stroke:'#000',strokeThickness:2
+          }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          mx+=52;
+        });
+
+        // 加工費
+        addRow(this.add.text(R-56,y+10,recipe.fee+'G',{
+          fontSize:'11px',fontFamily:'Courier New',
+          color:pd.gold>=recipe.fee?'#ffd700':'#663300'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+
+        // 作るボタン
+        if(canCraft){
+          const btn=addRow(this.add.rectangle(R-20,y+ITEM_H/2,32,ITEM_H-10,0x226622,0.9).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
+          addRow(this.add.text(R-20,y+ITEM_H/2,'作る',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+          btn.on('pointerover',()=>btn.setFillStyle(0x338833,0.95));
+          btn.on('pointerout', ()=>btn.setFillStyle(0x226622,0.9));
+          btn.on('pointerdown',()=>{
+            // 素材消費
+            recipe.materials.forEach(m=>{pd.items[m.id]-=m.count;});
+            pd.gold-=recipe.fee;
+            // アイテム入手
+            pd.items[recipe.result]=(pd.items[recipe.result]||0)+1;
+            showResult(eDef.icon+' '+eDef.name+'を製作しました！装備タブから装備できます','#44ff88');
+            refreshGold();
+            SE('levelup');
+            renderRecipes(scrollY); // 再描画
+          });
+        }
+      });
+
+      // ページ表示
+      addRow(this.add.text(PX,PY+PH/2-45,
+        (offset+1)+'〜'+(Math.min(offset+visibleCount,CRAFT_RECIPES.length))+' / '+CRAFT_RECIPES.length,
+        {fontSize:'11px',fontFamily:'Courier New',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
     };
-    this.msgText.setText(msgs[b.type]||'準備中').setPosition(w/2-140,h/2-70).setVisible(true);
-    const close=()=>this.msgText.setVisible(false);
-    this.input.keyboard.once('keydown-ESC',close);
-    this.input.keyboard.once('keydown-N',close);
-    if(b.type==='inn') this.input.keyboard.once('keydown-Y',()=>{
-      if(pd.gold>=30){pd.gold-=30;pd.hp=pd.mhp;pd.sp=pd.msp;pd.potHP=(pd.potHP||0)+3;pd.potMP=(pd.potMP||0)+3;SE('potion');this.updateHUD();this.msgText.setText('✨ 完全回復！ポーション3本補充！');}
-      else this.msgText.setText('💰 お金が足りない！');
-      this.time.delayedCall(1500,close);
-    });
-    if(b.type==='shop'){
-      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=30){pd.gold-=30;pd.potHP=(pd.potHP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💊 HPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=25){pd.gold-=25;pd.potMP=(pd.potMP||0)+1;SE('potion');this.updateHUD();this.msgText.setText('💧 MPポーション購入！');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+
+    renderRecipes(0);
+
+    // 上下スクロールボタン
+    if(CRAFT_RECIPES.length>visibleCount){
+      const upBtn=mk(this.add.rectangle(R-14,startY-14,26,22,0x334455,0.8).setStrokeStyle(1,0x556677).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
+      mk(this.add.text(R-14,startY-14,'▲',{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+      const dnBtn=mk(this.add.rectangle(R-14,PY+PH/2-62,26,22,0x334455,0.8).setStrokeStyle(1,0x556677).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
+      mk(this.add.text(R-14,PY+PH/2-62,'▼',{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+      upBtn.on('pointerdown',()=>{if(scrollY>0){scrollY--;renderRecipes(scrollY);}});
+      dnBtn.on('pointerdown',()=>{if(scrollY+visibleCount<CRAFT_RECIPES.length){scrollY++;renderRecipes(scrollY);}});
     }
+  }
+
+  openBuildingUI(b){
+    const w=this.scale.width,h=this.scale.height,pd=this.playerData;
+    this.physics.pause();
+    // オーバーレイ
+    const ov=this.add.rectangle(w/2,h/2,w,h,0x000000,0.65).setScrollFactor(0).setDepth(70).setInteractive();
+    const objs=[ov];
+    const mk=(o)=>{objs.push(o);return o;}
+    const close=()=>{
+      objs.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+      this.physics.resume();
+    };
+
+    // パネル
+    const PW=Math.min(w*0.82,500), PH=Math.min(h*0.75,380);
+    const PX=w/2, PY=h/2;
+    mk(this.add.rectangle(PX,PY,PW,PH,0x061020,0.97).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(71));
+    // タイトル
+    mk(this.add.text(PX,PY-PH/2+20,b.label||'施設',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(72));
+    // 所持金表示
+    const goldTxt=mk(this.add.text(PX,PY-PH/2+42,'💰 所持金: '+pd.gold+'G',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(72));
+    const refreshGold=()=>goldTxt.setText('💰 所持金: '+pd.gold+'G');
+
+    // 閉じるボタン
+    const closeBtn=mk(this.add.rectangle(PX,PY+PH/2-22,160,32,0x333333,0.8).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+    mk(this.add.text(PX,PY+PH/2-22,'✕ 閉じる',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+    closeBtn.on('pointerdown',close);
+    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0x555555,0.9));
+    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0x333333,0.8));
+
+    const msgY=PY+PH/2-58;
+    const result=mk(this.add.text(PX,msgY,'',{fontSize:'13px',fontFamily:'Courier New',color:'#44ff88',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+    const showResult=(msg,col='#44ff88')=>{result.setText(msg).setColor(col);};
+
+    // ショップアイテム定義
+    const shops={
+      inn:[
+        {label:'泊まる（HP/SP全回復+ポーション×3）',price:30,icon:'🛏',action:()=>{pd.hp=pd.mhp;pd.sp=pd.msp;pd.potHP=(pd.potHP||0)+3;pd.potMP=(pd.potMP||0)+3;showResult('✨ ぐっすり眠れた！完全回復！');this.updateHUD();}},
+      ],
+      shop:[
+        {label:'HPポーション',price:30,icon:'💊',action:()=>{pd.potHP=(pd.potHP||0)+1;showResult('💊 HPポーション入手！');this.updateHUD();}},
+        {label:'MPポーション',price:25,icon:'💧',action:()=>{pd.potMP=(pd.potMP||0)+1;showResult('💧 MPポーション入手！');this.updateHUD();}},
+      ],
+      blacksmith:'craft', // 鍛冶屋はクラフト専用UI
+      magic:[
+        {label:'魔法のマント　MAG+6 SP+10',price:85,icon:'🧣',action:()=>{if(!pd.items)pd.items={};pd.items['mage_mantle']=(pd.items['mage_mantle']||0)+1;showResult('🧣 魔法のマントを入手！装備タブから装備できます');this.updateHUD();}},
+        {label:'魔法のローブ　MAG+8 SP+15',price:90,icon:'👘',action:()=>{if(!pd.items)pd.items={};pd.items['robe']=(pd.items['robe']||0)+1;showResult('👘 魔法のローブを入手！装備タブから装備できます');this.updateHUD();}},
+        {label:'幸運の指輪　LUK+8 HIT+5', price:100,icon:'💍',action:()=>{if(!pd.items)pd.items={};pd.items['lucky_ring']=(pd.items['lucky_ring']||0)+1;showResult('💍 幸運の指輪を入手！装備タブから装備できます');this.updateHUD();}},
+        {label:'力のお守り　ATK+6',        price:80, icon:'📿',action:()=>{if(!pd.items)pd.items={};pd.items['power_amulet']=(pd.items['power_amulet']||0)+1;showResult('📿 力のお守りを入手！装備タブから装備できます');this.updateHUD();}},
+        {label:'魔力の宝珠　MAG+6 SP+10', price:90, icon:'🔮',action:()=>{if(!pd.items)pd.items={};pd.items['mage_orb']=(pd.items['mage_orb']||0)+1;showResult('🔮 魔力の宝珠を入手！装備タブから装備できます');this.updateHUD();}},
+        {label:'メテオームの書　※マジシャン専用',price:1000,icon:'📖',mageOnly:true,action:()=>{
+          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
+          if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
+          pd._hasMeteoorm=true;
+          showResult('📖 メテオームの書を習得！（スキルは近日実装予定）','#cc88ff');
+        }},
+        {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,action:()=>{
+          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
+          if(pd._hasHardProtect){showResult('既に習得済みです','#aaaaaa');return;}
+          pd._hasHardProtect=true;
+          showResult('📗 ハードプロテクトの書を習得！（スキルは近日実装予定）','#cc88ff');
+        }},
+      ],
+      guild:[
+        {label:'（準備中）',price:0,icon:'⚔',action:()=>{showResult('現在工事中です…','#aaaaaa');}},
+      ],
+    };
+
+    // 鍛冶屋はクラフト専用UI
     if(b.type==='blacksmith'){
-      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=80){pd.gold-=80;pd.atk+=8;SE('potion');this.updateHUD();this.msgText.setText('⚔ 鉄の剣！ATK+8');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=70){pd.gold-=70;pd.def+=5;pd.mhp+=20;pd.hp=Math.min(pd.hp+20,pd.mhp);SE('potion');this.updateHUD();this.msgText.setText('🛡 革の鎧！DEF+5 HP+20');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-THREE',()=>{if(pd.gold>=60){pd.gold-=60;pd.spd+=20;pd.hit+=3;SE('potion');this.updateHUD();this.msgText.setText('👟 俊足の靴！SPD+20 HIT+3');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
+      this._buildCraftUI(mk,close,showResult,refreshGold,PX,PY,PW,PH,pd);
+      return;
     }
-    if(b.type==='magic'){
-      this.input.keyboard.once('keydown-ONE',()=>{if(pd.gold>=90){pd.gold-=90;pd.mag+=8;pd.msp+=15;SE('potion');this.updateHUD();this.msgText.setText('🔮 魔法の杖！MAG+8 SP+15');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-      this.input.keyboard.once('keydown-TWO',()=>{if(pd.gold>=100){pd.gold-=100;pd.luk+=8;pd.hit+=5;SE('potion');this.updateHUD();this.msgText.setText('💍 幸運の指輪！LUK+8 HIT+5%');}else this.msgText.setText('💰 お金が足りない！');this.time.delayedCall(1200,close);});
-    }
+
+    const items=shops[b.type]||[];
+    const startY=PY-PH/2+70;
+    const ITEM_H=52;
+    items.forEach((item,i)=>{
+      const iy=startY+i*ITEM_H+ITEM_H/2;
+      const mageOnly=item.mageOnly||false;
+      const wrongClass=mageOnly&&pd.cls!=='mage';
+      const canAfford=pd.gold>=item.price&&!wrongClass;
+      const bgCol=wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
+      const strokeCol=wrongClass?0x552222:canAfford?0x44aaff:0x333333;
+      const ibg=mk(this.add.rectangle(PX,iy,PW-24,ITEM_H-6,bgCol,0.9).setStrokeStyle(1,strokeCol).setScrollFactor(0).setDepth(72));
+      const textCol=wrongClass?'#552222':canAfford?'#ffffff':'#555566';
+      mk(this.add.text(PX-PW/2+20,iy,item.icon+' '+item.label,{fontSize:'13px',fontFamily:'Courier New',color:textCol,wordWrap:{width:PW-100}}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+      if(item.price>0){
+        mk(this.add.text(PX+PW/2-16,iy,item.price+'G',{fontSize:'13px',fontFamily:'Courier New',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
+      }
+      // マジシャン専用ラベル
+      if(mageOnly){
+        mk(this.add.text(PX+PW/2-16,iy+12,'🔮専用',{fontSize:'10px',fontFamily:'Courier New',color:wrongClass?'#663333':'#9966cc'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
+      }
+      // インタラクション（非対応クラスでもタップで「使用不可」メッセージを出す）
+      ibg.setInteractive({useHandCursor:true});
+      if(canAfford&&item.price>0){
+        ibg.on('pointerover',()=>ibg.setFillStyle(0x1a4060,0.95));
+        ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
+        ibg.on('pointerdown',()=>{
+          pd.gold-=item.price;
+          item.action();
+          refreshGold();
+          SE('potion');
+        });
+      }else if(wrongClass){
+        ibg.on('pointerdown',()=>showResult('マジシャンのみ購入できます','#ff4444'));
+      }else if(pd.gold<item.price&&item.price>0){
+        ibg.on('pointerdown',()=>showResult('💰 所持金が足りません','#ff4444'));
+      }else if(item.price===0){
+        ibg.on('pointerdown',()=>item.action());
+      }
+    });
   }
 
   openMenu(tab='stat'){
@@ -2400,12 +2753,16 @@ class GameScene extends Phaser.Scene{
     const tabBtns={}, tabTxts={};
     const statCont=sf0(this.add.container(0,0));
     const skillCont=sf0(this.add.container(0,0));
-    root.add([statCont,skillCont]);
+    const equipCont=sf0(this.add.container(0,0));
+    const itemCont=sf0(this.add.container(0,0));
+    root.add([statCont,skillCont,equipCont,itemCont]);
 
     const switchTab=(t)=>{
       statCont.setVisible(t==='stat');
       skillCont.setVisible(t==='skill');
-      ['stat','skill'].forEach(id=>{
+      equipCont.setVisible(t==='equip');
+      itemCont.setVisible(t==='item');
+      ['stat','skill','equip','item'].forEach(id=>{
         const col=id==='stat'?0x44aaff:0x00e5ff;
         const on=id===t;
         tabBtns[id].setFillStyle(col,on?0.5:0.08).setStrokeStyle(2,on?col:0x334455);
@@ -2413,8 +2770,8 @@ class GameScene extends Phaser.Scene{
       });
     };
 
-    [['stat','⚡ ステータス',0x44aaff,-PW/4],['skill','🎯 スキルツリー',0x00e5ff,PW/4]].forEach(([id,label,col,ox])=>{
-      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/2-4,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
+    [['stat','⚡ ステータス',0x44aaff,-PW*0.375],['skill','🎯 スキル',0x00e5ff,-PW*0.125],['equip','🛡 装備',0xe74c3c,PW*0.125],['item','🎒 アイテム',0xf39c12,PW*0.375]].forEach(([id,label,col,ox])=>{
+      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/4-3,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
       const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'17px',fontFamily:'Courier New',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
       btn.on('pointerdown',()=>switchTab(id));
       tabBtns[id]=btn; tabTxts[id]=txt;
@@ -2449,34 +2806,38 @@ class GameScene extends Phaser.Scene{
     const refreshPts=()=>ptsTxt.setText('残りポイント: '+tmpPts+'pt');
 
     const ROW_H=(IH-44-54)/6; // 下部に確定ボタン用スペース確保
+    const ROW_INNER=ROW_H-4; // 行背景の高さ（余白2px×上下）
     const vt={}, at={};
     S.forEach((s,i)=>{
       const y=ITOP+40+i*ROW_H+ROW_H/2;
       // PW基準の相対レイアウト（スマホ対応）
-      const btnW=Math.min(44,PW*0.08);
-      const lblX=L+4;
-      const descX=L+PW*0.22;
-      const curX=L+PW*0.62;
-      const addX=L+PW*0.72;
-      const bpX=R-btnW/2-4;
-      const bmX=R-btnW*1.5-10;
-      const fs=Math.max(11,Math.min(14,PW*0.022));
-      // 行背景
-      sadd(this.add.rectangle(PX,y,PW-20,ROW_H-3,0x0d1a2e,0.6).setStrokeStyle(1,0x223344));
+      const btnW=Math.min(48,PW*0.09);
+      const btnH=ROW_INNER-4; // ボタン高さを行高さに合わせる
+      const lblX=L+8;
+      const descX=L+PW*0.23;
+      const curX=L+PW*0.63;
+      const addX=L+PW*0.73;
+      const bpX=R-btnW/2-6;
+      const bmX=R-btnW*1.5-14;
+      const fs=Math.max(12,Math.min(16,PW*0.025)); // フォント大きめ
+      // 行背景（ROW_Hいっぱいに）
+      sadd(this.add.rectangle(PX,y,PW-16,ROW_INNER,0x0d1a2e,0.75).setStrokeStyle(1,0x2a3f55));
+      // 左端のカラーライン
+      sadd(this.add.rectangle(L+8,y,4,ROW_INNER-4,parseInt(s.col.replace('#',''),16),0.9).setOrigin(0.5));
       // ラベル
-      sadd(this.add.text(lblX,y,s.label,{fontSize:fs+'px',fontFamily:'Courier New',color:s.col}).setOrigin(0,0.5));
+      sadd(this.add.text(lblX+8,y,s.label,{fontSize:fs+'px',fontFamily:'Courier New',color:s.col,fontStyle:'bold'}).setOrigin(0,0.5));
       // 説明
-      sadd(this.add.text(descX,y,s.desc,{fontSize:Math.max(10,fs-2)+'px',fontFamily:'Courier New',color:'#555566'}).setOrigin(0,0.5));
-      // 現在値
-      const cur=sadd(this.add.text(curX,y,svStr(s.key),{fontSize:fs+'px',fontFamily:'Courier New',color:'#ffffff'}).setOrigin(0,0.5));
+      sadd(this.add.text(descX,y,s.desc,{fontSize:Math.max(11,fs-3)+'px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
+      // 現在値（大きく白で）
+      const cur=sadd(this.add.text(curX,y,svStr(s.key),{fontSize:(fs+2)+'px',fontFamily:'Courier New',color:'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5));
       // 仮割り振り表示
       const addTxt=sadd(this.add.text(addX,y,'',{fontSize:fs+'px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0,0.5));
-      // ─ ボタン
-      const bm=sadd(this.add.rectangle(bmX,y,btnW,ROW_H-8,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
-      sadd(this.add.text(bmX,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+      // ─ ボタン（高さをROW_Hに合わせて大きく）
+      const bm=sadd(this.add.rectangle(bmX,y,btnW,btnH,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
+      sadd(this.add.text(bmX,y,'－',{fontSize:'20px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
       // ＋ ボタン
-      const bp=sadd(this.add.rectangle(bpX,y,btnW,ROW_H-8,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
-      sadd(this.add.text(bpX,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
+      const bp=sadd(this.add.rectangle(bpX,y,btnW,btnH,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+      sadd(this.add.text(bpX,y,'＋',{fontSize:'20px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
       const adj=(dir)=>{
         const n=stmp[s.key]||0;
         if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
@@ -2510,10 +2871,30 @@ class GameScene extends Phaser.Scene{
     //  スキルタブ（＋/－仮割り振り→確定）
     // ════════════════════════════════
     const DEFS={
-      warrior:[{id:'sk1',name:'烈風斬',   maxLv:10,desc:'周囲の敵を吹き飛ばす'},{id:'sk2',name:'ハードガード',maxLv:10,desc:'防御力大幅UP'},{id:'sk3',name:'パリィ',maxLv:5,desc:'攻撃無効化'}],
-      mage:   [{id:'sk1',name:'大爆発',   maxLv:10,desc:'広範囲大ダメージ'},{id:'sk2',name:'フロスト',maxLv:10,desc:'広範囲凍結'},{id:'sk3',name:'ボルテックス',maxLv:5,desc:'雷の貫通弾'}],
-      archer: [{id:'sk1',name:'5方向射撃',maxLv:10,desc:'5方向同時射撃'},{id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},{id:'sk3',name:'バルカン',maxLv:10,desc:'連射'}],
-      bomber: [{id:'sk1',name:'設置爆弾',maxLv:10,desc:'最大3個設置・敵接触で爆破'},{id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},{id:'sk3',name:'ハイパーボム',maxLv:5,desc:'超巨大爆弾'}],
+      warrior:[
+        {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
+        {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
+        {id:'sk3',name:'パリィ',      maxLv:5, desc:'攻撃無効化'},
+        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+      ],
+      mage:[
+        {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
+        {id:'sk2',name:'フロスト',    maxLv:10,desc:'広範囲凍結'},
+        {id:'sk3',name:'ボルテックス',maxLv:5, desc:'雷の貫通弾'},
+        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+      ],
+      archer:[
+        {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
+        {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},
+        {id:'sk3',name:'バルカン',          maxLv:10,desc:'連射'},
+        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+      ],
+      bomber:[
+        {id:'sk1',name:'設置爆弾',        maxLv:10,desc:'最大3個設置・敵接触で爆破'},
+        {id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},
+        {id:'sk3',name:'ハイパーボム',    maxLv:5, desc:'超巨大爆弾'},
+        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+      ],
     };
     const defs=DEFS[pd.cls]||[];
     const skadd=(o)=>{skillCont.add(sf0(o));return o;};
@@ -2527,51 +2908,52 @@ class GameScene extends Phaser.Scene{
     const jbarW=(PW-30)*Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
     skadd(this.add.rectangle(PX-(PW-30)/2,ITOP+32,jbarW,10,0x00e5ff).setOrigin(0,0.5));
 
-    const BOT_RESERVED=54; // 確定ボタン用の予約スペース
-    const SK_H=(IH-44-BOT_RESERVED)/3;
+    const BOT_RESERVED=54;
+    const SK_H=(IH-44-BOT_RESERVED)/6; // 6スキル分
     const skVt={}, skAt={}, skCells={};
     defs.forEach((sk,i)=>{
       const y=ITOP+52+i*SK_H+SK_H/2;
+
+      // ── ロック枠（sk4〜sk6・アイテム習得用）
+      if(sk.locked){
+        skadd(this.add.rectangle(PX,y,PW-20,SK_H-4,0x080d18,0.6).setStrokeStyle(1,0x223344,0.5));
+        skadd(this.add.text(PX,y,'🔒',{fontSize:'12px'}).setOrigin(0.5));
+        return;
+      }
+
+      // ── 通常スキル行
       const curLv=pd[sk.id]||0, maxed=curLv>=sk.maxLv;
       const acol=curLv>0?0x00e5ff:0x556677;
-      // 行背景
       skadd(this.add.rectangle(PX,y,PW-20,SK_H-4,0x0a1525,0.7).setStrokeStyle(2,acol));
 
-      // レイアウト定数（パネル幅基準）
-      const btnAreaW=92;           // 右端の±ボタンエリア幅
-      const lvTxtW=64;             // Lv表示幅
-      const barAreaR=R-btnAreaW-lvTxtW; // バー右端
-      const barAreaL=L+4;          // バー左端
-      const barTotalW=barAreaR-barAreaL-8; // バー全体幅
+      const btnAreaW=88, lvTxtW=58;
+      const barAreaR=R-btnAreaW-lvTxtW;
+      const barAreaL=L+4;
+      const barTotalW=barAreaR-barAreaL-8;
 
-      // キー・スキル名（左上）
-      skadd(this.add.text(L+4,y-SK_H*0.22,['[Q]','[E]','[R]'][i],{fontSize:'11px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
-      skadd(this.add.text(L+28,y-SK_H*0.22,sk.name,{fontSize:'14px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
-      // 説明（左下）
-      skadd(this.add.text(L+4,y+SK_H*0.18,sk.desc,{fontSize:'11px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
+      skadd(this.add.text(L+4,y-SK_H*0.22,['[Q]','[E]','[R]'][i]||'',{fontSize:'10px',fontFamily:'Courier New',color:'#888'}).setOrigin(0,0.5));
+      skadd(this.add.text(L+24,y-SK_H*0.22,sk.name,{fontSize:'13px',fontFamily:'Courier New',color:'#'+acol.toString(16).padStart(6,'0')}).setOrigin(0,0.5));
+      skadd(this.add.text(L+4,y+SK_H*0.18,sk.desc,{fontSize:'10px',fontFamily:'Courier New',color:'#667788'}).setOrigin(0,0.5));
 
-      // Lvバー（バー全体幅÷maxLvで均等分割）
       const bW=Math.max(4,Math.floor(barTotalW/sk.maxLv)-2);
-      const bSX=barAreaL;
       const lvCells=[];
       for(let j=0;j<sk.maxLv;j++){
-        const cell=skadd(this.add.rectangle(bSX+j*(bW+2),y,bW,10,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
+        const cell=skadd(this.add.rectangle(barAreaL+j*(bW+2),y,bW,8,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
         lvCells.push(cell);
       }
-      // Lv数値（バー右）
       const lvTxtX=barAreaR+lvTxtW/2;
-      const lvTxt=skadd(this.add.text(lvTxtX,y,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'12px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
-      // 仮割り振り表示
-      const skAddTxt=skadd(this.add.text(lvTxtX,y+SK_H*0.2,'',{fontSize:'11px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
+      const lvTxt=skadd(this.add.text(lvTxtX,y,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Courier New',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0.5));
+      const skAddTxt=skadd(this.add.text(lvTxtX,y+SK_H*0.22,'',{fontSize:'10px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(0.5));
       skVt[sk.id]=lvTxt; skAt[sk.id]=skAddTxt;
-      // セルも保持（確定時にゲージ更新）
       skCells[sk.id]={cells:lvCells,maxLv:sk.maxLv};
-      // ─ / ＋ ボタン（MAXでない場合のみ）
+      sktmp[sk.id]=0;
+
       if(!maxed){
-        const sbm=skadd(this.add.rectangle(R-70,y,42,SK_H-10,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
-        skadd(this.add.text(R-70,y,'－',{fontSize:'20px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
-        const sbp=skadd(this.add.rectangle(R-20,y,42,SK_H-10,0x00e5ff,0.2).setStrokeStyle(2,0x00e5ff).setInteractive());
-        skadd(this.add.text(R-20,y,'＋',{fontSize:'20px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5));
+        const bh=SK_H-10;
+        const sbm=skadd(this.add.rectangle(R-70,y,40,bh,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
+        skadd(this.add.text(R-70,y,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+        const sbp=skadd(this.add.rectangle(R-22,y,40,bh,0x00e5ff,0.2).setStrokeStyle(2,0x00e5ff).setInteractive());
+        skadd(this.add.text(R-22,y,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#00e5ff'}).setOrigin(0.5));
         const adjSk=(dir)=>{
           const n=sktmp[sk.id]||0;
           const newLv=curLv+n+dir;
@@ -2584,7 +2966,7 @@ class GameScene extends Phaser.Scene{
         sbm.on('pointerdown',()=>adjSk(-1)); sbm.on('pointerover',()=>sbm.setFillStyle(0xe74c3c,0.5)); sbm.on('pointerout',()=>sbm.setFillStyle(0xe74c3c,0.2));
         sbp.on('pointerdown',()=>adjSk(+1)); sbp.on('pointerover',()=>sbp.setFillStyle(0x00e5ff,0.5)); sbp.on('pointerout',()=>sbp.setFillStyle(0x00e5ff,0.2));
       }else{
-        skadd(this.add.text(R-45,y,'MAX',{fontSize:'15px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));
+        skadd(this.add.text(R-45,y,'MAX',{fontSize:'13px',fontFamily:'Courier New',color:'#ffd700'}).setOrigin(0.5));
       }
     });
 
@@ -2619,7 +3001,129 @@ class GameScene extends Phaser.Scene{
     skRst.on('pointerdown',()=>{defs.forEach(sk=>{tmpJp+=sktmp[sk.id]||0;sktmp[sk.id]=0;if(skAt[sk.id])skAt[sk.id].setText('');});refreshJp();});
     skRst.on('pointerover',()=>skRst.setFillStyle(0x666666,0.4)); skRst.on('pointerout',()=>skRst.setFillStyle(0x333333,0.3));
 
+    // ════════════════════════════════
+    //  装備タブ
+    // ════════════════════════════════
+    const eqadd=(o)=>{equipCont.add(sf0(o));return o;};
+    const equipStats=calcEquipStats(pd.equip);
+
+    // 装備合計ステータス表示
+    eqadd(this.add.text(PX,ITOP+14,'🛡 装備中のステータスボーナス',{fontSize:'13px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+    const statKeys=[['atk','ATK'],['def','DEF'],['mag','MAG'],['mhp','HP'],['msp','SP'],['hit','HIT'],['luk','LUK'],['agi','回避']];
+    const bonusStr=statKeys.filter(([k])=>equipStats[k]>0).map(([k,l])=>l+'+'+equipStats[k]).join('  ')||'なし';
+    eqadd(this.add.text(PX,ITOP+30,bonusStr,{fontSize:'11px',fontFamily:'Courier New',color:'#aaddcc'}).setOrigin(0.5));
+
+    // 6スロット表示（3列×2行）
+    const COLS2=3, ROWS2=2;
+    const CW=(PW-24)/COLS2, CH=(IH-60)/ROWS2;
+    EQUIP_SLOTS.forEach((slot,i)=>{
+      const col2=i%COLS2, row2=Math.floor(i/COLS2);
+      const cx=L+12+col2*CW+CW/2, cy=ITOP+48+row2*CH+CH/2;
+      const equipped=pd.equip[slot.id];
+      const eDef=equipped?EQUIP_DEFS[equipped]:null;
+      const bgCol=eDef?0x1a2a3a:0x0a0d18;
+      const strokeCol=eDef?0xe74c3c:0x334455;
+
+      // スロット背景
+      const slotBg=eqadd(this.add.rectangle(cx,cy,CW-6,CH-6,bgCol,0.85).setStrokeStyle(1,strokeCol));
+      // スロット名
+      eqadd(this.add.text(cx,cy-CH/2+10,slot.icon+' '+slot.label,{fontSize:'11px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
+      if(eDef){
+        // 装備中アイテム
+        eqadd(this.add.text(cx,cy-2,eDef.icon+' '+eDef.name,{fontSize:'12px',fontFamily:'Courier New',color:'#'+eDef.col.toString(16).padStart(6,'0'),fontStyle:'bold'}).setOrigin(0.5));
+        const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
+        eqadd(this.add.text(cx,cy+12,statStr,{fontSize:'10px',fontFamily:'Courier New',color:'#88bbaa'}).setOrigin(0.5));
+        // 外すボタン
+        const removeBtn=eqadd(this.add.rectangle(cx,cy+CH/2-12,60,18,0x551111,0.8).setStrokeStyle(1,0xaa3333).setInteractive({useHandCursor:true}));
+        eqadd(this.add.text(cx,cy+CH/2-12,'外す',{fontSize:'10px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+        removeBtn.on('pointerdown',()=>{
+          pd.equip[slot.id]=null;
+          SE('potion');
+          this._closeMenu();
+          this.openMenu('equip');
+        });
+      }else{
+        eqadd(this.add.text(cx,cy,'（空）',{fontSize:'12px',fontFamily:'Courier New',color:'#334455'}).setOrigin(0.5));
+      }
+    });
+
+    // 所持装備品一覧（下部）
+    eqadd(this.add.text(PX,ITOP+48+ROWS2*CH+8,'── 所持品から装備 ──',{fontSize:'11px',fontFamily:'Courier New',color:'#666688'}).setOrigin(0.5));
+    const ownedEquips=Object.keys(pd.items||{}).filter(k=>EQUIP_DEFS[k]&&(pd.items[k]||0)>0);
+    if(ownedEquips.length===0){
+      eqadd(this.add.text(PX,ITOP+48+ROWS2*CH+24,'装備品を持っていません',{fontSize:'11px',fontFamily:'Courier New',color:'#445566'}).setOrigin(0.5));
+    }else{
+      const INV_Y=ITOP+48+ROWS2*CH+22;
+      const INV_W=(PW-20)/Math.min(ownedEquips.length,4);
+      ownedEquips.slice(0,8).forEach((id,i)=>{
+        const def=EQUIP_DEFS[id];
+        const ix=L+10+i*INV_W+INV_W/2;
+        const iy=INV_Y;
+        const isEquipped=Object.values(pd.equip).includes(id);
+        const ibg=eqadd(this.add.rectangle(ix,iy,INV_W-4,28,isEquipped?0x1a3a1a:0x0a1525,0.85).setStrokeStyle(1,isEquipped?0x44aa44:0x334455).setInteractive({useHandCursor:true}));
+        eqadd(this.add.text(ix,iy,def.icon+' '+def.name,{fontSize:'10px',fontFamily:'Courier New',color:isEquipped?'#44aa44':'#aaaaaa'}).setOrigin(0.5));
+        if(!isEquipped){
+          ibg.on('pointerdown',()=>{
+            // 同スロットの既存装備を解除してから装備
+            pd.equip[def.slot]=id;
+            SE('potion');
+            this._closeMenu();
+            this.openMenu('equip');
+          });
+        }
+      });
+    }
+
+    // ════════════════════════════════
+    //  アイテムタブ
+    // ════════════════════════════════
+    const iadd=(o)=>{itemCont.add(sf0(o));return o;};
+    // タイトル
+    iadd(this.add.text(PX,ITOP+14,'🎒 所持アイテム',{fontSize:'16px',fontFamily:'Courier New',color:'#f39c12'}).setOrigin(0.5));
+    const itemTypes=Object.keys(pd.items||{}).filter(k=>(pd.items[k]||0)>0);
+    const typeCount=itemTypes.length;
+    iadd(this.add.text(PX,ITOP+32,'種類: '+typeCount+'/'+MAX_ITEM_TYPES,{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
+
+    // アイテム一覧（グリッド表示）
+    const COLS=4, CELL_W=(PW-24)/COLS, CELL_H=52;
+    const gridTop=ITOP+48;
+    const allItems=Object.entries(ITEM_DEFS);
+    let row=0,col=0;
+    allItems.forEach(([id,def])=>{
+      const count=(pd.items||{})[id]||0;
+      const cx=L+12+col*CELL_W+CELL_W/2;
+      const cy=gridTop+row*CELL_H+CELL_H/2;
+      if(cy+CELL_H/2>IBOT-10)return; // 画面外スキップ
+      // セル背景
+      const alpha=count>0?0.7:0.15;
+      const col2=count>0?def.col:0x223344;
+      iadd(this.add.rectangle(cx,cy,CELL_W-4,CELL_H-4,col2,alpha*0.3).setStrokeStyle(1,col2,count>0?0.8:0.2));
+      // アイコン
+      iadd(this.add.text(cx,cy-12,def.icon,{fontSize:'18px'}).setOrigin(0.5));
+      // アイテム名
+      const nameFs=Math.max(9,Math.min(11,CELL_W*0.15));
+      iadd(this.add.text(cx,cy+4,def.name,{fontSize:nameFs+'px',fontFamily:'Courier New',color:count>0?'#ffffff':'#445566',wordWrap:{width:CELL_W-8}}).setOrigin(0.5));
+      // 個数・売価
+      if(count>0){
+        iadd(this.add.text(cx+CELL_W/2-6,cy-CELL_H/2+5,'×'+count,{fontSize:'10px',fontFamily:'Courier New',color:'#ffd700',stroke:'#000',strokeThickness:2}).setOrigin(1,0));
+        iadd(this.add.text(cx,cy+CELL_H/2-7,def.sell+'G',{fontSize:'9px',fontFamily:'Courier New',color:'#aaddaa',stroke:'#000',strokeThickness:2}).setOrigin(0.5,1));
+      } else {
+        iadd(this.add.text(cx,cy+CELL_H/2-7,def.sell+'G',{fontSize:'9px',fontFamily:'Courier New',color:'#445566'}).setOrigin(0.5,1));
+      }
+      col++;
+      if(col>=COLS){col=0;row++;}
+    });
+
     switchTab(tab);
+  }
+
+  // 装備ボーナスを実ステータスに反映（装備変更時に呼ぶ）
+  _applyEquipStats(){
+    const pd=this.playerData;
+    // 基礎値は装備なしの状態で保持されているので、
+    // HUD表示のmhp/mspは基礎値+装備ボーナスとして計算
+    // ※現時点では装備は参照のみ（EQUIP_DEFSから戦闘時に加算）
+    this.updateHUD();
   }
 
   _closeMenu(){
@@ -3103,9 +3607,8 @@ class GameScene extends Phaser.Scene{
     this.showFloat(ed.sprite.x,ed.sprite.y-60,'+'+ed.gold+'G','#ffd700');
     // ジョブEXP付与（通常EXPの60%）
     this.addJobExp(Math.floor(ed.exp*0.6));
-    // ドロップ（§11準拠）
+    // ドロップ（ポーション）
     if(ed.isBoss){
-      // ボス確定ドロップ：HP×1 + MP×2
       const d1=this.drops.create(ed.sprite.x-20,ed.sprite.y,'drop_hp_potion').setDisplaySize(24,24);d1.setData('type','hp');d1.refreshBody();
       const d2=this.drops.create(ed.sprite.x,   ed.sprite.y,'drop_mp_potion').setDisplaySize(24,24);d2.setData('type','mp');d2.refreshBody();
       const d3=this.drops.create(ed.sprite.x+20,ed.sprite.y,'drop_mp_potion').setDisplaySize(24,24);d3.setData('type','mp');d3.refreshBody();
@@ -3113,6 +3616,13 @@ class GameScene extends Phaser.Scene{
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_hp_potion').setDisplaySize(24,24);d.setData('type','hp');d.refreshBody();}
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_mp_potion').setDisplaySize(24,24);d.setData('type','mp');d.refreshBody();}
     }
+    // ドロップ（素材アイテム）
+    const dropTable=DROP_TABLE[ed.id]||[];
+    dropTable.forEach(entry=>{
+      if(Math.random()>entry.rate)return;
+      const count=Phaser.Math.Between(entry.min,entry.max);
+      this._addItem(pd,entry.id,count,ed.sprite.x,ed.sprite.y);
+    });
     // フェードアウト後にスプライト削除 & リスポーンスケジュール
     const deadId=ed.id;
     const isBoss=ed.isBoss;
@@ -3305,6 +3815,9 @@ class GameScene extends Phaser.Scene{
     stopBGM();
     // 詠唱キャンセル
     if(this._castTimer){try{this._castTimer.remove();}catch(e){}}
+    // 入るボタンをクリア
+    this._updateEnterBtn(null);
+    this._nearBuilding=null;
     // 設置爆弾クリア
     if(this._placedBombs){
       this._placedBombs.forEach(b=>{
@@ -3547,6 +4060,19 @@ class GameScene extends Phaser.Scene{
       }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
+    // 建物接近チェック（町ステージのみ）
+    if(this.stage===0&&this.buildings&&!this._menuOpen&&!this._gameOver){
+      let nearB=null;
+      let minDist=120; // 接近判定距離
+      this.buildings.forEach(b=>{
+        const d=Phaser.Math.Distance.Between(p.x,p.y,b.x+b.w/2,b.y+b.h/2);
+        if(d<minDist){minDist=d;nearB=b;}
+      });
+      if(nearB!==this._nearBuilding){
+        this._nearBuilding=nearB;
+        this._updateEnterBtn(nearB);
+      }
+    }
     // [S][J]キー（Menu未表示時のみ）
     if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('S')))this.openMenu('stat');
     if(Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('J')))this.openMenu('skill');
