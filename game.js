@@ -1113,10 +1113,13 @@ class BootScene extends Phaser.Scene{
       // 腕（弓を持つ）
       g.fillStyle(0x5a7830,1);g.fillEllipse(S*.15,S*.5,S*.16,S*.3);g.fillEllipse(S*.85,S*.5,S*.16,S*.3);
       // 弓
-      g.lineStyle(4,0x886633,1);
-      g.beginPath();g.moveTo(S*.06,S*.2);g.lineTo(S*.06,S*.78);g.strokePath();
-      g.lineStyle(2,0xcc9944,1);
-      g.beginPath();g.moveTo(S*.06,S*.2);g.quadraticBezierTo(S*-.04,S*.49,S*.06,S*.78);g.strokePath();
+      // 弓（曲線をfillRectで近似）
+      g.fillStyle(0x886633,1);g.fillRect(S*.04,S*.2,S*.04,S*.58);
+      // 弓の弦（右に弓なり）
+      g.fillStyle(0xcc9944,1);
+      g.fillRect(S*.0,S*.2,S*.04,S*.04);g.fillRect(S*.0,S*.76,S*.04,S*.04);
+      g.fillRect(S*-.02,S*.46,S*.04,S*.06);
+      // 弦
       g.lineStyle(1,0xddddcc,0.8);
       g.lineBetween(S*.06,S*.49,S*.32,S*.49);
       // 矢（番えている）
