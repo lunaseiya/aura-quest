@@ -3845,11 +3845,12 @@ class GameScene extends Phaser.Scene{
     const skillCont=sf0(this.add.container(0,0));
     const equipCont=sf0(this.add.container(0,0));
     const itemCont=sf0(this.add.container(0,0));
-    // 全コンテナを最初に非表示にしてからswitchTabで切り替える
+    // 全コンテナを最初に非表示
     statCont.setVisible(false);
     skillCont.setVisible(false);
     equipCont.setVisible(false);
     itemCont.setVisible(false);
+    statCont.setVisible(false);
     root.add([statCont,skillCont,equipCont,itemCont]);
 
     const switchTab=(t)=>{
@@ -3906,7 +3907,7 @@ class GameScene extends Phaser.Scene{
     // 縦3×横2グリッドレイアウト（上に詰める）
     const SCOLS=2, SROWS=3;
     const CELL_W=(PW-20)/SCOLS;
-    const CELL_H=(IH-30-28)/SROWS;
+    const CELL_H=(IH-20-BOT_H)/SROWS; // ボタン1行分のみ確保
     const vt={}, at={};
     S.forEach((s,i)=>{
       const col2=i%SCOLS, row2=Math.floor(i/SCOLS);
@@ -3929,11 +3930,13 @@ class GameScene extends Phaser.Scene{
       // 仮割り振り
       const addTxt=sadd(this.add.text(cR-btnW*2-12,cy+CELL_H*0.22,'',{fontSize:(fs-1)+'px',fontFamily:'Courier New',color:'#44ff88'}).setOrigin(1,0.5));
       // ─ ボタン
-      const bm=sadd(this.add.rectangle(cR-btnW*1.2,cy,btnW,CELL_H-16,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
-      sadd(this.add.text(cR-btnW*1.2,cy,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
+      const bmX2=cR-btnW*2.4; // ─ボタン
+      const bpX2=cR-btnW*1.2; // ＋ボタン（セル内側に寄せる）
+      const bm=sadd(this.add.rectangle(bmX2,cy,btnW,CELL_H-16,0xe74c3c,0.25).setStrokeStyle(2,0xe74c3c).setInteractive());
+      sadd(this.add.text(bmX2,cy,'－',{fontSize:'18px',fontFamily:'Courier New',color:'#e74c3c'}).setOrigin(0.5));
       // ＋ ボタン
-      const bp=sadd(this.add.rectangle(cR-btnW*0.1,cy,btnW,CELL_H-16,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
-      sadd(this.add.text(cR-btnW*0.1,cy,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
+      const bp=sadd(this.add.rectangle(bpX2,cy,btnW,CELL_H-16,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+      sadd(this.add.text(bpX2,cy,'＋',{fontSize:'18px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
       const adj=(dir)=>{
         const n=stmp[s.key]||0;
         if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
@@ -3946,10 +3949,11 @@ class GameScene extends Phaser.Scene{
       vt[s.key]=cur; at[s.key]=addTxt;
     });
 
-    // 確定・リセット
-    const BY=IBOT-16;
-    const ok=sadd(this.add.rectangle(PX-80,BY,220,34,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
-    sadd(this.add.text(PX-80,BY,'✔ 確定して反映',{fontSize:'15px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
+    // 確定ボタン（閉じると横並び・左寄り）
+    const okX=PX-PW/4;
+    const okY=PY+PH/2-BOT_H/2-2;
+    const ok=sadd(this.add.rectangle(okX,okY,160,BOT_H,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
+    sadd(this.add.text(okX,okY,'✔ 確定して反映',{fontSize:'14px',fontFamily:'Courier New',color:'#44aaff'}).setOrigin(0.5));
     ok.on('pointerover',()=>ok.setFillStyle(0x44aaff,0.5)); ok.on('pointerout',()=>ok.setFillStyle(0x44aaff,0.25));
     ok.on('pointerdown',()=>{
       let any=false;
@@ -3958,10 +3962,6 @@ class GameScene extends Phaser.Scene{
       S.forEach(s=>{if(vt[s.key])vt[s.key].setText(svStr(s.key));if(at[s.key])at[s.key].setText('');});
       refreshPts(); if(any){SE('levelup');this.updateHUD();}
     });
-    const rst=sadd(this.add.rectangle(PX+100,BY,140,34,0x333333,0.3).setStrokeStyle(1,0x666666).setInteractive());
-    sadd(this.add.text(PX+100,BY,'↺ リセット',{fontSize:'14px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
-    rst.on('pointerdown',()=>{S.forEach(s=>{tmpPts+=stmp[s.key]||0;stmp[s.key]=0;if(at[s.key])at[s.key].setText('');});refreshPts();});
-    rst.on('pointerover',()=>rst.setFillStyle(0x666666,0.4)); rst.on('pointerout',()=>rst.setFillStyle(0x333333,0.3));
 
     // ════════════════════════════════
     //  スキルタブ（＋/－仮割り振り→確定）
@@ -4197,6 +4197,8 @@ class GameScene extends Phaser.Scene{
     iadd(this.add.text(PX,ITOP+32,'種類: '+typeCount+'/'+MAX_ITEM_TYPES,{fontSize:'12px',fontFamily:'Courier New',color:'#aaaaaa'}).setOrigin(0.5));
 
     // アイテム一覧（グリッド表示）
+    // アイテムタブはボタンなしなのでパネル下端まで使う
+    const ITEM_BOT=PY+PH/2-8; // ボタンエリア不要なので下端まで
     const ITEM_COLS=4, ITEM_CW=(PW-24)/ITEM_COLS, ITEM_CH=52;
     const gridTop=ITOP+48;
     const allItems=Object.entries(ITEM_DEFS);
@@ -4205,7 +4207,7 @@ class GameScene extends Phaser.Scene{
       const count=(pd.items||{})[id]||0;
       const cx=L+12+icol*ITEM_CW+ITEM_CW/2;
       const cy=gridTop+irow*ITEM_CH+ITEM_CH/2;
-      if(cy+ITEM_CH/2>IBOT-10)return; // 画面外スキップ
+      if(cy+ITEM_CH/2>ITEM_BOT-4)return; // 画面外スキップ
       // セル背景
       const alpha=count>0?0.7:0.15;
       const col2=count>0?def.col:0x223344;
