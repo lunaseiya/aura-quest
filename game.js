@@ -8,7 +8,7 @@ const TILE=32;
 // ============================================================
 //  BGM / SE
 // ============================================================
-let audioCtx=null,muted=false;
+let audioCtx=null,muted=false,testMode=false;
 
 function getAC(){
   if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}};
