@@ -2028,10 +2028,29 @@ class ClassSelectScene extends Phaser.Scene{
       this.add.text(cx+10,cy-4,cls.desc,{fontSize:'11px',fontFamily:'Arial',color:'#aaaaaa',lineSpacing:4});
       card.on('pointerover',()=>{card.setFillStyle(cls.col,0.35);this.tweens.add({targets:card,scaleX:1.03,scaleY:1.03,duration:100})});
       card.on('pointerout', ()=>{card.setFillStyle(cls.col,0.12);this.tweens.add({targets:card,scaleX:1,scaleY:1,duration:100})});
-      card.on('pointerdown',()=>{this.scene.start('Game',{playerData:makePlayerData(cls.key),stage:0})});
+      card.on('pointerdown',()=>{
+        const pd=makePlayerData(cls.key);
+        if(testMode){
+          // テストモード：ステータスポイント・JOBポイントをMAXに
+          pd.lv=50; pd.statPts=100; pd.jobLv=30; pd.jobPts=200;
+          pd.exp=0; pd.expNext=9999;
+          pd.gold=99999;
+        }
+        this.scene.start('Game',{playerData:pd,stage:0});
+      });
     });
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
+
+    // テストモードトグル
+    const tmBg=this.add.rectangle(w/2,h-32,220,34,testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677).setInteractive({useHandCursor:true});
+    const tmTxt=this.add.text(w/2,h-32,testMode?'🧪 テストモード ON':'🧪 テストモード OFF',{fontSize:'14px',fontFamily:'Arial',color:testMode?'#44ff44':'#aaaaaa',fontStyle:'bold'}).setOrigin(0.5);
+    tmBg.on('pointerdown',()=>{
+      testMode=!testMode;
+      tmBg.setFillStyle(testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677);
+      tmTxt.setText(testMode?'🧪 テストモード ON':'🧪 テストモード OFF').setColor(testMode?'#44ff44':'#aaaaaa');
+    });
+    this.add.text(w/2,h-56,'※テストモード：ステータスPT×100・スキルPT×200・Gold×99999',{fontSize:'9px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5);
   }
 }
 
