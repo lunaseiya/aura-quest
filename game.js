@@ -2772,6 +2772,7 @@ class GameScene extends Phaser.Scene{
         {id:'sk1',name:'大爆発',    cost:30,cd:2.5,desc:'周囲220px全敵に6倍魔法ダメージ'},
         {id:'sk2',name:'フロスト',  cost:25,cd:3.5,desc:'周囲160pxの敵を3秒凍結'},
         {id:'sk3',name:'ボルテックス',cost:20,cd:2,desc:'貫通する雷の弾を発射'},
+        {id:'sk4',name:'メテオーム', cost:60,cd:15, desc:'巨大隕石・大爆発の3倍ダメージ（詠唱10秒）'},
       ],
       archer:[
         {id:'sk1',name:'5方向射撃', cost:15,cd:1.5,desc:'5方向同時に矢を放つ'},
@@ -3256,7 +3257,6 @@ class GameScene extends Phaser.Scene{
         });
       }else if(num===3){ // ボルテックスボール（貫通）
         const ang=this.getFacingAngle();
-        // sz: Lv1=28px → Lv5=80px（スキルLvで大きくなる）
         const sz=28+pd.sk3*13;
         const bull=this.fireBullet(p.x,p.y,ang,'proj_vortexball',{
           spd:400,maxDist:700,
@@ -3264,12 +3264,105 @@ class GameScene extends Phaser.Scene{
           isCrit:Math.random()*100<calcCrit(pd),
           sz,
         });
-        // 当たり判定をsz×szに合わせる（円形bodyに設定）
         bull.setData('pierce',true);
-        bull.body.setSize(sz,sz); // 当たり判定をサイズに合わせる
-        // 回転エフェクト（電球っぽく回転）
+        bull.body.setSize(sz,sz);
         this.tweens.add({targets:bull,angle:360,duration:600,repeat:-1,ease:'Linear'});
         this.showFloat(p.x,p.y-60,'⚡ ボルテックス！','#44ffff');
+      }else if(num===4){ // メテオーム（詠唱10秒・大爆発の3倍）
+        if(!pd._hasMeteoorm){this.showFloat(p.x,p.y-50,'書物が必要です','#ff8800','info');pd.sp+=sk.cost;return;}
+        this._startCast('☄ メテオーム',10,()=>{
+          const skLv=pd.sk4||1;
+          // Lv1→1個、Lv2→2個、Lv3→3個、Lv4→4個、Lv5→5個
+          const meteorCount=skLv;
+          const range=280;
+          // ダメージ：大爆発(mag*6)の×2
+          const dmg=Math.max(1,Math.floor(pd.mag*(12+skLv*0.4)));
+          const cam=this.cameras.main;
+          const camL=cam.scrollX, camT=cam.scrollY;
+          const camW=cam.width, camH=cam.height;
+
+          // 隕石1個を落とす関数
+          const dropMeteor=(delay,targetX,targetY)=>{
+            this.time.delayedCall(delay,()=>{
+              const cx=targetX, cy=targetY;
+              const meteorStartY=cy-500;
+
+              // 落下地点の影
+              const shadow=this.add.ellipse(cx,cy,120,40,0xff3300,0.35).setDepth(20);
+              this.tweens.add({targets:shadow,scaleX:1.3,alpha:0.7,duration:800,yoyo:true,repeat:-1});
+
+              // 隕石グラフィクス
+              const g=this.add.graphics().setDepth(30);
+              const drawMeteor=(mx,my,sc)=>{
+                g.clear();
+                g.fillStyle(0xff8800,0.55);g.fillTriangle(mx-18*sc,my,mx+18*sc,my,mx,my-180*sc);
+                g.fillStyle(0xff4400,0.35);g.fillTriangle(mx-9*sc,my,mx+9*sc,my,mx,my-260*sc);
+                g.fillStyle(0xffff00,0.25);g.fillTriangle(mx-4*sc,my,mx+4*sc,my,mx-2*sc,my-160*sc);
+                g.fillStyle(0x993300,1);g.fillCircle(mx,my,50*sc);
+                g.fillStyle(0xcc4400,0.8);g.fillCircle(mx-6*sc,my-5*sc,28*sc);
+                g.fillStyle(0xff6600,0.5);g.fillCircle(mx-3*sc,my-7*sc,14*sc);
+                g.fillStyle(0x662200,0.5);g.fillRect(mx-8*sc,my-4*sc,6*sc,3*sc);g.fillRect(mx+3*sc,my+2*sc,5*sc,2.5*sc);
+              };
+              drawMeteor(cx,meteorStartY,1);
+
+              // 落下アニメ（1.2秒）
+              let el=0; const fallDur=1200;
+              this.time.addEvent({delay:16,repeat:Math.floor(fallDur/16),callback:()=>{
+                el+=16;
+                const t=el/fallDur;
+                const curY=meteorStartY+(cy-meteorStartY)*t;
+                drawMeteor(cx,curY,0.5+t*0.7);
+                if(Math.random()<0.35){
+                  const sp=this.add.circle(cx+(Math.random()-0.5)*36,curY+(Math.random()-0.5)*36,Phaser.Math.Between(2,7),0xff6600,0.9).setDepth(29);
+                  this.tweens.add({targets:sp,alpha:0,y:sp.y+25,duration:280,onComplete:()=>sp.destroy()});
+                }
+              }});
+
+              // 着弾（1.2秒後）
+              this.time.delayedCall(fallDur,()=>{
+                g.destroy(); shadow.destroy();
+                this.cameras.main.shake(500,0.025);
+                // フラッシュ
+                const flash=this.add.circle(cx,cy,range*0.18,0xffffff,1).setDepth(35);
+                this.tweens.add({targets:flash,scaleX:range/28,scaleY:range/28,alpha:0,duration:500,ease:'Cubic.easeOut',onComplete:()=>flash.destroy()});
+                // リング×3
+                [0,80,160].forEach((dl,ri)=>{
+                  const r2=8,maxS=range*(1+ri*0.12)/r2;
+                  const ring=this.add.circle(cx,cy,r2,0,0).setStrokeStyle(7-ri*2,[0xff4400,0xff8800,0xffcc00][ri],1).setDepth(33);
+                  this.tweens.add({targets:ring,scaleX:maxS,scaleY:maxS,alpha:0,duration:600,delay:dl,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});
+                });
+                // パーティクル
+                for(let i=0;i<20;i++){
+                  const a2=(i/20)*Math.PI*2;
+                  const d2=range*(0.3+Math.random()*0.75);
+                  const dot=this.add.circle(cx,cy,Phaser.Math.Between(8,22),[0xff4400,0xff8800,0xffcc00,0xff2200,0xffffff][i%5],1).setDepth(32);
+                  this.tweens.add({targets:dot,x:cx+Math.cos(a2)*d2,y:cy+Math.sin(a2)*d2,alpha:0,scaleX:0.1,scaleY:0.1,duration:Phaser.Math.Between(400,800),ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+                }
+                const scorch=this.add.circle(cx,cy,range*0.35,0x331100,0.5).setDepth(1);
+                this.tweens.add({targets:scorch,alpha:0,duration:4000,onComplete:()=>scorch.destroy()});
+                // ダメージ
+                this.time.delayedCall(80,()=>{
+                  this.enemyDataList.forEach(ed=>{
+                    if(!ed.dead&&Phaser.Math.Distance.Between(cx,cy,ed.sprite.x,ed.sprite.y)<range){
+                      this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);
+                    }
+                  });
+                });
+                this.showFloat(cx,cy-70,'☄ メテオーム！','#ff6600','skill');
+                SE('skill');
+              });
+            });
+          };
+
+          // Lv分だけ隕石を順番に落とす（0.8秒間隔）
+          // 落下地点：カメラ内のランダム位置（敵がいれば近く）
+          for(let m=0;m<meteorCount;m++){
+            // ランダム落下地点（カメラ範囲内）
+            const tx=camL+Phaser.Math.Between(60,camW-60);
+            const ty=camT+Phaser.Math.Between(60,camH-60);
+            dropMeteor(m*900,tx,ty);
+          }
+        });
       }
     }
     // ─ アーチャー ─
@@ -3721,7 +3814,8 @@ class GameScene extends Phaser.Scene{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
           if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasMeteoorm=true;
-          showResult('📖 メテオームの書を習得！（スキルは近日実装予定）','#cc88ff');
+          pd.sk4=1; // メテオームをLv1で習得
+          showResult('📖 メテオームの書を習得！スキルスロット4にセットされました','#cc88ff');
         }},
         {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,action:()=>{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
@@ -4015,7 +4109,8 @@ class GameScene extends Phaser.Scene{
         {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
         {id:'sk2',name:'フロスト',    maxLv:10,desc:'広範囲凍結'},
         {id:'sk3',name:'ボルテックス',maxLv:5, desc:'雷の貫通弾'},
-        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+        {id:'sk4',name:'メテオーム',  maxLv:5, desc:'巨大隕石・詠唱10秒', bookRequired:true},
+        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       archer:[
         {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
@@ -4053,6 +4148,13 @@ class GameScene extends Phaser.Scene{
       if(sk.locked){
         skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x080d18,0.6).setStrokeStyle(1,0x223344,0.5));
         skadd(this.add.text(cx,cy,'🔒',{fontSize:'16px'}).setOrigin(0.5));
+        return;
+      }
+      // ── 書物必須スキル（未習得）
+      if(sk.bookRequired&&!pd._hasMeteoorm&&sk.id==='sk4'){
+        skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x0d0a00,0.7).setStrokeStyle(1,0x443322,0.6));
+        skadd(this.add.text(cx,cy-SK_CH*0.1,'☄ メテオーム',{fontSize:'13px',fontFamily:'Arial',color:'#664422',fontStyle:'bold'}).setOrigin(0.5));
+        skadd(this.add.text(cx,cy+SK_CH*0.15,'📖 書物が必要',{fontSize:'11px',fontFamily:'Arial',color:'#664422'}).setOrigin(0.5));
         return;
       }
 
