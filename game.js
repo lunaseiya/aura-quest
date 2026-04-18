@@ -2139,7 +2139,7 @@ const STAGE_CONFIG={
       {x:400,y:80, w:200,h:140,label:'🏪 ショップ',type:'shop'},
       {x:750,y:80, w:180,h:130,label:'⚔ ギルド',  type:'guild'},
       {x:150,y:400,w:160,h:120,label:'🔨 鍛冶屋',  type:'blacksmith'},
-      {x:600,y:380,w:200,h:150,label:'🔮 魔法店',  type:'magic'},
+      {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:['obj_tree'],objPos:[[180,120],[500,90],[740,180],[145,400],[900,290],[350,600],[800,540],[950,700],[420,320],[650,800]],enemies:[['slime',300,200],['slime',700,300],['slime',500,500],['slime',850,200],['slime',170,540],['bat',400,150],['bat',900,400],['bat',210,490],['goblin',600,590],['goblin',160,290],['goblin',970,490],['troll',800,690],['troll',340,740]],boss:{id:'boss1',x:600,y:300},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town'},
@@ -2147,9 +2147,9 @@ const STAGE_CONFIG={
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
   5:{name:'ST.5 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
-    tiles:['tile_dark_forest','tile_sand_beach','tile_volcanic'],tileWeights:[60,25,15],
-    objects:['obj_tree'],
-    objPos:[[100,800],[200,600],[150,1000],[300,400],[1400,800],[1300,600],[1350,1000],[1200,400],[800,100],[800,1500]],
+    tiles:['tile_sand_beach','tile_oasis_grass','tile_sand_desert'],tileWeights:[60,25,15],
+    objects:[],
+    objPos:[],
     // 渦巻きパス上に敵を配置（左入口→螺旋上昇→頂上）
     enemies:[
       // 外周下部（入口付近）
@@ -2267,13 +2267,13 @@ class GameScene extends Phaser.Scene{
         const cx=c*TILE+16-MW/2, cy=r*TILE+16-MH/2;
         const dist=Math.sqrt(cx*cx+cy*cy);
         const angle=Math.atan2(cy,cx);
-        // 渦巻き: 道幅120px、螺旋半径は200〜720
-        const spiral=((angle+Math.PI)/(Math.PI*2)+dist/600)%1;
-        const onPath=(dist>180&&dist<720)&&(spiral<0.35||dist<250);
+        // 渦巻き: 道幅を広め（0.55）、螺旋半径200〜750
+        const spiral=((angle+Math.PI)/(Math.PI*2)+dist/580)%1;
+        const onPath=(dist>160&&dist<760)&&(spiral<0.55||dist<280);
         const onTop=dist<200; // 頂上エリア
-        if(onTop) key='tile_sand_beach';
-        else if(onPath) key=cfg.tiles[0];
-        else key='tile_volcanic';
+        if(onTop) key=cfg.tiles[1]; // 頂上：緑
+        else if(onPath) key=cfg.tiles[0]; // 道：砂色
+        else key=cfg.tiles[2]; // 崖外：砂漠（木なし）
       }else{
         const n=(c*31+r*17)%100;let acc=0;key=cfg.tiles[0];
         for(let i=0;i<cfg.tileWeights.length;i++){acc+=cfg.tileWeights[i];if(n<acc){key=cfg.tiles[i];break;}}
@@ -2404,31 +2404,7 @@ class GameScene extends Phaser.Scene{
       cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(32,40);o.refreshBody();});
     }
     // ST5: 渦巻き崖の物理壁を生成
-    if(this.stage===5){
-      const WALL=48; // 壁ブロックサイズ
-      const cols5=Math.ceil(MW/WALL), rows5=Math.ceil(MH/WALL);
-      // 透明テクスチャを1回だけ生成
-      if(!this.textures.exists('wall_block')){
-        const wg=this.make.graphics({x:0,y:0,add:false});
-        wg.fillStyle(0xff0000,0);wg.fillRect(0,0,WALL,WALL);
-        wg.generateTexture('wall_block',WALL,WALL);
-        wg.destroy();
-      }
-      for(let r=0;r<rows5;r++) for(let c=0;c<cols5;c++){
-        const wx=c*WALL+WALL/2, wy=r*WALL+WALL/2;
-        const cx5=wx-MW/2, cy5=wy-MH/2;
-        const dist=Math.sqrt(cx5*cx5+cy5*cy5);
-        const angle=Math.atan2(cy5,cx5);
-        const spiral=((angle+Math.PI)/(Math.PI*2)+dist/600)%1;
-        const onPath=(dist>180&&dist<720)&&(spiral<0.35||dist<250);
-        const onTop=dist<180;
-        // 崖外（歩けないエリア）に壁を置く
-        if(!onPath&&!onTop&&dist<760){
-          const wall=this.obstacles.create(wx,wy,'wall_block').setDisplaySize(WALL,WALL).setAlpha(0);
-          wall.refreshBody();
-        }
-      }
-    }
+    // ST5: 物理壁なし（視覚的な崖道のみ・ワールド境界で制限）
     // 町の建物 (stage:0)
     this.buildings=[];
     if(this.stage===0&&cfg.buildings){
@@ -2442,8 +2418,11 @@ class GameScene extends Phaser.Scene{
     }
     // ポータル（戻る）
     if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
-      this.add.image(80,MH/2,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
-      this.add.text(80,MH/2+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Arial',color:'#ffd700',align:'center'}).setOrigin(0.5);
+      // ST5は螺旋入口が左下なのでポータルを左下に配置
+      const pbY=this.stage===5?MH-200:MH/2;
+      this.portalBackPos={x:80,y:pbY};
+      this.add.image(80,pbY,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
+      this.add.text(80,pbY+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Arial',color:'#ffd700',align:'center'}).setOrigin(0.5);
     }
     // ポータル（次）：常に開放
     this.portalNext=null;this.portalNextImg=null;this.portalNextTxt=null;
@@ -3531,42 +3510,76 @@ class GameScene extends Phaser.Scene{
 
   _buildCraftUI(mk,close,showResult,refreshGold,PX,PY,PW,PH,pd){
     if(!pd.items)pd.items={};
-    const SB_W=10; // スクロールバー幅
+    const SB_W=10;
     const L=PX-PW/2+6;
-    const R=PX+PW/2-6-SB_W-4; // スクロールバー分だけ右端を詰める
+    const R=PX+PW/2-6-SB_W-4;
+    const BOT_BTN_H=40; // 下部「製作する」ボタンエリア
     const listTop=PY-PH/2+62;
-    const listBot=PY+PH/2-44;
+    const listBot=PY+PH/2-44-BOT_BTN_H;
     const listH=listBot-listTop;
-
-    // 2列グリッド・セルを詰めて最大表示
-    const COLS=2;
-    const CELL_W=(R-L)/COLS;
-    const CELL_H=72;
+    const COLS=2, CELL_W=(R-L)/COLS, CELL_H=72;
     const totalRows=Math.ceil(CRAFT_RECIPES.length/COLS);
     const visibleRows=Math.floor(listH/CELL_H);
     const visibleCount=visibleRows*COLS;
-    let scrollRow=0; // 行単位でスクロール
+    let scrollRow=0;
     const maxRow=Math.max(0,totalRows-visibleRows);
     let dragStartY=null, dragStartRow=null;
+    let selectedRecipe=null; // 選択中のレシピ
+    let selectedBg=null;     // 選択ハイライト矩形
 
-    // スクロールバー（右端固定）
+    // スクロールバー
     const sbX=PX+PW/2-6-SB_W/2;
     const sbBg=mk(this.add.rectangle(sbX,listTop+listH/2,SB_W,listH,0x1a1a2e,0.9).setStrokeStyle(1,0x334455).setScrollFactor(0).setDepth(73));
-    const sbThumbH=Math.max(24,listH*(visibleRows/totalRows));
+    const sbThumbH=Math.max(24,listH*Math.min(1,visibleRows/totalRows));
     const sbThumb=mk(this.add.rectangle(sbX,listTop+sbThumbH/2,SB_W-2,sbThumbH,0x44aaff,0.7).setScrollFactor(0).setDepth(74));
-
     const updateScrollbar=()=>{
       if(maxRow<=0){sbThumb.setVisible(false);return;}
       sbThumb.setVisible(true);
       const ratio=scrollRow/maxRow;
-      const thumbY=listTop+(listH-sbThumbH)*ratio+sbThumbH/2;
-      sbThumb.setY(thumbY);
+      sbThumb.setY(listTop+(listH-sbThumbH)*ratio+sbThumbH/2);
+    };
+
+    // 下部：製作ボタン
+    const craftBtnY=listBot+BOT_BTN_H/2+4;
+    const craftBtn=mk(this.add.rectangle(PX,craftBtnY,PW-20,BOT_BTN_H-6,0x113311,0.9).setStrokeStyle(2,0x336633).setScrollFactor(0).setDepth(73));
+    const craftBtnTxt=mk(this.add.text(PX,craftBtnY,'装備を選択してください',{fontSize:'14px',fontFamily:'Arial',color:'#556677',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+
+    const updateCraftBtn=()=>{
+      if(!selectedRecipe){
+        craftBtn.setFillStyle(0x113311,0.9).setStrokeStyle(2,0x336633);
+        craftBtnTxt.setText('装備を選択してください').setColor('#556677');
+        craftBtn.removeInteractive();
+        return;
+      }
+      const r=selectedRecipe;
+      const eDef=EQUIP_DEFS[r.result];
+      const canCraft=pd.gold>=r.fee&&r.materials.every(m=>(pd.items[m.id]||0)>=m.count);
+      if(canCraft){
+        craftBtn.setFillStyle(0x226622,0.95).setStrokeStyle(2,0x44aa44);
+        craftBtnTxt.setText('🔨 '+eDef.icon+' '+eDef.name+' を製作する（'+r.fee+'G）').setColor('#44ff88');
+        craftBtn.setInteractive({useHandCursor:true});
+        craftBtn.removeAllListeners('pointerdown');
+        craftBtn.on('pointerdown',()=>{
+          r.materials.forEach(m=>{pd.items[m.id]-=m.count;});
+          pd.gold-=r.fee;
+          pd.items[r.result]=(pd.items[r.result]||0)+1;
+          showResult(eDef.icon+' '+eDef.name+'を製作！装備タブから装備できます','#44ff88');
+          refreshGold(); SE('levelup');
+          selectedRecipe=null;
+          renderRecipes(scrollRow);
+        });
+        craftBtn.on('pointerover',()=>craftBtn.setFillStyle(0x338833,0.98));
+        craftBtn.on('pointerout', ()=>craftBtn.setFillStyle(0x226622,0.95));
+      }else{
+        craftBtn.setFillStyle(0x221111,0.9).setStrokeStyle(2,0x553333);
+        const reason=pd.gold<r.fee?'所持金不足':'素材不足';
+        craftBtnTxt.setText('✗ '+eDef.icon+' '+eDef.name+'（'+reason+'）').setColor('#cc4444');
+        craftBtn.removeInteractive();
+      }
     };
 
     const renderRecipes=(row)=>{
-      if(this._craftRows){
-        this._craftRows.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
-      }
+      if(this._craftRows){this._craftRows.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});}
       this._craftRows=[];
       const addRow=(o)=>{this._craftRows.push(o);mk(o);return o;};
       const offset=row*COLS;
@@ -3578,97 +3591,66 @@ class GameScene extends Phaser.Scene{
         const cL2=L+col*CELL_W+4, cR2=L+(col+1)*CELL_W-4;
         const eDef=EQUIP_DEFS[recipe.result];
         if(!eDef)return;
-
+        const isSelected=selectedRecipe===recipe;
         const canCraft=pd.gold>=recipe.fee&&recipe.materials.every(m=>(pd.items[m.id]||0)>=m.count);
-        const bgCol=canCraft?0x0a2010:0x080d18;
-        const stCol=canCraft?0x44aa44:0x334455;
+        const bgCol=isSelected?0x1a3a1a:canCraft?0x0a1a0a:0x080d18;
+        const stCol=isSelected?0x44ff44:canCraft?0x44aa44:0x334455;
 
-        // セル背景
-        addRow(this.add.rectangle(cx,cy,CELL_W-4,CELL_H-3,bgCol,0.9).setStrokeStyle(1,stCol).setScrollFactor(0).setDepth(72));
+        // セル背景（タップで選択）
+        const bg=addRow(this.add.rectangle(cx,cy,CELL_W-4,CELL_H-3,bgCol,0.9).setStrokeStyle(isSelected?2:1,stCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+        bg.on('pointerdown',()=>{
+          selectedRecipe=(isSelected?null:recipe);
+          renderRecipes(scrollRow);
+          updateCraftBtn();
+        });
+        bg.on('pointerover',()=>bg.setFillStyle(isSelected?0x1a4a1a:0x0a2010,0.95));
+        bg.on('pointerout', ()=>bg.setFillStyle(bgCol,0.9));
 
-        // 装備名（上段）
+        // 装備名
         addRow(this.add.text(cL2+2,cy-CELL_H*0.3,eDef.icon+' '+eDef.name,{
           fontSize:'13px',fontFamily:'Arial',
-          color:canCraft?'#ffffff':'#556677',fontStyle:canCraft?'bold':'normal'
+          color:isSelected?'#44ff44':canCraft?'#ffffff':'#556677',fontStyle:'bold'
         }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-
         // ステータス
         const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
-        addRow(this.add.text(cL2+2,cy-CELL_H*0.08,statStr,{
-          fontSize:'10px',fontFamily:'Arial',color:'#667788'
-        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-
-        // 素材3つ（下段）
+        addRow(this.add.text(cL2+2,cy-CELL_H*0.08,statStr,{fontSize:'10px',fontFamily:'Arial',color:'#667788'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        // 素材
         recipe.materials.forEach((m,mi)=>{
           const mDef=ITEM_DEFS[m.id];
           const have=pd.items[m.id]||0;
           const ok=have>=m.count;
-          addRow(this.add.text(cL2+4+mi*(CELL_W*0.28),cy+CELL_H*0.2,
+          addRow(this.add.text(cL2+4+mi*(CELL_W*0.3),cy+CELL_H*0.2,
             (mDef?mDef.icon:'?')+'×'+m.count+'('+have+')',{
-            fontSize:'10px',fontFamily:'Arial',
-            color:ok?'#44dd88':'#cc4444',stroke:'#000',strokeThickness:2
+            fontSize:'10px',fontFamily:'Arial',color:ok?'#44dd88':'#cc4444',stroke:'#000',strokeThickness:2
           }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
         });
-
         // 加工費
-        addRow(this.add.text(cR2-32,cy+CELL_H*0.2,recipe.fee+'G',{
-          fontSize:'11px',fontFamily:'Arial',
-          color:pd.gold>=recipe.fee?'#ffd700':'#663300'
+        addRow(this.add.text(cR2-4,cy+CELL_H*0.2,recipe.fee+'G',{
+          fontSize:'11px',fontFamily:'Arial',color:pd.gold>=recipe.fee?'#ffd700':'#663300'
         }).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
-
-        // 作るボタン
-        if(canCraft){
-          const btn=addRow(this.add.rectangle(cR2-12,cy+CELL_H*0.2,28,20,0x226622,0.95).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
-          addRow(this.add.text(cR2-12,cy+CELL_H*0.2,'作る',{fontSize:'11px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
-          btn.on('pointerover',()=>btn.setFillStyle(0x338833,0.95));
-          btn.on('pointerout', ()=>btn.setFillStyle(0x226622,0.95));
-          btn.on('pointerdown',()=>{
-            recipe.materials.forEach(m=>{pd.items[m.id]-=m.count;});
-            pd.gold-=recipe.fee;
-            pd.items[recipe.result]=(pd.items[recipe.result]||0)+1;
-            showResult(eDef.icon+' '+eDef.name+'を製作！装備タブから装備できます','#44ff88');
-            refreshGold(); SE('levelup');
-            renderRecipes(scrollRow);
-          });
-        }
       });
 
-      // 件数表示
-      addRow(this.add.text(L,listBot+6,
-        (offset+1)+'〜'+Math.min(offset+visibleCount,CRAFT_RECIPES.length)+' / '+CRAFT_RECIPES.length+'種',{
+      // 件数
+      addRow(this.add.text(L,listBot+2,(offset+1)+'〜'+Math.min(offset+visibleCount,CRAFT_RECIPES.length)+'/'+CRAFT_RECIPES.length+'種',{
         fontSize:'10px',fontFamily:'Arial',color:'#556677'
       }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-
       updateScrollbar();
     };
 
     renderRecipes(0);
+    updateCraftBtn();
 
-    // ── スワイプ＆ホイールスクロール ──
+    // スワイプ・ホイール
     const scrollZone=mk(this.add.rectangle(PX-SB_W/2,listTop+listH/2,PW-SB_W-10,listH,0x000000,0).setScrollFactor(0).setDepth(75).setInteractive());
-
-    const doScroll=(newRow)=>{
-      const clamped=Math.max(0,Math.min(maxRow,newRow));
-      if(clamped!==scrollRow){scrollRow=clamped;renderRecipes(scrollRow);}
-    };
-
+    const doScroll=(newRow)=>{const c=Math.max(0,Math.min(maxRow,newRow));if(c!==scrollRow){scrollRow=c;renderRecipes(scrollRow);}};
     scrollZone.on('pointerdown',(ptr)=>{dragStartY=ptr.y;dragStartRow=scrollRow;});
-    scrollZone.on('pointermove',(ptr)=>{
-      if(dragStartY===null)return;
-      const dy=dragStartY-ptr.y;
-      doScroll(Math.round(dragStartRow+dy/CELL_H));
-    });
+    scrollZone.on('pointermove',(ptr)=>{if(dragStartY===null)return;doScroll(Math.round(dragStartRow+(dragStartY-ptr.y)/CELL_H));});
     scrollZone.on('pointerup',()=>{dragStartY=null;});
     scrollZone.on('pointerout',()=>{dragStartY=null;});
-    scrollZone.on('wheel',(_ptr,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
-
-    // スクロールバードラッグ
+    scrollZone.on('wheel',(_p,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
     sbThumb.setInteractive({useHandCursor:true,draggable:true});
     this.input.setDraggable(sbThumb);
-    sbThumb.on('drag',(_ptr,_x,y)=>{
-      const ratio=Math.max(0,Math.min(1,(y-listTop-sbThumbH/2)/(listH-sbThumbH)));
-      doScroll(Math.round(ratio*maxRow));
-    });
+    sbThumb.on('drag',(_p,_x,y)=>{doScroll(Math.round(Math.max(0,Math.min(1,(y-listTop-sbThumbH/2)/(listH-sbThumbH)))*maxRow));});
   }
 
   openBuildingUI(b){
@@ -3716,11 +3698,6 @@ class GameScene extends Phaser.Scene{
       ],
       blacksmith:'craft', // 鍛冶屋はクラフト専用UI
       magic:[
-        {label:'魔法のマント　MAG+6 SP+10',price:85,icon:'🧣',action:()=>{if(!pd.items)pd.items={};pd.items['mage_mantle']=(pd.items['mage_mantle']||0)+1;showResult('🧣 魔法のマントを入手！装備タブから装備できます');this.updateHUD();}},
-        {label:'魔法のローブ　MAG+8 SP+15',price:90,icon:'👘',action:()=>{if(!pd.items)pd.items={};pd.items['robe']=(pd.items['robe']||0)+1;showResult('👘 魔法のローブを入手！装備タブから装備できます');this.updateHUD();}},
-        {label:'幸運の指輪　LUK+8 HIT+5', price:100,icon:'💍',action:()=>{if(!pd.items)pd.items={};pd.items['lucky_ring']=(pd.items['lucky_ring']||0)+1;showResult('💍 幸運の指輪を入手！装備タブから装備できます');this.updateHUD();}},
-        {label:'力のお守り　ATK+6',        price:80, icon:'📿',action:()=>{if(!pd.items)pd.items={};pd.items['power_amulet']=(pd.items['power_amulet']||0)+1;showResult('📿 力のお守りを入手！装備タブから装備できます');this.updateHUD();}},
-        {label:'魔力の宝珠　MAG+6 SP+10', price:90, icon:'🔮',action:()=>{if(!pd.items)pd.items={};pd.items['mage_orb']=(pd.items['mage_orb']||0)+1;showResult('🔮 魔力の宝珠を入手！装備タブから装備できます');this.updateHUD();}},
         {label:'メテオームの書　※マジシャン専用',price:1000,icon:'📖',mageOnly:true,action:()=>{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
           if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
@@ -3749,13 +3726,59 @@ class GameScene extends Phaser.Scene{
     // 横2列・スクロール対応グリッド
     const SH_COLS=2;
     const SH_CW=(PW-24)/SH_COLS;
-    const SH_H=68; // セルの高さ
+    const SH_H=68;
+    const BUY_H=42; // 購入ボタンエリア高さ
     const listTop=PY-PH/2+70;
-    const listBottom=PY+PH/2-56;
+    const listBottom=PY+PH/2-56-BUY_H;
     const visibleRows=Math.floor((listBottom-listTop)/SH_H);
     const visibleCount=visibleRows*SH_COLS;
     let shopScroll=0;
+    let selectedItem=null;
     const shopObjs=[];
+
+    // 購入ボタン（下部固定）
+    const buyBtnY=PY+PH/2-56-BUY_H/2+4;
+    const buyBtn=mk(this.add.rectangle(PX,buyBtnY,PW-20,BUY_H-6,0x0a1525,0.9).setStrokeStyle(2,0x334455).setScrollFactor(0).setDepth(73));
+    const buyBtnTxt=mk(this.add.text(PX,buyBtnY,'商品を選択してください',{fontSize:'14px',fontFamily:'Arial',color:'#556677',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+
+    const updateBuyBtn=()=>{
+      buyBtn.removeAllListeners('pointerdown');
+      buyBtn.removeAllListeners('pointerover');
+      buyBtn.removeAllListeners('pointerout');
+      if(!selectedItem){
+        buyBtn.setFillStyle(0x0a1525,0.9).setStrokeStyle(2,0x334455);
+        buyBtnTxt.setText('商品を選択してください').setColor('#556677');
+        buyBtn.removeInteractive(); return;
+      }
+      const item=selectedItem;
+      const mageOnly=item.mageOnly||false;
+      const wrongClass=mageOnly&&pd.cls!=='mage';
+      const canAfford=pd.gold>=item.price&&!wrongClass;
+      if(item.price===0){
+        buyBtn.setFillStyle(0x1a2a3a,0.9).setStrokeStyle(2,0x44aaff);
+        buyBtnTxt.setText(item.icon+' 使用する').setColor('#44aaff');
+        buyBtn.setInteractive({useHandCursor:true});
+        buyBtn.on('pointerdown',()=>{item.action();selectedItem=null;renderShopItems(shopScroll);updateBuyBtn();});
+      }else if(wrongClass){
+        buyBtn.setFillStyle(0x1a0a0a,0.9).setStrokeStyle(2,0x553333);
+        buyBtnTxt.setText('✗ マジシャン専用アイテムです').setColor('#cc4444');
+        buyBtn.removeInteractive();
+      }else if(canAfford){
+        buyBtn.setFillStyle(0x0a1f35,0.95).setStrokeStyle(2,0x44aaff);
+        buyBtnTxt.setText('💰 '+item.icon+' '+item.label+' を購入する（'+item.price+'G）').setColor('#44aaff');
+        buyBtn.setInteractive({useHandCursor:true});
+        buyBtn.on('pointerdown',()=>{
+          pd.gold-=item.price; item.action(); refreshGold(); SE('potion');
+          selectedItem=null; renderShopItems(shopScroll); updateBuyBtn();
+        });
+        buyBtn.on('pointerover',()=>buyBtn.setFillStyle(0x1a3a5a,0.98));
+        buyBtn.on('pointerout', ()=>buyBtn.setFillStyle(0x0a1f35,0.95));
+      }else{
+        buyBtn.setFillStyle(0x1a0a0a,0.9).setStrokeStyle(2,0x553333);
+        buyBtnTxt.setText('✗ 所持金が足りません（'+item.price+'G必要）').setColor('#cc4444');
+        buyBtn.removeInteractive();
+      }
+    };
 
     const renderShopItems=(offset)=>{
       shopObjs.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
@@ -3766,49 +3789,39 @@ class GameScene extends Phaser.Scene{
         const sc=i%SH_COLS, sr=Math.floor(i/SH_COLS);
         const ix=PX-PW/2+12+sc*SH_CW+SH_CW/2;
         const iy=listTop+sr*SH_H+SH_H/2;
+        const isSelected=selectedItem===item;
         const mageOnly=item.mageOnly||false;
         const wrongClass=mageOnly&&pd.cls!=='mage';
         const canAfford=pd.gold>=item.price&&!wrongClass;
-        const bgCol=wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
-        const strokeCol=wrongClass?0x552222:canAfford?0x44aaff:0x333333;
-        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-6,SH_H-6,bgCol,0.9).setStrokeStyle(1,strokeCol).setScrollFactor(0).setDepth(72));
-        // アイコン（大きく）
+        const bgCol=isSelected?0x1a3a1a:wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
+        const strokeCol=isSelected?0x44ff44:wrongClass?0x552222:canAfford?0x44aaff:0x333333;
+        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-6,SH_H-6,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
         addS(this.add.text(ix-SH_CW/2+18,iy,item.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
-        // 商品名
-        const textCol=wrongClass?'#552222':canAfford?'#ffffff':'#555566';
+        const textCol=isSelected?'#44ff44':wrongClass?'#552222':canAfford?'#ffffff':'#555566';
         addS(this.add.text(ix-SH_CW/2+36,iy-10,item.label,{fontSize:'12px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-80}}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-        // 価格
         if(item.price>0){
           addS(this.add.text(ix+SH_CW/2-8,iy+12,item.price+'G',{fontSize:'13px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
         }
         if(mageOnly){
           addS(this.add.text(ix-SH_CW/2+36,iy+10,'🔮マジシャン専用',{fontSize:'9px',fontFamily:'Arial',color:wrongClass?'#663333':'#9966cc'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
         }
-        ibg.setInteractive({useHandCursor:true});
-        if(canAfford&&item.price>0){
-          ibg.on('pointerover',()=>ibg.setFillStyle(0x1a4060,0.95));
-          ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
-          ibg.on('pointerdown',()=>{pd.gold-=item.price;item.action();refreshGold();SE('potion');renderShopItems(shopScroll);});
-        }else if(wrongClass){ibg.on('pointerdown',()=>showResult('マジシャンのみ購入できます','#ff4444'));}
-        else if(pd.gold<item.price&&item.price>0){ibg.on('pointerdown',()=>showResult('💰 所持金が足りません','#ff4444'));}
-        else if(item.price===0){ibg.on('pointerdown',()=>item.action());}
+        ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:item);renderShopItems(shopScroll);updateBuyBtn();});
+        ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x1a4a1a:0x1a2a3a,0.95));
+        ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
       });
 
-      // スクロールボタン
       if(items.length>visibleCount){
-        const upA=shopScroll>0;
-        const dnA=shopScroll+visibleCount<items.length;
+        const upA=shopScroll>0, dnA=shopScroll+visibleCount<items.length;
         const upB=addS(this.add.rectangle(PX+PW/2-20,listTop+20,32,28,upA?0x334455:0x1a1a1a,0.85).setStrokeStyle(1,upA?0x556677:0x222222).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:upA}));
         addS(this.add.text(PX+PW/2-20,listTop+20,'▲',{fontSize:'14px',fontFamily:'Arial',color:upA?'#aaaaaa':'#333333'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
         const dnB=addS(this.add.rectangle(PX+PW/2-20,listBottom-20,32,28,dnA?0x334455:0x1a1a1a,0.85).setStrokeStyle(1,dnA?0x556677:0x222222).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:dnA}));
         addS(this.add.text(PX+PW/2-20,listBottom-20,'▼',{fontSize:'14px',fontFamily:'Arial',color:dnA?'#aaaaaa':'#333333'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
         if(upA)upB.on('pointerdown',()=>{shopScroll-=SH_COLS;renderShopItems(shopScroll);});
         if(dnA)dnB.on('pointerdown',()=>{shopScroll+=SH_COLS;renderShopItems(shopScroll);});
-        // ページ表示
-        addS(this.add.text(PX,listBottom+8,(shopScroll/SH_COLS+1)+'/'+(Math.ceil(items.length/visibleCount))+'ページ',{fontSize:'10px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
       }
     };
     renderShopItems(0);
+    updateBuyBtn();
   }
 
   openMenu(tab='stat'){
@@ -4484,13 +4497,39 @@ class GameScene extends Phaser.Scene{
   }
 
   createMinimap(){
-    // 右上に配置（HUDと被らないよう左端は w-110 以降）
     const w=this.scale.width,h=this.scale.height;
     const mw=110,mh=80,mx=w-mw-6,my=6;
+    const cfg=this.cfg;
     this.add.rectangle(mx,my,mw,mh,0x000000,0.72).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0xffd700);
     this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
     this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
     this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
+
+    // ポータルをミニマップに表示
+    const px2mm=(wx,wy)=>({
+      x:mx+wx/this.MW*mw,
+      y:my+wy/this.MH*mh
+    });
+    // 戻るポータル（左端・水色）
+    if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
+      const pbY2=this.stage===5?this.MH-200:this.MH/2;
+      const pp=px2mm(80,pbY2);
+      const dot=this.add.circle(pp.x,pp.y,4,0x00e5ff,0.9).setScrollFactor(0).setDepth(22);
+      this.add.text(pp.x,pp.y-6,'◀',{fontSize:'7px',fontFamily:'Arial',color:'#00e5ff'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+    }
+    // 進むポータル（右端・緑）※ボスを倒して開放後
+    if(cfg.portalTo!==null&&cfg.portalTo!==undefined){
+      const pp=px2mm(this.MW-80,this.MH/2);
+      this.add.circle(pp.x,pp.y,4,0x44ff88,0.9).setScrollFactor(0).setDepth(22);
+      this.add.text(pp.x,pp.y-6,'▶',{fontSize:'7px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+    }
+    // 別ルートポータル（portalAlt・オレンジ）
+    if(cfg.portalAlt){
+      const pa=cfg.portalAlt;
+      const pp=px2mm(pa.x,pa.y);
+      this.add.circle(pp.x,pp.y,4,0xf39c12,0.9).setScrollFactor(0).setDepth(22);
+      this.add.text(pp.x,pp.y-6,'★',{fontSize:'7px',fontFamily:'Arial',color:'#f39c12'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+    }
   }
   updateMinimap(){
     const p=this.player;
@@ -5208,7 +5247,7 @@ class GameScene extends Phaser.Scene{
       }
       // 戻るポータル（左端）
       if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined&&
-         Phaser.Math.Distance.Between(p.x,p.y,80,this.MH/2)<70){
+         Phaser.Math.Distance.Between(p.x,p.y,80,(this.portalBackPos?this.portalBackPos.y:this.MH/2))<70){
         this._transitioning=true;
         this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'}); // 戻る→到着先の右端近くにスポーン
         return;
