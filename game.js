@@ -2617,7 +2617,8 @@ class GameScene extends Phaser.Scene{
       const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(48,48).setDepth(20).setAlpha(0.9);
       this.tweens.add({targets:slash,alpha:0,scaleX:1.5,scaleY:1.5,duration:200,onComplete:()=>slash.destroy()});
       SE('hit');
-      this.atkCooldown=this._calcAtkCD(0.7);
+      const berserkMult=pd._berserkMult||1;
+      this.atkCooldown=this._calcAtkCD(0.7)/berserkMult;
       if(!closest)return; // 対象なし→エフェクトだけ出して終了
       const res=rollAttack(pd,closest.def,closest.eva||0);
       if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
@@ -2638,17 +2639,35 @@ class GameScene extends Phaser.Scene{
       this.atkCooldown=this._calcAtkCD(0.7);
 
     }else if(cls==='archer'){
+      // ブーストアタック判定（パッシブ）
+      const boostLv=pd._hasBoostAtk?(pd.sk4||1):0;
+      const boostRoll=Math.random()*100;
+      // Lv1-5: 30%で2段、Lv6-10: 30%で3段（累積）
+      const tripleChance=boostLv>=6?30:0;
+      const doubleChance=boostLv>=1?30:0;
+      let hitCount=1;
+      if(boostLv>0){
+        if(boostRoll<tripleChance) hitCount=3;
+        else if(boostRoll<tripleChance+doubleChance) hitCount=2;
+      }
       // 矢発射
       const ang=this.getFacingAngle();
-      const res=rollAttack(pd,0,this._nearestEnemyEva());
-      this.fireBullet(p.x,p.y,ang,'proj_arrow',{
-        spd:540,maxDist:650,
-        dmg:res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk)),
-        isCrit:!res.miss&&res.isCrit,
-        miss:res.miss,
-        sz:14,
-      });
-      SE('arrow');
+      for(let h=0;h<hitCount;h++){
+        const delay=h*80;
+        const angSpread=ang+(h-Math.floor(hitCount/2))*0.08;
+        this.time.delayedCall(delay,()=>{
+          const res=rollAttack(pd,0,this._nearestEnemyEva());
+          this.fireBullet(p.x,p.y,angSpread,'proj_arrow',{
+            spd:540+h*20,maxDist:650,
+            dmg:res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk)),
+            isCrit:!res.miss&&res.isCrit,
+            miss:res.miss,
+            sz:14,
+          });
+          SE('arrow');
+        });
+      }
+      if(hitCount>1)this.showFloat(p.x,p.y-50,hitCount+'段ヒット！','#27ae60','info');
       this.playSpriteAtk();
       this.atkCooldown=this._calcAtkCD(0.5);
 
@@ -2657,10 +2676,12 @@ class GameScene extends Phaser.Scene{
       const ang=this.getFacingAngle();
       const dist=60;
       const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
+      const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
+      const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
       this.throwBomb(p.x,p.y,tx,ty,{
         dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
         isCrit:Math.random()*100<calcCrit(pd),
-        radius:55,
+        radius:55*bomberRadiusMult,
       });
       SE('explode');
       this.atkCooldown=this._calcAtkCD(1.0);
@@ -2765,8 +2786,9 @@ class GameScene extends Phaser.Scene{
     return {
       warrior:[
         {id:'sk1',name:'烈風斬',    cost:20,cd:2,  desc:'周囲140px全敵に4倍ダメージ'},
-        {id:'sk2',name:'ハードガード',cost:15,cd:4, desc:'DEF+30・6秒間（Lv×3秒追加）'},
-        {id:'sk3',name:'パリィ',    cost:10,cd:6,  desc:'3秒間ダメージ無効化'},
+        {id:'sk2',name:'ハードガード',cost:15,cd:4, desc:'DEF+30・6秒間'},
+        {id:'sk3',name:'パリィ',    cost:10,cd:6,  desc:'20秒間ダメージ無効化'},
+        {id:'sk4',name:'バーサクパワー',cost:20,cd:25,desc:'20秒間攻撃速度1.5倍（Lv10:30秒・2倍）',bookRequired:'warrior'},
       ],
       mage:[
         {id:'sk1',name:'大爆発',    cost:30,cd:2.5,desc:'周囲220px全敵に6倍魔法ダメージ'},
@@ -2776,13 +2798,15 @@ class GameScene extends Phaser.Scene{
       ],
       archer:[
         {id:'sk1',name:'5方向射撃', cost:15,cd:1.5,desc:'5方向同時に矢を放つ'},
-        {id:'sk2',name:'グロリアスショット',cost:20,cd:5,desc:'10秒間クリティカル率×5'},
-        {id:'sk3',name:'バルカン',  cost:30,cd:3,  desc:'前方に6連射'},
+        {id:'sk2',name:'グロリアスショット',cost:20,cd:5,desc:'20秒間クリティカル率×5'},
+        {id:'sk3',name:'バルカン',  cost:30,cd:3,  desc:'前方に連射'},
+        {id:'sk4',name:'ブーストアタック',cost:0,cd:0,desc:'30%で2段・30%で3段ヒット（パッシブ）',bookRequired:'archer'},
       ],
       bomber:[
         {id:'sk1',name:'設置爆弾', cost:5, cd:0,  desc:'最大3個設置・敵接触で爆破'},
         {id:'sk2',name:'ボーリングボムス',cost:20,cd:3,  desc:'直線貫通→着弾で6方向爆撃'},
-        {id:'sk3',name:'ハイパーボム',cost:35,cd:4,desc:'超巨大爆弾・範囲150px'}
+        {id:'sk3',name:'ハイパーボム',cost:35,cd:4,desc:'超巨大爆弾・範囲150px'},
+        {id:'sk4',name:'ボマーパワー',cost:0,cd:0,desc:'通常攻撃範囲2倍（Lv10:3倍）（パッシブ）',bookRequired:'bomber'},
       ],
     }[this.playerData.cls]||[];
   }
@@ -3138,6 +3162,25 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'🛡 パリィ！','#ffd700');
         this.time.delayedCall(20000,()=>{pd._parry=false;});
         this.showBuffTimer('✨ パリィ','#ffd700',20000);
+      }else if(num===4){ // バーサクパワー
+        if(!pd._hasBerserk){this.showFloat(p.x,p.y-50,'書物が必要です','#ff8800','info');pd.sp+=sk.cost;return;}
+        const skLv=pd.sk4||1;
+        // Lv1-9: 20秒・1.5倍、Lv10: 30秒・2倍
+        const dur=skLv>=10?30000:20000;
+        const spMod=skLv>=10?30:20;
+        // SP消費をLv10は30に
+        if(skLv>=10&&pd.sp<30){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');pd.sp+=sk.cost;return;}
+        if(skLv>=10){pd.sp-=(30-sk.cost);} // 差分追加消費
+        const atkMult=skLv>=10?2.0:1.5;
+        pd._berserkMult=atkMult;
+        this.showFloat(p.x,p.y-60,'⚔ バーサクパワー！','#ff4444');
+        this.cameras.main.flash(300,255,80,0);
+        // バーサクのオーラエフェクト
+        const aura=this.add.circle(p.x,p.y,50,0xff2200,0.2).setDepth(6);
+        this.time.addEvent({delay:100,repeat:dur/100,callback:()=>{if(aura.active){aura.setPosition(p.x,p.y);}}});
+        this.tweens.add({targets:aura,alpha:0,duration:dur,onComplete:()=>aura.destroy()});
+        this.showBuffTimer('⚔ バーサク','#ff4444',dur);
+        this.time.delayedCall(dur,()=>{pd._berserkMult=1;});
       }
     }
     // ─ マジシャン ─
@@ -3502,6 +3545,10 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600','skill');
         this.cameras.main.shake(500,0.025);
         this.playBomberAtk();
+      }else if(num===4){ // ボマーパワー（パッシブ：使用不要）
+        this.showFloat(p.x,p.y-50,'ボマーパワーはパッシブスキルです','#f39c12','info');
+        pd.sp+=sk.cost; // SP返還
+        return;
       }
     }
 
@@ -3813,15 +3860,32 @@ class GameScene extends Phaser.Scene{
         {label:'メテオームの書　※マジシャン専用',price:1000,icon:'📖',mageOnly:true,action:()=>{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
           if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
-          pd._hasMeteoorm=true;
-          pd.sk4=1; // メテオームをLv1で習得
-          showResult('📖 メテオームの書を習得！スキルスロット4にセットされました','#cc88ff');
+          pd._hasMeteoorm=true; pd.sk4=1;
+          showResult('📖 メテオームの書を習得！','#cc88ff');
         }},
         {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,action:()=>{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
           if(pd._hasHardProtect){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasHardProtect=true;
-          showResult('📗 ハードプロテクトの書を習得！（スキルは近日実装予定）','#cc88ff');
+          showResult('📗 ハードプロテクトの書を習得！（近日実装予定）','#cc88ff');
+        }},
+        {label:'バーサクパワーの書　※剣士専用',price:800,icon:'📕',action:()=>{
+          if(pd.cls!=='warrior'){showResult('剣士のみ使用できます','#ff4444');return;}
+          if(pd._hasBerserk){showResult('既に習得済みです','#aaaaaa');return;}
+          pd._hasBerserk=true; pd.sk4=1;
+          showResult('📕 バーサクパワーを習得！（スキルスロット4）','#ff8844');
+        }},
+        {label:'ボマーパワーの書　※ボマー専用',price:800,icon:'📙',action:()=>{
+          if(pd.cls!=='bomber'){showResult('ボマーのみ使用できます','#ff4444');return;}
+          if(pd._hasBomberPower){showResult('既に習得済みです','#aaaaaa');return;}
+          pd._hasBomberPower=true; pd.sk4=1;
+          showResult('📙 ボマーパワーを習得！（スキルスロット4・パッシブ）','#f39c12');
+        }},
+        {label:'ブーストアタックの書　※アーチャー専用',price:800,icon:'📒',action:()=>{
+          if(pd.cls!=='archer'){showResult('アーチャーのみ使用できます','#ff4444');return;}
+          if(pd._hasBoostAtk){showResult('既に習得済みです','#aaaaaa');return;}
+          pd._hasBoostAtk=true; pd.sk4=1;
+          showResult('📒 ブーストアタックを習得！（スキルスロット4・パッシブ）','#27ae60');
         }},
       ],
       guild:[
@@ -4103,7 +4167,8 @@ class GameScene extends Phaser.Scene{
         {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
         {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
         {id:'sk3',name:'パリィ',      maxLv:5, desc:'攻撃無効化'},
-        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+        {id:'sk4',name:'バーサクパワー',maxLv:10,desc:'攻撃速度UP（書物必須）',bookRequired:'warrior'},
+        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       mage:[
         {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
@@ -4151,11 +4216,17 @@ class GameScene extends Phaser.Scene{
         return;
       }
       // ── 書物必須スキル（未習得）
-      if(sk.bookRequired&&!pd._hasMeteoorm&&sk.id==='sk4'){
-        skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x0d0a00,0.7).setStrokeStyle(1,0x443322,0.6));
-        skadd(this.add.text(cx,cy-SK_CH*0.1,'☄ メテオーム',{fontSize:'13px',fontFamily:'Arial',color:'#664422',fontStyle:'bold'}).setOrigin(0.5));
-        skadd(this.add.text(cx,cy+SK_CH*0.15,'📖 書物が必要',{fontSize:'11px',fontFamily:'Arial',color:'#664422'}).setOrigin(0.5));
-        return;
+      if(sk.bookRequired){
+        const hasBook=(sk.bookRequired==='warrior'&&pd._hasBerserk)
+          ||(sk.bookRequired==='archer'&&pd._hasBoostAtk)
+          ||(sk.bookRequired==='bomber'&&pd._hasBomberPower)
+          ||(sk.id==='sk4'&&pd.cls==='mage'&&pd._hasMeteoorm);
+        if(!hasBook){
+          skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x0d0a00,0.7).setStrokeStyle(1,0x443322,0.6));
+          skadd(this.add.text(cx,cy-SK_CH*0.1,sk.name,{fontSize:'13px',fontFamily:'Arial',color:'#664422',fontStyle:'bold'}).setOrigin(0.5));
+          skadd(this.add.text(cx,cy+SK_CH*0.15,'📖 書物が必要',{fontSize:'11px',fontFamily:'Arial',color:'#664422'}).setOrigin(0.5));
+          return;
+        }
       }
 
       // ── 通常スキルセル
@@ -4533,9 +4604,13 @@ class GameScene extends Phaser.Scene{
       .setInteractive({useHandCursor:true});
     this.add.text(atkX,atkY-6,'⚔',{fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
     this.add.text(atkX,atkY+18,'攻撃',{fontSize:'13px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-    btnAtk.on('pointerdown',()=>{btnAtk.setFillStyle(0xffd700,0.7);this.normalAttack();});
-    btnAtk.on('pointerup',  ()=>btnAtk.setFillStyle(0xffd700,0.3));
-    btnAtk.on('pointerout', ()=>btnAtk.setFillStyle(0xffd700,0.3));
+    btnAtk.on('pointerdown',()=>{
+      btnAtk.setFillStyle(0xffd700,0.7);
+      this.normalAttack();
+      this._atkHeld=true;
+    });
+    btnAtk.on('pointerup',  ()=>{btnAtk.setFillStyle(0xffd700,0.3);this._atkHeld=false;});
+    btnAtk.on('pointerout', ()=>{btnAtk.setFillStyle(0xffd700,0.3);this._atkHeld=false;});
 
     // スキルボタン3つ（攻撃ボタン左に横並び）
     this.skillCDOverlays=[];
@@ -4546,22 +4621,28 @@ class GameScene extends Phaser.Scene{
       warrior:['🌪','🛡','✨'], mage:['💥','❄️','⚡'],
       archer:['🏹','⭐','🔫'], bomber:['💣','💥','🚀']
     };
+    const sk4Icons={warrior:'⚔',mage:'☄',archer:'🏹',bomber:'💣'};
     const icons=skIcons[pd.cls]||['①','②','③'];
-    [1,2,3].forEach((num,i)=>{
+    // sk4は書物習得済みの場合のみ表示
+    const hasSk4Book=(pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)||(pd.cls==='archer'&&pd._hasBoostAtk)||(pd.cls==='bomber'&&pd._hasBomberPower);
+    const skNums=hasSk4Book?[1,2,3,4]:[1,2,3];
+    skNums.forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
-      const hasSkill=pd['sk'+num]>0;
-      // 未習得は暗いグレー、習得済みは職業カラー（明るめ）
+      const hasSkill=pd['sk'+num]>0||(num===4&&hasSk4Book);
       const c=hasSkill?col:0x445566;
       const alpha=hasSkill?0.4:0.12;
-      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (2-i)*(SK_W+8);
+      // sk4がある場合はボタンを左に詰める（4個横並び）
+      const totalBtns=skNums.length;
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+6);
       const by = h - SK_H/2 - MARGIN;
       // ボタン本体
       const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,alpha)
         .setScrollFactor(0).setDepth(25)
         .setStrokeStyle(hasSkill?2:1,c,hasSkill?1.0:0.4)
         .setInteractive({useHandCursor:true});
-      // スキルアイコン（大きめ絵文字・26px）
-      this.add.text(bx,by-14,icons[i],{fontSize:'26px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      // スキルアイコン（sk4は専用アイコン）
+      const iconStr=num===4?(sk4Icons[pd.cls]||'✨'):(icons[i]||'?');
+      this.add.text(bx,by-14,iconStr,{fontSize:'26px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
       // スキル名（黒文字・白縁取りで強調）
       const nameTxt=this.add.text(bx,by+10,sk.name,{
         fontSize:'11px',fontFamily:'Arial',
@@ -5384,6 +5465,10 @@ class GameScene extends Phaser.Scene{
       }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
+    // 攻撃ボタン押しっぱなし
+    if(this._atkHeld&&!this._menuOpen&&!this._gameOver&&!this._casting){
+      this.normalAttack();
+    }
     // 建物接近チェック（町ステージのみ）
     if(this.stage===0&&this.buildings&&!this._menuOpen&&!this._gameOver){
       let nearB=null;
