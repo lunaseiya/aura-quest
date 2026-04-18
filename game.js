@@ -2035,6 +2035,12 @@ class ClassSelectScene extends Phaser.Scene{
           pd.lv=50; pd.statPts=100; pd.jobLv=30; pd.jobPts=200;
           pd.exp=0; pd.expNext=9999;
           pd.gold=99999;
+          // 書物スキルを全習得・sk4をLv5に
+          pd.sk4=5;
+          if(pd.cls==='warrior'){pd._hasBerserk=true;}
+          if(pd.cls==='mage'){pd._hasMeteoorm=true;}
+          if(pd.cls==='archer'){pd._hasBoostAtk=true;}
+          if(pd.cls==='bomber'){pd._hasBomberPower=true;}
         }
         this.scene.start('Game',{playerData:pd,stage:0});
       });
@@ -3861,6 +3867,7 @@ class GameScene extends Phaser.Scene{
           if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
           if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasMeteoorm=true; pd.sk4=1;
+          this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📖 メテオームの書を習得！','#cc88ff');
         }},
         {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,action:()=>{
@@ -3873,18 +3880,21 @@ class GameScene extends Phaser.Scene{
           if(pd.cls!=='warrior'){showResult('剣士のみ使用できます','#ff4444');return;}
           if(pd._hasBerserk){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasBerserk=true; pd.sk4=1;
+          this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📕 バーサクパワーを習得！（スキルスロット4）','#ff8844');
         }},
         {label:'ボマーパワーの書　※ボマー専用',price:800,icon:'📙',action:()=>{
           if(pd.cls!=='bomber'){showResult('ボマーのみ使用できます','#ff4444');return;}
           if(pd._hasBomberPower){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasBomberPower=true; pd.sk4=1;
+          this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📙 ボマーパワーを習得！（スキルスロット4・パッシブ）','#f39c12');
         }},
         {label:'ブーストアタックの書　※アーチャー専用',price:800,icon:'📒',action:()=>{
           if(pd.cls!=='archer'){showResult('アーチャーのみ使用できます','#ff4444');return;}
           if(pd._hasBoostAtk){showResult('既に習得済みです','#aaaaaa');return;}
           pd._hasBoostAtk=true; pd.sk4=1;
+          this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📒 ブーストアタックを習得！（スキルスロット4・パッシブ）','#27ae60');
         }},
       ],
@@ -4478,6 +4488,24 @@ class GameScene extends Phaser.Scene{
   }
 
   // 装備ボーナスを実ステータスに反映（装備変更時に呼ぶ）
+  _refreshSkillButtons(){
+    // スキルボタンを再生成（書物習得後に呼ぶ）
+    if(this.skillBtnRefs){
+      this.skillBtnRefs.forEach(ref=>{
+        try{if(ref.btn&&ref.btn.active)ref.btn.destroy();}catch(e){}
+        try{if(ref.nameTxt&&ref.nameTxt.active)ref.nameTxt.destroy();}catch(e){}
+        try{if(ref.lvTxt&&ref.lvTxt.active)ref.lvTxt.destroy();}catch(e){}
+      });
+    }
+    if(this.skillCDOverlays){
+      this.skillCDOverlays.forEach(o=>{
+        try{if(o.ov&&o.ov.active)o.ov.destroy();}catch(e){}
+        try{if(o.ct&&o.ct.active)o.ct.destroy();}catch(e){}
+      });
+    }
+    this.createSkillButtons();
+  }
+
   _applyEquipStats(){
     const pd=this.playerData;
     // 基礎値は装備なしの状態で保持されているので、
