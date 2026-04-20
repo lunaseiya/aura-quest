@@ -4944,7 +4944,7 @@ class GameScene extends Phaser.Scene{
     if(len>1){vx/=len;vy/=len;}
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
-    if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer') this._updateSpriteAnim(vx,vy);
+    if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer'||pd.cls==='warrior') this._updateSpriteAnim(vx,vy);
     // 最後に動いた向きを記録（攻撃方向決定用）
     if(vx!==0||vy!==0) this._lastAngle=Math.atan2(vy,vx);
   }
