@@ -656,7 +656,7 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:128,frameHeight:128});
+    this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:155,frameHeight:124});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -740,20 +740,23 @@ class BootScene extends Phaser.Scene{
         frameRate:a.rate, repeat:a.rep,
       });
     });
-    // ソードマン スプライトアニメーション定義 (sprite_sheet_sordman.png, 128×128px, 5×3)
+    // ソードマン スプライトアニメーション定義 (sprite_sheet_sordman.png, 5列×3行=15フレーム)
+    // 行1(正面): 0=idle, 1=walk1, 2=walk2, 3=atk1, 4=atk2
+    // 行2(後ろ): 5=idle, 6=walk1, 7=walk2, 8=atk1, 9=atk2
+    // 行3(横):  10=idle,11=walk1,12=walk2,13=atk1,14=atk2
     const WA=[
-      {key:'warrior_front_idle',frames:[0],    rate:2, rep:-1},
-      {key:'warrior_front_walk',frames:[1,2],  rate:8, rep:-1},
-      {key:'warrior_front_atk', frames:[3,4],  rate:10,rep:0 },
-      {key:'warrior_back_idle', frames:[5],    rate:2, rep:-1},
-      {key:'warrior_back_walk', frames:[6,7],  rate:8, rep:-1},
-      {key:'warrior_back_atk',  frames:[8,9],  rate:10,rep:0 },
-      {key:'warrior_side_idle', frames:[10],   rate:2, rep:-1},
-      {key:'warrior_side_walk', frames:[11,12],rate:8, rep:-1},
-      {key:'warrior_side_atk',  frames:[13,14],rate:10,rep:0 },
+      {key:'warrior_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'warrior_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'warrior_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'warrior_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'warrior_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'warrior_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'warrior_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'warrior_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'warrior_side_atk',  frames:[13,14], rate:10,rep:0 },
     ];
     WA.forEach(a=>{
-      if(this.anims.exists(a.key)) return;
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_warrior',frame:f})),
