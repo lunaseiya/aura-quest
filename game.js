@@ -10,6 +10,34 @@ const TILE=32;
 // ============================================================
 let audioCtx=null,muted=false,testMode=false;
 
+// ══════════════════════════════════════
+//  セーブ・ロードシステム
+// ══════════════════════════════════════
+const SAVE_KEY='aq_save_';
+const SAVE_SLOTS=3;
+function getSaveData(slot){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY+slot);
+    return raw?JSON.parse(raw):null;
+  }catch(e){return null;}
+}
+function setSaveData(slot,data){
+  try{localStorage.setItem(SAVE_KEY+slot,JSON.stringify(data));}catch(e){}
+}
+function deleteSaveData(slot){
+  try{localStorage.removeItem(SAVE_KEY+slot);}catch(e){}
+}
+function makeSaveSummary(pd,stage){
+  const stageNames={0:'町',1:'ST.1草原',2:'ST.2溶岩',3:'ST.3海岸',4:'ST.4砂漠',5:'ST.5螺旋の崖',6:'ST.6天空',7:'ST.7オーク集落'};
+  const clsNames={warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'};
+  return {
+    cls:pd.cls, lv:pd.lv, gold:pd.gold,
+    stage, stageName:stageNames[stage]||'ST.'+stage,
+    clsName:clsNames[pd.cls]||pd.cls,
+    savedAt:new Date().toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+  };
+}
+
 function getAC(){
   if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}};
   if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
@@ -1166,7 +1194,7 @@ class BootScene extends Phaser.Scene{
     const mk=(key,S,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
 
     // ── ボス4（砂漠の魔神・100×100px）────────────────────────
-    mk('enemy_boss4',112,(g,S)=>{
+    mk('enemy_boss4',148,(g,S)=>{
       g.fillStyle(0x000000,.3);g.fillEllipse(S*.5,S*.96,S*.85,S*.13);
       // 灼熱のオーラ（外側）
       g.fillStyle(0xff6600,.1);g.fillCircle(S*.5,S*.5,S*.52);
@@ -1227,7 +1255,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── 雲猿 ──────────────────────────────────
-    mk('enemy_cloud_monkey',56,(g,S)=>{
+    mk('enemy_cloud_monkey',88,(g,S)=>{
       // 雲（足元）
       g.fillStyle(0xffffff,0.8);
       g.fillEllipse(S*.5,S*.82,S*.7,S*.28);g.fillEllipse(S*.3,S*.78,S*.38,S*.22);g.fillEllipse(S*.7,S*.78,S*.38,S*.22);
@@ -1255,7 +1283,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── 木霊（トレント）──────────────────────────
-    mk('enemy_treant',72,(g,S)=>{
+    mk('enemy_treant',108,(g,S)=>{
       // 根っこ（足）
       g.fillStyle(0x553311,1);
       g.fillRect(S*.3,S*.75,S*.1,S*.22);g.fillRect(S*.46,S*.78,S*.08,S*.2);g.fillRect(S*.62,S*.75,S*.1,S*.22);
@@ -1286,7 +1314,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── 岩ゴーレム ──────────────────────────────
-    mk('enemy_rock_golem',80,(g,S)=>{
+    mk('enemy_rock_golem',120,(g,S)=>{
       g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.95,S*.7,S*.13);
       // 足（大きな岩）
       g.fillStyle(0x667788,1);g.fillRect(S*.26,S*.7,S*.2,S*.28);g.fillRect(S*.54,S*.7,S*.2,S*.28);
@@ -1314,7 +1342,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── 巨人 ─────────────────────────────────────
-    mk('enemy_giant',88,(g,S)=>{
+    mk('enemy_giant',128,(g,S)=>{
       g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.95,S*.72,S*.13);
       // 足
       g.fillStyle(0xcc9966,1);g.fillRect(S*.3,S*.72,S*.18,S*.26);g.fillRect(S*.52,S*.72,S*.18,S*.26);
@@ -1347,7 +1375,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── 雷神（ボス6）────────────────────────────
-    mk('enemy_thunder_god',128,(g,S)=>{
+    mk('enemy_thunder_god',160,(g,S)=>{
       g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.96,S*.82,S*.13);
       // 雷オーラ（外側に放射状）
       g.fillStyle(0xffee00,.1);g.fillCircle(S*.5,S*.5,S*.54);
@@ -1403,7 +1431,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── オークウォリアー ──────────────────────────
-    mk('enemy_orc_warrior',64,(g,S)=>{
+    mk('enemy_orc_warrior',100,(g,S)=>{
       g.fillStyle(0x000000,.18);g.fillEllipse(S*.5,S*.93,S*.6,S*.12);
       // 足（どっしり）
       g.fillStyle(0x4a6e2a,1);g.fillRect(S*.3,S*.7,S*.16,S*.24);g.fillRect(S*.54,S*.7,S*.16,S*.24);
@@ -1435,7 +1463,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── ハイオーク ──────────────────────────────
-    mk('enemy_orc_high',72,(g,S)=>{
+    mk('enemy_orc_high',112,(g,S)=>{
       g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.94,S*.65,S*.13);
       // 足（重厚な鎧）
       g.fillStyle(0x6a5020,1);g.fillRect(S*.28,S*.7,S*.18,S*.26);g.fillRect(S*.54,S*.7,S*.18,S*.26);
@@ -1468,7 +1496,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── オークレディ ─────────────────────────────
-    mk('enemy_orc_lady',56,(g,S)=>{
+    mk('enemy_orc_lady',88,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.52,S*.12);
       // 足（ローブ）
       g.fillStyle(0x662288,1);g.fillRect(S*.32,S*.65,S*.36,S*.32);
@@ -1499,7 +1527,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── オークアーチャー ─────────────────────────
-    mk('enemy_orc_archer',60,(g,S)=>{
+    mk('enemy_orc_archer',92,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.56,S*.12);
       // 足
       g.fillStyle(0x4a5e22,1);g.fillRect(S*.32,S*.7,S*.14,S*.24);g.fillRect(S*.54,S*.7,S*.14,S*.24);
@@ -1535,7 +1563,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── オークジェネラル（ボス7）──────────────────
-    mk('enemy_orc_general',116,(g,S)=>{
+    mk('enemy_orc_general',152,(g,S)=>{
       g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.96,S*.82,S*.13);
       // マント（将軍の）
       g.fillStyle(0xaa1100,1);
@@ -1590,7 +1618,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── クマ ──────────────────────────────────
-    mk('enemy_bear',72,(g,S)=>{
+    mk('enemy_bear',104,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.6,S*.12);
       // 尻尾
       g.fillStyle(0xddbbaa,1);g.fillCircle(S*.8,S*.65,S*.05);
@@ -1619,7 +1647,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── カブトムシ ────────────────────────────────
-    mk('enemy_beetle',60,(g,S)=>{
+    mk('enemy_beetle',88,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.55,S*.12);
       // 足6本
       g.fillStyle(0x221100,1);
@@ -1647,7 +1675,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── ハチ ─────────────────────────────────────
-    mk('enemy_hornet',52,(g,S)=>{
+    mk('enemy_hornet',76,(g,S)=>{
       // 翅（透明感）
       g.fillStyle(0xaaccff,.25);
       g.fillEllipse(S*.3,S*.28,S*.38,S*.22);g.fillEllipse(S*.7,S*.28,S*.38,S*.22);
@@ -1677,7 +1705,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── スコーピオンクイーン ──────────────────────
-    mk('enemy_scorpion_queen',72,(g,S)=>{
+    mk('enemy_scorpion_queen',108,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.58,S*.12);
       // 大きな尻尾（S字）
       g.fillStyle(0x881100,1);
@@ -1712,7 +1740,7 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── ミストレス（蜘蛛女王・ボス5）──────────────
-    mk('enemy_mistress',120,(g,S)=>{
+    mk('enemy_mistress',160,(g,S)=>{
       g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.96,S*.85,S*.13);
       // 暗黒オーラ
       g.fillStyle(0x440066,.12);g.fillCircle(S*.5,S*.5,S*.52);
@@ -1772,419 +1800,270 @@ class BootScene extends Phaser.Scene{
     });
 
     // ── スライム ────────────────────────────────
-    mk('enemy_slime',64,(g,S)=>{
-      g.fillStyle(0x000000,0.18);g.fillEllipse(S/2,S*.88,S*.7,S*.18);
-      g.fillStyle(0x33ccaa,1);g.fillEllipse(S/2,S*.52,S*.78,S*.72);
-      g.fillStyle(0x88ffdd,.55);g.fillEllipse(S*.38,S*.34,S*.28,S*.22);
-      g.fillStyle(0x33ccaa,1);g.fillEllipse(S*.42,S*.18,S*.22,S*.26);g.fillEllipse(S*.62,S*.22,S*.16,S*.20);
-      g.fillStyle(0x000000,1);g.fillCircle(S*.36,S*.50,S*.07);g.fillStyle(0xffffff,1);g.fillCircle(S*.34,S*.48,S*.025);
-      g.fillStyle(0x000000,1);g.fillCircle(S*.58,S*.50,S*.07);g.fillStyle(0xffffff,1);g.fillCircle(S*.56,S*.48,S*.025);
-      g.fillStyle(0x115544,.8);g.fillEllipse(S*.47,S*.62,S*.18,S*.07);
-      g.lineStyle(2,0x118866,.7);g.strokeEllipse(S/2,S*.52,S*.78,S*.72);
+    // ══ 高品質モンスター描画 ══
+
+    // スライム
+    mk('enemy_slime',96,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.68,S*.12);
+      g.fillStyle(0x22cc88,0.3);g.fillCircle(S*.5,S*.54,S*.44);
+      g.fillStyle(0x33dd99,0.65);g.fillEllipse(S*.5,S*.58,S*.7,S*.66);
+      g.fillStyle(0x44eebb,0.9);g.fillEllipse(S*.5,S*.61,S*.62,S*.58);
+      g.fillStyle(0x88ffdd,0.4);g.fillEllipse(S*.38,S*.38,S*.22,S*.14);
+      g.fillStyle(0xffffff,0.25);g.fillEllipse(S*.36,S*.36,S*.12,S*.07);
+      g.fillStyle(0x009966,0.7);g.fillCircle(S*.5,S*.58,S*.14);
+      g.fillStyle(0x00ffcc,0.5);g.fillCircle(S*.5,S*.56,S*.08);
+      g.fillStyle(0xffffff,1);g.fillEllipse(S*.37,S*.48,S*.18,S*.2);g.fillEllipse(S*.63,S*.48,S*.18,S*.2);
+      g.fillStyle(0x003322,1);g.fillEllipse(S*.37,S*.5,S*.11,S*.13);g.fillEllipse(S*.63,S*.5,S*.11,S*.13);
+      g.fillStyle(0x001a11,1);g.fillCircle(S*.38,S*.51,S*.05);g.fillCircle(S*.64,S*.51,S*.05);
+      g.fillStyle(0xffffff,0.9);g.fillCircle(S*.35,S*.47,S*.03);g.fillCircle(S*.61,S*.47,S*.03);
+      g.lineStyle(3,0x006644,0.9);g.lineBetween(S*.41,S*.62,S*.45,S*.65);g.lineBetween(S*.45,S*.65,S*.55,S*.65);g.lineBetween(S*.55,S*.65,S*.59,S*.62);
+      g.fillStyle(0x66ffcc,0.3);g.fillCircle(S*.28,S*.52,S*.05);g.fillCircle(S*.7,S*.55,S*.04);
     });
 
-    // ── コウモリ ────────────────────────────────
-    mk('enemy_bat',56,(g,S)=>{
-      // 左翼
-      g.fillStyle(0x441166,1);
-      g.fillTriangle(S*.5,S*.45,S*.05,S*.2,S*.18,S*.65);
-      g.fillTriangle(S*.5,S*.45,S*.18,S*.65,S*.32,S*.72);
-      // 右翼
-      g.fillTriangle(S*.5,S*.45,S*.95,S*.2,S*.82,S*.65);
-      g.fillTriangle(S*.5,S*.45,S*.82,S*.65,S*.68,S*.72);
-      // 翼の模様
-      g.fillStyle(0x662299,.4);
-      g.fillTriangle(S*.5,S*.45,S*.1,S*.25,S*.25,S*.6);
-      g.fillTriangle(S*.5,S*.45,S*.9,S*.25,S*.75,S*.6);
-      // 胴体
-      g.fillStyle(0x221133,1);g.fillEllipse(S*.5,S*.48,S*.28,S*.34);
-      g.fillStyle(0x442255,.6);g.fillEllipse(S*.44,S*.42,S*.1,S*.12);
-      // 耳
-      g.fillStyle(0x221133,1);
-      g.fillTriangle(S*.4,S*.3,S*.35,S*.12,S*.45,S*.3);
-      g.fillTriangle(S*.6,S*.3,S*.55,S*.12,S*.65,S*.3);
-      g.fillStyle(0x884499,.5);
-      g.fillTriangle(S*.4,S*.28,S*.37,S*.16,S*.44,S*.28);
-      g.fillTriangle(S*.6,S*.28,S*.56,S*.16,S*.63,S*.28);
-      // 目（赤く光る）
-      g.fillStyle(0xff2200,1);g.fillCircle(S*.43,S*.46,S*.05);
-      g.fillStyle(0xff6644,.6);g.fillCircle(S*.43,S*.44,S*.02);
-      g.fillStyle(0xff2200,1);g.fillCircle(S*.57,S*.46,S*.05);
-      g.fillStyle(0xff6644,.6);g.fillCircle(S*.57,S*.44,S*.02);
-      // キバ
-      g.fillStyle(0xffffff,1);
-      g.fillTriangle(S*.46,S*.56,S*.44,S*.64,S*.49,S*.56);
-      g.fillTriangle(S*.54,S*.56,S*.51,S*.56,S*.56,S*.64);
+    // コウモリ
+    mk('enemy_bat',80,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.58,S*.1);
+      g.fillStyle(0x3a1a44,1);g.fillTriangle(S*.44,S*.42,S*.02,S*.18,S*.14,S*.58);g.fillTriangle(S*.44,S*.42,S*.14,S*.58,S*.22,S*.74);
+      g.fillStyle(0x3a1a44,1);g.fillTriangle(S*.56,S*.42,S*.98,S*.18,S*.86,S*.58);g.fillTriangle(S*.56,S*.42,S*.86,S*.58,S*.78,S*.74);
+      g.fillStyle(0x5a2a66,0.5);g.fillTriangle(S*.44,S*.42,S*.06,S*.22,S*.16,S*.56);g.fillTriangle(S*.56,S*.42,S*.94,S*.22,S*.84,S*.56);
+      g.lineStyle(2,0x221133,0.8);g.lineBetween(S*.44,S*.42,S*.02,S*.18);g.lineBetween(S*.44,S*.42,S*.22,S*.74);g.lineBetween(S*.56,S*.42,S*.98,S*.18);g.lineBetween(S*.56,S*.42,S*.78,S*.74);
+      g.fillStyle(0x2d1133,1);g.fillEllipse(S*.5,S*.52,S*.3,S*.36);
+      g.fillStyle(0x2d1133,1);g.fillTriangle(S*.36,S*.32,S*.28,S*.08,S*.44,S*.3);g.fillTriangle(S*.64,S*.32,S*.56,S*.3,S*.72,S*.08);
+      g.fillStyle(0xff88aa,0.4);g.fillTriangle(S*.37,S*.3,S*.31,S*.12,S*.43,S*.28);g.fillTriangle(S*.63,S*.3,S*.57,S*.28,S*.69,S*.12);
+      g.fillStyle(0x2d1133,1);g.fillEllipse(S*.5,S*.34,S*.34,S*.3);
+      g.fillStyle(0xff0000,1);g.fillEllipse(S*.38,S*.33,S*.14,S*.1);g.fillEllipse(S*.62,S*.33,S*.14,S*.1);
+      g.fillStyle(0xff6666,0.8);g.fillCircle(S*.38,S*.33,S*.05);g.fillCircle(S*.62,S*.33,S*.05);
+      g.fillStyle(0xffffff,0.6);g.fillCircle(S*.36,S*.31,S*.02);g.fillCircle(S*.6,S*.31,S*.02);
+      g.fillStyle(0x221133,1);g.fillEllipse(S*.5,S*.4,S*.16,S*.1);
+      g.fillStyle(0xffffff,1);g.fillTriangle(S*.43,S*.42,S*.4,S*.5,S*.46,S*.42);g.fillTriangle(S*.57,S*.42,S*.54,S*.42,S*.6,S*.5);
     });
 
-    // ── ゴブリン ────────────────────────────────
-    mk('enemy_goblin',60,(g,S)=>{
-      // 影
-      g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.92,S*.55,S*.14);
-      // 足
-      g.fillStyle(0x336622,1);
-      g.fillRect(S*.32,S*.72,S*.14,S*.22);g.fillRect(S*.54,S*.72,S*.14,S*.22);
-      // 胴体
-      g.fillStyle(0x447733,1);g.fillEllipse(S*.5,S*.58,S*.44,S*.38);
-      // 腕
-      g.fillStyle(0x336622,1);
-      g.fillEllipse(S*.2,S*.55,S*.18,S*.32);g.fillEllipse(S*.8,S*.55,S*.18,S*.32);
-      // 手（黄緑）
-      g.fillStyle(0x88bb44,1);g.fillCircle(S*.15,S*.7,S*.08);g.fillCircle(S*.85,S*.7,S*.08);
-      // 頭
-      g.fillStyle(0x558844,1);g.fillEllipse(S*.5,S*.35,S*.46,S*.42);
-      // 耳（とがった）
-      g.fillStyle(0x558844,1);
-      g.fillTriangle(S*.22,S*.3,S*.16,S*.12,S*.32,S*.32);
-      g.fillTriangle(S*.78,S*.3,S*.84,S*.12,S*.68,S*.32);
-      // 目（黄色・吊り目）
-      g.fillStyle(0xffcc00,1);g.fillEllipse(S*.38,S*.34,S*.13,S*.1);g.fillEllipse(S*.62,S*.34,S*.13,S*.1);
-      g.fillStyle(0x000000,1);g.fillCircle(S*.38,S*.35,S*.05);g.fillCircle(S*.62,S*.35,S*.05);
-      // 鼻
-      g.fillStyle(0x336622,1);g.fillCircle(S*.47,S*.41,S*.04);g.fillCircle(S*.53,S*.41,S*.04);
-      // 口（ニヤリ）
-      g.fillStyle(0x223311,1);g.fillEllipse(S*.5,S*.48,S*.2,S*.07);
-      g.fillStyle(0xffffff,1);g.fillTriangle(S*.43,S*.46,S*.41,S*.52,S*.46,S*.46);g.fillTriangle(S*.57,S*.46,S*.54,S*.46,S*.59,S*.52);
-      // 武器（棍棒）
-      g.fillStyle(0x886633,1);g.fillRect(S*.84,S*.4,S*.06,S*.35);
-      g.fillStyle(0x664422,1);g.fillCircle(S*.87,S*.38,S*.09);
+    // ゴブリン
+    mk('enemy_goblin',88,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.6,S*.1);
+      g.fillStyle(0x2d5a1a,1);g.fillEllipse(S*.5,S*.62,S*.44,S*.5);
+      g.fillStyle(0x6b3d11,1);g.fillRect(S*.28,S*.63,S*.44,S*.06);g.fillStyle(0xccaa33,1);g.fillRect(S*.46,S*.62,S*.08,S*.07);
+      g.fillStyle(0x3a7a22,1);g.fillEllipse(S*.2,S*.56,S*.18,S*.36);g.fillEllipse(S*.8,S*.56,S*.18,S*.36);
+      g.fillStyle(0x2d6618,1);g.fillCircle(S*.18,S*.73,S*.08);g.fillCircle(S*.82,S*.73,S*.08);
+      g.fillStyle(0x111111,1);g.fillTriangle(S*.12,S*.77,S*.14,S*.83,S*.18,S*.77);g.fillTriangle(S*.82,S*.77,S*.86,S*.83,S*.88,S*.77);
+      g.fillStyle(0x2d5a1a,1);g.fillEllipse(S*.36,S*.82,S*.16,S*.26);g.fillEllipse(S*.64,S*.82,S*.16,S*.26);
+      g.fillStyle(0x6b3d11,1);g.fillEllipse(S*.36,S*.91,S*.16,S*.1);g.fillEllipse(S*.64,S*.91,S*.16,S*.1);
+      g.fillStyle(0x3a7a22,1);g.fillEllipse(S*.5,S*.27,S*.42,S*.36);
+      g.fillStyle(0x2d6618,1);g.fillTriangle(S*.24,S*.22,S*.12,S*.14,S*.3,S*.32);g.fillTriangle(S*.76,S*.22,S*.7,S*.32,S*.88,S*.14);
+      g.fillStyle(0xff8888,0.35);g.fillTriangle(S*.25,S*.23,S*.15,S*.17,S*.29,S*.3);
+      g.fillStyle(0x1a3d0a,1);g.fillRect(S*.3,S*.18,S*.12,S*.04);g.fillRect(S*.58,S*.18,S*.12,S*.04);
+      g.fillStyle(0xffee00,1);g.fillEllipse(S*.36,S*.26,S*.14,S*.12);g.fillEllipse(S*.64,S*.26,S*.14,S*.12);
+      g.fillStyle(0xcc3300,1);g.fillCircle(S*.37,S*.26,S*.06);g.fillCircle(S*.63,S*.26,S*.06);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.37,S*.26,S*.03);g.fillCircle(S*.63,S*.26,S*.03);
+      g.fillStyle(0xffffff,0.8);g.fillCircle(S*.35,S*.24,S*.02);g.fillCircle(S*.61,S*.24,S*.02);
+      g.fillStyle(0x2d6618,1);g.fillEllipse(S*.5,S*.33,S*.14,S*.1);
+      g.fillStyle(0x1a1a1a,1);g.fillEllipse(S*.5,S*.39,S*.22,S*.1);
+      g.fillStyle(0xeeeecc,1);g.fillTriangle(S*.4,S*.36,S*.38,S*.43,S*.43,S*.36);g.fillTriangle(S*.57,S*.36,S*.55,S*.36,S*.6,S*.43);
     });
 
-    // ── トロル ────────────────────────────────
-    mk('enemy_troll',80,(g,S)=>{
-      g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.94,S*.7,S*.14);
-      // 足（太い）
-      g.fillStyle(0x557744,1);
-      g.fillRect(S*.28,S*.68,S*.2,S*.28);g.fillRect(S*.52,S*.68,S*.2,S*.28);
-      g.fillStyle(0x446633,1);g.fillRect(S*.24,S*.88,S*.26,S*.1);g.fillRect(S*.5,S*.88,S*.26,S*.1);
-      // 胴体（巨大）
-      g.fillStyle(0x667755,1);g.fillEllipse(S*.5,S*.55,S*.65,S*.55);
-      // 腕（ぶっとい）
-      g.fillStyle(0x557744,1);
-      g.fillEllipse(S*.15,S*.52,S*.26,S*.45);g.fillEllipse(S*.85,S*.52,S*.26,S*.45);
-      // こぶし
-      g.fillStyle(0x778866,1);g.fillCircle(S*.12,S*.72,S*.1);g.fillCircle(S*.88,S*.72,S*.1);
-      // 頭
-      g.fillStyle(0x778866,1);g.fillEllipse(S*.5,S*.28,S*.52,S*.44);
-      // 角
-      g.fillStyle(0xaa8833,1);
-      g.fillTriangle(S*.36,S*.18,S*.3,S*.02,S*.42,S*.18);
-      g.fillTriangle(S*.64,S*.18,S*.58,S*.18,S*.7,S*.02);
-      // 目（赤い・怒り）
-      g.fillStyle(0xcc2200,1);g.fillEllipse(S*.38,S*.26,S*.14,S*.1);g.fillEllipse(S*.62,S*.26,S*.14,S*.1);
-      g.fillStyle(0x000000,1);g.fillCircle(S*.38,S*.27,S*.05);g.fillCircle(S*.62,S*.27,S*.05);
-      // 眉（怒り）
-      g.lineStyle(3,0x223322,1);
-      g.fillStyle(0x223322,1);g.fillRect(S*.3,S*.2,S*.16,S*.04);g.fillRect(S*.54,S*.2,S*.16,S*.04);
-      // 鼻（大きい）
-      g.fillStyle(0x557744,1);g.fillEllipse(S*.5,S*.34,S*.16,S*.12);
-      // 口
-      g.fillStyle(0x223311,1);g.fillEllipse(S*.5,S*.42,S*.26,S*.1);
-      g.fillStyle(0xddddcc,1);g.fillRect(S*.38,S*.4,S*.08,S*.07);g.fillRect(S*.54,S*.4,S*.08,S*.07);
+    // トロル
+    mk('enemy_troll',112,(g,S)=>{
+      g.fillStyle(0x000000,0.3);g.fillEllipse(S*.5,S*.95,S*.8,S*.12);
+      g.fillStyle(0x5a6644,1);g.fillEllipse(S*.5,S*.63,S*.66,S*.62);
+      g.fillStyle(0x4a5534,0.5);g.fillEllipse(S*.3,S*.5,S*.18,S*.12);g.fillEllipse(S*.7,S*.55,S*.16,S*.1);g.fillEllipse(S*.5,S*.72,S*.2,S*.1);
+      g.fillStyle(0x7a8858,0.35);g.fillEllipse(S*.42,S*.46,S*.22,S*.16);
+      g.fillStyle(0x4a5534,1);g.fillEllipse(S*.16,S*.55,S*.24,S*.44);g.fillEllipse(S*.84,S*.55,S*.24,S*.44);
+      g.fillStyle(0x3a4424,1);g.fillCircle(S*.14,S*.75,S*.12);g.fillCircle(S*.86,S*.75,S*.12);
+      g.fillStyle(0x222211,1);[-.08,-.02,.04,.1].forEach(o=>{g.fillTriangle(S*(.14+o),S*.83,S*(.12+o),S*.89,S*(.16+o),S*.83);g.fillTriangle(S*(.86+o),S*.83,S*(.84+o),S*.83,S*(.88+o),S*.89);});
+      g.fillStyle(0x4a5534,1);g.fillEllipse(S*.34,S*.83,S*.22,S*.3);g.fillEllipse(S*.66,S*.83,S*.22,S*.3);
+      g.fillStyle(0x5a6644,1);g.fillEllipse(S*.5,S*.27,S*.5,S*.38);
+      g.fillStyle(0x2a3318,1);g.fillRect(S*.28,S*.18,S*.44,S*.06);
+      g.fillStyle(0x3a4424,1);g.fillCircle(S*.32,S*.22,S*.04);g.fillCircle(S*.68,S*.22,S*.04);g.fillCircle(S*.5,S*.16,S*.05);
+      g.fillStyle(0xff8800,1);g.fillCircle(S*.38,S*.25,S*.07);g.fillCircle(S*.62,S*.25,S*.07);
+      g.fillStyle(0x331100,1);g.fillCircle(S*.38,S*.25,S*.04);g.fillCircle(S*.62,S*.25,S*.04);
+      g.fillStyle(0xffffff,0.6);g.fillCircle(S*.36,S*.23,S*.02);g.fillCircle(S*.6,S*.23,S*.02);
+      g.fillStyle(0x3a4424,1);g.fillEllipse(S*.5,S*.33,S*.2,S*.12);
+      g.fillStyle(0x1a1a1a,1);g.fillEllipse(S*.5,S*.39,S*.28,S*.12);
+      g.fillStyle(0xddddbb,1);g.fillTriangle(S*.4,S*.35,S*.37,S*.45,S*.44,S*.35);g.fillTriangle(S*.56,S*.35,S*.56,S*.35,S*.63,S*.45);
     });
 
-    // ── ウルフ ────────────────────────────────
-    mk('enemy_wolf',64,(g,S)=>{
-      g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.92,S*.6,S*.12);
-      // 尻尾
-      g.fillStyle(0x888899,1);g.fillEllipse(S*.82,S*.55,S*.12,S*.36);
-      g.fillStyle(0xaaaacc,.5);g.fillEllipse(S*.8,S*.5,S*.07,S*.22);
-      // 胴体
-      g.fillStyle(0x778899,1);g.fillEllipse(S*.48,S*.58,S*.55,S*.38);
-      // 足4本
-      g.fillStyle(0x667788,1);
-      g.fillRect(S*.22,S*.68,S*.1,S*.24);g.fillRect(S*.36,S*.72,S*.1,S*.2);
-      g.fillRect(S*.54,S*.72,S*.1,S*.2);g.fillRect(S*.68,S*.68,S*.1,S*.24);
-      // 頭
-      g.fillStyle(0x8899aa,1);g.fillEllipse(S*.34,S*.36,S*.42,S*.36);
-      // 鼻先（マズル）
-      g.fillStyle(0x99aacc,1);g.fillEllipse(S*.22,S*.44,S*.22,S*.18);
-      // 耳
-      g.fillStyle(0x667788,1);
-      g.fillTriangle(S*.28,S*.24,S*.22,S*.08,S*.38,S*.24);
-      g.fillTriangle(S*.46,S*.22,S*.4,S*.08,S*.52,S*.22);
-      g.fillStyle(0xffaaaa,.5);
-      g.fillTriangle(S*.3,S*.23,S*.25,S*.12,S*.37,S*.23);
-      // 目（黄色）
-      g.fillStyle(0xffcc00,1);g.fillCircle(S*.36,S*.34,S*.06);g.fillStyle(0x000000,1);g.fillCircle(S*.36,S*.35,S*.03);
-      // 鼻
-      g.fillStyle(0x223344,1);g.fillEllipse(S*.18,S*.43,S*.1,S*.07);
-      // 歯
-      g.fillStyle(0xffffff,1);g.fillTriangle(S*.17,S*.48,S*.14,S*.56,S*.22,S*.48);g.fillTriangle(S*.26,S*.5,S*.23,S*.5,S*.28,S*.57);
+    // ウルフ
+    mk('enemy_wolf',96,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.92,S*.72,S*.1);
+      g.fillStyle(0x4a4466,1);g.fillEllipse(S*.82,S*.54,S*.16,S*.38);
+      g.fillStyle(0x6a6488,0.5);g.fillEllipse(S*.8,S*.5,S*.1,S*.22);
+      g.fillStyle(0x4a4466,1);g.fillEllipse(S*.46,S*.6,S*.56,S*.44);
+      g.fillStyle(0x6a6488,0.4);g.fillEllipse(S*.44,S*.55,S*.38,S*.28);
+      g.fillStyle(0xaaaacc,0.25);g.fillEllipse(S*.42,S*.52,S*.22,S*.18);
+      g.fillStyle(0x3a3456,1);g.fillRect(S*.24,S*.72,S*.1,S*.22);g.fillRect(S*.38,S*.74,S*.1,S*.2);g.fillRect(S*.54,S*.74,S*.1,S*.2);g.fillRect(S*.68,S*.72,S*.1,S*.22);
+      g.fillStyle(0xff9988,1);g.fillCircle(S*.29,S*.92,S*.05);g.fillCircle(S*.43,S*.93,S*.05);g.fillCircle(S*.59,S*.93,S*.05);g.fillCircle(S*.73,S*.92,S*.05);
+      g.fillStyle(0x4a4466,1);g.fillEllipse(S*.3,S*.44,S*.28,S*.3);
+      g.fillStyle(0x3a3456,1);g.fillTriangle(S*.22,S*.3,S*.14,S*.08,S*.3,S*.28);g.fillTriangle(S*.36,S*.28,S*.3,S*.28,S*.38,S*.08);
+      g.fillStyle(0xff9988,0.5);g.fillTriangle(S*.23,S*.28,S*.17,S*.12,S*.29,S*.27);
+      g.fillStyle(0xddddee,0.5);g.fillEllipse(S*.27,S*.44,S*.18,S*.14);
+      g.fillStyle(0xffcc00,1);g.fillEllipse(S*.22,S*.38,S*.12,S*.08);g.fillEllipse(S*.36,S*.38,S*.12,S*.08);
+      g.fillStyle(0x111100,1);g.fillEllipse(S*.22,S*.38,S*.05,S*.07);g.fillEllipse(S*.36,S*.38,S*.05,S*.07);
+      g.fillStyle(0xffffff,0.7);g.fillCircle(S*.2,S*.36,S*.02);g.fillCircle(S*.34,S*.36,S*.02);
+      g.fillStyle(0x1a1a22,1);g.fillEllipse(S*.28,S*.46,S*.1,S*.07);
+      g.fillStyle(0x1a1a1a,1);g.fillEllipse(S*.28,S*.52,S*.16,S*.08);
+      g.fillStyle(0xffffff,1);g.fillTriangle(S*.22,S*.5,S*.2,S*.57,S*.25,S*.5);g.fillTriangle(S*.32,S*.5,S*.3,S*.5,S*.33,S*.57);
     });
 
-    // ── スケルトン ────────────────────────────────
-    mk('enemy_skeleton',64,(g,S)=>{
-      g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.92,S*.5,S*.12);
-      // 足（骨）
-      g.fillStyle(0xddddcc,1);
-      g.fillRect(S*.34,S*.68,S*.1,S*.24);g.fillRect(S*.56,S*.68,S*.1,S*.24);
-      g.fillCircle(S*.39,S*.68,S*.06);g.fillCircle(S*.61,S*.68,S*.06);
-      g.fillCircle(S*.39,S*.92,S*.07);g.fillCircle(S*.61,S*.92,S*.07);
-      // 胴体（肋骨）
-      g.fillStyle(0xddddcc,1);g.fillRect(S*.44,S*.4,S*.12,S*.3);
-      for(let i=0;i<3;i++){
-        g.fillRect(S*.32,S*.42+i*S*.09,S*.36,S*.05);
-      }
-      // 腕（骨）
-      g.fillStyle(0xddddcc,1);
-      g.fillRect(S*.22,S*.42,S*.1,S*.28);g.fillRect(S*.68,S*.42,S*.1,S*.28);
-      g.fillCircle(S*.27,S*.42,S*.06);g.fillCircle(S*.73,S*.42,S*.06);
-      g.fillCircle(S*.27,S*.7,S*.06);g.fillCircle(S*.73,S*.7,S*.06);
-      // 頭蓋骨
-      g.fillStyle(0xeeeedd,1);g.fillEllipse(S*.5,S*.3,S*.42,S*.38);
-      g.fillStyle(0xddddcc,1);g.fillRect(S*.38,S*.4,S*.24,S*.1);
-      // 目穴（黒い空洞）
-      g.fillStyle(0x000000,1);g.fillEllipse(S*.38,S*.29,S*.12,S*.1);g.fillEllipse(S*.62,S*.29,S*.12,S*.1);
-      // 鼻穴
-      g.fillStyle(0x222211,1);g.fillTriangle(S*.47,S*.36,S*.44,S*.42,S*.5,S*.42);g.fillTriangle(S*.53,S*.36,S*.5,S*.42,S*.56,S*.42);
-      // 歯
+    // スケルトン
+    mk('enemy_skeleton',96,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.94,S*.6,S*.1);
+      g.fillStyle(0x3d2d1a,0.7);g.fillEllipse(S*.5,S*.6,S*.5,S*.52);
       g.fillStyle(0xeeeedd,1);
-      for(let i=0;i<4;i++)g.fillRect(S*.36+i*S*.07,S*.42,S*.05,S*.07);
-      g.fillStyle(0x000000,.6);g.fillRect(S*.36,S*.42,S*.27,S*.03);
-      // 武器（剣）
-      g.fillStyle(0xaaaaaa,1);g.fillRect(S*.75,S*.2,S*.05,S*.45);
-      g.fillStyle(0x886633,1);g.fillRect(S*.68,S*.36,S*.18,S*.05);
+      for(let i=0;i<4;i++){const y=S*(0.46+i*0.07);g.fillRect(S*.32,y,S*.36,S*.025);}
+      g.fillStyle(0xeeeedd,1);g.fillRect(S*.47,S*.38,S*.06,S*.42);
+      g.fillStyle(0xeeeedd,1);g.fillEllipse(S*.5,S*.74,S*.32,S*.18);
+      g.fillStyle(0xeeeedd,1);g.fillRect(S*.18,S*.44,S*.08,S*.28);g.fillRect(S*.74,S*.44,S*.08,S*.28);g.fillRect(S*.16,S*.7,S*.08,S*.22);g.fillRect(S*.76,S*.7,S*.08,S*.22);
+      g.fillStyle(0xeeeedd,1);[-.06,-.02,.02,.06].forEach(o=>{g.fillRect(S*(.18+o),S*.9,S*.025,S*.06);g.fillRect(S*(.8+o),S*.9,S*.025,S*.06);});
+      g.fillRect(S*.36,S*.78,S*.08,S*.16);g.fillRect(S*.56,S*.78,S*.08,S*.16);
+      g.fillStyle(0xeeeedd,1);g.fillEllipse(S*.5,S*.24,S*.38,S*.34);
+      g.lineStyle(1,0xaaaaaa,0.5);g.lineBetween(S*.42,S*.14,S*.44,S*.22);g.lineBetween(S*.58,S*.16,S*.55,S*.24);
+      g.fillStyle(0x1a1100,1);g.fillEllipse(S*.37,S*.23,S*.14,S*.12);g.fillEllipse(S*.63,S*.23,S*.14,S*.12);
+      g.fillStyle(0x4400aa,0.6);g.fillEllipse(S*.37,S*.23,S*.08,S*.08);g.fillEllipse(S*.63,S*.23,S*.08,S*.08);
+      g.fillStyle(0x8800ff,0.4);g.fillCircle(S*.37,S*.23,S*.03);g.fillCircle(S*.63,S*.23,S*.03);
+      g.fillStyle(0x1a1100,1);g.fillEllipse(S*.46,S*.3,S*.05,S*.06);g.fillEllipse(S*.54,S*.3,S*.05,S*.06);
+      g.fillStyle(0xeeeedd,1);[0,1,2,3,4].forEach(i=>g.fillRect(S*(0.37+i*0.052),S*.34,S*.038,S*.06));
+      g.fillStyle(0x1a1100,1);g.fillEllipse(S*.5,S*.34,S*.24,S*.08);
     });
 
-    // ── ドラゴン ────────────────────────────────
-    mk('enemy_dragon',88,(g,S)=>{
-      g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.94,S*.75,S*.13);
-      // 尻尾
-      g.fillStyle(0x882211,1);g.fillEllipse(S*.78,S*.7,S*.18,S*.1);g.fillEllipse(S*.88,S*.62,S*.12,S*.08);g.fillEllipse(S*.94,S*.55,S*.08,S*.06);
-      // 翼（左右）
-      g.fillStyle(0xaa2200,.85);
-      g.fillTriangle(S*.5,S*.4,S*.05,S*.08,S*.28,S*.48);
-      g.fillTriangle(S*.5,S*.4,S*.95,S*.08,S*.72,S*.48);
-      g.fillStyle(0xcc4422,.4);
-      g.fillTriangle(S*.5,S*.4,S*.1,S*.12,S*.3,S*.45);
-      g.fillTriangle(S*.5,S*.4,S*.9,S*.12,S*.7,S*.45);
-      // 足
-      g.fillStyle(0x772211,1);
-      g.fillEllipse(S*.32,S*.78,S*.2,S*.3);g.fillEllipse(S*.68,S*.78,S*.2,S*.3);
-      // 爪
-      g.fillStyle(0x334422,1);
-      g.fillTriangle(S*.24,S*.9,S*.2,S*.98,S*.28,S*.9);
-      g.fillTriangle(S*.32,S*.92,S*.3,S*.99,S*.36,S*.92);
-      g.fillTriangle(S*.64,S*.92,S*.62,S*.99,S*.68,S*.92);
-      g.fillTriangle(S*.72,S*.9,S*.68,S*.98,S*.76,S*.9);
-      // 胴体
-      g.fillStyle(0xaa2200,1);g.fillEllipse(S*.5,S*.6,S*.55,S*.52);
-      g.fillStyle(0xffcc88,.5);g.fillEllipse(S*.5,S*.64,S*.34,S*.3);
-      // 首・頭
-      g.fillStyle(0x992200,1);g.fillEllipse(S*.5,S*.36,S*.34,S*.3);
-      g.fillStyle(0xbb2200,1);g.fillEllipse(S*.5,S*.24,S*.38,S*.3);
-      // 角
-      g.fillStyle(0x554411,1);
-      g.fillTriangle(S*.36,S*.18,S*.3,S*.02,S*.42,S*.18);
-      g.fillTriangle(S*.64,S*.18,S*.58,S*.18,S*.7,S*.02);
-      g.fillTriangle(S*.44,S*.15,S*.4,S*.03,S*.48,S*.15);
-      // 目（黄色・鋭い）
-      g.fillStyle(0xffaa00,1);g.fillEllipse(S*.38,S*.22,S*.12,S*.09);g.fillEllipse(S*.62,S*.22,S*.12,S*.09);
-      g.fillStyle(0x000000,1);g.fillRect(S*.38,S*.2,S*.02,S*.08);g.fillRect(S*.62,S*.2,S*.02,S*.08);
-      // 鼻孔
-      g.fillStyle(0x661100,1);g.fillCircle(S*.44,S*.3,S*.03);g.fillCircle(S*.56,S*.3,S*.03);
-      // 歯・口
-      g.fillStyle(0x223311,1);g.fillEllipse(S*.5,S*.36,S*.22,S*.08);
-      g.fillStyle(0xffffff,1);g.fillTriangle(S*.43,S*.34,S*.41,S*.4,S*.46,S*.34);g.fillTriangle(S*.54,S*.34,S*.51,S*.34,S*.56,S*.4);
+    // ドラゴン
+    mk('enemy_dragon',112,(g,S)=>{
+      g.fillStyle(0x000000,0.3);g.fillEllipse(S*.5,S*.95,S*.85,S*.13);
+      g.fillStyle(0x8b1a1a,1);g.fillEllipse(S*.84,S*.72,S*.18,S*.1);g.fillEllipse(S*.92,S*.62,S*.14,S*.08);g.fillEllipse(S*.97,S*.52,S*.1,S*.06);
+      g.fillStyle(0xffcc00,1);g.fillTriangle(S*.97,S*.46,S*.94,S*.56,S*.99,S*.53);
+      g.fillStyle(0x6b0a0a,0.9);g.fillTriangle(S*.5,S*.4,S*.02,S*.06,S*.28,S*.54);g.fillTriangle(S*.5,S*.4,S*.98,S*.06,S*.72,S*.54);
+      g.fillStyle(0x8b1a1a,0.4);g.fillTriangle(S*.5,S*.4,S*.06,S*.1,S*.3,S*.52);g.fillTriangle(S*.5,S*.4,S*.94,S*.1,S*.7,S*.52);
+      g.lineStyle(2,0x440000,0.7);g.lineBetween(S*.5,S*.4,S*.02,S*.06);g.lineBetween(S*.5,S*.4,S*.28,S*.54);g.lineBetween(S*.5,S*.4,S*.98,S*.06);g.lineBetween(S*.5,S*.4,S*.72,S*.54);g.lineBetween(S*.5,S*.4,S*.14,S*.18);g.lineBetween(S*.5,S*.4,S*.86,S*.18);
+      g.fillStyle(0x8b1a1a,1);g.fillEllipse(S*.5,S*.64,S*.54,S*.52);
+      g.fillStyle(0xaa3333,0.4);g.fillEllipse(S*.5,S*.58,S*.36,S*.3);
+      g.fillStyle(0x6b0a0a,0.35);for(let r=0;r<3;r++)for(let c=0;c<4;c++)g.fillEllipse(S*(0.32+c*0.12),S*(0.56+r*0.08),S*.08,S*.05);
+      g.fillStyle(0xdd8866,0.5);g.fillEllipse(S*.5,S*.66,S*.28,S*.36);
+      g.fillStyle(0x7b1212,1);g.fillEllipse(S*.3,S*.82,S*.2,S*.28);g.fillEllipse(S*.7,S*.82,S*.2,S*.28);
+      g.fillStyle(0x111111,1);[[.22,.94],[.29,.96],[.36,.94],[.64,.94],[.71,.96],[.78,.94]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.04),S*(y+.06),S*(x+.04),S*y);});
+      g.fillStyle(0x8b1a1a,1);g.fillEllipse(S*.5,S*.42,S*.3,S*.26);
+      g.fillStyle(0x8b1a1a,1);g.fillEllipse(S*.5,S*.26,S*.44,S*.34);
+      g.fillStyle(0xffcc00,1);g.fillTriangle(S*.36,S*.2,S*.28,S*.0,S*.42,S*.22);g.fillTriangle(S*.64,S*.2,S*.58,S*.22,S*.72,S*.0);
+      g.fillStyle(0xffdd00,1);g.fillEllipse(S*.36,S*.24,S*.14,S*.11);g.fillEllipse(S*.64,S*.24,S*.14,S*.11);
+      g.fillStyle(0x000000,1);g.fillRect(S*.37,S*.2,S*.02,S*.08);g.fillRect(S*.63,S*.2,S*.02,S*.08);
+      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.34,S*.22,S*.02);g.fillCircle(S*.6,S*.22,S*.02);
+      g.fillStyle(0x221111,1);g.fillCircle(S*.44,S*.31,S*.04);g.fillCircle(S*.56,S*.31,S*.04);
+      g.fillStyle(0x1a0000,1);g.fillEllipse(S*.5,S*.36,S*.26,S*.1);
+      g.fillStyle(0xff6600,0.7);g.fillEllipse(S*.5,S*.35,S*.14,S*.05);
+      g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.39+i*0.07),S*.33,S*(0.37+i*0.07),S*.39,S*(0.41+i*0.07),S*.33);
     });
 
-    // ── サンドワーム ────────────────────────────────
-    mk('enemy_sandworm',80,(g,S)=>{
-      g.fillStyle(0x000000,.18);g.fillEllipse(S*.5,S*.93,S*.65,S*.13);
-      // 体節（うねうね）
-      const wormCols=[0xcc8822,0xdd9933,0xbb7711];
-      for(let i=4;i>=0;i--){
-        const y=S*(0.82-i*S*.035/S);
-        const w=S*(0.55+Math.sin(i*0.8)*0.15);
-        g.fillStyle(wormCols[i%3],1);
-        g.fillEllipse(S*.5,S*(0.78-i*0.12),w,S*0.2);
-        // 体節の線
-        g.lineStyle(1,0x996611,.5);
-        g.strokeEllipse(S*.5,S*(0.78-i*0.12),w,S*0.2);
-      }
-      // 頭（大口）
-      g.fillStyle(0xddaa33,1);g.fillEllipse(S*.5,S*.28,S*.58,S*.46);
-      // 口（大きく開いた）
-      g.fillStyle(0x330000,1);g.fillEllipse(S*.5,S*.32,S*.42,S*.3);
-      // 牙（内側・外側）
-      g.fillStyle(0xffffff,1);
-      for(let i=0;i<4;i++){
-        const x=S*(0.3+i*S*.13/S);
-        g.fillTriangle(S*(0.3+i*0.13),S*.22,S*(0.27+i*0.13),S*.12,S*(0.33+i*0.13),S*.22);
-        g.fillTriangle(S*(0.3+i*0.13),S*.42,S*(0.27+i*0.13),S*.52,S*(0.33+i*0.13),S*.42);
-      }
-      // 目（複眼）
-      g.fillStyle(0xffcc00,1);g.fillCircle(S*.3,S*.2,S*.07);g.fillCircle(S*.7,S*.2,S*.07);
-      g.fillStyle(0x000000,1);g.fillCircle(S*.3,S*.21,S*.04);g.fillCircle(S*.7,S*.21,S*.04);
-      // 砂のつぶつぶ
-      g.fillStyle(0xeecc88,.3);
-      for(let i=0;i<8;i++)g.fillCircle(S*(0.2+Math.sin(i*1.3)*0.3+0.3),S*(0.55+Math.cos(i*1.1)*0.2),S*.02);
+    // サンドワーム
+    mk('enemy_sandworm',112,(g,S)=>{
+      g.fillStyle(0x000000,0.25);g.fillEllipse(S*.5,S*.94,S*.8,S*.12);
+      g.fillStyle(0xcc9944,1);g.fillEllipse(S*.5,S*.82,S*.44,S*.22);g.fillEllipse(S*.5,S*.72,S*.48,S*.22);
+      g.fillStyle(0xddaa55,0.4);g.fillEllipse(S*.5,S*.78,S*.3,S*.14);
+      g.fillStyle(0xdd9933,1);g.fillEllipse(S*.5,S*.62,S*.52,S*.24);g.fillStyle(0xeebb55,0.4);g.fillEllipse(S*.5,S*.58,S*.34,S*.16);
+      g.lineStyle(2,0xaa7722,0.5);g.strokeEllipse(S*.5,S*.82,S*.44,S*.22);g.strokeEllipse(S*.5,S*.72,S*.48,S*.22);g.strokeEllipse(S*.5,S*.62,S*.52,S*.24);
+      g.fillStyle(0xcc8822,1);g.fillEllipse(S*.5,S*.5,S*.56,S*.28);g.fillStyle(0xddaa44,0.4);g.fillEllipse(S*.5,S*.46,S*.38,S*.18);
+      g.fillStyle(0x220a00,1);g.fillCircle(S*.5,S*.36,S*.28);g.fillStyle(0x441400,0.6);g.fillCircle(S*.5,S*.36,S*.22);
+      g.fillStyle(0xeeddcc,1);
+      for(let i=0;i<12;i++){const a=i/12*Math.PI*2;g.fillTriangle(S*.5+Math.cos(a)*S*.26,S*.36+Math.sin(a)*S*.26,S*.5+Math.cos(a+0.28)*S*.22,S*.36+Math.sin(a+0.28)*S*.22,S*.5+Math.cos(a-0.28)*S*.22,S*.36+Math.sin(a-0.28)*S*.22);}
+      g.fillStyle(0xff4400,0.8);g.fillCircle(S*.5,S*.36,S*.16);g.fillStyle(0xff2200,0.6);g.fillCircle(S*.5,S*.36,S*.1);g.fillStyle(0x220000,1);g.fillCircle(S*.5,S*.36,S*.05);
+      g.fillStyle(0xcc8822,1);g.fillRect(S*.38,S*.18,S*.05,S*.16);g.fillRect(S*.57,S*.18,S*.05,S*.16);
+      g.fillStyle(0xff0000,1);g.fillCircle(S*.40,S*.17,S*.04);g.fillCircle(S*.59,S*.17,S*.04);
     });
 
-    // ── スコーピオン ────────────────────────────────
-    mk('enemy_scorpion',64,(g,S)=>{
-      g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.58,S*.12);
-      // 尻尾（S字）
-      g.fillStyle(0x994400,1);
-      g.fillEllipse(S*.72,S*.68,S*.1,S*.18);g.fillEllipse(S*.8,S*.55,S*.1,S*.16);
-      g.fillEllipse(S*.86,S*.42,S*.1,S*.14);g.fillEllipse(S*.88,S*.3,S*.08,S*.12);
-      // 毒針
-      g.fillStyle(0x22aa22,1);g.fillTriangle(S*.88,S*.2,S*.84,S*.28,S*.92,S*.25);
-      // 足（6本）
-      g.fillStyle(0x883300,1);
-      [[.2,.45,.08,.68],[.18,.5,.05,.72],[.2,.56,.08,.76],
-       [.8,.45,.92,.68],[.82,.5,.95,.72],[.8,.56,.92,.76]].forEach(([x1,y1,x2,y2])=>{
-        g.fillRect(S*Math.min(x1,x2),S*y1,S*Math.abs(x2-x1)+S*.04,S*.04);
-      });
-      // ハサミ
-      g.fillStyle(0xaa4400,1);
-      g.fillEllipse(S*.18,S*.35,S*.2,S*.12);g.fillEllipse(S*.08,S*.28,S*.12,S*.08);g.fillEllipse(S*.08,S*.4,S*.12,S*.08);
-      g.fillStyle(0x883300,1);g.fillCircle(S*.08,S*.28,S*.05);g.fillCircle(S*.08,S*.4,S*.05);
-      // 胴体（腹）
-      g.fillStyle(0xaa5511,1);g.fillEllipse(S*.5,S*.6,S*.44,S*.3);
-      // 頭胸
-      g.fillStyle(0xcc6622,1);g.fillEllipse(S*.42,S*.45,S*.36,S*.3);
-      // 甲羅模様
-      g.lineStyle(1,0x883300,.6);g.strokeEllipse(S*.42,S*.45,S*.36,S*.3);
-      g.fillStyle(0xaa4400,.4);g.fillEllipse(S*.42,S*.42,S*.22,S*.16);
-      // 目（8つ・小さい）
-      g.fillStyle(0x000000,1);
-      [[.34,.38],[.4,.35],[.46,.34],[.38,.43]].forEach(([x,y])=>{g.fillCircle(S*x,S*y,S*.025);});
+    // スコーピオン
+    mk('enemy_scorpion',96,(g,S)=>{
+      g.fillStyle(0x000000,0.25);g.fillEllipse(S*.5,S*.93,S*.7,S*.1);
+      g.fillStyle(0x8b4400,1);g.fillEllipse(S*.74,S*.44,S*.12,S*.18);g.fillEllipse(S*.8,S*.32,S*.1,S*.16);g.fillEllipse(S*.78,S*.2,S*.1,S*.14);
+      g.fillStyle(0x22aa00,1);g.fillTriangle(S*.75,S*.12,S*.72,S*.2,S*.8,S*.16);g.fillStyle(0x44ff00,0.5);g.fillTriangle(S*.76,S*.13,S*.74,S*.18,S*.79,S*.15);
+      g.fillStyle(0x8b4400,1);g.fillEllipse(S*.5,S*.58,S*.48,S*.52);g.fillStyle(0xaa5500,0.4);g.fillEllipse(S*.5,S*.52,S*.32,S*.3);
+      g.lineStyle(2,0x662200,0.6);g.lineBetween(S*.26,S*.48,S*.74,S*.48);g.lineBetween(S*.24,S*.56,S*.76,S*.56);g.lineBetween(S*.26,S*.64,S*.74,S*.64);
+      g.fillStyle(0x7b3300,1);[-.16,-.06,.04,.14].forEach(o=>{g.fillRect(S*(.28+o),S*.62,S*.04,S*.2);g.fillRect(S*(.68+o),S*.62,S*.04,S*.2);});
+      g.fillStyle(0x8b4400,1);g.fillEllipse(S*.22,S*.52,S*.18,S*.1);g.fillEllipse(S*.14,S*.46,S*.14,S*.1);
+      g.fillStyle(0x7b3300,1);g.fillTriangle(S*.08,S*.42,S*.18,S*.44,S*.12,S*.5);
+      g.fillStyle(0x8b4400,1);g.fillEllipse(S*.28,S*.38,S*.18,S*.1);g.fillEllipse(S*.2,S*.3,S*.14,S*.1);
+      g.fillStyle(0x7b3300,1);g.fillTriangle(S*.14,S*.26,S*.24,S*.28,S*.18,S*.36);
+      g.fillStyle(0x9b5500,1);g.fillEllipse(S*.5,S*.38,S*.36,S*.28);g.fillStyle(0xcc7722,0.35);g.fillEllipse(S*.48,S*.34,S*.2,S*.14);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.38,S*.34,S*.04);g.fillCircle(S*.46,S*.32,S*.03);g.fillCircle(S*.54,S*.32,S*.03);g.fillCircle(S*.62,S*.34,S*.04);
+      g.fillStyle(0xff0000,0.7);g.fillCircle(S*.38,S*.34,S*.02);g.fillCircle(S*.62,S*.34,S*.02);
     });
 
-    // ── ボス1（暗黒騎士）────────────────────────
-    mk('enemy_boss1',96,(g,S)=>{
-      g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.95,S*.75,S*.12);
-      // マント
-      g.fillStyle(0x220022,1);
-      g.fillTriangle(S*.5,S*.35,S*.08,S*.95,S*.5,S*.85);
-      g.fillTriangle(S*.5,S*.35,S*.92,S*.95,S*.5,S*.85);
-      g.fillStyle(0x440044,.5);
-      g.fillTriangle(S*.5,S*.38,S*.12,S*.9,S*.5,S*.82);
-      // 鎧（脚）
-      g.fillStyle(0x334455,1);g.fillRect(S*.32,S*.7,S*.16,S*.25);g.fillRect(S*.52,S*.7,S*.16,S*.25);
-      g.fillStyle(0x223344,1);g.fillRect(S*.28,S*.88,S*.22,S*.1);g.fillRect(S*.5,S*.88,S*.22,S*.1);
-      // 鎧（胴）
-      g.fillStyle(0x445566,1);g.fillEllipse(S*.5,S*.57,S*.52,S*.44);
-      g.fillStyle(0x556677,.5);g.fillEllipse(S*.5,S*.52,S*.36,S*.28);
-      // 十字紋章
-      g.fillStyle(0xcc2200,1);g.fillRect(S*.47,S*.44,S*.06,S*.2);g.fillRect(S*.4,S*.51,S*.2,S*.06);
-      // 腕（鎧）
-      g.fillStyle(0x334455,1);g.fillEllipse(S*.16,S*.54,S*.2,S*.38);g.fillEllipse(S*.84,S*.54,S*.2,S*.38);
-      // 篭手
-      g.fillStyle(0x223344,1);g.fillCircle(S*.14,S*.7,S*.08);g.fillCircle(S*.86,S*.7,S*.08);
-      // 剣
-      g.fillStyle(0xaaaacc,1);g.fillRect(S*.88,S*.18,S*.06,S*.52);
-      g.fillStyle(0x886633,1);g.fillRect(S*.8,S*.38,S*.22,S*.06);
-      g.fillStyle(0xffcc22,1);g.fillCircle(S*.91,S*.18,S*.05);
-      // 兜
-      g.fillStyle(0x445566,1);g.fillEllipse(S*.5,S*.3,S*.46,S*.38);
-      g.fillStyle(0x334455,1);g.fillRect(S*.38,S*.28,S*.24,S*.18);
-      // 兜の飾り
-      g.fillStyle(0xcc2200,1);g.fillRect(S*.48,S*.14,S*.04,S*.18);
-      // 目（赤い光）
-      g.fillStyle(0xff2200,1);g.fillEllipse(S*.38,S*.3,S*.1,S*.07);g.fillEllipse(S*.62,S*.3,S*.1,S*.07);
-      g.fillStyle(0xff6600,.7);g.fillEllipse(S*.38,S*.3,S*.06,S*.04);g.fillEllipse(S*.62,S*.3,S*.06,S*.04);
+    // ボス1
+    mk('enemy_boss1',128,(g,S)=>{
+      g.fillStyle(0x000000,0.4);g.fillEllipse(S*.5,S*.96,S*.9,S*.14);
+      g.fillStyle(0x6600cc,0.1);g.fillCircle(S*.5,S*.5,S*.54);
+      g.fillStyle(0x220044,0.95);g.fillTriangle(S*.5,S*.36,S*.0,S*.04,S*.26,S*.54);g.fillTriangle(S*.5,S*.36,S*1.0,S*.04,S*.74,S*.54);
+      g.fillStyle(0x440066,0.4);g.fillTriangle(S*.5,S*.36,S*.04,S*.08,S*.28,S*.52);g.fillTriangle(S*.5,S*.36,S*.96,S*.08,S*.72,S*.52);
+      g.lineStyle(2,0xaa44ff,0.6);g.lineBetween(S*.5,S*.36,S*.0,S*.04);g.lineBetween(S*.5,S*.36,S*.26,S*.54);g.lineBetween(S*.5,S*.36,S*1.0,S*.04);g.lineBetween(S*.5,S*.36,S*.74,S*.54);g.lineBetween(S*.5,S*.36,S*.14,S*.16);g.lineBetween(S*.5,S*.36,S*.86,S*.16);
+      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.62,S*.52,S*.52);
+      g.fillStyle(0xffcc00,0.7);g.fillRect(S*.35,S*.5,S*.3,S*.03);g.fillRect(S*.35,S*.58,S*.3,S*.03);g.fillRect(S*.48,S*.46,S*.04,S*.22);g.fillEllipse(S*.5,S*.46,S*.16,S*.08);
+      g.fillStyle(0x2a2a3e,1);g.fillEllipse(S*.2,S*.5,S*.2,S*.16);g.fillEllipse(S*.8,S*.5,S*.2,S*.16);
+      g.fillStyle(0xffcc00,0.5);g.fillEllipse(S*.2,S*.5,S*.12,S*.08);g.fillEllipse(S*.8,S*.5,S*.12,S*.08);
+      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.16,S*.6,S*.16,S*.3);g.fillEllipse(S*.84,S*.6,S*.16,S*.3);
+      g.fillStyle(0x111111,1);g.fillCircle(S*.16,S*.74,S*.09);g.fillCircle(S*.84,S*.74,S*.09);
+      g.fillStyle(0xaa44ff,0.6);[-.06,-.02,.02,.06].forEach(o=>{g.fillRect(S*(.16+o),S*.8,S*.02,S*.07);g.fillRect(S*(.84+o),S*.8,S*.02,S*.07);});
+      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.34,S*.82,S*.18,S*.28);g.fillEllipse(S*.66,S*.82,S*.18,S*.28);
+      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.2);
+      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.24,S*.42,S*.34);
+      g.fillStyle(0xffcc00,1);g.fillRect(S*.3,S*.1,S*.4,S*.08);[0,1,2,3,4].forEach(i=>g.fillTriangle(S*(0.3+i*0.1),S*.1,S*(0.35+i*0.1),S*.02,S*(0.4+i*0.1),S*.1));
+      g.fillStyle(0xff2200,0.8);g.fillCircle(S*.35,S*.08,S*.03);g.fillCircle(S*.5,S*.04,S*.04);g.fillCircle(S*.65,S*.08,S*.03);
+      g.fillStyle(0xaa44ff,1);g.fillEllipse(S*.37,S*.23,S*.14,S*.12);g.fillEllipse(S*.63,S*.23,S*.14,S*.12);
+      g.fillStyle(0xcc88ff,0.7);g.fillEllipse(S*.37,S*.23,S*.08,S*.08);g.fillEllipse(S*.63,S*.23,S*.08,S*.08);
+      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.21,S*.03);g.fillCircle(S*.61,S*.21,S*.03);
+      g.fillStyle(0x110011,1);g.fillEllipse(S*.5,S*.32,S*.26,S*.1);
+      g.fillStyle(0xaa44ff,0.5);g.fillEllipse(S*.5,S*.31,S*.14,S*.05);
+      g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.39+i*0.075),S*.29,S*(0.37+i*0.075),S*.35,S*(0.41+i*0.075),S*.29);
     });
 
-    // ── ボス2（魔王）────────────────────────────
-    mk('enemy_boss2',104,(g,S)=>{
-      g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.95,S*.8,S*.13);
-      // オーラ
-      g.fillStyle(0x6600cc,.15);g.fillCircle(S*.5,S*.5,S*.46);
-      g.fillStyle(0x9900ff,.1);g.fillCircle(S*.5,S*.5,S*.42);
-      // ローブ
-      g.fillStyle(0x110022,1);
-      g.fillTriangle(S*.5,S*.32,S*.08,S*.96,S*.92,S*.96);
-      g.fillStyle(0x220044,.7);
-      g.fillTriangle(S*.5,S*.36,S*.14,S*.92,S*.86,S*.92);
-      // ローブの紋様
-      g.fillStyle(0xaa00ff,.4);
-      g.fillTriangle(S*.5,S*.44,S*.38,S*.7,S*.62,S*.7);
-      // 腕
-      g.fillStyle(0x221133,1);g.fillEllipse(S*.18,S*.52,S*.2,S*.36);g.fillEllipse(S*.82,S*.52,S*.2,S*.36);
-      // 手（魔法陣）
-      g.fillStyle(0xaa00ff,.8);g.fillCircle(S*.14,S*.68,S*.09);g.fillCircle(S*.86,S*.68,S*.09);
-      g.fillStyle(0xffffff,.6);g.fillCircle(S*.14,S*.68,S*.05);g.fillCircle(S*.86,S*.68,S*.05);
-      // 頭（大きい）
-      g.fillStyle(0x332244,1);g.fillEllipse(S*.5,S*.3,S*.5,S*.44);
-      // 大角（2本）
-      g.fillStyle(0x220044,1);
-      g.fillTriangle(S*.3,S*.2,S*.22,S*.0,S*.4,S*.22);
-      g.fillTriangle(S*.7,S*.2,S*.6,S*.22,S*.78,S*.0);
-      g.fillStyle(0x6600cc,.5);
-      g.fillTriangle(S*.3,S*.2,S*.25,S*.04,S*.37,S*.2);
-      g.fillTriangle(S*.7,S*.2,S*.63,S*.2,S*.75,S*.04);
-      // 目（紫に光る）
-      g.fillStyle(0xcc00ff,1);g.fillEllipse(S*.36,S*.28,S*.14,S*.1);g.fillEllipse(S*.64,S*.28,S*.14,S*.1);
-      g.fillStyle(0xffffff,.8);g.fillCircle(S*.36,S*.29,S*.04);g.fillCircle(S*.64,S*.29,S*.04);
-      // 口（ニヤリ・大きい）
-      g.fillStyle(0x000000,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.1);
-      g.fillStyle(0xffffff,1);
-      for(let i=0;i<5;i++)g.fillTriangle(S*(0.36+i*0.07),S*.36,S*(0.33+i*0.07),S*.44,S*(0.39+i*0.07),S*.36);
-      // 王冠
-      g.fillStyle(0xffcc00,1);g.fillRect(S*.3,S*.1,S*.4,S*.1);
-      g.fillTriangle(S*.3,S*.1,S*.3,S*.02,S*.36,S*.1);
-      g.fillTriangle(S*.5,S*.1,S*.5,S*.0,S*.56,S*.1);
-      g.fillTriangle(S*.7,S*.1,S*.64,S*.1,S*.7,S*.02);
-      g.fillStyle(0xff2200,1);g.fillCircle(S*.33,S*.07,S*.03);g.fillCircle(S*.53,S*.05,S*.03);g.fillCircle(S*.67,S*.07,S*.03);
+    // ボス2（溶岩の覇者）
+    mk('enemy_boss2',140,(g,S)=>{
+      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.96,S*.88,S*.13);
+      g.fillStyle(0xff4400,0.08);g.fillCircle(S*.5,S*.5,S*.52);
+      g.fillStyle(0x883300,1);g.fillEllipse(S*.82,S*.76,S*.18,S*.1);g.fillEllipse(S*.9,S*.64,S*.14,S*.09);g.fillEllipse(S*.96,S*.52,S*.1,S*.07);
+      g.fillStyle(0xff6600,1);g.fillTriangle(S*.97,S*.44,S*.93,S*.54,S*1.0,S*.51);
+      g.fillStyle(0x661100,0.9);g.fillTriangle(S*.5,S*.38,S*.02,S*.06,S*.28,S*.54);g.fillTriangle(S*.5,S*.38,S*.98,S*.06,S*.72,S*.54);
+      g.lineStyle(2,0xff6600,0.6);g.lineBetween(S*.5,S*.38,S*.02,S*.06);g.lineBetween(S*.5,S*.38,S*.98,S*.06);g.lineBetween(S*.5,S*.38,S*.28,S*.54);g.lineBetween(S*.5,S*.38,S*.72,S*.54);g.lineBetween(S*.5,S*.38,S*.18,S*.24);g.lineBetween(S*.5,S*.38,S*.82,S*.24);
+      g.fillStyle(0xff8800,0.25);g.fillTriangle(S*.5,S*.38,S*.06,S*.1,S*.3,S*.52);g.fillTriangle(S*.5,S*.38,S*.94,S*.1,S*.7,S*.52);
+      g.fillStyle(0x883300,1);g.fillEllipse(S*.5,S*.62,S*.56,S*.54);
+      g.fillStyle(0xff6600,0.4);g.fillRect(S*.38,S*.5,S*.04,S*.2);g.fillRect(S*.56,S*.52,S*.04,S*.18);
+      g.fillStyle(0xffaa00,0.2);g.fillEllipse(S*.5,S*.6,S*.3,S*.2);
+      g.fillStyle(0xff6600,0.3);g.fillEllipse(S*.5,S*.66,S*.26,S*.32);
+      g.fillStyle(0x772200,1);g.fillEllipse(S*.3,S*.82,S*.22,S*.3);g.fillEllipse(S*.7,S*.82,S*.22,S*.3);
+      g.fillStyle(0x222211,1);[[.22,.94],[.28,.96],[.36,.94],[.64,.94],[.72,.96],[.78,.94]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.04),S*(y+.06),S*(x+.04),S*y);});
+      g.fillStyle(0x883300,1);g.fillEllipse(S*.5,S*.4,S*.34,S*.26);
+      g.fillStyle(0x994400,1);g.fillEllipse(S*.5,S*.26,S*.46,S*.36);
+      g.fillStyle(0xcc4400,1);g.fillTriangle(S*.34,S*.18,S*.26,S*.0,S*.42,S*.2);g.fillTriangle(S*.66,S*.18,S*.58,S*.2,S*.74,S*.0);g.fillTriangle(S*.44,S*.14,S*.38,S*.0,S*.5,S*.16);g.fillTriangle(S*.56,S*.14,S*.5,S*.16,S*.62,S*.0);
+      g.fillStyle(0xff6600,0.4);g.fillTriangle(S*.34,S*.18,S*.28,S*.04,S*.4,S*.2);
+      g.fillStyle(0xff4400,1);g.fillEllipse(S*.36,S*.24,S*.16,S*.12);g.fillEllipse(S*.64,S*.24,S*.16,S*.12);
+      g.fillStyle(0xffaa00,0.8);g.fillEllipse(S*.36,S*.24,S*.1,S*.08);g.fillEllipse(S*.64,S*.24,S*.1,S*.08);
+      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.22,S*.03);g.fillCircle(S*.61,S*.22,S*.03);
+      g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.34,S*.28,S*.1);g.fillStyle(0xff6600,0.7);g.fillEllipse(S*.5,S*.33,S*.16,S*.06);
+      g.fillStyle(0xffffff,1);for(let i=0;i<5;i++)g.fillTriangle(S*(0.37+i*0.065),S*.31,S*(0.35+i*0.065),S*.37,S*(0.39+i*0.065),S*.31);
     });
 
-    // ── ボス3（神龍）────────────────────────────
-    mk('enemy_boss3',112,(g,S)=>{
-      g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.95,S*.85,S*.13);
-      // 後光（神聖オーラ）
-      g.fillStyle(0xffaa00,.12);g.fillCircle(S*.5,S*.5,S*.5);
-      g.fillStyle(0xff6600,.08);g.fillCircle(S*.5,S*.5,S*.46);
-      // 尻尾
-      g.fillStyle(0xcc4400,1);
-      g.fillEllipse(S*.82,S*.75,S*.16,S*.1);g.fillEllipse(S*.9,S*.65,S*.12,S*.08);g.fillEllipse(S*.96,S*.55,S*.08,S*.06);
-      // 超巨大翼
-      g.fillStyle(0xdd3300,.9);
-      g.fillTriangle(S*.5,S*.38,S*.02,S*.04,S*.3,S*.52);
-      g.fillTriangle(S*.5,S*.38,S*.98,S*.04,S*.7,S*.52);
-      g.fillStyle(0xff6600,.35);
-      g.fillTriangle(S*.5,S*.38,S*.06,S*.08,S*.32,S*.5);
-      g.fillTriangle(S*.5,S*.38,S*.94,S*.08,S*.68,S*.5);
-      // 翼の骨
-      g.lineStyle(2,0xaa2200,.6);
-      g.fillStyle(0xaa2200,.6);
-      [[.5,.38,.06,.08],[.5,.38,.3,.52],[.5,.38,.94,.08],[.5,.38,.7,.52]].forEach(([x1,y1,x2,y2])=>{
-        g.fillRect(S*Math.min(x1,x2),S*Math.min(y1,y2),S*Math.abs(x2-x1)+2,S*Math.abs(y2-y1)+2);
-      });
-      // 脚（強力）
-      g.fillStyle(0xaa3300,1);g.fillEllipse(S*.3,S*.8,S*.22,S*.32);g.fillEllipse(S*.7,S*.8,S*.22,S*.32);
-      // 爪（大きい）
-      g.fillStyle(0x223322,1);
-      [[.2,.94,.16],[.28,.96,.18],[.36,.94,.16],[.64,.94,.16],[.72,.96,.18],[.8,.94,.16]].forEach(([x,y,l])=>{
-        g.fillTriangle(S*x,S*y,S*(x-l*.08),S*(y+l*.1),S*(x+l*.08),S*y);
-      });
-      // 胴体
-      g.fillStyle(0xcc3300,1);g.fillEllipse(S*.5,S*.62,S*.58,S*.54);
-      g.fillStyle(0xffaa44,.45);g.fillEllipse(S*.5,S*.67,S*.38,S*.3);
-      // 首
-      g.fillStyle(0xbb3300,1);g.fillEllipse(S*.5,S*.4,S*.36,S*.28);
-      // 頭（大きい）
-      g.fillStyle(0xcc3300,1);g.fillEllipse(S*.5,S*.26,S*.44,S*.36);
-      // 大角（複数）
-      g.fillStyle(0x553311,1);
-      g.fillTriangle(S*.34,S*.18,S*.26,S*.0,S*.42,S*.2);
-      g.fillTriangle(S*.66,S*.18,S*.58,S*.2,S*.74,S*.0);
-      g.fillTriangle(S*.44,S*.14,S*.38,S*.0,S*.5,S*.16);
-      g.fillTriangle(S*.56,S*.14,S*.5,S*.16,S*.62,S*.0);
-      // 目（金色・巨大）
+    // ボス3（古龍・海岸の守護者）
+    mk('enemy_boss3',148,(g,S)=>{
+      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.96,S*.92,S*.13);
+      g.fillStyle(0x0044aa,0.08);g.fillCircle(S*.5,S*.5,S*.54);
+      g.fillStyle(0x004488,1);g.fillEllipse(S*.84,S*.74,S*.2,S*.12);g.fillEllipse(S*.92,S*.62,S*.16,S*.1);g.fillEllipse(S*.97,S*.5,S*.1,S*.08);
+      g.fillStyle(0x00ccff,1);g.fillTriangle(S*.98,S*.42,S*.94,S*.54,S*1.0,S*.5);
+      g.fillStyle(0x003366,0.9);g.fillTriangle(S*.5,S*.36,S*.02,S*.04,S*.28,S*.54);g.fillTriangle(S*.5,S*.36,S*.98,S*.04,S*.72,S*.54);
+      g.fillStyle(0x0055aa,0.35);g.fillTriangle(S*.5,S*.36,S*.06,S*.08,S*.3,S*.52);g.fillTriangle(S*.5,S*.36,S*.94,S*.08,S*.7,S*.52);
+      g.lineStyle(2,0x00aaff,0.6);g.lineBetween(S*.5,S*.36,S*.02,S*.04);g.lineBetween(S*.5,S*.36,S*.98,S*.04);g.lineBetween(S*.5,S*.36,S*.28,S*.54);g.lineBetween(S*.5,S*.36,S*.72,S*.54);g.lineBetween(S*.5,S*.36,S*.18,S*.22);g.lineBetween(S*.5,S*.36,S*.82,S*.22);
+      g.fillStyle(0x004488,1);g.fillEllipse(S*.5,S*.62,S*.58,S*.54);
+      g.fillStyle(0x0066aa,0.4);g.fillEllipse(S*.5,S*.56,S*.38,S*.3);
+      g.fillStyle(0x00aaff,0.15);for(let r=0;r<3;r++)for(let c=0;c<5;c++)g.fillEllipse(S*(0.3+c*0.1),S*(0.54+r*0.07),S*.07,S*.04);
+      g.fillStyle(0x0088cc,0.4);g.fillEllipse(S*.5,S*.66,S*.28,S*.36);
+      g.fillStyle(0x003366,1);g.fillEllipse(S*.3,S*.82,S*.22,S*.3);g.fillEllipse(S*.7,S*.82,S*.22,S*.3);
+      g.fillStyle(0x222211,1);[[.22,.94],[.28,.96],[.36,.94],[.64,.94],[.72,.96],[.78,.94]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.04),S*(y+.06),S*(x+.04),S*y);});
+      g.fillStyle(0x004488,1);g.fillEllipse(S*.5,S*.4,S*.34,S*.26);
+      g.fillStyle(0x005599,1);g.fillEllipse(S*.5,S*.26,S*.46,S*.36);
+      g.fillStyle(0x0066bb,0.3);g.fillEllipse(S*.46,S*.2,S*.26,S*.18);
+      g.fillStyle(0x00aaff,1);g.fillTriangle(S*.34,S*.18,S*.26,S*.0,S*.42,S*.2);g.fillTriangle(S*.66,S*.18,S*.58,S*.2,S*.74,S*.0);g.fillTriangle(S*.44,S*.14,S*.38,S*.0,S*.5,S*.16);g.fillTriangle(S*.56,S*.14,S*.5,S*.16,S*.62,S*.0);
+      g.fillStyle(0x0088ff,0.5);g.fillTriangle(S*.34,S*.18,S*.28,S*.04,S*.4,S*.2);
       g.fillStyle(0xffdd00,1);g.fillEllipse(S*.36,S*.24,S*.16,S*.12);g.fillEllipse(S*.64,S*.24,S*.16,S*.12);
-      g.fillStyle(0xff6600,.8);g.fillEllipse(S*.36,S*.24,S*.1,S*.08);g.fillEllipse(S*.64,S*.24,S*.1,S*.08);
-      g.fillStyle(0x000000,1);g.fillRect(S*.36,S*.21,S*.02,S*.09);g.fillRect(S*.64,S*.21,S*.02,S*.09);
-      // 鼻孔（炎）
+      g.fillStyle(0xff6600,0.8);g.fillEllipse(S*.36,S*.24,S*.1,S*.08);g.fillEllipse(S*.64,S*.24,S*.1,S*.08);
+      g.fillStyle(0x000000,1);g.fillRect(S*.37,S*.21,S*.02,S*.09);g.fillRect(S*.63,S*.21,S*.02,S*.09);
+      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.22,S*.02);g.fillCircle(S*.61,S*.22,S*.02);
       g.fillStyle(0xff4400,1);g.fillCircle(S*.44,S*.32,S*.04);g.fillCircle(S*.56,S*.32,S*.04);
-      g.fillStyle(0xffaa00,.7);g.fillCircle(S*.44,S*.3,S*.02);g.fillCircle(S*.56,S*.3,S*.02);
-      // 口（炎）
-      g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.1);
-      g.fillStyle(0xff4400,.8);g.fillEllipse(S*.5,S*.36,S*.16,S*.06);
-      g.fillStyle(0xffffff,1);
-      for(let i=0;i<4;i++)g.fillTriangle(S*(0.38+i*0.08),S*.35,S*(0.35+i*0.08),S*.42,S*(0.41+i*0.08),S*.35);
+      g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.1);g.fillStyle(0xff4400,0.7);g.fillEllipse(S*.5,S*.36,S*.16,S*.06);
+      g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.38+i*0.08),S*.35,S*(0.35+i*0.08),S*.42,S*(0.41+i*0.08),S*.35);
     });
   }
 }
@@ -2363,13 +2242,168 @@ class TitleScene extends Phaser.Scene{
     const title=this.add.text(w/2,h*0.28,'AURA QUEST',{fontSize:'52px',fontFamily:'Arial',color:'#ffd700',stroke:'#ff8c00',strokeThickness:5}).setOrigin(0.5);
     this.tweens.add({targets:title,scaleX:1.03,scaleY:1.03,duration:1800,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     this.add.text(w/2,h*0.42,'〜 光の勇者よ、旅立て 〜',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaff'}).setOrigin(0.5);
-    const press=this.add.text(w/2,h*0.58,'▶  タップ or キーで開始  ◀',{fontSize:'16px',fontFamily:'Arial',color:'#ffffff'}).setOrigin(0.5);
-    this.tweens.add({targets:press,alpha:0.1,duration:700,yoyo:true,repeat:-1});
+    // セーブデータ確認
+    const hasSave=[1,2,3].some(s=>getSaveData(s)!==null);
+
+    // ── 新規ゲームボタン ──
+    const newBtn=this.add.rectangle(w/2,h*0.55,240,48,0x0a1f3a,0.9).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
+    const newTxt=this.add.text(w/2,h*0.55,'⚔ 新規ゲーム',{fontSize:'18px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'}).setOrigin(0.5);
+    newBtn.on('pointerover',()=>newBtn.setFillStyle(0x1a3a5a,0.95));
+    newBtn.on('pointerout', ()=>newBtn.setFillStyle(0x0a1f3a,0.9));
+    newBtn.on('pointerdown',()=>{getAC();this.scene.start('ClassSelect');});
+
+    // ── 続きからボタン ──
+    const loadBtn=this.add.rectangle(w/2,h*0.66,240,48,hasSave?0x0a2a0a:0x111111,0.9).setStrokeStyle(2,hasSave?0x44ff88:0x333333).setInteractive({useHandCursor:hasSave});
+    const loadTxt=this.add.text(w/2,h*0.66,'📂 続きから',{fontSize:'18px',fontFamily:'Arial',color:hasSave?'#44ff88':'#333333',fontStyle:'bold'}).setOrigin(0.5);
+    if(hasSave){
+      loadBtn.on('pointerover',()=>loadBtn.setFillStyle(0x1a4a1a,0.95));
+      loadBtn.on('pointerout', ()=>loadBtn.setFillStyle(0x0a2a0a,0.9));
+      loadBtn.on('pointerdown',()=>{getAC();this.scene.start('SaveSelect',{mode:'load'});});
+    }
+
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
-    const go=()=>{getAC();this.scene.start('ClassSelect')};
-    this.input.once('pointerdown',go);
-    this.input.keyboard.once('keydown',go);
+  }
+}
+
+// ============================================================
+//  SaveSelectScene（セーブスロット選択）
+// ============================================================
+class SaveSelectScene extends Phaser.Scene{
+  constructor(){super('SaveSelect')}
+  init(data){this.mode=data.mode||'save';this.playerData=data.playerData||null;this.stage=data.stage||0;}
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    const mode=this.mode; // 'save' or 'load'
+    this.add.rectangle(0,0,w,h,0x030818).setOrigin(0);
+    // 星背景
+    for(let i=0;i<40;i++){
+      const s=this.add.circle(Phaser.Math.Between(0,w),Phaser.Math.Between(0,h),Phaser.Math.FloatBetween(0.5,1.5),0xffffff,Phaser.Math.FloatBetween(0.2,0.8));
+      this.tweens.add({targets:s,alpha:0.1,duration:Phaser.Math.Between(600,1800),yoyo:true,repeat:-1});
+    }
+    this.add.text(w/2,40,mode==='save'?'💾 セーブスロットを選択':'📂 ロードするデータを選択',{
+      fontSize:'22px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:3,fontStyle:'bold'
+    }).setOrigin(0.5);
+
+    const SLOT_H=110, SLOT_W=Math.min(w-40,500);
+    const startY=100;
+
+    for(let slot=1;slot<=SAVE_SLOTS;slot++){
+      const save=getSaveData(slot);
+      const sy=startY+slot*SLOT_H;
+      const sx=w/2;
+      const isEmpty=save===null;
+
+      // スロット背景
+      const bg=this.add.rectangle(sx,sy,SLOT_W,SLOT_H-10,isEmpty?0x0a0a1a:0x0a1f0a,0.92)
+        .setStrokeStyle(2,isEmpty?0x334455:0x44aa44).setInteractive({useHandCursor:!isEmpty||mode==='save'});
+      
+      // スロット番号
+      this.add.text(sx-SLOT_W/2+16,sy-30,'スロット '+slot,{fontSize:'13px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0,0.5);
+
+      if(isEmpty){
+        this.add.text(sx,sy,'— 空のスロット —',{fontSize:'16px',fontFamily:'Arial',color:'#334455'}).setOrigin(0.5);
+        if(mode==='save'){
+          bg.setStrokeStyle(2,0x44aaff);
+          bg.setFillStyle(0x0a1a2a,0.9);
+          bg.on('pointerover',()=>bg.setFillStyle(0x1a2a3a,0.95));
+          bg.on('pointerout', ()=>bg.setFillStyle(0x0a1a2a,0.9));
+          bg.on('pointerdown',()=>this._doSave(slot));
+          this.add.text(sx,sy,'＋ ここにセーブする',{fontSize:'16px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'}).setOrigin(0.5);
+        }
+      }else{
+        // セーブデータ表示
+        const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[save.cls]||'？';
+        const clsCol={warrior:'#e74c3c',mage:'#9b59b6',archer:'#27ae60',bomber:'#f39c12'}[save.cls]||'#ffffff';
+        // アイコン
+        this.add.rectangle(sx-SLOT_W/2+30,sy,48,48,0x1a1a2e,0.8).setStrokeStyle(2,0x556677);
+        this.add.text(sx-SLOT_W/2+30,sy,cls,{fontSize:'24px',fontFamily:'Arial',color:clsCol,fontStyle:'bold'}).setOrigin(0.5);
+        // 情報
+        this.add.text(sx-SLOT_W/2+62,sy-20,save.clsName+' / Lv'+save.lv,{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5);
+        this.add.text(sx-SLOT_W/2+62,sy+2,'📍 '+save.stageName,{fontSize:'13px',fontFamily:'Arial',color:'#aaddff'}).setOrigin(0,0.5);
+        this.add.text(sx-SLOT_W/2+62,sy+22,'💰 '+save.gold+'G  🕐 '+save.savedAt,{fontSize:'11px',fontFamily:'Arial',color:'#888888'}).setOrigin(0,0.5);
+
+        if(mode==='load'){
+          bg.on('pointerover',()=>bg.setFillStyle(0x1a3a1a,0.95));
+          bg.on('pointerout', ()=>bg.setFillStyle(0x0a1f0a,0.92));
+          bg.on('pointerdown',()=>this._doLoad(slot));
+        }else{
+          // 上書きセーブ
+          bg.setStrokeStyle(2,0xffaa00);
+          bg.setFillStyle(0x1a1400,0.9);
+          bg.on('pointerover',()=>bg.setFillStyle(0x2a2000,0.95));
+          bg.on('pointerout', ()=>bg.setFillStyle(0x1a1400,0.9));
+          bg.on('pointerdown',()=>this._confirmOverwrite(slot,save));
+        }
+
+        // 削除ボタン
+        const delBtn=this.add.rectangle(sx+SLOT_W/2-30,sy,44,32,0x3a0000,0.9)
+          .setStrokeStyle(1,0xaa2222).setInteractive({useHandCursor:true});
+        this.add.text(sx+SLOT_W/2-30,sy,'🗑',{fontSize:'16px'}).setOrigin(0.5);
+        delBtn.on('pointerover',()=>delBtn.setFillStyle(0x6a0000,0.95));
+        delBtn.on('pointerout', ()=>delBtn.setFillStyle(0x3a0000,0.9));
+        delBtn.on('pointerdown',()=>this._confirmDelete(slot));
+      }
+    }
+
+    // 戻るボタン
+    const backBtn=this.add.rectangle(w/2,h-36,160,36,0x1a1a1a,0.9).setStrokeStyle(1,0x556677).setInteractive({useHandCursor:true});
+    this.add.text(w/2,h-36,'← 戻る',{fontSize:'15px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
+    backBtn.on('pointerdown',()=>{
+      if(mode==='load')this.scene.start('Title');
+      else{this.scene.stop();const gs=this.scene.get('Game');if(gs){gs.physics.resume();this.scene.resume('Game');}else{this.scene.start('Game',{playerData:this.playerData,stage:this.stage});}}
+    });
+  }
+
+  _doSave(slot){
+    const pd=this.playerData;
+    const summary=makeSaveSummary(pd,this.stage);
+    setSaveData(slot,{playerData:pd,stage:this.stage,summary});
+    this._showMsg('💾 スロット'+slot+' にセーブしました！','#44ff88');
+    this.time.delayedCall(1200,()=>{this.scene.stop();const gs=this.scene.get('Game');if(gs){gs.physics.resume();this.scene.resume('Game');}else{this.scene.start('Game',{playerData:pd,stage:this.stage});}});
+  }
+
+  _doLoad(slot){
+    const save=getSaveData(slot);
+    if(!save)return;
+    this.scene.start('Game',{playerData:save.playerData,stage:save.stage});
+  }
+
+  _confirmOverwrite(slot,existing){
+    const w=this.scale.width,h=this.scale.height;
+    const ov=this.add.rectangle(w/2,h/2,w,h,0x000000,0.7).setDepth(80).setInteractive();
+    const box=this.add.rectangle(w/2,h/2,340,160,0x0a1525,0.98).setStrokeStyle(2,0xffaa00).setDepth(81);
+    this.add.text(w/2,h/2-44,'スロット'+slot+'に上書きしますか？',{fontSize:'16px',fontFamily:'Arial',color:'#ffaa00',fontStyle:'bold'}).setOrigin(0.5).setDepth(82);
+    this.add.text(w/2,h/2-16,'現在: '+existing.clsName+' Lv'+existing.lv+' '+existing.stageName,{fontSize:'13px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setDepth(82);
+    const yes=this.add.rectangle(w/2-70,h/2+30,120,36,0x226622,0.95).setStrokeStyle(1,0x44aa44).setDepth(82).setInteractive({useHandCursor:true});
+    this.add.text(w/2-70,h/2+30,'上書き',{fontSize:'14px',fontFamily:'Arial',color:'#44ff88',fontStyle:'bold'}).setOrigin(0.5).setDepth(83);
+    const no=this.add.rectangle(w/2+70,h/2+30,120,36,0x221111,0.95).setStrokeStyle(1,0x663333).setDepth(82).setInteractive({useHandCursor:true});
+    this.add.text(w/2+70,h/2+30,'キャンセル',{fontSize:'14px',fontFamily:'Arial',color:'#ff8888'}).setOrigin(0.5).setDepth(83);
+    const close=()=>{[ov,box,yes,no].forEach(o=>o.destroy());this.children.list.filter(o=>o.depth>=82&&o.type==='Text').forEach(o=>o.destroy());};
+    yes.on('pointerdown',()=>{close();this._doSave(slot);});
+    no.on('pointerdown',()=>close());
+  }
+
+  _confirmDelete(slot){
+    const w=this.scale.width,h=this.scale.height;
+    const ov=this.add.rectangle(w/2,h/2,w,h,0x000000,0.7).setDepth(80).setInteractive();
+    const box=this.add.rectangle(w/2,h/2,320,140,0x1a0000,0.98).setStrokeStyle(2,0xaa2222).setDepth(81);
+    this.add.text(w/2,h/2-36,'スロット'+slot+' を削除しますか？',{fontSize:'16px',fontFamily:'Arial',color:'#ff4444',fontStyle:'bold'}).setOrigin(0.5).setDepth(82);
+    this.add.text(w/2,h/2-12,'この操作は元に戻せません',{fontSize:'12px',fontFamily:'Arial',color:'#888888'}).setOrigin(0.5).setDepth(82);
+    const yes=this.add.rectangle(w/2-70,h/2+28,120,34,0x4a0000,0.95).setStrokeStyle(1,0xaa2222).setDepth(82).setInteractive({useHandCursor:true});
+    this.add.text(w/2-70,h/2+28,'削除する',{fontSize:'14px',fontFamily:'Arial',color:'#ff4444',fontStyle:'bold'}).setOrigin(0.5).setDepth(83);
+    const no=this.add.rectangle(w/2+70,h/2+28,120,34,0x1a1a2e,0.95).setStrokeStyle(1,0x334455).setDepth(82).setInteractive({useHandCursor:true});
+    this.add.text(w/2+70,h/2+28,'キャンセル',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setDepth(83);
+    const close=()=>{[ov,box,yes,no].forEach(o=>o.destroy());this.children.list.filter(o=>o.depth>=82&&o.type==='Text').forEach(o=>o.destroy());};
+    yes.on('pointerdown',()=>{close();deleteSaveData(slot);this.scene.restart({mode:this.mode,playerData:this.playerData,stage:this.stage});});
+    no.on('pointerdown',()=>close());
+  }
+
+  _showMsg(msg,color){
+    const w=this.scale.width,h=this.scale.height;
+    const txt=this.add.text(w/2,h/2,'',{fontSize:'20px',fontFamily:'Arial',color,stroke:'#000',strokeThickness:3,fontStyle:'bold'}).setOrigin(0.5).setDepth(90).setAlpha(0);
+    txt.setText(msg);
+    this.tweens.add({targets:txt,alpha:1,duration:200,onComplete:()=>this.tweens.add({targets:txt,alpha:0,duration:400,delay:700,onComplete:()=>txt.destroy()})});
   }
 }
 
@@ -2616,37 +2650,37 @@ const STAGE_CONFIG={
 };
 const ENEMY_DEFS={
   // passive:true=受動  eva=回避率%（DEXが低いと当たらない）
-  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:28,rng:36,acd:1.2, passive:true,  eva:0 },
-  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:24,rng:32,acd:0.9, passive:true,  eva:15},
-  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:32,rng:40,acd:1.0, passive:true,  eva:5 },
-  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:48,rng:48,acd:1.8, passive:true,  eva:0 },
-  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:32,rng:40,acd:0.8, passive:false, eva:20},
-  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:32,rng:40,acd:1.1, passive:false, eva:10},
-  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:56,rng:60,acd:1.5, passive:false, eva:15},
-  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:52,rng:50,acd:2.0, passive:false, eva:5 },
-  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:28,rng:36,acd:0.7, passive:false, eva:25},
-  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:72,rng:64,acd:1.2, passive:false, eva:10,isBoss:true},
-  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:80,rng:70,acd:1.0, passive:false, eva:20,isBoss:true},
-  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:88,rng:80,acd:0.9,passive:false,eva:30,isBoss:true},
-  boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:100,rng:88,acd:0.7,passive:false,eva:35,isBoss:true},
+  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 },
+  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15},
+  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 },
+  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 },
+  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:56,rng:54,acd:0.8, passive:false, eva:20},
+  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:56,rng:54,acd:1.1, passive:false, eva:10},
+  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:80,rng:72,acd:1.5, passive:false, eva:15},
+  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:76,rng:66,acd:2.0, passive:false, eva:5 },
+  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:52,rng:50,acd:0.7, passive:false, eva:25},
+  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true},
+  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true},
+  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true},
+  boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:130,rng:100,acd:0.7,passive:false,eva:35,isBoss:true},
   // ST5 新モンスター
-  bear:    {hp:200,atk:22,def:8, spd:80, exp:80, gold:20, sz:48,rng:52,acd:1.4, passive:true,  eva:5 },
-  beetle:  {hp:90, atk:16,def:6, spd:60, exp:55, gold:14, sz:36,rng:40,acd:1.0, passive:true,  eva:8 },
-  hornet:  {hp:60, atk:18,def:2, spd:150,exp:50, gold:12, sz:28,rng:36,acd:0.7, passive:false, eva:25},
-  scorpion_queen:{hp:350,atk:28,def:10,spd:70,exp:150,gold:40,sz:56,rng:52,acd:1.2,passive:false,eva:15},
-  mistress:{hp:3500,atk:65,def:20,spd:90,exp:5000,gold:1500,sz:112,rng:96,acd:0.6,passive:false,eva:25,isBoss:true},
+  bear:    {hp:200,atk:22,def:8, spd:80, exp:80, gold:20, sz:72,rng:66,acd:1.4, passive:true,  eva:5 },
+  beetle:  {hp:90, atk:16,def:6, spd:60, exp:55, gold:14, sz:60,rng:56,acd:1.0, passive:true,  eva:8 },
+  hornet:  {hp:60, atk:18,def:2, spd:150,exp:50, gold:12, sz:52,rng:50,acd:0.7, passive:false, eva:25},
+  scorpion_queen:{hp:350,atk:28,def:10,spd:70,exp:150,gold:40,sz:80,rng:68,acd:1.2,passive:false,eva:15},
+  mistress:{hp:3500,atk:65,def:20,spd:90,exp:5000,gold:1500,sz:140,rng:110,acd:0.6,passive:false,eva:25,isBoss:true},
   // ST6 新モンスター
-  cloud_monkey:{hp:120,atk:20,def:3, spd:160,exp:90, gold:25, sz:36,rng:44,acd:0.9, passive:false, eva:30},
-  treant:      {hp:280,def:12,atk:18,spd:0,  exp:110,gold:30, sz:52,rng:200,acd:2.5,passive:true,  eva:0 },
-  rock_golem:  {hp:600,atk:30,def:25,spd:40, exp:180,gold:45, sz:60,rng:56,acd:2.0, passive:true,  eva:0 },
-  giant:       {hp:450,atk:40,def:15,spd:70, exp:160,gold:40, sz:72,rng:72,acd:1.8, passive:false, eva:5 },
-  thunder_god: {hp:5000,atk:80,def:25,spd:100,exp:8000,gold:2000,sz:120,rng:100,acd:0.5,passive:false,eva:20,isBoss:true},
+  cloud_monkey:{hp:120,atk:20,def:3, spd:160,exp:90, gold:25, sz:60,rng:58,acd:0.9, passive:false, eva:30},
+  treant:      {hp:280,def:12,atk:18,spd:0,  exp:110,gold:30, sz:76,rng:200,acd:2.5,passive:true,  eva:0 },
+  rock_golem:  {hp:600,atk:30,def:25,spd:40, exp:180,gold:45, sz:88,rng:72,acd:2.0, passive:true,  eva:0 },
+  giant:       {hp:450,atk:40,def:15,spd:70, exp:160,gold:40, sz:96,rng:88,acd:1.8, passive:false, eva:5 },
+  thunder_god: {hp:5000,atk:80,def:25,spd:100,exp:8000,gold:2000,sz:150,rng:116,acd:0.5,passive:false,eva:20,isBoss:true},
   // ST7 オーク族
-  orc_warrior: {hp:180,atk:28,def:10,spd:75, exp:100,gold:28, sz:48,rng:52,acd:1.2, passive:false, eva:5 },
-  orc_high:    {hp:300,atk:35,def:14,spd:60, exp:160,gold:40, sz:56,rng:56,acd:1.5, passive:false, eva:5 },
-  orc_lady:    {hp:130,atk:22,def:6, spd:100,exp:85, gold:22, sz:40,rng:44,acd:1.0, passive:true,  eva:12},
-  orc_archer:  {hp:110,atk:20,def:5, spd:90, exp:80, gold:20, sz:36,rng:220,acd:1.8,passive:false, eva:15},
-  orc_general: {hp:4500,atk:70,def:22,spd:85,exp:6500,gold:1800,sz:108,rng:90,acd:0.7,passive:false,eva:15,isBoss:true},
+  orc_warrior: {hp:180,atk:28,def:10,spd:75, exp:100,gold:28, sz:72,rng:66,acd:1.2, passive:false, eva:5 },
+  orc_high:    {hp:300,atk:35,def:14,spd:60, exp:160,gold:40, sz:80,rng:70,acd:1.5, passive:false, eva:5 },
+  orc_lady:    {hp:130,atk:22,def:6, spd:100,exp:85, gold:22, sz:64,rng:58,acd:1.0, passive:true,  eva:12},
+  orc_archer:  {hp:110,atk:20,def:5, spd:90, exp:80, gold:20, sz:60,rng:220,acd:1.8,passive:false, eva:15},
+  orc_general: {hp:4500,atk:70,def:22,spd:85,exp:6500,gold:1800,sz:140,rng:106,acd:0.7,passive:false,eva:15,isBoss:true},
 };
 
 // ============================================================
@@ -2830,12 +2864,140 @@ class GameScene extends Phaser.Scene{
     // 町の建物 (stage:0)
     this.buildings=[];
     if(this.stage===0&&cfg.buildings){
-      const BCOLS={inn:0x5c3317,shop:0x1a4a8a,guild:0x4a1a1a,blacksmith:0x2a2a2a,magic:0x1a0a3a};
       cfg.buildings.forEach(b=>{
         this.buildings.push(b);
-        this.add.rectangle(b.x+b.w/2,b.y+b.h/2,b.w,b.h,BCOLS[b.type]||0x333333).setStrokeStyle(2,0x888888);
-        this.add.text(b.x+b.w/2,b.y+b.h-16,b.label,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5);
-        // 建物への入り口は「入る」ボタン経由のみ（タップ直接入場は無効）
+        const bx=b.x, by=b.y, bw=b.w, bh=b.h;
+        const cx=bx+bw/2, cy=by+bh/2;
+        const g=this.add.graphics().setDepth(3);
+
+        // ── 建物タイプ別カラー ──
+        const themes={
+          inn:       {wall:0x8b5e3c,roof:0x7a1a1a,roofDark:0x5a1010,trim:0xffd700,door:0x5c2d0a,sign:0xffa500},
+          shop:      {wall:0x2a5a9a,roof:0x1a3a6a,roofDark:0x0a2040,trim:0x00ccff,door:0x0a2a5a,sign:0x00aaff},
+          guild:     {wall:0x6a2a2a,roof:0x8b1a1a,roofDark:0x5a0808,trim:0xff8800,door:0x3a0a0a,sign:0xffcc00},
+          blacksmith:{wall:0x3a3a3a,roof:0x2a2a2a,roofDark:0x1a1a1a,trim:0xff6600,door:0x1a1a1a,sign:0xff4400},
+          magic:     {wall:0x2a1a4a,roof:0x3a0a6a,roofDark:0x1a0040,trim:0xaa44ff,door:0x1a0a2a,sign:0xcc88ff},
+        };
+        const t=themes[b.type]||themes.inn;
+
+        // ── 建物本体（石壁）──
+        // 影
+        g.fillStyle(0x000000,0.3);g.fillRect(bx+6,by+6,bw,bh);
+        // 壁（メイン）
+        g.fillStyle(t.wall,1);g.fillRect(bx,by,bw,bh);
+        // 壁のレンガ模様
+        g.fillStyle(0x000000,0.12);
+        for(let r=0;r<Math.ceil(bh/16);r++){
+          const offset=(r%2)*20;
+          for(let c=-1;c<Math.ceil(bw/40);c++){
+            g.fillRect(bx+c*40+offset,by+r*16,38,14);
+          }
+        }
+        // 壁のハイライト（左上）
+        g.fillStyle(0xffffff,0.08);g.fillRect(bx,by,bw,bh/2);
+        g.fillRect(bx,by,bw*0.15,bh);
+        // 壁の外枠
+        g.lineStyle(3,t.trim,0.8);g.strokeRect(bx,by,bw,bh);
+
+        // ── 屋根（三角）──
+        const roofH=bh*0.38;
+        g.fillStyle(t.roof,1);
+        g.fillTriangle(cx,by-roofH,bx-10,by,bx+bw+10,by);
+        // 屋根の影面
+        g.fillStyle(t.roofDark,0.6);
+        g.fillTriangle(cx,by-roofH,cx,by,bx+bw+10,by);
+        // 屋根の縁取り
+        g.lineStyle(3,t.trim,0.9);
+        g.lineBetween(bx-10,by,cx,by-roofH);g.lineBetween(cx,by-roofH,bx+bw+10,by);
+        // 屋根の装飾（頂点の飾り）
+        g.fillStyle(t.trim,1);g.fillCircle(cx,by-roofH,7);
+        g.fillStyle(0xffffff,0.5);g.fillCircle(cx,by-roofH,3);
+        // 屋根瓦のライン
+        g.lineStyle(1,t.roofDark,0.4);
+        for(let i=1;i<5;i++){
+          const ratio=i/5;
+          const lx1=cx-(cx-bx+10)*ratio, lx2=cx+(bx+bw+10-cx)*ratio;
+          const ly=by-roofH+roofH*ratio;
+          g.lineBetween(lx1,ly,lx2,ly);
+        }
+
+        // ── 窓（2つ）──
+        const winW=bw*0.18, winH=bh*0.22;
+        const win1x=bx+bw*0.18, win2x=bx+bw*0.62, winY=by+bh*0.2;
+        [win1x,win2x].forEach(wx=>{
+          // 窓枠
+          g.fillStyle(t.trim,0.8);g.fillRect(wx-winW/2-3,winY-3,winW+6,winH+6);
+          // 窓ガラス（昼は青白く）
+          g.fillStyle(0x88ccff,0.7);g.fillRect(wx-winW/2,winY,winW,winH);
+          // 窓の反射
+          g.fillStyle(0xffffff,0.4);g.fillRect(wx-winW/2+2,winY+2,winW*0.4,winH*0.4);
+          // 十字の桟
+          g.lineStyle(2,t.trim,0.9);
+          g.lineBetween(wx,winY,wx,winY+winH);
+          g.lineBetween(wx-winW/2,winY+winH/2,wx+winW/2,winY+winH/2);
+        });
+
+        // ── ドア（中央下）──
+        const doorW=bw*0.22, doorH=bh*0.38;
+        const doorX=cx-doorW/2, doorY=by+bh-doorH;
+        b.doorX=cx; b.doorY=by+bh; // ドア前座標を保存
+        // ドア枠
+        g.fillStyle(t.trim,1);g.fillRect(doorX-4,doorY-4,doorW+8,doorH+4);
+        // ドア本体
+        g.fillStyle(t.door,1);g.fillRect(doorX,doorY,doorW,doorH);
+        // ドアの木目
+        g.fillStyle(0xffffff,0.1);
+        for(let i=1;i<4;i++)g.fillRect(doorX,doorY+doorH*i/4,doorW,1);
+        // ドアノブ
+        g.fillStyle(t.trim,1);g.fillCircle(doorX+doorW*0.75,doorY+doorH*0.55,4);
+        g.fillStyle(0xffffff,0.5);g.fillCircle(doorX+doorW*0.75-1,doorY+doorH*0.55-1,2);
+        // ドアのアーチ（上部を丸く）
+        g.fillStyle(t.door,1);g.fillEllipse(cx,doorY,doorW,doorW*0.5);
+        g.lineStyle(2,t.trim,0.8);g.strokeEllipse(cx,doorY,doorW,doorW*0.5);
+
+        // ── 看板 ──
+        const signW=bw*0.55, signH=26;
+        const signX=cx-signW/2, signY=by+bh*0.55;
+        // 看板の板
+        g.fillStyle(0x3d2510,0.95);g.fillRect(signX,signY,signW,signH);
+        g.lineStyle(2,t.sign,0.9);g.strokeRect(signX,signY,signW,signH);
+        // 看板の留め具
+        g.fillStyle(t.trim,1);g.fillCircle(signX+6,signY+4,3);g.fillCircle(signX+signW-6,signY+4,3);
+        // テキスト
+        this.add.text(cx,signY+signH/2,b.label,{
+          fontSize:'13px',fontFamily:'Arial',color:'#'+t.sign.toString(16).padStart(6,'0'),
+          stroke:'#000',strokeThickness:3,fontStyle:'bold'
+        }).setOrigin(0.5).setDepth(4);
+
+        // ── 建物タイプ別の特殊装飾 ──
+        if(b.type==='blacksmith'){
+          // 煙突
+          g.fillStyle(0x3a3a3a,1);g.fillRect(bx+bw*0.7-8,by-roofH*0.4-20,16,30);
+          g.fillStyle(0xff6600,0.6);g.fillCircle(bx+bw*0.7,by-roofH*0.4-20,10);
+          g.fillStyle(0xff4400,0.4);g.fillCircle(bx+bw*0.7-2,by-roofH*0.4-28,7);
+          g.fillStyle(0x555555,0.5);g.fillCircle(bx+bw*0.7+1,by-roofH*0.4-36,5);
+        }
+        if(b.type==='magic'||b.type==='inn'){
+          // 旗
+          const flagX=bx+bw*0.1, flagY=by-roofH*0.6;
+          g.fillStyle(0x888888,1);g.fillRect(flagX-1,flagY,2,roofH*0.5);
+          g.fillStyle(t.trim,0.9);
+          g.fillTriangle(flagX,flagY,flagX+20,flagY+8,flagX,flagY+16);
+        }
+        if(b.type==='guild'){
+          // 剣のエンブレム（看板上）
+          g.fillStyle(0xffcc00,0.8);
+          g.fillRect(cx-2,by+bh*0.38,4,30);
+          g.fillRect(cx-10,by+bh*0.42,20,4);
+          g.fillTriangle(cx,by+bh*0.36,cx-4,by+bh*0.42,cx+4,by+bh*0.42);
+        }
+
+        // ── 物理壁（建物全体）──
+        const wall=this.obstacles.create(cx,cy,'wall_block').setDisplaySize(bw,bh).setAlpha(0);
+        wall.refreshBody();
+        // ドア前は通れる（壁を上部のみに）
+        wall.body.setSize(bw,bh*0.7);
+        wall.body.setOffset(0,0);
       });
     }
     // ポータル（戻る）
@@ -2883,6 +3045,7 @@ class GameScene extends Phaser.Scene{
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     // 弾グループ
     this.bullets=this.physics.add.group();
+    this._droppedItems=[]; // フィールド上のアイテムドロップ
     // 敵
     this.enemies=this.physics.add.group();
     this.enemyDataList=[];this.bossData=null;
@@ -4078,6 +4241,15 @@ class GameScene extends Phaser.Scene{
       backgroundColor:'#e74c3c',padding:{x:3,y:2}
     }).setScrollFactor(0).setDepth(17);
     this._menuBtn.on('pointerdown',()=>this.openMenu('stat'));
+    // セーブボタン（MENUボタン下）
+    if(this.stage===0){
+      const svX=MX, svY=MY+44;
+      const svBtn=this.add.rectangle(svX,svY,56,22,0x003300,0.9).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+      this.add.text(svX,svY,'💾SAVE',{fontSize:'9px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
+      svBtn.on('pointerdown',()=>this.scene.start('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage}));
+      svBtn.on('pointerover',()=>svBtn.setFillStyle(0x006600,0.95));
+      svBtn.on('pointerout', ()=>svBtn.setFillStyle(0x003300,0.9));
+    }
     this._menuBtn.on('pointerover',()=>{this._menuBtn.setFillStyle(0x44aaff,0.3);this._menuBtnGlow.setFillStyle(0x44aaff,0.4);});
     this._menuBtn.on('pointerout', ()=>{this._menuBtn.setFillStyle(0x0a0f2a,0.95);this._menuBtnGlow.setFillStyle(0x44aaff,0.18);});
     // ポイントがあるとき点滅アニメ
@@ -4120,10 +4292,10 @@ class GameScene extends Phaser.Scene{
 
   _buildCraftUI(mk,close,showResult,refreshGold,PX,PY,PW,PH,pd){
     if(!pd.items)pd.items={};
-    const SB_W=10;
+    const SB_W=20; // スクロールバーを太く（スマホ対応）
     const L=PX-PW/2+6;
-    const R=PX+PW/2-6-SB_W-4;
-    const BOT_BTN_H=40; // 下部「製作する」ボタンエリア
+    const R=PX+PW/2-6-SB_W-2;
+    const BOT_BTN_H=40;
     const listTop=PY-PH/2+62;
     const listBot=PY+PH/2-44-BOT_BTN_H;
     const listH=listBot-listTop;
@@ -4134,14 +4306,13 @@ class GameScene extends Phaser.Scene{
     let scrollRow=0;
     const maxRow=Math.max(0,totalRows-visibleRows);
     let dragStartY=null, dragStartRow=null;
-    let selectedRecipe=null; // 選択中のレシピ
-    let selectedBg=null;     // 選択ハイライト矩形
+    let selectedRecipe=null;
 
-    // スクロールバー
-    const sbX=PX+PW/2-6-SB_W/2;
+    // スクロールバー（太め・スマホ対応）
+    const sbX=PX+PW/2-SB_W/2-4;
     const sbBg=mk(this.add.rectangle(sbX,listTop+listH/2,SB_W,listH,0x1a1a2e,0.9).setStrokeStyle(1,0x334455).setScrollFactor(0).setDepth(73));
-    const sbThumbH=Math.max(24,listH*Math.min(1,visibleRows/totalRows));
-    const sbThumb=mk(this.add.rectangle(sbX,listTop+sbThumbH/2,SB_W-2,sbThumbH,0x44aaff,0.7).setScrollFactor(0).setDepth(74));
+    const sbThumbH=Math.max(40,listH*Math.min(1,visibleRows/Math.max(1,totalRows)));
+    const sbThumb=mk(this.add.rectangle(sbX,listTop+sbThumbH/2,SB_W-4,sbThumbH,0x44aaff,0.85).setScrollFactor(0).setDepth(74).setStrokeStyle(1,0x88ccff));
     const updateScrollbar=()=>{
       if(maxRow<=0){sbThumb.setVisible(false);return;}
       sbThumb.setVisible(true);
@@ -4250,29 +4421,39 @@ class GameScene extends Phaser.Scene{
     renderRecipes(0);
     updateCraftBtn();
 
-    // ホイールスクロール（scrollZoneは使わずゲームシーン全体でホイール受信）
+    // スクロール処理
     const doScroll=(newRow)=>{const c=Math.max(0,Math.min(maxRow,newRow));if(c!==scrollRow){scrollRow=c;renderRecipes(scrollRow);}};
-    // ホイール：パネル背景にイベント登録
-    const wheelZone=mk(this.add.rectangle(PX-SB_W/2,listTop+listH/2,PW-SB_W-10,listH,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
-    wheelZone.on('wheel',(_p,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
-    // スワイプ（ドラッグ）：セル上でも動くようにシーン全体で管理
-    let swipeStartY=null, swipeStartRow=null;
-    this.input.on('pointerdown',(ptr)=>{
-      if(ptr.y>listTop&&ptr.y<listTop+listH&&ptr.x>L&&ptr.x<PX+PW/2-SB_W-4){
-        swipeStartY=ptr.y; swipeStartRow=scrollRow;
-      }
+
+    // スワイプ＆ホイール（リスト全体が対象）
+    const swipeZone=mk(this.add.rectangle(PX-SB_W/2,listTop+listH/2,PW-SB_W-4,listH,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
+    swipeZone.on('wheel',(_p,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
+
+    // タッチスワイプ（感度向上：CELL_H/2px動けば1行スクロール）
+    let swipeY=null, swipeRow=null, swipeMoved=false;
+    swipeZone.on('pointerdown',(ptr)=>{swipeY=ptr.y;swipeRow=scrollRow;swipeMoved=false;});
+    swipeZone.on('pointermove',(ptr)=>{
+      if(swipeY===null)return;
+      const dy=swipeY-ptr.y;
+      if(Math.abs(dy)>8){swipeMoved=true;}
+      const newRow=Math.round(swipeRow+dy/(CELL_H*0.7));
+      doScroll(newRow);
     });
-    this.input.on('pointermove',(ptr)=>{
-      if(swipeStartY===null)return;
-      const dy=swipeStartY-ptr.y;
-      if(Math.abs(dy)>10) doScroll(Math.round(swipeStartRow+dy/CELL_H));
-    });
-    this.input.on('pointerup',()=>{swipeStartY=null;});
+    swipeZone.on('pointerup',()=>{swipeY=null;swipeRow=null;});
+    swipeZone.on('pointerout',()=>{swipeY=null;swipeRow=null;});
+
+    // スクロールバードラッグ（太くて押しやすい）
     sbThumb.setInteractive({useHandCursor:true,draggable:true});
     this.input.setDraggable(sbThumb);
-    sbThumb.on('drag',(_p,_x,y)=>{doScroll(Math.round(Math.max(0,Math.min(1,(y-listTop-sbThumbH/2)/(listH-sbThumbH)))*maxRow));});
-    // UI閉じ時にイベント解除
-    const _origClose=close;
+    sbBg.setInteractive();
+    sbBg.on('pointerdown',(ptr)=>{
+      // バー上タップで直接ジャンプ
+      const ratio=(ptr.y-listTop)/listH;
+      doScroll(Math.round(ratio*maxRow));
+    });
+    sbThumb.on('drag',(_p,_x,y)=>{
+      const ratio=Math.max(0,Math.min(1,(y-listTop-sbThumbH/2)/(listH-sbThumbH)));
+      doScroll(Math.round(ratio*maxRow));
+    });
   }
 
   openBuildingUI(b){
@@ -4367,18 +4548,21 @@ class GameScene extends Phaser.Scene{
     }
 
     const items=shops[b.type]||[];
-    // 横2列・スクロール対応グリッド
-    const SH_COLS=2;
-    const SH_CW=(PW-24)/SH_COLS;
-    const SH_H=68;
-    const BUY_H=42; // 購入ボタンエリア高さ
-    const listTop=PY-PH/2+70;
-    const listBottom=PY+PH/2-56-BUY_H;
-    const visibleRows=Math.floor((listBottom-listTop)/SH_H);
+    // 1列・コンパクトセル・スワイプスクロール
+    const SH_COLS=1;
+    const SH_CW=PW-20;
+    const SH_H=52; // コンパクトに
+    const BUY_H=42;
+    const listTop=PY-PH/2+60;
+    const listBottom=PY+PH/2-48-BUY_H;
+    const listH2=listBottom-listTop;
+    const visibleRows=Math.floor(listH2/SH_H);
     const visibleCount=visibleRows*SH_COLS;
     let shopScroll=0;
     let selectedItem=null;
     const shopObjs=[];
+    // スワイプ用
+    let shSwipeY=null, shSwipeScroll=null;
 
     // 購入ボタン（下部固定）
     const buyBtnY=PY+PH/2-56-BUY_H/2+4;
@@ -4413,6 +4597,9 @@ class GameScene extends Phaser.Scene{
         buyBtn.setInteractive({useHandCursor:true});
         buyBtn.on('pointerdown',()=>{
           pd.gold-=item.price; item.action(); refreshGold(); SE('potion');
+          // ポーションボタンの数字を即座に更新
+          if(this.potHPTxt)this.potHPTxt.setText('x'+(pd.potHP||0));
+          if(this.potMPTxt)this.potMPTxt.setText('x'+(pd.potMP||0));
           selectedItem=null; renderShopItems(shopScroll); updateBuyBtn();
         });
         buyBtn.on('pointerover',()=>buyBtn.setFillStyle(0x1a3a5a,0.98));
@@ -4430,40 +4617,53 @@ class GameScene extends Phaser.Scene{
       const addS=(o)=>{shopObjs.push(o);mk(o);return o;};
 
       items.slice(offset,offset+visibleCount).forEach((item,i)=>{
-        const sc=i%SH_COLS, sr=Math.floor(i/SH_COLS);
-        const ix=PX-PW/2+12+sc*SH_CW+SH_CW/2;
-        const iy=listTop+sr*SH_H+SH_H/2;
+        const ix=PX;
+        const iy=listTop+i*SH_H+SH_H/2;
         const isSelected=selectedItem===item;
         const mageOnly=item.mageOnly||false;
         const wrongClass=mageOnly&&pd.cls!=='mage';
         const canAfford=pd.gold>=item.price&&!wrongClass;
         const bgCol=isSelected?0x1a3a1a:wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
         const strokeCol=isSelected?0x44ff44:wrongClass?0x552222:canAfford?0x44aaff:0x333333;
-        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-6,SH_H-6,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
-        addS(this.add.text(ix-SH_CW/2+18,iy,item.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-4,SH_H-4,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+        // アイコン
+        addS(this.add.text(PX-SH_CW/2+20,iy,item.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        // 商品名
         const textCol=isSelected?'#44ff44':wrongClass?'#552222':canAfford?'#ffffff':'#555566';
-        addS(this.add.text(ix-SH_CW/2+36,iy-10,item.label,{fontSize:'12px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-80}}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-        if(item.price>0){
-          addS(this.add.text(ix+SH_CW/2-8,iy+12,item.price+'G',{fontSize:'13px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
-        }
+        addS(this.add.text(PX-SH_CW/2+42,iy-8,item.label,{fontSize:'13px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-120},fontStyle:isSelected?'bold':'normal'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        // 専用クラス表示
         if(mageOnly){
-          addS(this.add.text(ix-SH_CW/2+36,iy+10,'🔮マジシャン専用',{fontSize:'9px',fontFamily:'Arial',color:wrongClass?'#663333':'#9966cc'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(PX-SH_CW/2+42,iy+10,'🔮マジシャン専用',{fontSize:'9px',fontFamily:'Arial',color:wrongClass?'#663333':'#9966cc'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        }
+        // 価格（右端）
+        if(item.price>0){
+          addS(this.add.text(PX+SH_CW/2-10,iy,item.price+'G',{fontSize:'14px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
         }
         ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:item);renderShopItems(shopScroll);updateBuyBtn();});
         ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x1a4a1a:0x1a2a3a,0.95));
         ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
       });
 
+      // 件数インジケーター
       if(items.length>visibleCount){
-        const upA=shopScroll>0, dnA=shopScroll+visibleCount<items.length;
-        const upB=addS(this.add.rectangle(PX+PW/2-20,listTop+20,32,28,upA?0x334455:0x1a1a1a,0.85).setStrokeStyle(1,upA?0x556677:0x222222).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:upA}));
-        addS(this.add.text(PX+PW/2-20,listTop+20,'▲',{fontSize:'14px',fontFamily:'Arial',color:upA?'#aaaaaa':'#333333'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
-        const dnB=addS(this.add.rectangle(PX+PW/2-20,listBottom-20,32,28,dnA?0x334455:0x1a1a1a,0.85).setStrokeStyle(1,dnA?0x556677:0x222222).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:dnA}));
-        addS(this.add.text(PX+PW/2-20,listBottom-20,'▼',{fontSize:'14px',fontFamily:'Arial',color:dnA?'#aaaaaa':'#333333'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
-        if(upA)upB.on('pointerdown',()=>{shopScroll-=SH_COLS;renderShopItems(shopScroll);});
-        if(dnA)dnB.on('pointerdown',()=>{shopScroll+=SH_COLS;renderShopItems(shopScroll);});
+        const total=items.length, shown=Math.min(offset+visibleCount,total);
+        addS(this.add.text(PX,listBottom+4,(offset+1)+'〜'+shown+' / '+total,{fontSize:'10px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
       }
     };
+
+    // スワイプスクロール
+    const shZone=mk(this.add.rectangle(PX,listTop+listH2/2,PW-8,listH2,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
+    const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(items.length-visibleCount,newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
+    shZone.on('wheel',(_p,_dx,dy)=>{doShScroll(shopScroll+(dy>0?1:-1));});
+    shZone.on('pointerdown',(ptr)=>{shSwipeY=ptr.y;shSwipeScroll=shopScroll;});
+    shZone.on('pointermove',(ptr)=>{
+      if(shSwipeY===null)return;
+      const dy=shSwipeY-ptr.y;
+      doShScroll(Math.round(shSwipeScroll+dy/(SH_H*0.7)));
+    });
+    shZone.on('pointerup',()=>{shSwipeY=null;});
+    shZone.on('pointerout',()=>{shSwipeY=null;});
+
     renderShopItems(0);
     updateBuyBtn();
   }
@@ -5040,30 +5240,45 @@ class GameScene extends Phaser.Scene{
 
   _createHomeButton(){
     const w=this.scale.width,h=this.scale.height;
-    const MARGIN=12;
-    const btn=this.add.rectangle(60,h-20,96,28,0x223344,0.75)
+    // タイトルボタン
+    const btn=this.add.rectangle(54,h-20,100,28,0x223344,0.75)
       .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x445566,0.8)
       .setInteractive({useHandCursor:true});
-    const txt=this.add.text(60,h-20,'🏠 タイトル',{
+    const txt=this.add.text(54,h-20,'🏠 タイトル',{
       fontSize:'12px',fontFamily:'Arial',color:'#8899aa'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
     btn.on('pointerover',()=>{btn.setFillStyle(0x334455,0.9);txt.setColor('#aabbcc');});
     btn.on('pointerout', ()=>{btn.setFillStyle(0x223344,0.75);txt.setColor('#8899aa');});
     btn.on('pointerdown',()=>{
-      // 確認ダイアログ
       const W=this.scale.width,H=this.scale.height;
       const ov=this.add.rectangle(W/2,H/2,W,H,0x000000,0.7).setScrollFactor(0).setDepth(90).setInteractive();
       const ttl=this.add.text(W/2,H/2-40,'タイトルに戻りますか？',{fontSize:'20px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(91);
-      const sub=this.add.text(W/2,H/2-10,'キャラクター情報は保存されません',{fontSize:'13px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(91);
+      const sub=this.add.text(W/2,H/2-10,'※セーブしていないデータは失われます',{fontSize:'13px',fontFamily:'Arial',color:'#ffaa44'}).setOrigin(0.5).setScrollFactor(0).setDepth(91);
       const btnY=this.add.rectangle(W/2-70,H/2+30,120,36,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setScrollFactor(0).setDepth(91).setInteractive({useHandCursor:true});
-      this.add.text(W/2-70,H/2+30,'はい',{fontSize:'16px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+      this.add.text(W/2-70,H/2+30,'戻る',{fontSize:'16px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
       const btnN=this.add.rectangle(W/2+70,H/2+30,120,36,0x44aaff,0.3).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(91).setInteractive({useHandCursor:true});
-      this.add.text(W/2+70,H/2+30,'いいえ',{fontSize:'16px',fontFamily:'Arial',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+      this.add.text(W/2+70,H/2+30,'キャンセル',{fontSize:'16px',fontFamily:'Arial',color:'#44aaff'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
       const dismiss=()=>[ov,ttl,sub,btnY,btnN].forEach(o=>{try{o.destroy();}catch(e){}});
       btnY.on('pointerdown',()=>{dismiss();stopBGM();this.physics.pause();this.tweens.killAll();this.scene.start('Title');});
       btnN.on('pointerdown',()=>dismiss());
       btnY.on('pointerover',()=>btnY.setFillStyle(0xe74c3c,0.6));btnY.on('pointerout',()=>btnY.setFillStyle(0xe74c3c,0.3));
       btnN.on('pointerover',()=>btnN.setFillStyle(0x44aaff,0.6));btnN.on('pointerout',()=>btnN.setFillStyle(0x44aaff,0.3));
+    });
+
+    // セーブボタン（タイトルの右隣）
+    const saveBtn=this.add.rectangle(164,h-20,80,28,0x0a2a0a,0.75)
+      .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x226622,0.8)
+      .setInteractive({useHandCursor:true});
+    const saveTxt=this.add.text(164,h-20,'💾 セーブ',{
+      fontSize:'12px',fontFamily:'Arial',color:'#44aa44'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    saveBtn.on('pointerover',()=>{saveBtn.setFillStyle(0x1a4a1a,0.9);saveTxt.setColor('#66cc66');});
+    saveBtn.on('pointerout', ()=>{saveBtn.setFillStyle(0x0a2a0a,0.75);saveTxt.setColor('#44aa44');});
+    saveBtn.on('pointerdown',()=>{
+      if(this._menuOpen||this._gameOver)return;
+      this.physics.pause();
+      this.scene.launch('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage});
+      this.scene.pause();
     });
   }
 
@@ -5500,12 +5715,25 @@ class GameScene extends Phaser.Scene{
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_hp_potion').setDisplaySize(24,24);d.setData('type','hp');d.refreshBody();}
       if(Math.random()<0.1){const d=this.drops.create(ed.sprite.x,ed.sprite.y,'drop_mp_potion').setDisplaySize(24,24);d.setData('type','mp');d.refreshBody();}
     }
-    // ドロップ（素材アイテム）
+    // ドロップ（素材アイテム）：フィールドにアイコン表示
     const dropTable=DROP_TABLE[ed.id]||[];
     dropTable.forEach(entry=>{
       if(Math.random()>entry.rate)return;
       const count=Phaser.Math.Between(entry.min,entry.max);
-      this._addItem(pd,entry.id,count,ed.sprite.x,ed.sprite.y);
+      const def=ITEM_DEFS[entry.id];
+      if(!def)return;
+      // フィールドにアイテムアイコンを落とす
+      const dx=ed.sprite.x+(Math.random()-0.5)*40;
+      const dy=ed.sprite.y+(Math.random()-0.5)*20;
+      const icon=this.add.text(dx,dy,def.icon,{fontSize:'22px'}).setOrigin(0.5).setDepth(8);
+      // バウンスして着地するアニメ
+      this.tweens.add({targets:icon,y:dy-30,duration:250,ease:'Cubic.easeOut',yoyo:true,onComplete:()=>{
+        // 白い枠でハイライト
+        const ring=this.add.circle(dx,dy+4,16,0xffffff,0.2).setDepth(7).setStrokeStyle(1,0xffffff,0.5);
+        // 点滅
+        this.tweens.add({targets:[icon,ring],alpha:0.6,duration:600,yoyo:true,repeat:-1});
+        this._droppedItems.push({icon,ring,id:entry.id,count,x:dx,y:dy+4});
+      }});
     });
     // フェードアウト後にスプライト削除 & リスポーンスケジュール
     const deadId=ed.id;
@@ -5554,13 +5782,77 @@ class GameScene extends Phaser.Scene{
       pd.exp-=pd.expNext;pd.lv++;pd.expNext=Math.floor(pd.expNext*1.4);
       pd.mhp+=8;pd.hp=pd.mhp;pd.atk+=1;pd.def+=1;pd.msp+=5;pd.sp=pd.msp;
       pd.statPts=(pd.statPts||0)+3;
-      SE('levelup');this.cameras.main.flash(300,255,215,0);
-      this.showFloat(this.player.x,this.player.y-80,'✨ LEVEL UP! Lv'+pd.lv+'  ↑MENUでST振り','#ffd700');
+      SE('levelup');
+      this._showLevelUpEffect(pd.lv);
     }
-    // バッジ更新のみ（自動Menu表示なし）
     this._updateMenuBadge();
   }
+
+  _showLevelUpEffect(lv){
+    const w=this.scale.width, h=this.scale.height;
+    const p=this.player;
+    // 画面フラッシュ（黄金色）
+    this.cameras.main.flash(500,255,215,0);
+    // プレイヤー周辺のオーラリング
+    const aura=this.add.circle(p.x,p.y,10,0xffd700,0.8).setDepth(30);
+    this.tweens.add({targets:aura,scaleX:8,scaleY:8,alpha:0,duration:600,ease:'Cubic.easeOut',onComplete:()=>aura.destroy()});
+    const aura2=this.add.circle(p.x,p.y,10,0xffff88,0.5).setDepth(29);
+    this.tweens.add({targets:aura2,scaleX:12,scaleY:12,alpha:0,duration:800,delay:100,ease:'Cubic.easeOut',onComplete:()=>aura2.destroy()});
+    // 星パーティクル
+    for(let i=0;i<12;i++){
+      const ang=(i/12)*Math.PI*2;
+      const star=this.add.text(p.x,p.y,'⭐',{fontSize:'18px'}).setOrigin(0.5).setDepth(31);
+      this.tweens.add({targets:star,x:p.x+Math.cos(ang)*100,y:p.y+Math.sin(ang)*100,alpha:0,duration:700,ease:'Cubic.easeOut',onComplete:()=>star.destroy()});
+    }
+    // 画面中央に大きく LEVEL UP テキスト
+    const bg=this.add.rectangle(w/2,h/2-30,380,90,0x000000,0.7).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0xffd700);
+    const txt1=this.add.text(w/2,h/2-50,'✨  LEVEL  UP  ✨',{
+      fontSize:'32px',fontFamily:'Arial',color:'#ffd700',
+      stroke:'#ff8800',strokeThickness:4,fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
+    const txt2=this.add.text(w/2,h/2-14,'Lv '+lv+'  ▶  ステータスポイント +3',{
+      fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000000',strokeThickness:3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
+    // フェードイン→ホールド→フェードアウト
+    this.tweens.add({targets:[bg,txt1,txt2],alpha:1,duration:200,onComplete:()=>{
+      this.tweens.add({targets:[bg,txt1,txt2],alpha:0,duration:400,delay:1800,onComplete:()=>{
+        bg.destroy();txt1.destroy();txt2.destroy();
+      }});
+    }});
+  }
   // ⑦ ジョブEXP処理
+  _showJobLevelUpEffect(jlv){
+    const w=this.scale.width, h=this.scale.height;
+    const p=this.player;
+    // 画面フラッシュ（水色）
+    this.cameras.main.flash(400,0,180,255);
+    // 電撃リング
+    const ring1=this.add.circle(p.x,p.y,8,0,0).setStrokeStyle(4,0x00e5ff,1).setDepth(30);
+    this.tweens.add({targets:ring1,scaleX:10,scaleY:10,alpha:0,duration:500,ease:'Cubic.easeOut',onComplete:()=>ring1.destroy()});
+    const ring2=this.add.circle(p.x,p.y,8,0,0).setStrokeStyle(2,0x88ffff,0.7).setDepth(29);
+    this.tweens.add({targets:ring2,scaleX:14,scaleY:14,alpha:0,duration:700,delay:80,ease:'Cubic.easeOut',onComplete:()=>ring2.destroy()});
+    // ⚡パーティクル
+    for(let i=0;i<8;i++){
+      const ang=(i/8)*Math.PI*2;
+      const sp=this.add.text(p.x,p.y,'⚡',{fontSize:'16px'}).setOrigin(0.5).setDepth(31);
+      this.tweens.add({targets:sp,x:p.x+Math.cos(ang)*80,y:p.y+Math.sin(ang)*80,alpha:0,duration:600,ease:'Cubic.easeOut',onComplete:()=>sp.destroy()});
+    }
+    // 画面中央にJOB LV UP表示（レベルアップとは別の位置・色）
+    const bg=this.add.rectangle(w/2,h/2+50,360,80,0x001a33,0.8).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0x00e5ff);
+    const txt1=this.add.text(w/2,h/2+32,'⚡  JOB  LEVEL  UP  ⚡',{
+      fontSize:'26px',fontFamily:'Arial',color:'#00e5ff',
+      stroke:'#004488',strokeThickness:4,fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
+    const txt2=this.add.text(w/2,h/2+62,'JLv '+jlv+'  ▶  スキルポイント +1',{
+      fontSize:'15px',fontFamily:'Arial',color:'#88ffff',stroke:'#000000',strokeThickness:3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
+    this.tweens.add({targets:[bg,txt1,txt2],alpha:1,duration:200,onComplete:()=>{
+      this.tweens.add({targets:[bg,txt1,txt2],alpha:0,duration:400,delay:1600,onComplete:()=>{
+        bg.destroy();txt1.destroy();txt2.destroy();
+      }});
+    }});
+  }
+
   addJobExp(amount){
     const pd=this.playerData;
     pd.jobExp=(pd.jobExp||0)+amount;
@@ -5572,7 +5864,7 @@ class GameScene extends Phaser.Scene{
       pd.jobPts=(pd.jobPts||0)+1;
       jobLeveled=true;
       SE('levelup');
-      this.showFloat(this.player.x,this.player.y-100,'⚡ JOB LV UP! JLv'+pd.jobLv,'#00e5ff');
+      this._showJobLevelUpEffect(pd.jobLv);
     }
     // バッジ更新のみ（自動Menu表示なし）
     if(jobLeveled) this._updateMenuBadge();
@@ -5953,16 +6245,39 @@ class GameScene extends Phaser.Scene{
       }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
+    // ドロップアイテムの拾得チェック（60フレームに1回）
+    if(Math.floor(time/60)!==Math.floor((time-delta)/60)&&this._droppedItems&&this._droppedItems.length>0){
+      const px=this.player.x, py=this.player.y;
+      const pd=this.playerData;
+      this._droppedItems=this._droppedItems.filter(drop=>{
+        if(!drop.icon||!drop.icon.active)return false;
+        const dist=Phaser.Math.Distance.Between(px,py,drop.x,drop.y);
+        if(dist<48){
+          // 拾う演出：アイコンがプレイヤーに吸い込まれる
+          this.tweens.killTweensOf(drop.icon);
+          this.tweens.killTweensOf(drop.ring);
+          this.tweens.add({targets:drop.icon,x:px,y:py-30,scaleX:1.5,scaleY:1.5,alpha:0,duration:300,ease:'Cubic.easeIn',onComplete:()=>{drop.icon.destroy();}});
+          if(drop.ring){this.tweens.add({targets:drop.ring,alpha:0,duration:200,onComplete:()=>{drop.ring.destroy();}});}
+          // アイテム追加
+          this._addItem(pd,drop.id,drop.count,px,py);
+          return false;
+        }
+        return true;
+      });
+    }
     // 攻撃ボタン押しっぱなし
     if(this._atkHeld&&!this._menuOpen&&!this._gameOver&&!this._casting){
       this.normalAttack();
     }
-    // 建物接近チェック（町ステージのみ）
+    // 建物ドア前接近チェック（ドア座標から60px以内）
     if(this.stage===0&&this.buildings&&!this._menuOpen&&!this._gameOver){
       let nearB=null;
-      let minDist=120; // 接近判定距離
+      let minDist=70; // ドア前の判定距離
       this.buildings.forEach(b=>{
-        const d=Phaser.Math.Distance.Between(p.x,p.y,b.x+b.w/2,b.y+b.h/2);
+        // ドア座標が設定済みならドア前判定、なければ建物中心
+        const doorX=b.doorX!==undefined?b.doorX:b.x+b.w/2;
+        const doorY=b.doorY!==undefined?b.doorY:b.y+b.h;
+        const d=Phaser.Math.Distance.Between(p.x,p.y,doorX,doorY);
         if(d<minDist){minDist=d;nearB=b;}
       });
       if(nearB!==this._nearBuilding){
@@ -5997,5 +6312,5 @@ new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene]
 });
