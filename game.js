@@ -656,7 +656,7 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:155,frameHeight:124});
+    this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:124,frameHeight:124});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
