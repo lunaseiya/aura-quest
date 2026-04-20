@@ -974,57 +974,132 @@ class BootScene extends Phaser.Scene{
 
     // ── オブジェクト類 ──
     // 木
-    mk2('obj_tree',40,40,g=>{
-      // 幹
-      g.fillStyle(0x7a5230,1);g.fillRect(17,24,6,14);
-      g.fillStyle(0x5a3818,0.5);g.fillRect(17,24,3,14);
-      // 葉（3層）
-      g.fillStyle(0x227722,1);g.fillEllipse(20,22,26,18);
-      g.fillStyle(0x338833,0.8);g.fillEllipse(20,16,22,16);
-      g.fillStyle(0x44aa44,0.6);g.fillEllipse(20,10,16,14);
-      g.fillStyle(0x55cc55,0.3);g.fillEllipse(18,9,10,8);
+    // ── 木（64×80px・大きく立体的）──
+    mk2('obj_tree',64,80,g=>{
+      // 影
+      g.fillStyle(0x000000,0.2);g.fillEllipse(32,76,44,10);
+      // 幹（太く）
+      g.fillStyle(0x6b3d1a,1);g.fillRect(26,44,12,34);
+      g.fillStyle(0x4a2810,0.6);g.fillRect(26,44,5,34);
+      g.fillStyle(0x8b5a2a,0.3);g.fillRect(30,46,4,30);
+      // 根元の広がり
+      g.fillStyle(0x5a3012,1);g.fillTriangle(18,78,32,58,46,78);
+      // 葉（4層・グラデーション）
+      g.fillStyle(0x1a6614,1);g.fillEllipse(32,54,52,36);
+      g.fillStyle(0x228822,1);g.fillEllipse(32,44,46,32);
+      g.fillStyle(0x33aa33,1);g.fillEllipse(32,34,38,28);
+      g.fillStyle(0x44cc44,0.9);g.fillEllipse(32,24,28,24);
+      // 葉のハイライト
+      g.fillStyle(0x66dd66,0.5);g.fillEllipse(26,20,16,12);
+      g.fillStyle(0x88ff88,0.2);g.fillEllipse(24,18,8,7);
+      // 葉の暗い側
+      g.fillStyle(0x114411,0.4);g.fillEllipse(40,50,20,16);
+      // 葉先のとがり
+      g.fillStyle(0x33aa33,1);
+      g.fillTriangle(32,8,26,22,38,22);
+      g.fillTriangle(20,18,14,30,28,28);
+      g.fillTriangle(44,18,36,28,50,30);
     });
-    // ヤシの木
-    mk2('obj_palm',40,40,g=>{
-      g.fillStyle(0x886633,1);g.fillRect(18,16,5,22);
-      g.fillStyle(0x22aa44,1);
-      g.fillTriangle(20,2,4,14,20,16);
-      g.fillTriangle(20,2,36,14,20,16);
-      g.fillTriangle(20,4,2,18,16,16);
-      g.fillTriangle(20,4,38,18,24,16);
-      g.fillStyle(0x33cc55,0.5);g.fillEllipse(20,8,14,10);
-      g.fillStyle(0xffcc44,1);g.fillCircle(20,15,3);g.fillCircle(15,17,2.5);g.fillCircle(25,17,2.5);
+
+    // ── ヤシの木（64×80px・南国らしく）──
+    mk2('obj_palm',64,80,g=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(32,76,36,8);
+      // 幹（曲がった）
+      g.fillStyle(0x8b6633,1);
+      g.fillRect(28,30,8,46);
+      g.fillStyle(0xaa8844,0.5);g.fillRect(30,32,4,44);
+      // 幹の節
+      g.fillStyle(0x6b4d22,0.4);
+      for(let i=0;i<6;i++)g.fillRect(27,34+i*8,10,2);
+      // 葉（6枚・放射状）
+      g.fillStyle(0x228833,1);
+      g.fillTriangle(32,28,2,14,30,30);g.fillTriangle(32,28,62,14,34,30);
+      g.fillTriangle(32,28,2,32,28,32);g.fillTriangle(32,28,62,32,36,32);
+      g.fillTriangle(32,28,16,8,30,28);g.fillTriangle(32,28,48,8,34,28);
+      g.fillStyle(0x33aa44,0.6);
+      g.fillTriangle(32,28,4,18,28,30);g.fillTriangle(32,28,60,18,36,30);
+      g.fillStyle(0x55cc66,0.3);
+      g.fillTriangle(32,28,12,12,28,28);g.fillTriangle(32,28,52,12,36,28);
+      // ヤシの実
+      g.fillStyle(0xcc8822,1);g.fillCircle(32,30,6);g.fillCircle(24,32,5);g.fillCircle(40,32,5);
+      g.fillStyle(0x994400,0.5);g.fillCircle(32,31,4);
     });
-    // 岩
-    mk2('obj_rock',36,28,g=>{
-      g.fillStyle(0x888899,1);g.fillEllipse(18,16,30,20);
-      g.fillStyle(0xaaaacc,0.5);g.fillEllipse(12,10,14,8);
-      g.fillStyle(0x666677,0.4);g.fillEllipse(24,20,10,6);
-      g.lineStyle(1,0x555566,0.3);g.strokeEllipse(18,16,30,20);
+
+    // ── 岩（56×44px・リアルな石）──
+    mk2('obj_rock',56,44,g=>{
+      g.fillStyle(0x000000,0.25);g.fillEllipse(28,42,50,8);
+      // メイン岩
+      g.fillStyle(0x777788,1);g.fillEllipse(28,24,50,36);
+      // 面（ライティング）
+      g.fillStyle(0x9999aa,0.7);g.fillEllipse(20,16,28,20);
+      g.fillStyle(0xaaaacc,0.4);g.fillEllipse(16,14,16,12);
+      // 暗い面
+      g.fillStyle(0x444455,0.5);g.fillEllipse(38,30,22,14);
+      // 岩の縁
+      g.lineStyle(2,0x555566,0.6);g.strokeEllipse(28,24,50,36);
+      // ひび割れ
+      g.lineStyle(1,0x333344,0.4);
+      g.lineBetween(18,14,24,26);g.lineBetween(36,12,40,24);g.lineBetween(28,30,34,38);
     });
-    // 溶岩岩
-    mk2('obj_lava_rock',36,28,g=>{
-      g.fillStyle(0x443322,1);g.fillEllipse(18,16,30,20);
-      g.fillStyle(0x554433,0.6);g.fillEllipse(12,10,14,8);
-      g.fillStyle(0xff4400,0.2);g.fillEllipse(18,18,20,10);
-      g.fillStyle(0xff6600,0.15);g.fillEllipse(22,14,10,5);
-      g.lineStyle(1,0x221100,0.5);g.strokeEllipse(18,16,30,20);
+
+    // ── 溶岩岩（56×44px・赤く光る）──
+    mk2('obj_lava_rock',56,44,g=>{
+      g.fillStyle(0x000000,0.3);g.fillEllipse(28,42,50,8);
+      // 黒い岩
+      g.fillStyle(0x2a1810,1);g.fillEllipse(28,24,50,36);
+      g.fillStyle(0x3a2018,0.7);g.fillEllipse(18,16,24,18);
+      // 溶岩の亀裂（光る）
+      g.fillStyle(0xff4400,0.7);g.fillRect(14,20,5,14);g.fillRect(30,16,4,12);g.fillRect(22,28,8,8);
+      g.fillStyle(0xff8800,0.5);g.fillRect(15,21,3,12);g.fillRect(31,17,2,10);
+      g.fillStyle(0xffcc00,0.3);g.fillRect(15,22,2,10);
+      // 炎のオーラ
+      g.fillStyle(0xff6600,0.15);g.fillEllipse(28,24,54,40);
+      g.fillStyle(0xff4400,0.1);g.fillEllipse(28,22,58,44);
+      // 縁
+      g.lineStyle(2,0xff4400,0.4);g.strokeEllipse(28,24,50,36);
     });
-    // 砂漠岩
-    mk2('obj_desert_rock',36,28,g=>{
-      g.fillStyle(0xaa8844,1);g.fillEllipse(18,16,30,20);
-      g.fillStyle(0xccaa66,0.5);g.fillEllipse(12,10,14,8);
-      g.fillStyle(0x886622,0.4);g.fillEllipse(24,20,10,6);
-      g.lineStyle(1,0x775511,0.3);g.strokeEllipse(18,16,30,20);
+
+    // ── 砂漠岩（56×44px・砂まみれ）──
+    mk2('obj_desert_rock',56,44,g=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(28,42,50,8);
+      // 岩本体
+      g.fillStyle(0xbb9955,1);g.fillEllipse(28,24,50,36);
+      g.fillStyle(0xddbb77,0.6);g.fillEllipse(18,14,26,18);
+      g.fillStyle(0xeeccaa,0.3);g.fillEllipse(14,12,14,10);
+      // 暗い面
+      g.fillStyle(0x886633,0.5);g.fillEllipse(40,30,18,14);
+      // 砂のテクスチャ
+      g.fillStyle(0xccaa66,0.3);
+      for(let i=0;i<8;i++)g.fillCircle(10+i*5+Math.sin(i)*3,20+Math.cos(i*1.5)*6,2);
+      // 縁
+      g.lineStyle(2,0x886633,0.5);g.strokeEllipse(28,24,50,36);
+      // 岩のひび
+      g.lineStyle(1,0x664422,0.4);g.lineBetween(22,14,28,24);g.lineBetween(36,16,40,26);
     });
-    // 樽
-    mk2('obj_barrel',28,32,g=>{
-      g.fillStyle(0x885522,1);g.fillRect(4,4,20,24);
-      g.fillStyle(0x664411,0.5);g.fillRect(4,4,6,24);
-      g.lineStyle(3,0x553311,1);
-      g.lineBetween(4,10,24,10);g.lineBetween(4,22,24,22);
-      g.fillStyle(0x443300,1);g.fillEllipse(14,4,20,6);g.fillEllipse(14,28,20,6);
-      g.fillStyle(0x775533,0.3);g.fillRect(4,4,20,4);
+
+    // ── 樽（40×48px・立体的）──
+    mk2('obj_barrel',40,48,g=>{
+      g.fillStyle(0x000000,0.25);g.fillEllipse(20,46,36,8);
+      // 樽本体
+      g.fillStyle(0x7a4418,1);g.fillRect(6,8,28,34);
+      // 側面の丸み（明るい）
+      g.fillStyle(0xaa6633,0.5);g.fillRect(8,10,10,30);
+      g.fillStyle(0xcc8844,0.2);g.fillRect(10,12,6,26);
+      // 側面の暗い部分
+      g.fillStyle(0x4a2808,0.4);g.fillRect(26,10,8,30);
+      // 蓋（上）
+      g.fillStyle(0x5a3010,1);g.fillEllipse(20,8,30,10);
+      g.fillStyle(0x8b5520,0.5);g.fillEllipse(17,6,16,6);
+      // 底
+      g.fillStyle(0x4a2808,1);g.fillEllipse(20,42,30,10);
+      // 金属バンド
+      g.fillStyle(0x888866,1);g.fillRect(4,14,32,4);g.fillRect(4,30,32,4);
+      g.fillStyle(0xaaaaaa,0.5);g.fillRect(4,14,32,2);g.fillRect(4,30,32,2);
+      // バンドのリベット
+      g.fillStyle(0x999977,1);[8,16,24,32].forEach(x=>{g.fillCircle(x,16,2);g.fillCircle(x,32,2);});
+      // 木目ライン
+      g.lineStyle(1,0x4a2808,0.3);
+      for(let i=0;i<4;i++)g.lineBetween(6+i*7,18,6+i*7,28);
     });
 
     // ══════════════════════════════════════
@@ -2271,7 +2346,14 @@ class TitleScene extends Phaser.Scene{
 // ============================================================
 class SaveSelectScene extends Phaser.Scene{
   constructor(){super('SaveSelect')}
-  init(data){this.mode=data.mode||'save';this.playerData=data.playerData||null;this.stage=data.stage||0;}
+  init(data){
+    // restartで呼ばれた時も既存データを保持
+    if(data&&data.mode!==undefined){
+      this.mode=data.mode||'save';this.playerData=data.playerData||null;this.stage=data.stage||0;
+    }else{
+      this.mode=this.mode||'load';this.playerData=this.playerData||null;this.stage=this.stage||0;
+    }
+  }
   create(){
     const w=this.scale.width,h=this.scale.height;
     const mode=this.mode; // 'save' or 'load'
@@ -2414,6 +2496,8 @@ class ClassSelectScene extends Phaser.Scene{
   constructor(){super('ClassSelect')}
   create(){
     const w=this.scale.width,h=this.scale.height;
+    // リサイズ後に再描画
+    this.scale.on('resize',(gameSize)=>{if(this.scene.isActive('ClassSelect'))this.scene.restart('ClassSelect');});
     // ローカルストレージからミュート設定を復元
     let _savedMute=null;
     try{_savedMute=localStorage.getItem('aq_muted');}catch(e){}
@@ -2857,7 +2941,7 @@ class GameScene extends Phaser.Scene{
     // 障害物
     this.obstacles=this.physics.add.staticGroup();
     if(cfg.objects&&cfg.objects[0]){
-      cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(32,40);o.refreshBody();});
+      cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(64,80);o.refreshBody();});
     }
     // ST5: 渦巻き崖の物理壁を生成
     // ST5: 物理壁なし（視覚的な崖道のみ・ワールド境界で制限）
@@ -6298,19 +6382,37 @@ class GameScene extends Phaser.Scene{
 // ============================================================
 //  起動
 // ============================================================
-new Phaser.Game({
+const _game=new Phaser.Game({
   type:Phaser.AUTO,
   scale:{
     mode:Phaser.Scale.RESIZE,
-    autoCenter:Phaser.Scale.NO_CENTER,
+    autoCenter:Phaser.Scale.CENTER_BOTH,
     width:window.innerWidth,
     height:window.innerHeight,
   },
   backgroundColor:'#000000',
   input:{
-    activePointers:4,        // マルチタッチ4本対応
+    activePointers:4,
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
   scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene]
 });
+
+// 画面回転・リサイズ時にUIシーンを再起動
+let _lastW=window.innerWidth,_lastH=window.innerHeight;
+const _handleResize=()=>{
+  const nw=window.innerWidth,nh=window.innerHeight;
+  if(Math.abs(nw-_lastW)<2&&Math.abs(nh-_lastH)<2)return;
+  _lastW=nw;_lastH=nh;
+  // GameScene以外（タイトル・クラス選択・セーブ選択など）は再起動して再描画
+  const uiScenes=['Title','ClassSelect','SaveSelect'];
+  uiScenes.forEach(key=>{
+    const sc=_game.scene.getScene(key);
+    if(sc&&_game.scene.isActive(key)){
+      _game.scene.restart(key);
+    }
+  });
+};
+window.addEventListener('resize',()=>{setTimeout(_handleResize,200);});
+window.addEventListener('orientationchange',()=>{setTimeout(_handleResize,400);});
