@@ -656,7 +656,7 @@ class BootScene extends Phaser.Scene{
     const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
-    this.load.image('player_warrior',BASE+'players/warrior.png');
+    this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:128,frameHeight:128});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -737,8 +737,27 @@ class BootScene extends Phaser.Scene{
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_archer',frame:f})),
-        frameRate:a.rate,
-        repeat:a.rep,
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // ソードマン スプライトアニメーション定義 (sprite_sheet_sordman.png, 128×128px, 5×3)
+    const WA=[
+      {key:'warrior_front_idle',frames:[0],    rate:2, rep:-1},
+      {key:'warrior_front_walk',frames:[1,2],  rate:8, rep:-1},
+      {key:'warrior_front_atk', frames:[3,4],  rate:10,rep:0 },
+      {key:'warrior_back_idle', frames:[5],    rate:2, rep:-1},
+      {key:'warrior_back_walk', frames:[6,7],  rate:8, rep:-1},
+      {key:'warrior_back_atk',  frames:[8,9],  rate:10,rep:0 },
+      {key:'warrior_side_idle', frames:[10],   rate:2, rep:-1},
+      {key:'warrior_side_walk', frames:[11,12],rate:8, rep:-1},
+      {key:'warrior_side_atk',  frames:[13,14],rate:10,rep:0 },
+    ];
+    WA.forEach(a=>{
+      if(this.anims.exists(a.key)) return;
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_warrior',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
       });
     });
     this.scene.start('Title');
@@ -2022,7 +2041,7 @@ class ClassSelectScene extends Phaser.Scene{
       }else if(cls.key==='archer'){
         this.add.sprite(cx-90,cy,'player_archer').setFrame(0).setDisplaySize(80,80);
       }else{
-        this.add.image(cx-90,cy,'player_'+cls.key).setDisplaySize(64,80);
+        this.add.sprite(cx-90,cy,'player_'+cls.key).setFrame(0).setDisplaySize(64,80);
       }
       this.add.text(cx+10,cy-32,cls.name,{fontSize:'20px',fontFamily:'Arial',color:'#'+cls.col.toString(16).padStart(6,'0'),stroke:'#000',strokeThickness:2});
       this.add.text(cx+10,cy-4,cls.desc,{fontSize:'11px',fontFamily:'Arial',color:'#aaaaaa',lineSpacing:4});
@@ -2477,6 +2496,10 @@ class GameScene extends Phaser.Scene{
       if(this.anims.exists('mage_front_idle')){
         this.player.play('mage_front_idle');
       }
+    }else if(pd.cls==='warrior'){
+      if(this.anims.exists('warrior_front_idle')){
+        this.player.play('warrior_front_idle');
+      }
     }
     this.physics.add.collider(this.player,this.obstacles);
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
@@ -2641,6 +2664,7 @@ class GameScene extends Phaser.Scene{
       SE('hit');
       const berserkMult=pd._berserkMult||1;
       this.atkCooldown=this._calcAtkCD(0.7)/berserkMult;
+      this.playSpriteAtk();
       if(!closest)return; // 対象なし→エフェクトだけ出して終了
       const res=rollAttack(pd,closest.def,closest.eva||0);
       if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
@@ -4949,7 +4973,7 @@ class GameScene extends Phaser.Scene{
 
   _updateSpriteAnim(vx,vy){
     const p=this.player,cls=this.playerData.cls;
-    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer') return;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior') return;
     const prefix=cls;
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
@@ -4962,7 +4986,7 @@ class GameScene extends Phaser.Scene{
       else{
         facing='side';
         // archerはsideが左向き基準（mage/bomberは右向き基準）なので反転が逆
-        flip=cls==='archer'?vx>0:vx<0;
+        flip=(cls==='archer'||cls==='warrior')?vx>0:vx<0;
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -4976,7 +5000,7 @@ class GameScene extends Phaser.Scene{
 
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
-    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer') return;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior') return;
     const key=cls+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
