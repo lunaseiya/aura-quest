@@ -664,12 +664,11 @@ class BootScene extends Phaser.Scene{
     // bomber はスプライトシート
     this.load.spritesheet('player_bomber', BASE+'players/final_sheet_cc.png', {frameWidth:64,frameHeight:64});
     // 全敵キャラはコード描画テクスチャを使用（PNGロード不要）
-    ['bridge','cliff','cobble','dark_forest','flower','grass','lava','oasis_grass','sand_beach','sand_desert','sea','town_path','town_wall','volcanic','water'].forEach(k=>this.load.image('tile_'+k,BASE+'tiles/'+k+'.png'));
-    ['barrel','desert_rock','lava_rock','palm','rock','tree'].forEach(k=>this.load.image('obj_'+k,BASE+'objects/'+k+'.png'));
+    // タイル・オブジェクトはコード生成に変更
+    // ['bridge','cliff',...] load.image廃止
     ['portal_st1','portal_st2','portal_st3','portal_st4','portal_town'].forEach(k=>this.load.image(k,BASE+'portals/'+k+'.png'));
     // arrow はコード描画テクスチャを使用
-    ['bigbomb','bomb','fireball','hyperbomb','vortexball'].forEach(k=>this.load.image('proj_'+k,BASE+'projectiles/'+k+'.png'));
-    ['explosion','freeze','shockwave','slash'].forEach(k=>this.load.image('fx_'+k,BASE+'effects/'+k+'.png'));
+    // proj・fx はコード生成に変更
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
   }
   create(){
@@ -767,6 +766,382 @@ class BootScene extends Phaser.Scene{
   }
 
   _generateEnemyTextures(){
+    const T=32; // タイルサイズ
+    const mk2=(key,W,H,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g);g.generateTexture(key,W,H);g.destroy();};
+
+    // ══════════════════════════════════════
+    //  タイル生成（各32×32px）
+    // ══════════════════════════════════════
+
+    // ── 草原タイル ──
+    mk2('tile_grass',T,T,g=>{
+      g.fillStyle(0x3a8c3a);g.fillRect(0,0,T,T);
+      g.fillStyle(0x4aa84a,0.6);
+      for(let i=0;i<6;i++){const x=((i*7+3)%T),y=((i*11+5)%T);g.fillRect(x,y,3,2);}
+      g.fillStyle(0x2d6e2d,0.4);
+      g.fillRect(0,0,1,T);g.fillRect(0,0,T,1);
+    });
+
+    // ── 花畑タイル ──
+    mk2('tile_flower',T,T,g=>{
+      g.fillStyle(0x4aaa4a);g.fillRect(0,0,T,T);
+      const flowers=[[6,8],[18,5],[26,12],[10,20],[22,22],[4,26],[28,4]];
+      flowers.forEach(([x,y],i)=>{
+        const cols=[0xff5566,0xffdd44,0xff88cc,0xffffff,0xffaa22];
+        g.fillStyle(cols[i%5],1);
+        g.fillCircle(x,y,2.5);
+        g.fillStyle(0xffff88,1);g.fillCircle(x,y,1);
+      });
+      g.fillStyle(0x2d7a2d,0.3);g.fillRect(0,0,1,T);g.fillRect(0,0,T,1);
+    });
+
+    // ── 深い森タイル ──
+    mk2('tile_dark_forest',T,T,g=>{
+      g.fillStyle(0x1a3a1a);g.fillRect(0,0,T,T);
+      g.fillStyle(0x224422,0.8);
+      [[4,4,6],[14,8,5],[22,3,7],[8,18,5],[20,20,6],[28,14,4]].forEach(([x,y,r])=>{
+        g.fillCircle(x,y,r);
+      });
+      g.fillStyle(0x336633,0.4);
+      g.fillCircle(10,10,4);g.fillCircle(22,20,5);
+    });
+
+    // ── 溶岩地帯タイル ──
+    mk2('tile_volcanic',T,T,g=>{
+      g.fillStyle(0x3a1a0a);g.fillRect(0,0,T,T);
+      g.fillStyle(0x5a2a10,0.7);
+      g.fillRect(2,2,12,10);g.fillRect(18,6,10,8);g.fillRect(8,20,14,8);
+      g.fillStyle(0xff4400,0.15);
+      g.fillRect(0,0,T,T);
+      g.fillStyle(0xff6600,0.2);
+      g.fillEllipse(16,24,10,4);g.fillEllipse(6,12,6,3);
+    });
+
+    // ── 溶岩タイル ──
+    mk2('tile_lava',T,T,g=>{
+      g.fillStyle(0xcc2200);g.fillRect(0,0,T,T);
+      g.fillStyle(0xff6600,0.7);
+      g.fillEllipse(8,8,10,6);g.fillEllipse(22,18,12,7);g.fillEllipse(6,24,8,5);
+      g.fillStyle(0xff9900,0.5);
+      g.fillEllipse(16,12,8,4);g.fillEllipse(4,20,6,4);g.fillEllipse(24,6,7,4);
+      g.fillStyle(0xffcc00,0.3);
+      g.fillEllipse(10,16,4,3);g.fillEllipse(24,24,5,3);
+      // クラック
+      g.lineStyle(1,0x880000,0.8);
+      g.lineBetween(0,8,16,12);g.lineBetween(16,12,32,6);
+      g.lineBetween(4,20,20,28);
+    });
+
+    // ── 海岸砂浜タイル ──
+    mk2('tile_sand_beach',T,T,g=>{
+      g.fillStyle(0xe8cc88);g.fillRect(0,0,T,T);
+      g.fillStyle(0xd4b870,0.5);
+      g.fillRect(3,5,5,3);g.fillRect(14,2,7,3);g.fillRect(24,8,5,3);
+      g.fillRect(6,18,4,2);g.fillRect(20,22,6,2);g.fillRect(8,26,5,2);
+      g.fillStyle(0xf0dda0,0.4);
+      g.fillEllipse(16,16,14,8);
+    });
+
+    // ── 海タイル ──
+    mk2('tile_sea',T,T,g=>{
+      g.fillStyle(0x1a5aaa);g.fillRect(0,0,T,T);
+      g.fillStyle(0x2266bb,0.6);
+      g.fillRect(0,6,T,4);g.fillRect(0,18,T,4);
+      g.fillStyle(0x3377cc,0.4);
+      g.fillRect(4,2,T-8,3);g.fillRect(2,14,T-4,3);g.fillRect(0,26,T,3);
+      g.fillStyle(0x88ccff,0.2);
+      g.fillRect(2,8,8,2);g.fillRect(18,20,10,2);g.fillRect(8,28,12,2);
+    });
+
+    // ── オアシス草タイル ──
+    mk2('tile_oasis_grass',T,T,g=>{
+      g.fillStyle(0x2a7a2a);g.fillRect(0,0,T,T);
+      g.fillStyle(0x3d9e3d,0.6);
+      g.fillRect(4,4,6,2);g.fillRect(16,8,5,2);g.fillRect(8,16,7,2);g.fillRect(22,20,5,2);
+      g.fillStyle(0x4aaa4a,0.3);
+      g.fillEllipse(10,10,8,5);g.fillEllipse(22,22,7,4);
+      g.fillStyle(0x1a5a1a,0.3);g.fillRect(0,0,1,T);g.fillRect(0,0,T,1);
+    });
+
+    // ── 砂漠タイル ──
+    mk2('tile_sand_desert',T,T,g=>{
+      g.fillStyle(0xd4a840);g.fillRect(0,0,T,T);
+      g.fillStyle(0xc49830,0.5);
+      g.fillEllipse(8,8,10,5);g.fillEllipse(22,14,12,5);g.fillEllipse(6,22,8,4);g.fillEllipse(24,26,10,4);
+      g.fillStyle(0xe8c060,0.4);
+      g.fillEllipse(16,6,6,3);g.fillEllipse(4,16,5,3);g.fillEllipse(26,22,5,3);
+    });
+
+    // ── 水タイル ──
+    mk2('tile_water',T,T,g=>{
+      g.fillStyle(0x1a4488);g.fillRect(0,0,T,T);
+      g.fillStyle(0x2255aa,0.6);g.fillRect(0,4,T,6);g.fillRect(0,18,T,5);
+      g.fillStyle(0x88aaff,0.15);g.fillRect(2,6,6,2);g.fillRect(20,20,8,2);
+    });
+
+    // ── 石畳タイル（町）──
+    mk2('tile_cobble',T,T,g=>{
+      g.fillStyle(0x666680);g.fillRect(0,0,T,T);
+      // 石畳パターン
+      const stones=[[0,0,15,10],[16,0,15,10],[0,11,10,10],[11,11,10,10],[22,11,10,10],[0,22,15,9],[16,22,15,9]];
+      stones.forEach(([x,y,w,h],i)=>{
+        g.fillStyle(i%2===0?0x7777aa:0x8888bb,0.7);
+        g.fillRect(x+1,y+1,w-2,h-2);
+        g.fillStyle(0xaaaacc,0.2);
+        g.fillRect(x+1,y+1,w-2,2);
+      });
+      g.lineStyle(1,0x444458,0.6);
+      g.lineBetween(0,10,T,10);g.lineBetween(0,22,T,22);
+      g.lineBetween(15,0,15,10);g.lineBetween(10,11,10,21);g.lineBetween(21,11,21,21);g.lineBetween(15,22,15,T);
+    });
+
+    // ── 町の壁タイル ──
+    mk2('tile_town_wall',T,T,g=>{
+      g.fillStyle(0x8888aa);g.fillRect(0,0,T,T);
+      // レンガパターン
+      for(let r=0;r<4;r++){
+        const offset=(r%2)*8;
+        for(let c=-1;c<3;c++){
+          g.fillStyle(0x9999bb,0.7);
+          g.fillRect(c*16+offset+1,r*8+1,14,6);
+          g.fillStyle(0xbbbbdd,0.2);
+          g.fillRect(c*16+offset+1,r*8+1,14,2);
+        }
+      }
+      g.lineStyle(1,0x666688,0.6);
+      for(let r=0;r<4;r++)g.lineBetween(0,r*8,T,r*8);
+    });
+
+    // ── 町の道タイル ──
+    mk2('tile_town_path',T,T,g=>{
+      g.fillStyle(0x998866);g.fillRect(0,0,T,T);
+      g.fillStyle(0x887755,0.5);
+      g.fillRect(3,6,5,3);g.fillRect(14,2,6,3);g.fillRect(22,10,5,3);
+      g.fillRect(6,18,7,3);g.fillRect(20,20,5,3);
+      g.fillStyle(0xbbaa88,0.3);
+      g.fillEllipse(10,10,8,4);g.fillEllipse(24,22,6,3);
+    });
+
+    // ── 崖タイル ──
+    mk2('tile_cliff',T,T,g=>{
+      g.fillStyle(0x886644);g.fillRect(0,0,T,T);
+      g.fillStyle(0x997755,0.6);
+      g.fillRect(2,4,12,6);g.fillRect(18,8,10,5);g.fillRect(6,18,14,5);
+      g.fillStyle(0x664422,0.5);
+      g.fillRect(0,10,T,2);g.fillRect(0,22,T,2);
+      g.lineStyle(1,0x553311,0.6);
+      g.lineBetween(0,10,T,12);g.lineBetween(0,22,T,20);
+    });
+
+    // ── 橋タイル ──
+    mk2('tile_bridge',T,T,g=>{
+      g.fillStyle(0xaa8855);g.fillRect(0,0,T,T);
+      g.fillStyle(0xcc9966,0.7);
+      g.fillRect(2,2,T-4,6);g.fillRect(2,12,T-4,6);g.fillRect(2,22,T-4,6);
+      g.lineStyle(2,0x886633,0.7);
+      for(let x=0;x<T;x+=6)g.lineBetween(x,0,x,T);
+      g.fillStyle(0xddbb88,0.2);
+      g.fillRect(2,2,T-4,2);g.fillRect(2,12,T-4,2);g.fillRect(2,22,T-4,2);
+    });
+
+    // ── オブジェクト類 ──
+    // 木
+    mk2('obj_tree',40,40,g=>{
+      // 幹
+      g.fillStyle(0x7a5230,1);g.fillRect(17,24,6,14);
+      g.fillStyle(0x5a3818,0.5);g.fillRect(17,24,3,14);
+      // 葉（3層）
+      g.fillStyle(0x227722,1);g.fillEllipse(20,22,26,18);
+      g.fillStyle(0x338833,0.8);g.fillEllipse(20,16,22,16);
+      g.fillStyle(0x44aa44,0.6);g.fillEllipse(20,10,16,14);
+      g.fillStyle(0x55cc55,0.3);g.fillEllipse(18,9,10,8);
+    });
+    // ヤシの木
+    mk2('obj_palm',40,40,g=>{
+      g.fillStyle(0x886633,1);g.fillRect(18,16,5,22);
+      g.fillStyle(0x22aa44,1);
+      g.fillTriangle(20,2,4,14,20,16);
+      g.fillTriangle(20,2,36,14,20,16);
+      g.fillTriangle(20,4,2,18,16,16);
+      g.fillTriangle(20,4,38,18,24,16);
+      g.fillStyle(0x33cc55,0.5);g.fillEllipse(20,8,14,10);
+      g.fillStyle(0xffcc44,1);g.fillCircle(20,15,3);g.fillCircle(15,17,2.5);g.fillCircle(25,17,2.5);
+    });
+    // 岩
+    mk2('obj_rock',36,28,g=>{
+      g.fillStyle(0x888899,1);g.fillEllipse(18,16,30,20);
+      g.fillStyle(0xaaaacc,0.5);g.fillEllipse(12,10,14,8);
+      g.fillStyle(0x666677,0.4);g.fillEllipse(24,20,10,6);
+      g.lineStyle(1,0x555566,0.3);g.strokeEllipse(18,16,30,20);
+    });
+    // 溶岩岩
+    mk2('obj_lava_rock',36,28,g=>{
+      g.fillStyle(0x443322,1);g.fillEllipse(18,16,30,20);
+      g.fillStyle(0x554433,0.6);g.fillEllipse(12,10,14,8);
+      g.fillStyle(0xff4400,0.2);g.fillEllipse(18,18,20,10);
+      g.fillStyle(0xff6600,0.15);g.fillEllipse(22,14,10,5);
+      g.lineStyle(1,0x221100,0.5);g.strokeEllipse(18,16,30,20);
+    });
+    // 砂漠岩
+    mk2('obj_desert_rock',36,28,g=>{
+      g.fillStyle(0xaa8844,1);g.fillEllipse(18,16,30,20);
+      g.fillStyle(0xccaa66,0.5);g.fillEllipse(12,10,14,8);
+      g.fillStyle(0x886622,0.4);g.fillEllipse(24,20,10,6);
+      g.lineStyle(1,0x775511,0.3);g.strokeEllipse(18,16,30,20);
+    });
+    // 樽
+    mk2('obj_barrel',28,32,g=>{
+      g.fillStyle(0x885522,1);g.fillRect(4,4,20,24);
+      g.fillStyle(0x664411,0.5);g.fillRect(4,4,6,24);
+      g.lineStyle(3,0x553311,1);
+      g.lineBetween(4,10,24,10);g.lineBetween(4,22,24,22);
+      g.fillStyle(0x443300,1);g.fillEllipse(14,4,20,6);g.fillEllipse(14,28,20,6);
+      g.fillStyle(0x775533,0.3);g.fillRect(4,4,20,4);
+    });
+
+    // ══════════════════════════════════════
+    //  弾・エフェクト生成
+    // ══════════════════════════════════════
+
+    // ── ファイアボール ──
+    mk2('proj_fireball',24,24,g=>{
+      g.fillStyle(0xff6600,0.3);g.fillCircle(12,12,11);
+      g.fillStyle(0xff4400,0.7);g.fillCircle(12,12,9);
+      g.fillStyle(0xff8800,1);g.fillCircle(12,12,7);
+      g.fillStyle(0xffcc00,1);g.fillCircle(12,12,5);
+      g.fillStyle(0xffffff,0.8);g.fillCircle(11,10,3);
+      // 炎の尾
+      g.fillStyle(0xff4400,0.5);g.fillTriangle(3,12,12,8,12,16);
+      g.fillStyle(0xff8800,0.3);g.fillTriangle(0,12,12,9,12,15);
+    });
+
+    // ── ボム ──
+    mk2('proj_bomb',20,20,g=>{
+      g.fillStyle(0x222222,1);g.fillCircle(10,12,9);
+      g.fillStyle(0x444444,0.5);g.fillEllipse(7,8,6,5);
+      g.fillStyle(0x555555,1);g.fillRect(10,3,3,6);
+      g.fillStyle(0xff8800,1);g.fillCircle(13,3,3);
+      g.fillStyle(0xffcc00,0.8);g.fillCircle(12,2,2);
+    });
+
+    // ── ハイパーボム ──
+    mk2('proj_hyperbomb',32,32,g=>{
+      g.fillStyle(0xff2200,0.2);g.fillCircle(16,16,15);
+      g.fillStyle(0x111111,1);g.fillCircle(16,18,13);
+      g.fillStyle(0x333333,0.5);g.fillEllipse(11,12,8,6);
+      g.fillStyle(0x666666,0.3);g.fillEllipse(20,14,6,5);
+      g.fillStyle(0x555555,1);g.fillRect(15,4,4,8);
+      g.fillStyle(0xff4400,1);g.fillCircle(19,5,4);
+      g.fillStyle(0xffaa00,0.9);g.fillCircle(18,4,2.5);
+      // スパイク
+      g.fillStyle(0xff0000,0.8);
+      [0,60,120,180,240,300].forEach(deg=>{
+        const r=deg*Math.PI/180;
+        g.fillTriangle(16+Math.cos(r)*13,18+Math.sin(r)*13,16+Math.cos(r+0.3)*10,18+Math.sin(r+0.3)*10,16+Math.cos(r-0.3)*10,18+Math.sin(r-0.3)*10);
+      });
+    });
+
+    // ── ボルテックスボール ──
+    mk2('proj_vortexball',32,32,g=>{
+      g.fillStyle(0x0044ff,0.2);g.fillCircle(16,16,15);
+      g.fillStyle(0x2266ff,0.5);g.fillCircle(16,16,12);
+      g.fillStyle(0x4488ff,0.7);g.fillCircle(16,16,9);
+      g.fillStyle(0xaaccff,1);g.fillCircle(16,16,6);
+      g.fillStyle(0xffffff,0.9);g.fillCircle(16,16,3);
+      // 電気の線
+      g.lineStyle(2,0x88ccff,0.8);
+      g.lineBetween(16,4,12,16);g.lineBetween(12,16,18,24);
+      g.lineBetween(28,16,20,12);g.lineBetween(20,12,16,20);
+      g.lineStyle(1,0xffffff,0.5);
+      g.lineBetween(8,10,14,18);g.lineBetween(24,8,18,16);
+    });
+
+    // ── ビッグボム ──
+    mk2('proj_bigbomb',40,40,g=>{
+      g.fillStyle(0xff4400,0.15);g.fillCircle(20,20,19);
+      g.fillStyle(0x111111,1);g.fillCircle(20,22,16);
+      g.fillStyle(0x333333,0.5);g.fillEllipse(14,16,10,7);
+      g.fillStyle(0x555555,1);g.fillRect(18,5,5,10);
+      g.fillStyle(0xff6600,1);g.fillCircle(23,6,5);
+      g.fillStyle(0xffcc00,0.9);g.fillCircle(22,5,3);
+      [0,45,90,135,180,225,270,315].forEach(deg=>{
+        const r=deg*Math.PI/180;
+        g.fillStyle(0xff2200,0.7);
+        g.fillTriangle(20+Math.cos(r)*16,22+Math.sin(r)*16,20+Math.cos(r+0.35)*12,22+Math.sin(r+0.35)*12,20+Math.cos(r-0.35)*12,22+Math.sin(r-0.35)*12);
+      });
+    });
+
+    // ── 爆発エフェクト（派手版）──
+    mk2('fx_explosion',64,64,g=>{
+      // 外輪
+      g.fillStyle(0xff4400,0.4);g.fillCircle(32,32,31);
+      g.fillStyle(0xff6600,0.6);g.fillCircle(32,32,25);
+      g.fillStyle(0xff8800,0.8);g.fillCircle(32,32,19);
+      g.fillStyle(0xffcc00,0.9);g.fillCircle(32,32,13);
+      g.fillStyle(0xffffff,1);g.fillCircle(32,32,7);
+      // 光芒
+      [0,30,60,90,120,150,180,210,240,270,300,330].forEach((deg,i)=>{
+        const r=deg*Math.PI/180;
+        const len=i%3===0?28:i%3===1?20:15;
+        g.fillStyle(i%2===0?0xff6600:0xffcc00,0.5);
+        g.fillTriangle(32,32,32+Math.cos(r-0.2)*len,32+Math.sin(r-0.2)*len,32+Math.cos(r+0.2)*len,32+Math.sin(r+0.2)*len);
+      });
+      g.fillStyle(0xffffff,0.6);g.fillCircle(29,28,4);
+    });
+
+    // ── スラッシュエフェクト ──
+    mk2('fx_slash',48,48,g=>{
+      // 斬撃の軌跡（青白い三日月型）
+      g.fillStyle(0xaaddff,0.8);
+      g.fillTriangle(4,44,24,4,44,24);
+      g.fillStyle(0x66aaff,0.6);
+      g.fillTriangle(8,44,24,8,40,24);
+      g.fillStyle(0xffffff,0.9);
+      g.fillTriangle(10,40,24,10,38,24);
+      // ハイライト
+      g.fillStyle(0xffffff,0.5);
+      g.fillRect(10,10,4,28);
+      // エッジライン
+      g.lineStyle(2,0x88ccff,0.9);
+      g.lineBetween(4,44,44,4);
+      g.lineStyle(1,0xffffff,0.5);
+      g.lineBetween(8,40,40,8);
+    });
+
+    // ── フリーズエフェクト ──
+    mk2('fx_freeze',48,48,g=>{
+      g.fillStyle(0x88ccff,0.3);g.fillCircle(24,24,23);
+      g.fillStyle(0x44aaff,0.5);g.fillCircle(24,24,18);
+      g.fillStyle(0xaaddff,0.7);g.fillCircle(24,24,12);
+      g.fillStyle(0xeeffff,0.9);g.fillCircle(24,24,6);
+      // 雪の結晶
+      g.lineStyle(2,0xffffff,0.9);
+      [0,60,120].forEach(deg=>{
+        const r=deg*Math.PI/180;
+        g.lineBetween(24+Math.cos(r)*20,24+Math.sin(r)*20,24-Math.cos(r)*20,24-Math.sin(r)*20);
+        [-0.4,0.4].forEach(o=>{
+          [0.4,0.6].forEach(d=>{
+            g.lineBetween(24+Math.cos(r)*20*d,24+Math.sin(r)*20*d,24+Math.cos(r+o)*20*(d-0.2),24+Math.sin(r+o)*20*(d-0.2));
+          });
+        });
+      });
+      g.fillStyle(0xffffff,1);g.fillCircle(24,24,3);
+    });
+
+    // ── 衝撃波エフェクト ──
+    mk2('fx_shockwave',64,64,g=>{
+      g.lineStyle(4,0xff8800,0.9);g.strokeCircle(32,32,28);
+      g.lineStyle(3,0xffcc00,0.7);g.strokeCircle(32,32,22);
+      g.lineStyle(2,0xff4400,0.5);g.strokeCircle(32,32,16);
+      g.fillStyle(0xffaa00,0.2);g.fillCircle(32,32,14);
+      // 放射状ライン
+      [0,45,90,135,180,225,270,315].forEach(deg=>{
+        const r=deg*Math.PI/180;
+        g.lineStyle(2,0xff6600,0.4);
+        g.lineBetween(32+Math.cos(r)*16,32+Math.sin(r)*16,32+Math.cos(r)*30,32+Math.sin(r)*30);
+      });
+    });
+
     // ── 矢（proj_arrow）64×16px ──────────────────
     {
       const g=this.make.graphics({x:0,y:0,add:false});
@@ -3875,17 +4250,29 @@ class GameScene extends Phaser.Scene{
     renderRecipes(0);
     updateCraftBtn();
 
-    // スワイプ・ホイール
-    const scrollZone=mk(this.add.rectangle(PX-SB_W/2,listTop+listH/2,PW-SB_W-10,listH,0x000000,0).setScrollFactor(0).setDepth(75).setInteractive());
+    // ホイールスクロール（scrollZoneは使わずゲームシーン全体でホイール受信）
     const doScroll=(newRow)=>{const c=Math.max(0,Math.min(maxRow,newRow));if(c!==scrollRow){scrollRow=c;renderRecipes(scrollRow);}};
-    scrollZone.on('pointerdown',(ptr)=>{dragStartY=ptr.y;dragStartRow=scrollRow;});
-    scrollZone.on('pointermove',(ptr)=>{if(dragStartY===null)return;doScroll(Math.round(dragStartRow+(dragStartY-ptr.y)/CELL_H));});
-    scrollZone.on('pointerup',()=>{dragStartY=null;});
-    scrollZone.on('pointerout',()=>{dragStartY=null;});
-    scrollZone.on('wheel',(_p,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
+    // ホイール：パネル背景にイベント登録
+    const wheelZone=mk(this.add.rectangle(PX-SB_W/2,listTop+listH/2,PW-SB_W-10,listH,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
+    wheelZone.on('wheel',(_p,_dx,dy)=>{doScroll(scrollRow+(dy>0?1:-1));});
+    // スワイプ（ドラッグ）：セル上でも動くようにシーン全体で管理
+    let swipeStartY=null, swipeStartRow=null;
+    this.input.on('pointerdown',(ptr)=>{
+      if(ptr.y>listTop&&ptr.y<listTop+listH&&ptr.x>L&&ptr.x<PX+PW/2-SB_W-4){
+        swipeStartY=ptr.y; swipeStartRow=scrollRow;
+      }
+    });
+    this.input.on('pointermove',(ptr)=>{
+      if(swipeStartY===null)return;
+      const dy=swipeStartY-ptr.y;
+      if(Math.abs(dy)>10) doScroll(Math.round(swipeStartRow+dy/CELL_H));
+    });
+    this.input.on('pointerup',()=>{swipeStartY=null;});
     sbThumb.setInteractive({useHandCursor:true,draggable:true});
     this.input.setDraggable(sbThumb);
     sbThumb.on('drag',(_p,_x,y)=>{doScroll(Math.round(Math.max(0,Math.min(1,(y-listTop-sbThumbH/2)/(listH-sbThumbH)))*maxRow));});
+    // UI閉じ時にイベント解除
+    const _origClose=close;
   }
 
   openBuildingUI(b){
