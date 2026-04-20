@@ -6387,8 +6387,8 @@ const _game=new Phaser.Game({
   scale:{
     mode:Phaser.Scale.RESIZE,
     autoCenter:Phaser.Scale.CENTER_BOTH,
-    width:window.innerWidth,
-    height:window.innerHeight,
+    width:'100%',
+    height:'100%',
   },
   backgroundColor:'#000000',
   input:{
@@ -6400,19 +6400,14 @@ const _game=new Phaser.Game({
 });
 
 // 画面回転・リサイズ時にUIシーンを再起動
-let _lastW=window.innerWidth,_lastH=window.innerHeight;
+const _uiScenes=['Title','ClassSelect','SaveSelect'];
 const _handleResize=()=>{
-  const nw=window.innerWidth,nh=window.innerHeight;
-  if(Math.abs(nw-_lastW)<2&&Math.abs(nh-_lastH)<2)return;
-  _lastW=nw;_lastH=nh;
-  // GameScene以外（タイトル・クラス選択・セーブ選択など）は再起動して再描画
-  const uiScenes=['Title','ClassSelect','SaveSelect'];
-  uiScenes.forEach(key=>{
-    const sc=_game.scene.getScene(key);
-    if(sc&&_game.scene.isActive(key)){
+  _uiScenes.forEach(key=>{
+    if(_game.scene.isActive(key)){
       _game.scene.restart(key);
     }
   });
 };
-window.addEventListener('resize',()=>{setTimeout(_handleResize,200);});
-window.addEventListener('orientationchange',()=>{setTimeout(_handleResize,400);});
+// orientationchangeは完了まで時間がかかるため少し待つ
+window.addEventListener('orientationchange',()=>{setTimeout(_handleResize,500);});
+window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
