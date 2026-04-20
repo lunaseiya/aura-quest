@@ -2497,6 +2497,19 @@ class GameScene extends Phaser.Scene{
       const dmg=bull.getData('dmg')||1;
       const isCrit=bull.getData('isCrit')||false;
 
+      // ブーストアタック：多段ヒット処理
+      const boostHits=bull.getData('boostHits')||1;
+      if(boostHits>1&&!ed.dead){
+        // 1段目は通常通り下で処理、2段目以降を遅延で追加
+        for(let h=1;h<boostHits;h++){
+          this.time.delayedCall(h*120,()=>{
+            if(ed.dead)return;
+            this.hitEnemy(ed,dmg,isCrit,true); // isSkill=trueでスキルダメージ表示
+            SE('arrow');
+          });
+        }
+      }
+
       if(bowling){
         // ボーリングボムス: 着弾位置で6方向クラスター爆撃
         const bx=ed.sprite.x, by=ed.sprite.y;
@@ -2508,14 +2521,17 @@ class GameScene extends Phaser.Scene{
         // 着弾エフェクト（小爆発）
         const fl=this.add.circle(bx,by,20,0xff6600,0.9).setDepth(25);
         this.tweens.add({targets:fl,alpha:0,scaleX:3,scaleY:3,duration:250,onComplete:()=>fl.destroy()});
-        // 6方向クラスター爆発
+        // 6方向クラスター爆発（各爆発半径bRに一致）
         for(let i=0;i<6;i++){
           const a=i/6*Math.PI*2;
           const ex=bx+Math.cos(a)*bR, ey=by+Math.sin(a)*bR;
           this.time.delayedCall(i*40,()=>{
-            // 各方向の爆発エフェクト
-            const dot=this.add.circle(bx,by,8,0xffcc00,1.0).setDepth(24);
+            // 各爆発のリング（bR半径）
+            const dot=this.add.circle(bx,by,6,0xffcc00,1.0).setDepth(24);
             this.tweens.add({targets:dot,x:ex,y:ey,alpha:0,scaleX:0.5,scaleY:0.5,duration:200,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+            // 着弾リング（bR半径に一致）
+            const rng=this.add.circle(ex,ey,6,0xff6600,0).setStrokeStyle(3,0xff6600,1.0).setDepth(24);
+            this.tweens.add({targets:rng,scaleX:bR/6,scaleY:bR/6,alpha:0,duration:300,ease:'Cubic.easeOut',onComplete:()=>rng.destroy()});
             const expl=this.add.circle(ex,ey,bR*0.4,0xff6600,0.7).setDepth(24);
             this.tweens.add({targets:expl,alpha:0,scaleX:2,scaleY:2,duration:250,onComplete:()=>expl.destroy()});
             // 範囲ダメージ
@@ -2648,7 +2664,6 @@ class GameScene extends Phaser.Scene{
       // ブーストアタック判定（パッシブ）
       const boostLv=pd._hasBoostAtk?(pd.sk4||1):0;
       const boostRoll=Math.random()*100;
-      // Lv1-5: 30%で2段、Lv6-10: 30%で3段（累積）
       const tripleChance=boostLv>=6?30:0;
       const doubleChance=boostLv>=1?30:0;
       let hitCount=1;
@@ -2656,23 +2671,24 @@ class GameScene extends Phaser.Scene{
         if(boostRoll<tripleChance) hitCount=3;
         else if(boostRoll<tripleChance+doubleChance) hitCount=2;
       }
-      // 矢発射
+      // 矢は1本だけ発射
       const ang=this.getFacingAngle();
-      for(let h=0;h<hitCount;h++){
-        const delay=h*80;
-        const angSpread=ang+(h-Math.floor(hitCount/2))*0.08;
-        this.time.delayedCall(delay,()=>{
-          const res=rollAttack(pd,0,this._nearestEnemyEva());
-          this.fireBullet(p.x,p.y,angSpread,'proj_arrow',{
-            spd:540+h*20,maxDist:650,
-            dmg:res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk)),
-            isCrit:!res.miss&&res.isCrit,
-            miss:res.miss,
-            sz:14,
-          });
-          SE('arrow');
-        });
-      }
+      const res=rollAttack(pd,0,this._nearestEnemyEva());
+      const baseDmg=res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk));
+      this.fireBullet(p.x,p.y,ang,'proj_arrow',{
+        spd:540,maxDist:650,
+        dmg:baseDmg,
+        isCrit:!res.miss&&res.isCrit,
+        miss:res.miss,
+        sz:14,
+        // 多段ヒット情報を弾に持たせる
+        boostHits:hitCount,
+        boostScene:this,
+        boostPd:pd,
+      });
+      SE('arrow');
+      // 2段・3段の追加ヒットは弾着弾時に処理（hitBullet内で対応）
+      // フロートテキスト
       if(hitCount>1)this.showFloat(p.x,p.y-50,hitCount+'段ヒット！','#27ae60','info');
       this.playSpriteAtk();
       this.atkCooldown=this._calcAtkCD(0.5);
@@ -2724,6 +2740,8 @@ class GameScene extends Phaser.Scene{
     b.setData('maxDist',opt.maxDist||400);
     b.setData('vx',Math.cos(ang)*opt.spd);
     b.setData('vy',Math.sin(ang)*opt.spd);
+    b.setData('boostHits',opt.boostHits||1); // ブーストアタック多段数
+    b.setData('pierce',opt.pierce||false);
     b.rotation=ang;
     return b;
   }
@@ -2766,9 +2784,27 @@ class GameScene extends Phaser.Scene{
           const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(R,R).setDepth(24);
           this.tweens.add({targets:exp,alpha:0,scaleX:1.5,scaleY:1.5,duration:400,onComplete:()=>exp.destroy()});
         }else{
-          // 通常爆弾エフェクト
-          const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(80,80).setDepth(15);
-          this.tweens.add({targets:exp,alpha:0,scaleX:2,scaleY:2,duration:350,onComplete:()=>exp.destroy()});
+          // 通常爆弾エフェクト（爆発半径Rに完全一致）
+          // 中心フラッシュ
+          const fl=this.add.circle(tx,ty,R*0.35,0xffffff,0.9).setDepth(16);
+          this.tweens.add({targets:fl,alpha:0,scaleX:0.1,scaleY:0.1,duration:180,onComplete:()=>fl.destroy()});
+          // メインリング（半径R）
+          const er1=this.add.circle(tx,ty,8,0xff6600,0).setStrokeStyle(5,0xff6600,1.0).setDepth(15);
+          this.tweens.add({targets:er1,scaleX:R/8,scaleY:R/8,alpha:0,duration:500,ease:'Cubic.easeOut',onComplete:()=>er1.destroy()});
+          // 外リング
+          const er2=this.add.circle(tx,ty,8,0xffcc00,0).setStrokeStyle(3,0xffcc00,0.7).setDepth(14);
+          this.tweens.add({targets:er2,scaleX:R*1.1/8,scaleY:R*1.1/8,alpha:0,duration:620,delay:50,ease:'Cubic.easeOut',onComplete:()=>er2.destroy()});
+          // パーティクル
+          const pcnt=Math.min(12,Math.floor(R/10));
+          for(let i=0;i<pcnt;i++){
+            const a=(i/pcnt)*Math.PI*2;
+            const dist=R*(0.3+Math.random()*0.75);
+            const dot=this.add.circle(tx,ty,Phaser.Math.Between(4,10),[0xff6600,0xffcc00,0xff2200,0xff8800][i%4],1).setDepth(15);
+            this.tweens.add({targets:dot,x:tx+Math.cos(a)*dist,y:ty+Math.sin(a)*dist,alpha:0,scaleX:0.1,scaleY:0.1,duration:Phaser.Math.Between(300,600),ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
+          }
+          // 爆発画像（Rサイズ）
+          const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(R*1.2,R*1.2).setDepth(14);
+          this.tweens.add({targets:exp,alpha:0,scaleX:1.3,scaleY:1.3,duration:350,onComplete:()=>exp.destroy()});
         }
         // 範囲ダメージ
         this.enemyDataList.forEach(ed=>{
@@ -3021,29 +3057,35 @@ class GameScene extends Phaser.Scene{
     if(bombData.exploded)return;
     bombData.exploded=true;
     if(bombData.checkTimer)bombData.checkTimer.remove();
-    // オブジェクト削除
     [bombData.spr,bombData.zone,bombData.txt].forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
-    // _placedBombsから削除
     if(this._placedBombs){
       this._placedBombs=this._placedBombs.filter(b=>b!==bombData);
     }
-    // 爆発エフェクト
-    const fl=this.add.circle(bx,by,sz*0.4,0xffffff,0.9).setDepth(26);
-    this.tweens.add({targets:fl,alpha:0,scaleX:3,scaleY:3,duration:200,onComplete:()=>fl.destroy()});
+    // 爆発半径 = sz/2（当たり判定と完全一致）
+    const R=sz/2;
+    // フラッシュ
+    const fl=this.add.circle(bx,by,R*0.4,0xffffff,0.9).setDepth(26);
+    this.tweens.add({targets:fl,alpha:0,scaleX:0.1,scaleY:0.1,duration:180,onComplete:()=>fl.destroy()});
+    // メインリング（R半径に一致）
     const ring=this.add.circle(bx,by,8,0xff6600,0).setStrokeStyle(5,0xff6600,1.0).setDepth(25);
-    this.tweens.add({targets:ring,scaleX:sz/8,scaleY:sz/8,alpha:0,duration:400,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});
-    const exp=this.add.image(bx,by,'fx_explosion').setDisplaySize(sz,sz).setDepth(24);
-    this.tweens.add({targets:exp,alpha:0,scaleX:1.8,scaleY:1.8,duration:350,onComplete:()=>exp.destroy()});
-    // パーティクル
-    for(let i=0;i<8;i++){
-      const a=(i/8)*Math.PI*2,dist=sz*(0.3+Math.random()*0.5);
+    this.tweens.add({targets:ring,scaleX:R/8,scaleY:R/8,alpha:0,duration:450,ease:'Cubic.easeOut',onComplete:()=>ring.destroy()});
+    // 外リング
+    const ring2=this.add.circle(bx,by,8,0xffcc00,0).setStrokeStyle(3,0xffcc00,0.7).setDepth(24);
+    this.tweens.add({targets:ring2,scaleX:R*1.1/8,scaleY:R*1.1/8,alpha:0,duration:580,delay:50,ease:'Cubic.easeOut',onComplete:()=>ring2.destroy()});
+    // 爆発画像（R×2サイズ）
+    const exp=this.add.image(bx,by,'fx_explosion').setDisplaySize(R*2,R*2).setDepth(24);
+    this.tweens.add({targets:exp,alpha:0,scaleX:1.3,scaleY:1.3,duration:350,onComplete:()=>exp.destroy()});
+    // パーティクル（R範囲内に散らばる）
+    const pcnt=Math.min(12,Math.max(6,Math.floor(R/6)));
+    for(let i=0;i<pcnt;i++){
+      const a=(i/pcnt)*Math.PI*2,dist=R*(0.3+Math.random()*0.75);
       const dot=this.add.circle(bx,by,Phaser.Math.Between(4,10),i%2===0?0xff6600:0xffcc00,1.0).setDepth(25);
       this.tweens.add({targets:dot,x:bx+Math.cos(a)*dist,y:by+Math.sin(a)*dist,alpha:0,scaleX:0.1,scaleY:0.1,duration:350,ease:'Cubic.easeOut',onComplete:()=>dot.destroy()});
     }
-    // ダメージ判定（sz半径）
+    // ダメージ判定（R半径）
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
-      if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<sz/2+ed.sprite.displayWidth/2){
+      if(Phaser.Math.Distance.Between(bx,by,ed.sprite.x,ed.sprite.y)<R+ed.sprite.displayWidth/2){
         this.hitEnemy(ed,dmg,isCrit,true);
       }
     });
@@ -3389,15 +3431,16 @@ class GameScene extends Phaser.Scene{
                 }
                 const scorch=this.add.circle(cx,cy,range*0.35,0x331100,0.5).setDepth(1);
                 this.tweens.add({targets:scorch,alpha:0,duration:4000,onComplete:()=>scorch.destroy()});
-                // ダメージ
+                // ダメージ：プレイヤー地点を中心とした範囲攻撃
                 this.time.delayedCall(80,()=>{
+                  const px2=p.x, py2=p.y;
                   this.enemyDataList.forEach(ed=>{
-                    if(!ed.dead&&Phaser.Math.Distance.Between(cx,cy,ed.sprite.x,ed.sprite.y)<range){
+                    if(!ed.dead&&Phaser.Math.Distance.Between(px2,py2,ed.sprite.x,ed.sprite.y)<range){
                       this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);
                     }
                   });
                 });
-                this.showFloat(cx,cy-70,'☄ メテオーム！','#ff6600','skill');
+                this.showFloat(p.x,p.y-70,'☄ メテオーム！','#ff6600','skill');
                 SE('skill');
               });
             });
@@ -4191,13 +4234,15 @@ class GameScene extends Phaser.Scene{
         {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
         {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},
         {id:'sk3',name:'バルカン',          maxLv:10,desc:'連射'},
-        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+        {id:'sk4',name:'ブーストアタック',  maxLv:10,desc:'多段ヒット（パッシブ）',bookRequired:'archer'},
+        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       bomber:[
         {id:'sk1',name:'設置爆弾',        maxLv:10,desc:'最大3個設置・敵接触で爆破'},
         {id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},
         {id:'sk3',name:'ハイパーボム',    maxLv:5, desc:'超巨大爆弾'},
-        {id:'sk4',locked:true},{id:'sk5',locked:true},{id:'sk6',locked:true},
+        {id:'sk4',name:'ボマーパワー',    maxLv:10,desc:'攻撃範囲拡大（パッシブ）',bookRequired:'bomber'},
+        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
     };
     const defs=DEFS[pd.cls]||[];
@@ -4652,11 +4697,12 @@ class GameScene extends Phaser.Scene{
     const sk4Icons={warrior:'⚔',mage:'☄',archer:'🏹',bomber:'💣'};
     const icons=skIcons[pd.cls]||['①','②','③'];
     // sk4は書物習得済みの場合のみ表示
-    const hasSk4Book=(pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)||(pd.cls==='archer'&&pd._hasBoostAtk)||(pd.cls==='bomber'&&pd._hasBomberPower);
-    const skNums=hasSk4Book?[1,2,3,4]:[1,2,3];
+    // パッシブスキル（アーチャーのブーストアタック・ボマーのボマーパワー）はボタンに出さない
+    const hasSk4Active=(pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm);
+    const skNums=hasSk4Active?[1,2,3,4]:[1,2,3];
     skNums.forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
-      const hasSkill=pd['sk'+num]>0||(num===4&&hasSk4Book);
+      const hasSkill=pd['sk'+num]>0||(num===4&&hasSk4Active);
       const c=hasSkill?col:0x445566;
       const alpha=hasSkill?0.4:0.12;
       // sk4がある場合はボタンを左に詰める（4個横並び）
