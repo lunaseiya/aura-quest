@@ -2812,7 +2812,7 @@ const STAGE_CONFIG={
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
-  2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:560,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
   5:{name:'ST.5 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
@@ -3251,11 +3251,14 @@ class GameScene extends Phaser.Scene{
     // ステージ個別のスポーン位置オーバーライド(画像マップ用)
     if(cfg.spawnX!==undefined&&cfg.spawnY!==undefined){
       // ポータル経由の場合はそれぞれのポータル付近にスポーン
+      // ※ ポータル判定半径(70px)より十分離さないと即座に逆戻りトリガする
+      // ※ Y座標は cfg.spawnY を優先(歩ける位置への調整余地)
       if(fromPortal==='next'&&cfg.portalNextX!==undefined){
-        // 次ステージから戻ってきた=次ポータルの近く(少し中央寄り)
-        spawnX=cfg.portalNextX-60; spawnY=cfg.portalNextY||cfg.spawnY;
+        // 次ステージから戻ってきた=次ポータルの内側に120pxオフセット
+        spawnX=cfg.portalNextX-120; spawnY=cfg.spawnY;
       }else if(fromPortal==='back'&&cfg.portalBackX!==undefined){
-        spawnX=cfg.portalBackX+60; spawnY=cfg.portalBackY||cfg.spawnY;
+        // 前ステージから進んできた=戻りポータルの内側に120pxオフセット
+        spawnX=cfg.portalBackX+120; spawnY=cfg.spawnY;
       }else{
         spawnX=cfg.spawnX; spawnY=cfg.spawnY;
       }
