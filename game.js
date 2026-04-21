@@ -466,6 +466,86 @@ function _playSkyBGM(){
   },(totalDur-0.1)*1000);
 }
 
+// ── ST2森の遺跡BGM：穏やか・神秘的・川と古代遺跡の雰囲気 ──
+function _playForestBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.15; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=90, B=60/BPM, bar=B*4;
+
+  // メロディー（フルート風 sine・ペンタトニック寄り、優しい上昇下降）
+  const mel=[
+    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
+    [NOTE.D5,B*2],[NOTE.B4,B],[NOTE.A4,B],
+    [NOTE.G4,B*2],[NOTE.E4,B*2],
+    [NOTE.D4,bar],
+    [NOTE.A4,B*2],[NOTE.B4,B],[NOTE.D5,B],
+    [NOTE.E5,B*2],[NOTE.D5,B],[NOTE.B4,B],
+    [NOTE.A4,B*2],[NOTE.G4,B*2],
+    [NOTE.E4,bar],
+    // 後半（少し上に展開）
+    [NOTE.D5,B*2],[NOTE.E5,B],[NOTE.G5,B],
+    [NOTE.E5,B*2],[NOTE.D5,B],[NOTE.B4,B],
+    [NOTE.A4,bar],
+    [NOTE.B4,B*2],[NOTE.A4,B],[NOTE.G4,B],
+    [NOTE.E4,B*2],[NOTE.G4,B*2],
+    [NOTE.D4,bar*2],
+  ];
+  let t=now; mel.forEach(([f,d])=>{
+    _playNote(ac,master,f,'sine',0.30,t,d*0.92,0.03,0.12);
+    // 倍音をかすかに重ねて木管らしさ
+    _playNote(ac,master,f*2,'sine',0.04,t,d*0.92,0.03,0.10);
+    t+=d;
+  });
+
+  // 和音（triangle・温かいファンタジー進行 I-V-vi-IV）
+  const chords=[
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.D4,NOTE.F3s||NOTE.A3,NOTE.A3],bar],
+    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
+    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    // 後半同パターン
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
+    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+  ];
+  let ct=now;
+  chords.forEach(([notes,d])=>{
+    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.10,ct,d*0.85,0.05,0.18));
+    ct+=d;
+  });
+
+  // ベース（川の流れのような低い sine、ゆっくり）
+  const bassLine=[NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3, NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3,
+                  NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3, NOTE.G3,NOTE.C3,NOTE.D3,NOTE.G3];
+  bassLine.forEach((f,i)=>{
+    _playNote(ac,master,f*0.5,'sine',0.18,now+i*bar,bar*0.9,0.04,0.2);
+  });
+
+  // 鳥のさえずり風の高音装飾（ランダム位置にぽつぽつと）
+  const birdTimes=[bar*1.5, bar*3.2, bar*5.7, bar*7.3, bar*9.1, bar*11.8, bar*13.5];
+  birdTimes.forEach(bt=>{
+    _playNote(ac,master,NOTE.C5*2,'sine',0.06,now+bt,0.08,0.005,0.05);
+    _playNote(ac,master,NOTE.E5*2,'sine',0.05,now+bt+0.1,0.08,0.005,0.05);
+  });
+
+  const totalDur=bar*16;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='st2_forest'&&!muted)_playForestBGM();
+  },(totalDur-0.1)*1000);
+}
+
 // ── ST5崖道BGM：不気味で緊張感のある崖道 ────────────
 function _playCliffBGM(){
   const ac=getAC();if(!ac||muted)return;
@@ -536,6 +616,7 @@ function startBGM(key){
   // 合成BGM
   if(key==='title') _playTitleBGM();
   else if(key==='town') _playTownBGM();
+  else if(key==='st2_forest') _playForestBGM();
   else if(key==='st2'||key==='st3'||key==='st4') _playStageBGM();
   else if(key==='st5') _playCliffBGM();
   else if(key==='st6') _playSkyBGM();
@@ -728,6 +809,7 @@ class BootScene extends Phaser.Scene{
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
     // ── カスタムマップ画像（1枚絵背景） ──
     this.load.image('map_st1', BASE+'maps/st1.png');
+    this.load.image('map_st2', BASE+'maps/st2.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -2730,7 +2812,7 @@ const STAGE_CONFIG={
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
-  2:{name:'ST.2 溶岩地帯',bgmKey:'st2',tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:['obj_lava_rock'],objPos:[[200,150],[550,100],[780,200],[120,450],[950,300],[380,650],[820,580],[1000,750],[460,340],[700,820]],enemies:[['goblin',300,200],['goblin',700,250],['goblin',300,450],['goblin',900,320],['wolf',550,580],['wolf',800,700],['wolf',400,750],['troll',650,480],['troll',820,560],['troll',250,720],['skeleton',350,550],['skeleton',750,620],['skeleton',600,400]],boss:{id:'boss2',x:600,y:300},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1'},
+  2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
   5:{name:'ST.5 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
