@@ -726,6 +726,8 @@ class BootScene extends Phaser.Scene{
     // arrow はコード描画テクスチャを使用
     // proj・fx はコード生成に変更
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
+    // ── カスタムマップ画像（1枚絵背景） ──
+    this.load.image('map_st1', BASE+'maps/st1.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -2727,7 +2729,7 @@ const STAGE_CONFIG={
       {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
     ],
   },
-  1:{name:'ST.1 草原',bgmKey:'st1',tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:['obj_tree'],objPos:[[180,120],[500,90],[740,180],[145,400],[900,290],[350,600],[800,540],[950,700],[420,320],[650,800]],enemies:[['slime',300,200],['slime',700,300],['slime',500,500],['slime',850,200],['slime',170,540],['bat',400,150],['bat',900,400],['bat',210,490],['goblin',600,590],['goblin',160,290],['goblin',970,490],['troll',800,690],['troll',340,740]],boss:{id:'boss1',x:600,y:300},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town'},
+  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',400,300],['slime',900,350],['slime',600,600],['slime',1100,500],['slime',300,700],['bat',500,250],['bat',1000,650],['bat',350,500],['goblin',800,500],['goblin',450,800],['goblin',1150,750],['troll',950,250],['troll',550,850]],boss:{id:'boss1',x:724,y:543},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town'},
   2:{name:'ST.2 溶岩地帯',bgmKey:'st2',tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:['obj_lava_rock'],objPos:[[200,150],[550,100],[780,200],[120,450],[950,300],[380,650],[820,580],[1000,750],[460,340],[700,820]],enemies:[['goblin',300,200],['goblin',700,250],['goblin',300,450],['goblin',900,320],['wolf',550,580],['wolf',800,700],['wolf',400,750],['troll',650,480],['troll',820,560],['troll',250,720],['skeleton',350,550],['skeleton',750,620],['skeleton',600,400]],boss:{id:'boss2',x:600,y:300},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1'},
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
@@ -2838,7 +2840,16 @@ class GameScene extends Phaser.Scene{
     startBGM(cfg.bgmKey);
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
-    // タイル
+
+    // ── 1枚絵マップモード（cfg.mapImage 指定時） ──
+    if(cfg.mapImage && this.textures.exists(cfg.mapImage)){
+      // 1枚絵を背景として配置（左上原点で全体表示）
+      this.add.image(0,0,cfg.mapImage).setOrigin(0,0).setDisplaySize(MW,MH).setDepth(-10);
+      // ピクセル色判別用の隠しキャンバスを準備
+      this._mapMaskReady = this._buildMapColorMask(cfg.mapImage);
+      // タイル描画はスキップ
+    }else{
+    // ── 従来のタイル描画 ──
     const cols=Math.ceil(MW/TILE),rows=Math.ceil(MH/TILE);
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
       let key;
@@ -2865,6 +2876,7 @@ class GameScene extends Phaser.Scene{
       }
       this.add.image(c*TILE+16,r*TILE+16,key).setDisplaySize(TILE,TILE);
     }
+    } // 1枚絵モード終端
     // ST7: オーク集落の装飾
     if(this.stage===7){
       const g7=this.add.graphics().setDepth(1);
@@ -4697,10 +4709,10 @@ class GameScene extends Phaser.Scene{
     }
 
     const items=shops[b.type]||[];
-    // 1列・コンパクトセル・スワイプスクロール
-    const SH_COLS=1;
-    const SH_CW=PW-20;
-    const SH_H=52; // コンパクトに
+    // 購入モード：2列×3行グリッド（最大6個表示・スクロール対応）
+    const SH_COLS=2;
+    const SH_CW=(PW-24)/SH_COLS; // 2列の各列幅
+    const SH_H=68; // セル高さ（縦長：アイコン+商品名+価格用）
     const BUY_H=42;
     // ショップは「購入/売却」タブを表示するため、リストの上にタブ用の余白を確保
     const hasTabs=(b.type==='shop');
@@ -4708,9 +4720,9 @@ class GameScene extends Phaser.Scene{
     const listTop=PY-PH/2+60+TAB_H;
     const listBottom=PY+PH/2-48-BUY_H;
     const listH2=listBottom-listTop;
-    const visibleRows=Math.floor(listH2/SH_H);
+    const visibleRows=Math.max(1,Math.floor(listH2/SH_H));
     const visibleCount=visibleRows*SH_COLS;
-    let shopScroll=0;
+    let shopScroll=0;          // 購入モードでは「行」単位のスクロール
     let selectedItem=null;     // 購入時：商品オブジェクト / 売却時：所持品ID
     let mode='buy';            // 'buy' | 'sell'
     const shopObjs=[];
@@ -4951,39 +4963,59 @@ class GameScene extends Phaser.Scene{
         return;
       }
 
-      // ── 購入モード（既存） ──
-      items.slice(offset,offset+visibleCount).forEach((item,i)=>{
-        const ix=PX;
-        const iy=listTop+i*SH_H+SH_H/2;
+      // ── 購入モード：2列×N行グリッド ──
+      // offset は「行」インデックス。1行 = SH_COLS 個。
+      const startIdx=offset*SH_COLS;
+      const endIdx=startIdx+visibleCount;
+      items.slice(startIdx,endIdx).forEach((item,i)=>{
+        const col=i%SH_COLS;
+        const row=Math.floor(i/SH_COLS);
+        // 各セルの中心x座標（左列はPXの左、右列は右）
+        const ix=PX-(PW-24)/2+SH_CW/2+col*SH_CW;
+        const iy=listTop+row*SH_H+SH_H/2;
         const isSelected=selectedItem===item;
         const mageOnly=item.mageOnly||false;
         const wrongClass=mageOnly&&pd.cls!=='mage';
         const canAfford=pd.gold>=item.price&&!wrongClass;
         const bgCol=isSelected?0x1a3a1a:wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
         const strokeCol=isSelected?0x44ff44:wrongClass?0x552222:canAfford?0x44aaff:0x333333;
-        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-4,SH_H-4,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
-        // アイコン
-        addS(this.add.text(PX-SH_CW/2+20,iy,item.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
-        // 商品名
+        const ibg=addS(this.add.rectangle(ix,iy,SH_CW-6,SH_H-6,bgCol,0.92).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+        // アイコン（左上）
+        addS(this.add.text(ix-SH_CW/2+18,iy-SH_H*0.22,item.icon,{fontSize:'20px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        // 商品名（アイコン右）
         const textCol=isSelected?'#44ff44':wrongClass?'#552222':canAfford?'#ffffff':'#555566';
-        addS(this.add.text(PX-SH_CW/2+42,iy-8,item.label,{fontSize:'13px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-120},fontStyle:isSelected?'bold':'normal'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-        // 専用クラス表示
+        // 名前は「※職業専用」を除いた本体のみ表示
+        const cleanLabel=item.label.replace(/\s*※[^\s]+専用.*$/,'');
+        addS(this.add.text(ix-SH_CW/2+34,iy-SH_H*0.22,cleanLabel,{
+          fontSize:'12px',fontFamily:'Arial',color:textCol,
+          wordWrap:{width:SH_CW-44},
+          fontStyle:isSelected?'bold':'normal'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        // 専用クラス（左下）
         if(mageOnly){
-          addS(this.add.text(PX-SH_CW/2+42,iy+10,'🔮マジシャン専用',{fontSize:'9px',fontFamily:'Arial',color:wrongClass?'#663333':'#9966cc'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(ix-SH_CW/2+10,iy+SH_H*0.18,'🔮 マジシャン専用',{fontSize:'10px',fontFamily:'Arial',color:wrongClass?'#663333':'#9966cc'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        }else if(item.label.includes('剣士専用')){
+          addS(this.add.text(ix-SH_CW/2+10,iy+SH_H*0.18,'⚔ 剣士専用',{fontSize:'10px',fontFamily:'Arial',color:pd.cls==='warrior'?'#e74c3c':'#663333'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        }else if(item.label.includes('アーチャー専用')){
+          addS(this.add.text(ix-SH_CW/2+10,iy+SH_H*0.18,'🏹 アーチャー専用',{fontSize:'10px',fontFamily:'Arial',color:pd.cls==='archer'?'#27ae60':'#663333'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        }else if(item.label.includes('ボマー専用')){
+          addS(this.add.text(ix-SH_CW/2+10,iy+SH_H*0.18,'💣 ボマー専用',{fontSize:'10px',fontFamily:'Arial',color:pd.cls==='bomber'?'#f39c12':'#663333'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
         }
-        // 価格（右端）
+        // 価格（右下）
         if(item.price>0){
-          addS(this.add.text(PX+SH_CW/2-10,iy,item.price+'G',{fontSize:'14px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(ix+SH_CW/2-10,iy+SH_H*0.18,item.price+'G',{fontSize:'14px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
         }
         ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:item);renderShopItems(shopScroll);updateBuyBtn();});
         ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x1a4a1a:0x1a2a3a,0.95));
-        ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
+        ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.92));
       });
 
       // 件数インジケーター
-      if(items.length>visibleCount){
-        const total=items.length, shown=Math.min(offset+visibleCount,total);
-        addS(this.add.text(PX,listBottom+4,(offset+1)+'〜'+shown+' / '+total,{fontSize:'10px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+      const totalRowsBuy=Math.ceil(items.length/SH_COLS);
+      if(totalRowsBuy>visibleRows){
+        const startRow=offset+1;
+        const endRow=Math.min(offset+visibleRows,totalRowsBuy);
+        addS(this.add.text(PX,listBottom+4,'行 '+startRow+'〜'+endRow+' / '+totalRowsBuy+'　▲▼スワイプでスクロール',{fontSize:'10px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
       }
     };
 
@@ -4991,8 +5023,12 @@ class GameScene extends Phaser.Scene{
     const shZone=mk(this.add.rectangle(PX,listTop+listH2/2,PW-8,listH2,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
     const SH_SELL_H=64;
     const sellRowsPerView=()=>Math.max(1,Math.floor(listH2/SH_SELL_H));
-    const curListLen=()=>(mode==='sell'?sellList.length:items.length);
-    const curMaxScroll=()=>Math.max(0,curListLen()-(mode==='sell'?sellRowsPerView():visibleCount));
+    // 購入モード：「行」単位／売却モード：「アイテム」単位
+    const curMaxScroll=()=>{
+      if(mode==='sell') return Math.max(0,sellList.length-sellRowsPerView());
+      const totalRows=Math.ceil(items.length/SH_COLS);
+      return Math.max(0,totalRows-visibleRows);
+    };
     const curRowH=()=>(mode==='sell'?SH_SELL_H:SH_H);
     const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(curMaxScroll(),newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
     shZone.on('wheel',(_p,_dx,dy)=>{doShScroll(shopScroll+(dy>0?1:-1));});
@@ -5979,6 +6015,28 @@ class GameScene extends Phaser.Scene{
     let vy=ku?-1:kd?1:this.joyDy||0;
     const len=Math.sqrt(vx*vx+vy*vy);
     if(len>1){vx/=len;vy/=len;}
+    // ── 1枚絵マップの色判別による壁衝突判定 ──
+    if(this._mapMaskCtx){
+      // プレイヤーの足元(下端中央)を判定基準にする
+      const footYOff = (p.displayHeight||64)*0.4;
+      const halfW = (p.displayWidth||64)*0.25;
+      const speed = pd.spd;
+      const dt = 1/60; // フレーム想定
+      const stepX = vx*speed*dt*1.2; // ちょい先読み
+      const stepY = vy*speed*dt*1.2;
+      // X方向の移動先チェック(複数点で判定するとめり込み防止精度UP)
+      if(vx!==0){
+        const tx = p.x + stepX + (vx>0?halfW:-halfW);
+        const ty = p.y + footYOff;
+        if(!this._isWalkable(tx, ty)) vx=0;
+      }
+      // Y方向の移動先チェック
+      if(vy!==0){
+        const tx = p.x;
+        const ty = p.y + footYOff + (vy>0?8:-8);
+        if(!this._isWalkable(tx, ty)) vy=0;
+      }
+    }
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
     if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer'||pd.cls==='warrior') this._updateSpriteAnim(vx,vy);
@@ -6474,6 +6532,56 @@ class GameScene extends Phaser.Scene{
     };
     this.input.keyboard.once('keydown-R',revive);
     this.time.delayedCall(500,()=>this.input.once('pointerdown',revive));
+  }
+
+  // ── マップ画像から「歩ける/歩けない」判定用のキャンバスを構築 ──
+  _buildMapColorMask(textureKey){
+    try{
+      const src = this.textures.get(textureKey).getSourceImage();
+      // 軽量化のため、低解像度のオフスクリーン Canvas にコピーして色を読む
+      // 解像度を 1/2 に縮小（精度はゲーム的には十分）
+      const scale = 0.5;
+      const cw = Math.max(1, Math.floor(src.width * scale));
+      const ch = Math.max(1, Math.floor(src.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw; canvas.height = ch;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(src, 0, 0, cw, ch);
+      this._mapMaskCanvas = canvas;
+      this._mapMaskCtx = ctx;
+      this._mapMaskScale = scale;
+      this._mapMaskW = cw;
+      this._mapMaskH = ch;
+      return true;
+    }catch(e){
+      console.warn('map mask build failed:', e);
+      return false;
+    }
+  }
+
+  // 指定ワールド座標が「歩けるか」を返す（歩ける=true, 壁=false）
+  _isWalkable(worldX, worldY){
+    if(!this._mapMaskCtx) return true;
+    const cfg = this.cfg;
+    if(!cfg) return true;
+    // ワールド座標をマスクキャンバス座標に変換
+    const mx = Math.floor(worldX / this.MW * this._mapMaskW);
+    const my = Math.floor(worldY / this.MH * this._mapMaskH);
+    if(mx<0||my<0||mx>=this._mapMaskW||my>=this._mapMaskH) return false; // マップ外は不可
+    const px = this._mapMaskCtx.getImageData(mx, my, 1, 1).data;
+    const r = px[0], g = px[1], b = px[2];
+    // 色判別ロジック
+    // 「歩けるエリア」= 草地(明るい黄緑〜緑)、土(黄土色)
+    //  - R, G が高めで B が低め(緑系/土系)
+    //  - 全体的に暗い(R+G+B < 220) なら森や岩=壁
+    // 「壁」= 暗い緑(深い森)、灰色〜茶色(岩)
+    const sum = r + g + b;
+    if(sum < 240) return false; // 暗いエリアは壁(深い森)
+    if(b > g && b > r) return false; // 青っぽいエリア(影など)は壁
+    // 灰色判定: R≈G≈B のエリア(岩)
+    const maxC = Math.max(r,g,b), minC = Math.min(r,g,b);
+    if(maxC - minC < 25 && sum < 540) return false; // 中間の灰色=岩
+    return true;
   }
 
   update(time,delta){
