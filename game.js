@@ -6877,16 +6877,19 @@ class GameScene extends Phaser.Scene{
           return;
         }
       }
-      // 戻るポータル（左端）
-      if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined&&
-         Phaser.Math.Distance.Between(p.x,p.y,80,(this.portalBackPos?this.portalBackPos.y:this.MH/2))<70){
-        this._transitioning=true;
-        this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'}); // 戻る→到着先の右端近くにスポーン
-        return;
+      // 戻るポータル（cfgで指定された位置 or デフォルト左端）
+      if(this.cfg.portalBack!==null&&this.cfg.portalBack!==undefined){
+        const pbX=this.portalBackPos?this.portalBackPos.x:80;
+        const pbY=this.portalBackPos?this.portalBackPos.y:this.MH/2;
+        if(Phaser.Math.Distance.Between(p.x,p.y,pbX,pbY)<70){
+          this._transitioning=true;
+          this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'}); // 戻る→到着先の右端近くにスポーン
+          return;
+        }
       }
-      // 進むポータル（右端）
+      // 進むポータル（cfgで指定された位置 or デフォルト右端）
       if(this.portalNext&&this.portalNext.open&&
-         Phaser.Math.Distance.Between(p.x,p.y,this.MW-80,this.MH/2)<70){
+         Phaser.Math.Distance.Between(p.x,p.y,this.portalNext.x,this.portalNext.y)<70){
         this._transitioning=true;
         const nextScene=(!this.cfg.portalTo)?'GameClear':'Game';
         const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to,fromPortal:'back'}; // 進む→到着先の左端近くにスポーン
