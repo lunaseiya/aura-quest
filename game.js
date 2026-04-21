@@ -6015,26 +6015,20 @@ class GameScene extends Phaser.Scene{
     let vy=ku?-1:kd?1:this.joyDy||0;
     const len=Math.sqrt(vx*vx+vy*vy);
     if(len>1){vx/=len;vy/=len;}
-    // ── 1枚絵マップの色判別による壁衝突判定 ──
+    // ── 1枚絵マップの色判別による壁衝突判定(複数点・厳しめ) ──
     if(this._mapMaskCtx){
-      // プレイヤーの足元(下端中央)を判定基準にする
-      const footYOff = (p.displayHeight||64)*0.4;
-      const halfW = (p.displayWidth||64)*0.25;
+      // プレイヤーの体の半径(やや内側で判定して見た目めり込みを防ぐ)
+      const halfW = (p.displayWidth||64)*0.30;
+      const halfH = (p.displayHeight||64)*0.30;
       const speed = pd.spd;
-      const dt = 1/60; // フレーム想定
-      const stepX = vx*speed*dt*1.2; // ちょい先読み
-      const stepY = vy*speed*dt*1.2;
-      // X方向の移動先チェック(複数点で判定するとめり込み防止精度UP)
+      const lookAhead = Math.max(8, speed*0.06); // 先読み距離(高速ほど大きく)
+      // X方向だけ動かしてみた時の判定
       if(vx!==0){
-        const tx = p.x + stepX + (vx>0?halfW:-halfW);
-        const ty = p.y + footYOff;
-        if(!this._isWalkable(tx, ty)) vx=0;
+        if(!this._canMoveTo(p.x + vx*lookAhead, p.y, halfW, halfH)) vx=0;
       }
-      // Y方向の移動先チェック
+      // Y方向だけ動かしてみた時の判定
       if(vy!==0){
-        const tx = p.x;
-        const ty = p.y + footYOff + (vy>0?8:-8);
-        if(!this._isWalkable(tx, ty)) vy=0;
+        if(!this._canMoveTo(p.x, p.y + vy*lookAhead, halfW, halfH)) vy=0;
       }
     }
     p.setVelocity(vx*pd.spd,vy*pd.spd);
@@ -6570,17 +6564,36 @@ class GameScene extends Phaser.Scene{
     if(mx<0||my<0||mx>=this._mapMaskW||my>=this._mapMaskH) return false; // マップ外は不可
     const px = this._mapMaskCtx.getImageData(mx, my, 1, 1).data;
     const r = px[0], g = px[1], b = px[2];
-    // 色判別ロジック
-    // 「歩けるエリア」= 草地(明るい黄緑〜緑)、土(黄土色)
-    //  - R, G が高めで B が低め(緑系/土系)
-    //  - 全体的に暗い(R+G+B < 220) なら森や岩=壁
-    // 「壁」= 暗い緑(深い森)、灰色〜茶色(岩)
+    // ── 厳しめの歩行可否判定 ──
+    // 「歩けるエリア」= 明るい黄緑〜緑〜黄土色(草地・道)のみ
+    // それ以外(深い森・岩・暗いエリア)はすべて壁
     const sum = r + g + b;
-    if(sum < 240) return false; // 暗いエリアは壁(深い森)
-    if(b > g && b > r) return false; // 青っぽいエリア(影など)は壁
-    // 灰色判定: R≈G≈B のエリア(岩)
-    const maxC = Math.max(r,g,b), minC = Math.min(r,g,b);
-    if(maxC - minC < 25 && sum < 540) return false; // 中間の灰色=岩
+    // 1) 暗いエリアは壁
+    if(sum < 360) return false;
+    // 2) 緑優位かつ明るいなら歩ける(草地)
+    //    - G が R, B より明確に大きい
+    //    - かつ G が一定以上の明るさ
+    if(g > 110 && g >= r - 20 && g >= b + 10) return true;
+    // 3) 黄土色(土・道): R と G がほぼ同じで明るく、B が低め
+    if(r > 130 && g > 120 && b < g && (r + g) > b * 2.5) return true;
+    // それ以外は壁
+    return false;
+  }
+
+  // 複数の判定点を使った当たり判定(プレイヤーの体の輪郭に合わせて)
+  _canMoveTo(cx, cy, halfW, halfH){
+    if(!this._mapMaskCtx) return true;
+    // 5点判定: 足元中央、左下、右下、左中、右中
+    const points = [
+      [cx,         cy + halfH*0.6],   // 足元中央
+      [cx - halfW, cy + halfH*0.6],   // 左足
+      [cx + halfW, cy + halfH*0.6],   // 右足
+      [cx - halfW, cy + halfH*0.2],   // 左腰
+      [cx + halfW, cy + halfH*0.2],   // 右腰
+    ];
+    for(let i=0;i<points.length;i++){
+      if(!this._isWalkable(points[i][0], points[i][1])) return false;
+    }
     return true;
   }
 
