@@ -600,6 +600,34 @@ function SE(type){
     arrow:  [[880,'sine',0.12,0.08],[660,'sine',0.10,0.06]],
     magic:  [[523,'sine',0.16,0.20],[784,'sine',0.14,0.25],[1047,'sine',0.12,0.30]],
     explode:[[110,'sawtooth',0.22,0.30],[220,'square',0.18,0.20]],
+    // ── UI操作系（軽め・控えめ）──
+    tab:    [[880,'sine',0.10,0.05],[1320,'sine',0.08,0.06]],
+    click:  [[660,'sine',0.08,0.05]],
+    open:   [[523,'sine',0.10,0.06],[784,'sine',0.10,0.08]],
+    close:  [[523,'sine',0.08,0.06],[330,'sine',0.08,0.08]],
+    // ── スキル系（職業別の発動音）──
+    slash:    [[660,'sawtooth',0.20,0.06],[1320,'sawtooth',0.18,0.10],[2200,'sine',0.10,0.06]],   // 剣士・烈風斬：シュッ
+    parry:    [[1760,'sine',0.22,0.06],[2640,'sine',0.18,0.08],[3520,'sine',0.10,0.10]],          // パリィ：チンッ
+    guard:    [[330,'square',0.18,0.20],[440,'sine',0.14,0.30]],                                  // ハードガード：ブォン
+    berserk:  [[180,'sawtooth',0.22,0.20],[260,'sawtooth',0.20,0.20],[340,'sawtooth',0.18,0.30]], // バーサク：ゴオオ
+    freeze:   [[1760,'sine',0.14,0.10],[2200,'sine',0.12,0.12],[2640,'sine',0.10,0.14],[3300,'sine',0.08,0.18]], // フロスト：キラキラ
+    meteor:   [[80,'sawtooth',0.30,0.40],[110,'sawtooth',0.28,0.40],[160,'square',0.22,0.30]],    // メテオ・大爆発：ドゴーン
+    bigbomb:  [[60,'sawtooth',0.32,0.50],[90,'sawtooth',0.28,0.50],[140,'square',0.22,0.40],[200,'square',0.16,0.30]], // ビッグ/ハイパーボム
+    vortex:   [[440,'sine',0.14,0.08],[660,'sine',0.14,0.10],[880,'sine',0.12,0.12],[1320,'sine',0.10,0.16]], // 渦巻き：ヒュルル
+    multishot:[[1100,'sine',0.12,0.05],[990,'sine',0.10,0.05],[880,'sine',0.10,0.06],[770,'sine',0.10,0.06],[660,'sine',0.10,0.06]], // 多方向：シュシュッ
+    boost:    [[440,'sine',0.16,0.10],[660,'sine',0.16,0.12],[880,'sine',0.18,0.20]],             // バフ：キーン
+    // ── プレイヤー被弾 ──
+    hurt:     [[180,'sawtooth',0.22,0.10],[120,'square',0.18,0.12]],                              // ガッ
+    dodge:    [[1760,'sine',0.12,0.06],[1320,'sine',0.10,0.06]],                                  // 回避：シュッ
+    // ── モンスター撃破SE（種別ごと）──
+    kill_pop:    [[660,'sine',0.16,0.08],[990,'sine',0.14,0.10]],                                 // スライム系：プニュッ
+    kill_squeak: [[2200,'sine',0.14,0.06],[1760,'sine',0.12,0.08]],                               // 虫・コウモリ系：キィッ
+    kill_grunt:  [[220,'sawtooth',0.20,0.10],[180,'square',0.16,0.12]],                          // ゴブリン・オーク系：ガッ
+    kill_roar:   [[110,'sawtooth',0.24,0.20],[140,'sawtooth',0.20,0.22],[90,'square',0.18,0.18]], // 獣・大型系：グァッ
+    kill_bone:   [[440,'square',0.14,0.06],[330,'square',0.14,0.06],[550,'square',0.12,0.08],[220,'square',0.10,0.10]], // 骸骨：カラカラッ
+    kill_heavy:  [[80,'sawtooth',0.26,0.25],[60,'sawtooth',0.22,0.30],[180,'square',0.16,0.20]],  // 巨大：ドゴッ
+    kill_hiss:   [[1320,'sine',0.10,0.08],[990,'sine',0.10,0.10],[660,'sine',0.10,0.12]],         // 砂漠生物：シャッ
+    kill_boss:   [[60,'sawtooth',0.30,0.40],[110,'sawtooth',0.26,0.30],[220,'square',0.20,0.25],[440,'sine',0.16,0.30],[880,'sine',0.12,0.40]], // ボス撃破
   };
   const cfg=C[type];if(!cfg)return;
   const isCritSE=(type==='crit');
@@ -2241,39 +2269,56 @@ const ITEM_DEFS={
 
 // モンスターごとのドロップテーブル
 // {id, rate(0-1), min, max}
+// 一般モンスター：上限0.5。レア素材ほど低確率。
+// ボス：演出上の重要素材なので例外として高確率を維持。
 const DROP_TABLE={
-  slime:    [{id:'jelly',       rate:1.0, min:1, max:2}],
-  bat:      [{id:'bat_wing',    rate:1.0, min:1, max:1}],
-  goblin:   [{id:'goblin_ear',  rate:1.0, min:1, max:1}],
-  troll:    [{id:'troll_hide',  rate:1.0, min:1, max:1}],
-  wolf:     [{id:'wolf_fang',   rate:1.0, min:1, max:2}],
-  skeleton: [{id:'bone',        rate:1.0, min:1, max:3}],
-  dragon:   [{id:'dragon_scale',rate:1.0, min:1, max:1}],
-  sandworm: [{id:'sand_core',   rate:1.0, min:1, max:1}],
-  scorpion: [{id:'scorpion_claw',rate:1.0,min:1, max:2}],
+  slime:    [{id:'jelly',       rate:0.40, min:1, max:2}],
+  bat:      [{id:'bat_wing',    rate:0.35, min:1, max:1}],
+  goblin:   [{id:'goblin_ear',  rate:0.40, min:1, max:1}],
+  troll:    [{id:'troll_hide',  rate:0.30, min:1, max:1}],
+  wolf:     [{id:'wolf_fang',   rate:0.30, min:1, max:2}],
+  skeleton: [{id:'bone',        rate:0.45, min:1, max:3}],
+  dragon:   [{id:'dragon_scale',rate:0.15, min:1, max:1}],
+  sandworm: [{id:'sand_core',   rate:0.20, min:1, max:1}],
+  scorpion: [{id:'scorpion_claw',rate:0.30,min:1, max:2}],
   boss1:    [{id:'boss_gem',    rate:1.0, min:1, max:2}],
   boss2:    [{id:'boss_gem',    rate:1.0, min:1, max:1},{id:'boss_core',rate:0.8,min:1,max:1}],
   boss3:    [{id:'boss_gem',    rate:1.0, min:2, max:3},{id:'chaos_shard',rate:0.9,min:1,max:1}],
   boss4:    [{id:'boss_gem',    rate:1.0, min:3, max:5},{id:'chaos_shard',rate:1.0,min:2,max:2}],
-  bear:         [{id:'troll_hide',  rate:0.6, min:1, max:2}],
-  beetle:       [{id:'scorpion_claw',rate:0.5,min:1, max:2}],
-  hornet:       [{id:'bat_wing',    rate:0.6, min:1, max:2}],
-  scorpion_queen:[{id:'scorpion_claw',rate:0.8,min:2,max:3},{id:'boss_gem',rate:0.3,min:1,max:1}],
+  bear:         [{id:'troll_hide',  rate:0.35, min:1, max:2}],
+  beetle:       [{id:'scorpion_claw',rate:0.40,min:1, max:2}],
+  hornet:       [{id:'bat_wing',    rate:0.40, min:1, max:2}],
+  scorpion_queen:[{id:'scorpion_claw',rate:0.50,min:2,max:3},{id:'boss_gem',rate:0.15,min:1,max:1}],
   mistress:     [{id:'boss_gem',rate:1.0,min:4,max:6},{id:'chaos_shard',rate:1.0,min:3,max:3}],
-  cloud_monkey: [{id:'jelly',rate:0.5,min:1,max:2}],
-  treant:       [{id:'troll_hide',rate:0.6,min:1,max:2},{id:'bone',rate:0.4,min:1,max:1}],
-  rock_golem:   [{id:'sand_core',rate:0.7,min:1,max:2},{id:'boss_gem',rate:0.2,min:1,max:1}],
-  giant:        [{id:'troll_hide',rate:0.7,min:2,max:3},{id:'wolf_fang',rate:0.5,min:1,max:2}],
+  cloud_monkey: [{id:'jelly',rate:0.45,min:1,max:2}],
+  treant:       [{id:'troll_hide',rate:0.35,min:1,max:2},{id:'bone',rate:0.30,min:1,max:1}],
+  rock_golem:   [{id:'sand_core',rate:0.30,min:1,max:2},{id:'boss_gem',rate:0.10,min:1,max:1}],
+  giant:        [{id:'troll_hide',rate:0.40,min:2,max:3},{id:'wolf_fang',rate:0.30,min:1,max:2}],
   thunder_god:  [{id:'boss_gem',rate:1.0,min:5,max:8},{id:'chaos_shard',rate:1.0,min:4,max:4}],
-  orc_warrior:  [{id:'goblin_ear',rate:0.6,min:1,max:2},{id:'wolf_fang',rate:0.4,min:1,max:1}],
-  orc_high:     [{id:'troll_hide',rate:0.6,min:1,max:2},{id:'boss_gem',rate:0.2,min:1,max:1}],
-  orc_lady:     [{id:'jelly',rate:0.5,min:1,max:2},{id:'goblin_ear',rate:0.4,min:1,max:1}],
-  orc_archer:   [{id:'bone',rate:0.5,min:1,max:2},{id:'bat_wing',rate:0.4,min:1,max:1}],
+  orc_warrior:  [{id:'goblin_ear',rate:0.45,min:1,max:2},{id:'wolf_fang',rate:0.25,min:1,max:1}],
+  orc_high:     [{id:'troll_hide',rate:0.35,min:1,max:2},{id:'boss_gem',rate:0.10,min:1,max:1}],
+  orc_lady:     [{id:'jelly',rate:0.45,min:1,max:2},{id:'goblin_ear',rate:0.30,min:1,max:1}],
+  orc_archer:   [{id:'bone',rate:0.40,min:1,max:2},{id:'bat_wing',rate:0.30,min:1,max:1}],
   orc_general:  [{id:'boss_gem',rate:1.0,min:4,max:6},{id:'chaos_shard',rate:1.0,min:3,max:3}],
 };
 
 const MAX_ITEM_TYPES=40; // 所持できる種類の上限
 const MAX_ITEM_STACK=99; // 1種類あたりの最大所持数
+
+// モンスター種別ごとの撃破SE
+const KILL_SE={
+  slime:'kill_pop',
+  bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
+  goblin:'kill_grunt',
+  orc_warrior:'kill_grunt', orc_high:'kill_grunt', orc_lady:'kill_grunt', orc_archer:'kill_grunt',
+  troll:'kill_roar', wolf:'kill_roar', bear:'kill_roar', cloud_monkey:'kill_roar',
+  skeleton:'kill_bone',
+  dragon:'kill_heavy', giant:'kill_heavy', treant:'kill_heavy', rock_golem:'kill_heavy',
+  sandworm:'kill_hiss', scorpion:'kill_hiss',
+  // ボス全般
+  boss1:'kill_boss', boss2:'kill_boss', boss3:'kill_boss', boss4:'kill_boss',
+  scorpion_queen:'kill_boss', mistress:'kill_boss', thunder_god:'kill_boss', orc_general:'kill_boss',
+};
 
 // ============================================================
 //  TitleScene
@@ -3103,8 +3148,13 @@ class GameScene extends Phaser.Scene{
     const pSize=pd.cls==='mage'?80:64;
     // fromPortal:'next'→右端近く, 'back'→左端近く, なし→デフォルト左端
     const fromPortal=this.fromPortal||null;
-    const spawnX=fromPortal==='next'?(MW-160):200;
-    const spawnY=MH/2;
+    let spawnX=fromPortal==='next'?(MW-160):200;
+    let spawnY=MH/2;
+    // 町（stage:0）は建物と被らないよう、宿屋・ショップ・鍛冶屋の間の広場へ
+    if(this.stage===0&&!fromPortal){
+      spawnX=330;
+      spawnY=280;
+    }
     this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
     this._facing='front';  // 共通向き管理
     this._facingFlip=false;
@@ -3844,10 +3894,12 @@ class GameScene extends Phaser.Scene{
     // ─ 剣士 ─
     if(pd.cls==='warrior'){
       if(num===1){ // 烈風斬
+        SE('slash');
         const range=140*(1+(pd.sk1-1)*0.1);
         this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,Math.floor(pd.atk*(4+pd.sk1*0.3)));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);}});
         this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);
       }else if(num===2){ // ハードガード
+        SE('guard');
         const dur=20000;
         this._guardDef=pd.def; pd.def+=30;
         this.showFloat(p.x,p.y-60,'🛡 ハードガード！','#3498db');
@@ -3855,6 +3907,7 @@ class GameScene extends Phaser.Scene{
         this.tweens.add({targets:flash,alpha:0,duration:dur,onComplete:()=>{flash.destroy();pd.def=this._guardDef;}});
         this.showBuffTimer('🛡 ハードガード','#3498db',dur);
       }else if(num===3){ // パリィ
+        SE('parry');
         pd._parry=true;
         this.showFloat(p.x,p.y-60,'🛡 パリィ！','#ffd700');
         this.time.delayedCall(20000,()=>{pd._parry=false;});
@@ -3868,6 +3921,7 @@ class GameScene extends Phaser.Scene{
         // SP消費をLv10は30に
         if(skLv>=10&&pd.sp<30){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');pd.sp+=sk.cost;return;}
         if(skLv>=10){pd.sp-=(30-sk.cost);} // 差分追加消費
+        SE('berserk');
         const atkMult=skLv>=10?2.0:1.5;
         pd._berserkMult=atkMult;
         this.showFloat(p.x,p.y-60,'⚔ バーサクパワー！','#ff4444');
@@ -3935,7 +3989,7 @@ class GameScene extends Phaser.Scene{
 
           this.showFloat(cx,cy-60,'💥 大爆発！','#cc44ff','skill');
           this.cameras.main.shake(300,0.015);
-          SE('skill');
+          SE('meteor');
         });
       }else if(num===2){ // フロストアタック（詠唱1秒）
         this._startCast('❄ フロスト',1,()=>{
@@ -3993,7 +4047,7 @@ class GameScene extends Phaser.Scene{
           });
 
           this.showFloat(cx,cy-60,'❄ フロスト！','#88ccff','skill');
-          SE('skill');
+          SE('freeze');
         });
       }else if(num===3){ // ボルテックスボール（貫通）
         const ang=this.getFacingAngle();
@@ -4008,6 +4062,7 @@ class GameScene extends Phaser.Scene{
         bull.body.setSize(sz,sz);
         this.tweens.add({targets:bull,angle:360,duration:600,repeat:-1,ease:'Linear'});
         this.showFloat(p.x,p.y-60,'⚡ ボルテックス！','#44ffff');
+        SE('vortex');
       }else if(num===4){ // メテオーム（詠唱10秒・大爆発の3倍）
         if(!pd._hasMeteoorm){this.showFloat(p.x,p.y-50,'書物が必要です','#ff8800','info');pd.sp+=sk.cost;return;}
         this._startCast('☄ メテオーム',10,()=>{
@@ -4090,7 +4145,7 @@ class GameScene extends Phaser.Scene{
                   });
                 });
                 this.showFloat(p.x,p.y-70,'☄ メテオーム！','#ff6600','skill');
-                SE('skill');
+                SE('meteor');
               });
             });
           };
@@ -4116,7 +4171,7 @@ class GameScene extends Phaser.Scene{
           const dmg=res.miss?0:Math.max(1,Math.floor(pd.atk*(1+pd.sk1*0.25)));
           this.fireBullet(p.x,p.y,a,'proj_arrow',{spd:540,maxDist:600,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
         }
-        this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('arrow');
+        this.showFloat(p.x,p.y-60,'🏹 5方向射撃！','#27ae60');SE('multishot');
       }else if(num===2){ // グロリアスショット（クリ率UP）
         const dur=20000;
         // 既に発動中なら先に解除してから再適用（重複防止）
@@ -4128,6 +4183,7 @@ class GameScene extends Phaser.Scene{
         pd._gloryActive=true;
         pd.luk=Math.floor(pd.luk*5);
         this.showFloat(p.x,p.y-60,'✨ グロリアスショット！','#ffd700');
+        SE('boost');
         this._gloryTimer=this.time.delayedCall(dur,()=>{
           pd.luk=pd._gloryBaseLuk; // 確実に元の値に戻す
           pd._gloryActive=false;
@@ -4144,7 +4200,7 @@ class GameScene extends Phaser.Scene{
             this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
           });
         }
-        this.showFloat(p.x,p.y-60,'🏹 バルカン'+shots+'連射！','#27ae60');SE('arrow');
+        this.showFloat(p.x,p.y-60,'🏹 バルカン'+shots+'連射！','#27ae60');SE('multishot');
       }
     }
     // ─ ボマー ─
@@ -4230,6 +4286,7 @@ class GameScene extends Phaser.Scene{
         this.tweens.add({targets:bball,angle:360,duration:300,repeat:-1,ease:'Linear'});
         this.showFloat(p.x,p.y-60,'🎳 ボーリングボムス！','#f39c12','skill');
         this.playBomberAtk();
+        SE('vortex');
       }else if(num===3){ // ハイパーボム（sk3）: 投擲100px 半径100×(1+Lv×0.2)
         const ang=this.getFacingAngle();
         const radius=100*(1+pd.sk3*0.2);
@@ -4243,6 +4300,7 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'💣 ハイパーボム！','#ff6600','skill');
         this.cameras.main.shake(500,0.025);
         this.playBomberAtk();
+        SE('bigbomb');
       }else if(num===4){ // ボマーパワー（パッシブ：使用不要）
         this.showFloat(p.x,p.y-50,'ボマーパワーはパッシブスキルです','#f39c12','info');
         pd.sp+=sk.cost; // SP返還
@@ -4637,16 +4695,72 @@ class GameScene extends Phaser.Scene{
     const SH_CW=PW-20;
     const SH_H=52; // コンパクトに
     const BUY_H=42;
-    const listTop=PY-PH/2+60;
+    // ショップは「購入/売却」タブを表示するため、リストの上にタブ用の余白を確保
+    const hasTabs=(b.type==='shop');
+    const TAB_H=hasTabs?34:0;
+    const listTop=PY-PH/2+60+TAB_H;
     const listBottom=PY+PH/2-48-BUY_H;
     const listH2=listBottom-listTop;
     const visibleRows=Math.floor(listH2/SH_H);
     const visibleCount=visibleRows*SH_COLS;
     let shopScroll=0;
-    let selectedItem=null;
+    let selectedItem=null;     // 購入時：商品オブジェクト / 売却時：所持品ID
+    let mode='buy';            // 'buy' | 'sell'
     const shopObjs=[];
     // スワイプ用
     let shSwipeY=null, shSwipeScroll=null;
+
+    // 売却対象リストを構築（usableでない、sell>0、所持>0）
+    const buildSellList=()=>{
+      const out=[];
+      const inv=pd.items||{};
+      Object.keys(inv).forEach(id=>{
+        const def=ITEM_DEFS[id]; if(!def) return;
+        if(def.usable) return;        // 帰還の巻物などの使用アイテムは売らない
+        if(!(def.sell>0)) return;     // 売値ゼロは売れない
+        const cnt=inv[id]||0; if(cnt<=0) return;
+        out.push({id, def, count:cnt});
+      });
+      return out;
+    };
+    let sellList=buildSellList();
+
+    // タブUI（ショップのみ）
+    let tabBuyBg,tabBuyTxt,tabSellBg,tabSellTxt;
+    if(hasTabs){
+      const tabY=PY-PH/2+60+TAB_H/2-2;
+      const tabW=(PW-30)/2;
+      const tabBuyX=PX-tabW/2-4;
+      const tabSellX=PX+tabW/2+4;
+      tabBuyBg=mk(this.add.rectangle(tabBuyX,tabY,tabW,TAB_H-6,0x0a1f35,0.95).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+      tabBuyTxt=mk(this.add.text(tabBuyX,tabY,'🛒 購入',{fontSize:'14px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+      tabSellBg=mk(this.add.rectangle(tabSellX,tabY,tabW,TAB_H-6,0x0a1525,0.9).setStrokeStyle(2,0x334455).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+      tabSellTxt=mk(this.add.text(tabSellX,tabY,'💰 売却',{fontSize:'14px',fontFamily:'Arial',color:'#778899'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+      const refreshTabs=()=>{
+        if(mode==='buy'){
+          tabBuyBg.setFillStyle(0x0a1f35,0.95).setStrokeStyle(2,0x44aaff);
+          tabBuyTxt.setColor('#44aaff');
+          tabSellBg.setFillStyle(0x0a1525,0.9).setStrokeStyle(2,0x334455);
+          tabSellTxt.setColor('#778899');
+        }else{
+          tabBuyBg.setFillStyle(0x0a1525,0.9).setStrokeStyle(2,0x334455);
+          tabBuyTxt.setColor('#778899');
+          tabSellBg.setFillStyle(0x351a0a,0.95).setStrokeStyle(2,0xffaa44);
+          tabSellTxt.setColor('#ffaa44');
+        }
+      };
+      tabBuyBg.on('pointerdown',()=>{
+        if(mode==='buy')return;
+        mode='buy'; selectedItem=null; shopScroll=0;
+        refreshTabs(); renderShopItems(0); updateBuyBtn();
+      });
+      tabSellBg.on('pointerdown',()=>{
+        if(mode==='sell')return;
+        mode='sell'; selectedItem=null; shopScroll=0;
+        sellList=buildSellList();
+        refreshTabs(); renderShopItems(0); updateBuyBtn();
+      });
+    }
 
     // 購入ボタン（下部固定）
     const buyBtnY=PY+PH/2-56-BUY_H/2+4;
@@ -4657,6 +4771,47 @@ class GameScene extends Phaser.Scene{
       buyBtn.removeAllListeners('pointerdown');
       buyBtn.removeAllListeners('pointerover');
       buyBtn.removeAllListeners('pointerout');
+      // ── 売却モード ──
+      if(mode==='sell'){
+        if(!selectedItem){
+          buyBtn.setFillStyle(0x1a1208,0.9).setStrokeStyle(2,0x554433);
+          buyBtnTxt.setText('売却するアイテムを選択してください').setColor('#776655');
+          buyBtn.removeInteractive(); return;
+        }
+        const sid=selectedItem;
+        const def=ITEM_DEFS[sid]; const inv=pd.items||{}; const cnt=inv[sid]||0;
+        if(!def||cnt<=0){
+          buyBtn.setFillStyle(0x1a0a0a,0.9).setStrokeStyle(2,0x553333);
+          buyBtnTxt.setText('✗ 売却できません').setColor('#cc4444');
+          buyBtn.removeInteractive(); return;
+        }
+        const price=def.sell;
+        buyBtn.setFillStyle(0x351a0a,0.95).setStrokeStyle(2,0xffaa44);
+        buyBtnTxt.setText('💰 '+def.icon+' '+def.name+' を1個 売る（+'+price+'G）').setColor('#ffaa44');
+        buyBtn.setInteractive({useHandCursor:true});
+        buyBtn.on('pointerdown',()=>{
+          // 1個売却
+          inv[sid]=cnt-1;
+          if(inv[sid]<=0) delete inv[sid];
+          pd.gold+=price;
+          refreshGold();
+          SE('potion');
+          showResult('💰 '+def.icon+' '+def.name+' を売却（+'+price+'G）','#ffaa44');
+          // リスト再構築
+          sellList=buildSellList();
+          // 在庫切れになったら選択解除
+          if(!pd.items||!pd.items[sid]) selectedItem=null;
+          // スクロール位置調整
+          if(shopScroll>Math.max(0,sellList.length-visibleCount)){
+            shopScroll=Math.max(0,sellList.length-visibleCount);
+          }
+          renderShopItems(shopScroll); updateBuyBtn();
+        });
+        buyBtn.on('pointerover',()=>buyBtn.setFillStyle(0x553a1a,0.98));
+        buyBtn.on('pointerout', ()=>buyBtn.setFillStyle(0x351a0a,0.95));
+        return;
+      }
+      // ── 購入モード（既存） ──
       if(!selectedItem){
         buyBtn.setFillStyle(0x0a1525,0.9).setStrokeStyle(2,0x334455);
         buyBtnTxt.setText('商品を選択してください').setColor('#556677');
@@ -4700,6 +4855,41 @@ class GameScene extends Phaser.Scene{
       shopObjs.length=0;
       const addS=(o)=>{shopObjs.push(o);mk(o);return o;};
 
+      // ── 売却モード ──
+      if(mode==='sell'){
+        if(sellList.length===0){
+          addS(this.add.text(PX,listTop+listH2/2,'売れる収集品を持っていません',{fontSize:'13px',fontFamily:'Arial',color:'#778899'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          return;
+        }
+        sellList.slice(offset,offset+visibleCount).forEach((entry,i)=>{
+          const ix=PX;
+          const iy=listTop+i*SH_H+SH_H/2;
+          const isSelected=selectedItem===entry.id;
+          const bgCol=isSelected?0x3a2a0a:0x1a1208;
+          const strokeCol=isSelected?0xffcc66:0x554433;
+          const ibg=addS(this.add.rectangle(ix,iy,SH_CW-4,SH_H-4,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+          // アイコン
+          addS(this.add.text(PX-SH_CW/2+20,iy,entry.def.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          // 名前
+          const textCol=isSelected?'#ffcc66':'#ffffff';
+          addS(this.add.text(PX-SH_CW/2+42,iy-8,entry.def.name,{fontSize:'13px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-160},fontStyle:isSelected?'bold':'normal'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+          // 所持数
+          addS(this.add.text(PX-SH_CW/2+42,iy+10,'所持: '+entry.count,{fontSize:'10px',fontFamily:'Arial',color:'#9988aa'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+          // 売値（右端）
+          addS(this.add.text(PX+SH_CW/2-10,iy,'+'+entry.def.sell+'G',{fontSize:'14px',fontFamily:'Arial',color:'#ffaa44',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
+          ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:entry.id);renderShopItems(shopScroll);updateBuyBtn();});
+          ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x4a3a1a:0x2a1f0a,0.95));
+          ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
+        });
+        // 件数
+        if(sellList.length>visibleCount){
+          const total=sellList.length, shown=Math.min(offset+visibleCount,total);
+          addS(this.add.text(PX,listBottom+4,(offset+1)+'〜'+shown+' / '+total,{fontSize:'10px',fontFamily:'Arial',color:'#776655'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        }
+        return;
+      }
+
+      // ── 購入モード（既存） ──
       items.slice(offset,offset+visibleCount).forEach((item,i)=>{
         const ix=PX;
         const iy=listTop+i*SH_H+SH_H/2;
@@ -4737,7 +4927,8 @@ class GameScene extends Phaser.Scene{
 
     // スワイプスクロール
     const shZone=mk(this.add.rectangle(PX,listTop+listH2/2,PW-8,listH2,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
-    const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(items.length-visibleCount,newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
+    const curListLen=()=>(mode==='sell'?sellList.length:items.length);
+    const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(curListLen()-visibleCount,newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
     shZone.on('wheel',(_p,_dx,dy)=>{doShScroll(shopScroll+(dy>0?1:-1));});
     shZone.on('pointerdown',(ptr)=>{shSwipeY=ptr.y;shSwipeScroll=shopScroll;});
     shZone.on('pointermove',(ptr)=>{
@@ -4755,6 +4946,8 @@ class GameScene extends Phaser.Scene{
   openMenu(tab='stat'){
     if(this._menuOpen) return;
     this._menuOpen=true;
+    if(!this._skipOpenSE) SE('open');
+    this._skipOpenSE=false;
     this.physics.pause();
     this._buildMenuOverlay(tab);
   }
@@ -4795,7 +4988,10 @@ class GameScene extends Phaser.Scene{
     statCont.setVisible(false);
     root.add([statCont,skillCont,equipCont,itemCont]);
 
+    let _currentTab=null;
     const switchTab=(t)=>{
+      if(_currentTab!==null && _currentTab!==t) SE('tab');
+      _currentTab=t;
       statCont.setVisible(t==='stat');
       skillCont.setVisible(t==='skill');
       equipCont.setVisible(t==='equip');
@@ -4889,7 +5085,7 @@ class GameScene extends Phaser.Scene{
         if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
         stmp[s.key]=n+dir; tmpPts-=dir;
         addTxt.setText(stmp[s.key]>0?'(+'+stmp[s.key]+')':'');
-        refreshPts(); SE('potion');
+        refreshPts(); SE('click');
       };
       bm.on('pointerdown',()=>adj(-1)); bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5)); bm.on('pointerout',()=>bm.setFillStyle(0xe74c3c,0.25));
       bp.on('pointerdown',()=>adj(+1)); bp.on('pointerover',()=>bp.setFillStyle(0x44aaff,0.5)); bp.on('pointerout',()=>bp.setFillStyle(0x44aaff,0.25));
@@ -5021,7 +5217,7 @@ class GameScene extends Phaser.Scene{
           if(dir<0&&n<=0)return;
           sktmp[sk.id]=n+dir; tmpJp-=dir;
           skAddTxt.setText(sktmp[sk.id]>0?'(+'+sktmp[sk.id]+')':'');
-          refreshJp(); SE('potion');
+          refreshJp(); SE('click');
         };
         sbm.on('pointerdown',()=>adjSk(-1)); sbm.on('pointerover',()=>sbm.setFillStyle(0xe74c3c,0.5)); sbm.on('pointerout',()=>sbm.setFillStyle(0xe74c3c,0.2));
         sbp.on('pointerdown',()=>adjSk(+1)); sbp.on('pointerover',()=>sbp.setFillStyle(0x00e5ff,0.5)); sbp.on('pointerout',()=>sbp.setFillStyle(0x00e5ff,0.2));
@@ -5067,88 +5263,171 @@ class GameScene extends Phaser.Scene{
     const eqadd=(o)=>{equipCont.add(sf0(o));return o;};
     const equipStats=calcEquipStats(pd.equip);
 
-    // 装備合計ステータス表示
-    eqadd(this.add.text(PX,ITOP+14,'🛡 装備中のステータスボーナス',{fontSize:'13px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
+    // 装備合計ステータス表示（上部・1行）
+    eqadd(this.add.text(PX,ITOP+12,'🛡 装備中のステータスボーナス',{fontSize:'13px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
     const statKeys=[['atk','ATK'],['def','DEF'],['mag','MAG'],['mhp','HP'],['msp','SP'],['hit','HIT'],['luk','LUK'],['agi','回避']];
     const bonusStr=statKeys.filter(([k])=>equipStats[k]>0).map(([k,l])=>l+'+'+equipStats[k]).join('  ')||'なし';
-    eqadd(this.add.text(PX,ITOP+30,bonusStr,{fontSize:'11px',fontFamily:'Arial',color:'#aaddcc'}).setOrigin(0.5));
+    eqadd(this.add.text(PX,ITOP+28,bonusStr,{fontSize:'11px',fontFamily:'Arial',color:'#aaddcc'}).setOrigin(0.5));
 
-    // 6スロット表示（縦3×横2）
-    const EQ_COLS=2, EQ_ROWS=3;
-    const EQ_CW=(PW-20)/EQ_COLS, EQ_CH=(IH-70)/EQ_ROWS;
+    // ── 2カラム構成 ──
+    // 左：装備中スロット6個（縦並び）／右：所持装備一覧（縦スクロール）
+    const COL_TOP=ITOP+46;
+    const COL_BOT=IBOT-6;
+    const COL_H=COL_BOT-COL_TOP;
+    const GAP=8;
+    const LCOL_X=L, LCOL_W=(PW-24)/2-GAP/2;
+    const RCOL_X=PX+GAP/2, RCOL_W=(PW-24)/2-GAP/2;
+
+    // 見出し
+    eqadd(this.add.text(LCOL_X+LCOL_W/2,COL_TOP-6,'★ 装備中',{fontSize:'12px',fontFamily:'Arial',color:'#e74c3c',fontStyle:'bold'}).setOrigin(0.5,1));
+    eqadd(this.add.text(RCOL_X+RCOL_W/2,COL_TOP-6,'所持装備（タップで装備）',{fontSize:'12px',fontFamily:'Arial',color:'#88aacc',fontStyle:'bold'}).setOrigin(0.5,1));
+
+    // ══ 左カラム：装備中6スロット（縦並び） ══
+    const SLOT_H=Math.floor(COL_H/EQUIP_SLOTS.length);
     EQUIP_SLOTS.forEach((slot,i)=>{
-      const eqCol=i%EQ_COLS, eqRow=Math.floor(i/EQ_COLS);
-      const cx=L+10+eqCol*EQ_CW+EQ_CW/2, cy=ITOP+46+eqRow*EQ_CH+EQ_CH/2;
+      const cy=COL_TOP+i*SLOT_H+SLOT_H/2;
       const equipped=pd.equip[slot.id];
       const eDef=equipped?EQUIP_DEFS[equipped]:null;
       const bgCol=eDef?0x1a2a3a:0x0a0d18;
       const strokeCol=eDef?0xe74c3c:0x334455;
 
       // スロット背景
-      eqadd(this.add.rectangle(cx,cy,EQ_CW-6,EQ_CH-6,bgCol,0.85).setStrokeStyle(eDef?2:1,strokeCol));
+      eqadd(this.add.rectangle(LCOL_X+LCOL_W/2,cy,LCOL_W-2,SLOT_H-4,bgCol,0.85).setStrokeStyle(eDef?2:1,strokeCol));
 
       // 部位アイコン（左端・大きく）
-      eqadd(this.add.text(cx-EQ_CW/2+16,cy,slot.icon,{fontSize:'22px'}).setOrigin(0.5));
-      // 部位名（大きく・太字）
-      eqadd(this.add.text(cx-EQ_CW/2+34,cy-EQ_CH*0.2,slot.label,{
-        fontSize:'14px',fontFamily:'Arial',color:eDef?'#e74c3c':'#667788',fontStyle:'bold'
+      eqadd(this.add.text(LCOL_X+14,cy,slot.icon,{fontSize:'20px'}).setOrigin(0.5));
+      // 部位名（小さく上に）
+      eqadd(this.add.text(LCOL_X+30,cy-SLOT_H*0.22,slot.label,{
+        fontSize:'11px',fontFamily:'Arial',color:eDef?'#e74c3c':'#667788',fontStyle:'bold'
       }).setOrigin(0,0.5));
 
       if(eDef){
         // 装備品名
-        eqadd(this.add.text(cx-EQ_CW/2+34,cy+EQ_CH*0.1,eDef.icon+' '+eDef.name,{
-          fontSize:'13px',fontFamily:'Arial',
+        eqadd(this.add.text(LCOL_X+30,cy+SLOT_H*0.04,eDef.icon+' '+eDef.name,{
+          fontSize:'12px',fontFamily:'Arial',
           color:'#'+eDef.col.toString(16).padStart(6,'0'),fontStyle:'bold'
         }).setOrigin(0,0.5));
         // ステータス
-        const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join('  ');
-        eqadd(this.add.text(cx-EQ_CW/2+34,cy+EQ_CH*0.35,statStr,{
-          fontSize:'11px',fontFamily:'Arial',color:'#88bbaa'
+        const statStr=Object.entries(eDef.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
+        eqadd(this.add.text(LCOL_X+30,cy+SLOT_H*0.30,statStr,{
+          fontSize:'10px',fontFamily:'Arial',color:'#88bbaa'
         }).setOrigin(0,0.5));
         // 外すボタン（右端）
-        const removeBtn=eqadd(this.add.rectangle(cx+EQ_CW/2-28,cy,44,EQ_CH-18,0x551111,0.8).setStrokeStyle(1,0xaa3333).setInteractive({useHandCursor:true}));
-        eqadd(this.add.text(cx+EQ_CW/2-28,cy,'外す',{fontSize:'12px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
-        removeBtn.on('pointerover',()=>removeBtn.setFillStyle(0x882222,0.9));
-        removeBtn.on('pointerout', ()=>removeBtn.setFillStyle(0x551111,0.8));
+        const btnW=38, btnX=LCOL_X+LCOL_W-btnW/2-6;
+        const removeBtn=eqadd(this.add.rectangle(btnX,cy,btnW,SLOT_H-12,0x551111,0.85).setStrokeStyle(1,0xaa3333).setInteractive({useHandCursor:true}));
+        eqadd(this.add.text(btnX,cy,'外す',{fontSize:'11px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
+        removeBtn.on('pointerover',()=>removeBtn.setFillStyle(0x882222,0.95));
+        removeBtn.on('pointerout', ()=>removeBtn.setFillStyle(0x551111,0.85));
         removeBtn.on('pointerdown',()=>{
           pd.equip[slot.id]=null;
-          SE('potion');
+          SE('click');
+          this._skipCloseSE=true;
+          this._skipOpenSE=true;
           this._closeMenu();
           this.openMenu('equip');
         });
       }else{
-        eqadd(this.add.text(cx+EQ_CW*0.05,cy,'── 未装備 ──',{
-          fontSize:'13px',fontFamily:'Arial',color:'#334455'
-        }).setOrigin(0.5));
+        eqadd(this.add.text(LCOL_X+30,cy+SLOT_H*0.10,'── 未装備 ──',{
+          fontSize:'11px',fontFamily:'Arial',color:'#334455'
+        }).setOrigin(0,0.5));
       }
     });
 
-    // 所持装備品一覧（下部）
-    const eqListY=ITOP+46+EQ_ROWS*EQ_CH+8;
-    eqadd(this.add.text(PX,eqListY,'── 所持品から装備 ──',{fontSize:'11px',fontFamily:'Arial',color:'#666688'}).setOrigin(0.5));
+    // ══ 右カラム：所持装備一覧（縦スクロール） ══
     const ownedEquips=Object.keys(pd.items||{}).filter(k=>EQUIP_DEFS[k]&&(pd.items[k]||0)>0);
+
+    // 右カラム枠
+    eqadd(this.add.rectangle(RCOL_X+RCOL_W/2,COL_TOP+COL_H/2,RCOL_W,COL_H,0x05080f,0.5).setStrokeStyle(1,0x223344));
+
     if(ownedEquips.length===0){
-      eqadd(this.add.text(PX,eqListY+16,'装備品を持っていません',{fontSize:'11px',fontFamily:'Arial',color:'#445566'}).setOrigin(0.5));
+      eqadd(this.add.text(RCOL_X+RCOL_W/2,COL_TOP+COL_H/2,'装備品を持っていません\n（鍛冶屋で製作できます）',{fontSize:'11px',fontFamily:'Arial',color:'#445566',align:'center'}).setOrigin(0.5));
     }else{
-      const INV_Y=eqListY+16;
-      const INV_W=(PW-20)/Math.min(ownedEquips.length,4);
-      ownedEquips.slice(0,8).forEach((id,i)=>{
-        const def=EQUIP_DEFS[id];
-        const ix=L+10+i*INV_W+INV_W/2;
-        const iy=INV_Y;
-        const isEquipped=Object.values(pd.equip).includes(id);
-        const ibg=eqadd(this.add.rectangle(ix,iy,INV_W-4,28,isEquipped?0x1a3a1a:0x0a1525,0.85).setStrokeStyle(1,isEquipped?0x44aa44:0x334455).setInteractive({useHandCursor:true}));
-        eqadd(this.add.text(ix,iy,def.icon+' '+def.name,{fontSize:'10px',fontFamily:'Arial',color:isEquipped?'#44aa44':'#aaaaaa'}).setOrigin(0.5));
-        if(!isEquipped){
-          ibg.on('pointerdown',()=>{
-            // 同スロットの既存装備を解除してから装備
-            pd.equip[def.slot]=id;
-            SE('potion');
-            this._closeMenu();
-            this.openMenu('equip');
-          });
+      // スクロール対応：表示領域でクリッピング
+      const ROW_H=44;
+      const scrollH=COL_H-8;
+      const maxRows=Math.floor(scrollH/ROW_H);
+      const totalRows=ownedEquips.length;
+      let invScroll=0;
+      const invObjs=[];
+      const invAdd=(o)=>{invObjs.push(o);return eqadd(o);};
+
+      const renderInv=()=>{
+        invObjs.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
+        invObjs.length=0;
+        ownedEquips.slice(invScroll,invScroll+maxRows).forEach((id,i)=>{
+          const def=EQUIP_DEFS[id];
+          const slotMeta=EQUIP_SLOTS.find(s=>s.id===def.slot);
+          const ry=COL_TOP+4+i*ROW_H+ROW_H/2;
+          const isEquipped=pd.equip[def.slot]===id;
+          const bgCol=isEquipped?0x1a3a1a:0x0a1525;
+          const strokeCol=isEquipped?0x44aa44:0x334455;
+
+          // 行背景
+          const ibg=invAdd(this.add.rectangle(RCOL_X+RCOL_W/2,ry,RCOL_W-6,ROW_H-4,bgCol,0.85).setStrokeStyle(1,strokeCol));
+
+          // 部位タグ（左上・小さなバッジ）
+          const tagW=38, tagX=RCOL_X+4+tagW/2;
+          invAdd(this.add.rectangle(tagX,ry-ROW_H*0.22,tagW,14,0x223344,0.95).setStrokeStyle(1,0x556677));
+          invAdd(this.add.text(tagX,ry-ROW_H*0.22,(slotMeta?slotMeta.icon:'')+' '+(slotMeta?slotMeta.label:''),{
+            fontSize:'9px',fontFamily:'Arial',color:'#aaccee'
+          }).setOrigin(0.5));
+
+          // アイテム名
+          invAdd(this.add.text(RCOL_X+6,ry+ROW_H*0.10,def.icon+' '+def.name,{
+            fontSize:'12px',fontFamily:'Arial',
+            color:'#'+def.col.toString(16).padStart(6,'0'),fontStyle:'bold'
+          }).setOrigin(0,0.5));
+          // ステータス
+          const ss=Object.entries(def.stats).map(([k,v])=>k.toUpperCase()+'+'+v).join(' ');
+          invAdd(this.add.text(RCOL_X+6,ry+ROW_H*0.34,ss,{
+            fontSize:'10px',fontFamily:'Arial',color:'#88bbaa'
+          }).setOrigin(0,0.5));
+
+          // 装備ボタン（右端）
+          const btnW=44, btnX=RCOL_X+RCOL_W-btnW/2-6;
+          if(isEquipped){
+            invAdd(this.add.rectangle(btnX,ry,btnW,ROW_H-12,0x113311,0.85).setStrokeStyle(1,0x44aa44));
+            invAdd(this.add.text(btnX,ry,'装備中',{fontSize:'10px',fontFamily:'Arial',color:'#44aa44'}).setOrigin(0.5));
+          }else{
+            const eqBtn=invAdd(this.add.rectangle(btnX,ry,btnW,ROW_H-12,0x113355,0.85).setStrokeStyle(1,0x4488cc).setInteractive({useHandCursor:true}));
+            invAdd(this.add.text(btnX,ry,'装備',{fontSize:'11px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold'}).setOrigin(0.5));
+            eqBtn.on('pointerover',()=>eqBtn.setFillStyle(0x224477,0.95));
+            eqBtn.on('pointerout', ()=>eqBtn.setFillStyle(0x113355,0.85));
+            eqBtn.on('pointerdown',()=>{
+              pd.equip[def.slot]=id;
+              SE('click');
+              this._skipCloseSE=true;
+              this._skipOpenSE=true;
+              this._closeMenu();
+              this.openMenu('equip');
+            });
+          }
+        });
+        // スクロールインジケーター
+        if(totalRows>maxRows){
+          const shown=Math.min(invScroll+maxRows,totalRows);
+          invAdd(this.add.text(RCOL_X+RCOL_W-6,COL_TOP+COL_H-2,(invScroll+1)+'〜'+shown+' / '+totalRows,{fontSize:'9px',fontFamily:'Arial',color:'#556677'}).setOrigin(1,1));
         }
+      };
+
+      // スワイプ&ホイールスクロール
+      let invSwipeY=null, invSwipeBase=null;
+      const invZone=eqadd(this.add.rectangle(RCOL_X+RCOL_W/2,COL_TOP+COL_H/2,RCOL_W-2,COL_H-2,0x000000,0).setInteractive());
+      const doInvScroll=(v)=>{
+        const c=Math.max(0,Math.min(totalRows-maxRows,v));
+        if(c!==invScroll){invScroll=c;renderInv();}
+      };
+      invZone.on('wheel',(_p,_dx,dy)=>{doInvScroll(invScroll+(dy>0?1:-1));});
+      invZone.on('pointerdown',(ptr)=>{invSwipeY=ptr.y;invSwipeBase=invScroll;});
+      invZone.on('pointermove',(ptr)=>{
+        if(invSwipeY===null)return;
+        const dy=invSwipeY-ptr.y;
+        doInvScroll(Math.round(invSwipeBase+dy/(ROW_H*0.7)));
       });
+      invZone.on('pointerup',()=>{invSwipeY=null;});
+      invZone.on('pointerout',()=>{invSwipeY=null;});
+
+      renderInv();
     }
 
     // ════════════════════════════════
@@ -5209,7 +5488,7 @@ class GameScene extends Phaser.Scene{
           iadd(this.add.text(cx,cy+ITEM_CH*0.36,'▶ 使う',{fontSize:'10px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5));
           useBtn.on('pointerover',()=>useBtn.setFillStyle(0x336633,0.95));
           useBtn.on('pointerout', ()=>useBtn.setFillStyle(0x226622,0.9));
-          useBtn.on('pointerdown',()=>this._useItem(id));
+          useBtn.on('pointerdown',()=>{SE('click');this._useItem(id);});
         } else if(def.sell>0){
           iadd(this.add.text(cx,cy+ITEM_CH*0.38,def.sell+'G',{
             fontSize:'10px',fontFamily:'Arial',color:'#aaddaa'
@@ -5260,6 +5539,9 @@ class GameScene extends Phaser.Scene{
   _closeMenu(){
     if(!this._menuOpen)return;
     this._menuOpen=false;
+    // 装備変更などで「閉じてすぐ開く」場合は閉じる音を鳴らさない
+    if(!this._skipCloseSE) SE('close');
+    this._skipCloseSE=false;
     if(this._menuRoot){this._menuRoot.destroy(true);this._menuRoot=null;}
     if(this._menuEscKey){this._menuEscKey.destroy();this._menuEscKey=null;}
     this.physics.resume();
@@ -5783,11 +6065,13 @@ class GameScene extends Phaser.Scene{
   killEnemy(ed){
     ed.dead=true;
     const pd=this.playerData;
-    pd.exp+=ed.exp;pd.gold+=ed.gold;pd.kills++;
+    // ※モンスター撃破時のゴールド付与は廃止。ゴールドは収集品をショップで売って稼ぐ。
+    pd.exp+=ed.exp;pd.kills++;
     if(!ed.isBoss)this.killCount++;
     SE('exp');
+    // モンスター種別ごとの撃破SE
+    SE(KILL_SE[ed.id]||'kill_grunt');
     this.showFloat(ed.sprite.x,ed.sprite.y-40,'+'+ed.exp+'EXP','#f39c12');
-    this.showFloat(ed.sprite.x,ed.sprite.y-60,'+'+ed.gold+'G','#ffd700');
     // ジョブEXP付与（通常EXPの60%）
     this.addJobExp(Math.floor(ed.exp*0.6));
     // ドロップ（ポーション）
@@ -6256,10 +6540,12 @@ class GameScene extends Phaser.Scene{
           // AGI回避判定（agi%の確率で回避）
           if(Math.random()*100<(pd.agi||0)){
             this.showFloat(p.x,p.y-40,'DODGE!','#2ecc71','info');
+            SE('dodge');
           }else{
             const dmg=Math.max(1,ed.atk-(pd.def||0)+Phaser.Math.Between(0,3));
             pd.hp=Math.max(0,pd.hp-dmg);
             this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c','info');this.updateHUD();
+            SE('hurt');
             if(pd.hp<=0){this.gameOver();return;}
           }
         }
