@@ -546,6 +546,95 @@ function _playForestBGM(){
   },(totalDur-0.1)*1000);
 }
 
+// ── ST3海岸BGM：南国・穏やか・波音と海風 ──────
+function _playBeachBGM(){
+  const ac=getAC();if(!ac||muted)return;
+  const master=ac.createGain(); master.gain.value=0.16; master.connect(ac.destination);
+  _bgmNodes.push(master);
+  const now=ac.currentTime;
+  const BPM=92, B=60/BPM, bar=B*4;
+
+  // メロディー（マリンバ風 sine + 木管っぽい倍音）
+  const mel=[
+    [NOTE.C5,B],[NOTE.E5,B],[NOTE.G5,B*2],
+    [NOTE.A4,B],[NOTE.C5,B],[NOTE.E5,B*2],
+    [NOTE.G4,B],[NOTE.B4,B],[NOTE.D5,B*2],
+    [NOTE.C5,bar],
+    [NOTE.E5,B],[NOTE.G5,B],[NOTE.A5,B*2],
+    [NOTE.G5,B],[NOTE.E5,B],[NOTE.D5,B*2],
+    [NOTE.C5,B],[NOTE.B4,B],[NOTE.A4,B*2],
+    [NOTE.G4,bar],
+    // 後半：ゆるやかに展開
+    [NOTE.A4,B*2],[NOTE.C5,B*2],
+    [NOTE.E5,B*2],[NOTE.D5,B*2],
+    [NOTE.C5,B],[NOTE.A4,B],[NOTE.G4,B*2],
+    [NOTE.E4,bar],
+    [NOTE.D5,B],[NOTE.C5,B],[NOTE.B4,B*2],
+    [NOTE.A4,B],[NOTE.G4,B],[NOTE.E4,B*2],
+    [NOTE.G4,B*2],[NOTE.A4,B*2],
+    [NOTE.C5,bar*2],
+  ];
+  let t=now; mel.forEach(([f,d])=>{
+    _playNote(ac,master,f,'sine',0.26,t,d*0.92,0.02,0.1);
+    // 倍音(オクターブ上)で南国らしさ
+    _playNote(ac,master,f*2,'sine',0.05,t,d*0.4,0.02,0.06);
+    t+=d;
+  });
+
+  // 和音(triangle・南国の定番進行 IV-I-V-vi)
+  const chords=[
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],
+    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
+    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
+    [[NOTE.C4,NOTE.E4,NOTE.G4],bar*2],
+  ];
+  let ct=now;
+  chords.forEach(([notes,d])=>{
+    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.10,ct,d*0.85,0.05,0.18));
+    ct+=d;
+  });
+
+  // ベース（穏やかな波のうねり）
+  const bassLine=[NOTE.F3,NOTE.C3,NOTE.G3,NOTE.A3, NOTE.F3,NOTE.C3,NOTE.G3,NOTE.C3,
+                  NOTE.F3,NOTE.C3,NOTE.G3,NOTE.A3, NOTE.F3,NOTE.G3,NOTE.C3,NOTE.C3];
+  bassLine.forEach((f,i)=>{
+    _playNote(ac,master,f*0.5,'sine',0.18,now+i*bar,bar*0.9,0.05,0.2);
+  });
+
+  // 波音風(高音ノイズの代替: 高い周波数の sine をフェードで重ねる)
+  const waveTimes=[bar*0.5, bar*2.3, bar*4.1, bar*5.8, bar*7.6, bar*9.4, bar*11.2, bar*13.0, bar*14.8];
+  waveTimes.forEach(wt=>{
+    // ザザー…と4音重ねて疑似波音
+    [3000, 3500, 4200, 5000].forEach((freq, idx)=>{
+      _playNote(ac,master,freq,'sine',0.018,now+wt+idx*0.04,0.5,0.15,0.4);
+    });
+  });
+
+  // カモメ風の高音(たまに)
+  const gullTimes=[bar*3, bar*8.5, bar*12.7];
+  gullTimes.forEach(gt=>{
+    _playNote(ac,master,NOTE.G5*1.5,'sine',0.05,now+gt,0.12,0.005,0.08);
+    _playNote(ac,master,NOTE.E5*1.5,'sine',0.04,now+gt+0.15,0.10,0.005,0.08);
+  });
+
+  const totalDur=bar*16;
+  _bgmLoopTimer=setTimeout(()=>{
+    _stopSynthBGM();
+    if(_bgmKey==='st3_beach'&&!muted)_playBeachBGM();
+  },(totalDur-0.1)*1000);
+}
+
 // ── ST5崖道BGM：不気味で緊張感のある崖道 ────────────
 function _playCliffBGM(){
   const ac=getAC();if(!ac||muted)return;
@@ -617,6 +706,7 @@ function startBGM(key){
   if(key==='title') _playTitleBGM();
   else if(key==='town') _playTownBGM();
   else if(key==='st2_forest') _playForestBGM();
+  else if(key==='st3_beach') _playBeachBGM();
   else if(key==='st2'||key==='st3'||key==='st4') _playStageBGM();
   else if(key==='st5') _playCliffBGM();
   else if(key==='st6') _playSkyBGM();
@@ -810,6 +900,7 @@ class BootScene extends Phaser.Scene{
     // ── カスタムマップ画像（1枚絵背景） ──
     this.load.image('map_st1', BASE+'maps/st1.png');
     this.load.image('map_st2', BASE+'maps/st2.png');
+    this.load.image('map_st3', BASE+'maps/st3.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -1804,6 +1895,90 @@ class BootScene extends Phaser.Scene{
       g.fillTriangle(S*.48,S*.36,S*.46,S*.42,S*.5,S*.36);g.fillTriangle(S*.52,S*.36,S*.5,S*.36,S*.54,S*.42);
     });
 
+    // ── カニ ─────────────────────────────────────
+    mk('enemy_crab',88,(g,S)=>{
+      g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.65,S*.10);
+      // 8本足(下4本)
+      g.fillStyle(0xaa3322,1);
+      [[.18,.62,.10,.78],[.28,.66,.18,.84],[.34,.72,.28,.92],[.40,.74,.36,.94]].forEach(([x1,y1,x2,y2])=>{
+        g.fillTriangle(S*x1,S*y1,S*(x1+.04),S*y1,S*x2,S*y2);
+      });
+      [[.82,.62,.90,.78],[.72,.66,.82,.84],[.66,.72,.72,.92],[.60,.74,.64,.94]].forEach(([x1,y1,x2,y2])=>{
+        g.fillTriangle(S*x1,S*y1,S*(x1-.04),S*y1,S*x2,S*y2);
+      });
+      // 大きなハサミ(左)
+      g.fillStyle(0xcc4422,1);
+      g.fillEllipse(S*.18,S*.40,S*.20,S*.16);
+      g.fillTriangle(S*.06,S*.36,S*.20,S*.34,S*.18,S*.46);
+      g.fillStyle(0x882211,1);
+      g.fillTriangle(S*.06,S*.30,S*.18,S*.32,S*.10,S*.38);
+      g.fillTriangle(S*.06,S*.46,S*.18,S*.42,S*.10,S*.50);
+      // 大きなハサミ(右)
+      g.fillStyle(0xcc4422,1);
+      g.fillEllipse(S*.82,S*.40,S*.20,S*.16);
+      g.fillTriangle(S*.94,S*.36,S*.80,S*.34,S*.82,S*.46);
+      g.fillStyle(0x882211,1);
+      g.fillTriangle(S*.94,S*.30,S*.82,S*.32,S*.90,S*.38);
+      g.fillTriangle(S*.94,S*.46,S*.82,S*.42,S*.90,S*.50);
+      // 甲羅(本体)
+      g.fillStyle(0xcc3322,1);g.fillEllipse(S*.5,S*.55,S*.62,S*.46);
+      // 甲羅の光沢
+      g.fillStyle(0xee5544,.6);g.fillEllipse(S*.42,S*.46,S*.30,S*.18);
+      g.fillStyle(0xff8866,.4);g.fillEllipse(S*.4,S*.42,S*.16,S*.08);
+      // 甲羅の縁取り
+      g.fillStyle(0x661100,.5);g.fillEllipse(S*.5,S*.62,S*.6,S*.10);
+      // 目(柄付き・カニらしさ)
+      g.fillStyle(0xcc3322,1);
+      g.fillRect(S*.40,S*.32,S*.04,S*.12);g.fillRect(S*.56,S*.32,S*.04,S*.12);
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.42,S*.30,S*.05);g.fillCircle(S*.58,S*.30,S*.05);
+      g.fillStyle(0x111100,1);g.fillCircle(S*.42,S*.30,S*.03);g.fillCircle(S*.58,S*.30,S*.03);
+      // 口
+      g.fillStyle(0x661100,1);g.fillRect(S*.46,S*.55,S*.08,S*.03);
+      g.fillStyle(0xffffff,.7);g.fillCircle(S*.50,S*.62,S*.02);
+    });
+
+    // ── オットセイ ───────────────────────────────
+    mk('enemy_seal',96,(g,S)=>{
+      g.fillStyle(0x000000,.18);g.fillEllipse(S*.5,S*.94,S*.7,S*.1);
+      // 後ろヒレ
+      g.fillStyle(0x554433,1);
+      g.fillTriangle(S*.36,S*.86,S*.64,S*.86,S*.50,S*1.0);
+      g.fillStyle(0x443322,1);
+      g.fillTriangle(S*.42,S*.84,S*.58,S*.84,S*.50,S*.96);
+      // 胴体(横長の楕円)
+      g.fillStyle(0x665544,1);g.fillEllipse(S*.5,S*.62,S*.7,S*.40);
+      // お腹(明るい色)
+      g.fillStyle(0xbbaa88,1);g.fillEllipse(S*.5,S*.72,S*.5,S*.22);
+      // 胴体の光沢
+      g.fillStyle(0x887766,.5);g.fillEllipse(S*.4,S*.55,S*.30,S*.14);
+      // 前ヒレ(左右)
+      g.fillStyle(0x554433,1);
+      g.fillEllipse(S*.20,S*.65,S*.12,S*.18);
+      g.fillEllipse(S*.80,S*.65,S*.12,S*.18);
+      // 首〜頭
+      g.fillStyle(0x665544,1);g.fillEllipse(S*.5,S*.36,S*.42,S*.36);
+      // 頭の光沢
+      g.fillStyle(0x887766,.4);g.fillEllipse(S*.42,S*.30,S*.20,S*.10);
+      // 耳(小さく)
+      g.fillStyle(0x443322,1);
+      g.fillEllipse(S*.30,S*.22,S*.06,S*.05);
+      g.fillEllipse(S*.70,S*.22,S*.06,S*.05);
+      // 目(つぶらな黒目)
+      g.fillStyle(0x000000,1);g.fillCircle(S*.40,S*.36,S*.06);g.fillCircle(S*.60,S*.36,S*.06);
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.42,S*.34,S*.025);g.fillCircle(S*.62,S*.34,S*.025);
+      // 鼻
+      g.fillStyle(0x111100,1);g.fillEllipse(S*.5,S*.45,S*.10,S*.08);
+      g.fillStyle(0xffffff,.5);g.fillCircle(S*.48,S*.435,S*.02);
+      // ひげ
+      g.fillStyle(0xffffff,.7);
+      [-1,0,1].forEach(i=>{
+        g.fillRect(S*.30,S*(.48+i*.02),S*.10,S*.005);
+        g.fillRect(S*.60,S*(.48+i*.02),S*.10,S*.005);
+      });
+      // 口
+      g.fillStyle(0x331100,1);g.fillRect(S*.46,S*.50,S*.08,S*.015);
+    });
+
     // ── クマ ──────────────────────────────────
     mk('enemy_bear',104,(g,S)=>{
       g.fillStyle(0x000000,.15);g.fillEllipse(S*.5,S*.93,S*.6,S*.12);
@@ -2384,6 +2559,9 @@ const DROP_TABLE={
   orc_lady:     [{id:'jelly',rate:0.45,min:1,max:2},{id:'goblin_ear',rate:0.30,min:1,max:1}],
   orc_archer:   [{id:'bone',rate:0.40,min:1,max:2},{id:'bat_wing',rate:0.30,min:1,max:1}],
   orc_general:  [{id:'boss_gem',rate:1.0,min:4,max:6},{id:'chaos_shard',rate:1.0,min:3,max:3}],
+  // ST3 海岸モンスター
+  crab:         [{id:'scorpion_claw',rate:0.40,min:1,max:1},{id:'jelly',rate:0.20,min:1,max:1}],
+  seal:         [{id:'troll_hide',rate:0.35,min:1,max:1},{id:'bone',rate:0.25,min:1,max:1}],
 };
 
 const MAX_ITEM_TYPES=40; // 所持できる種類の上限
@@ -2399,6 +2577,7 @@ const KILL_SE={
   skeleton:'kill_bone',
   dragon:'kill_heavy', giant:'kill_heavy', treant:'kill_heavy', rock_golem:'kill_heavy',
   sandworm:'kill_hiss', scorpion:'kill_hiss',
+  crab:'kill_pop', seal:'kill_grunt',
   // ボス全般
   boss1:'kill_boss', boss2:'kill_boss', boss3:'kill_boss', boss4:'kill_boss',
   scorpion_queen:'kill_boss', mistress:'kill_boss', thunder_god:'kill_boss', orc_general:'kill_boss',
@@ -2813,7 +2992,7 @@ const STAGE_CONFIG={
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
   2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:560,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
+  3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
   5:{name:'ST.5 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
     tiles:['tile_sand_beach','tile_oasis_grass','tile_sand_desert'],tileWeights:[60,25,15],
@@ -2894,6 +3073,9 @@ const ENEMY_DEFS={
   orc_lady:    {hp:130,atk:22,def:6, spd:100,exp:85, gold:22, sz:64,rng:58,acd:1.0, passive:true,  eva:12},
   orc_archer:  {hp:110,atk:20,def:5, spd:90, exp:80, gold:20, sz:60,rng:220,acd:1.8,passive:false, eva:15},
   orc_general: {hp:4500,atk:70,def:22,spd:85,exp:6500,gold:1800,sz:140,rng:106,acd:0.7,passive:false,eva:15,isBoss:true},
+  // ST3 海岸モンスター
+  crab:    {hp:90, atk:14,def:6, spd:55, exp:38, gold:9, sz:56,rng:54,acd:1.4, passive:true,  eva:8 },
+  seal:    {hp:140,atk:12,def:3, spd:90, exp:50, gold:12,sz:64,rng:60,acd:1.0, passive:false, eva:15},
 };
 
 // ============================================================
@@ -2931,6 +3113,10 @@ class GameScene extends Phaser.Scene{
       this._mapMaskReady = this._buildMapColorMask(cfg.mapImage);
       // タイル描画はスキップ
     }else{
+    // 画像マップでないステージでは前ステージのマスクが残らないようにクリア
+    this._mapMaskCtx=null;
+    this._mapMaskCanvas=null;
+    this._mapMaskReady=false;
     // ── 従来のタイル描画 ──
     const cols=Math.ceil(MW/TILE),rows=Math.ceil(MH/TILE);
     for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
