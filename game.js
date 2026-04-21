@@ -2729,7 +2729,7 @@ const STAGE_CONFIG={
       {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
     ],
   },
-  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',400,300],['slime',900,350],['slime',600,600],['slime',1100,500],['slime',300,700],['bat',500,250],['bat',1000,650],['bat',350,500],['goblin',800,500],['goblin',450,800],['goblin',1150,750],['troll',950,250],['troll',550,850]],boss:{id:'boss1',x:724,y:543},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town'},
+  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
   2:{name:'ST.2 溶岩地帯',bgmKey:'st2',tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:['obj_lava_rock'],objPos:[[200,150],[550,100],[780,200],[120,450],[950,300],[380,650],[820,580],[1000,750],[460,340],[700,820]],enemies:[['goblin',300,200],['goblin',700,250],['goblin',300,450],['goblin',900,320],['wolf',550,580],['wolf',800,700],['wolf',400,750],['troll',650,480],['troll',820,560],['troll',250,720],['skeleton',350,550],['skeleton',750,620],['skeleton',600,400]],boss:{id:'boss2',x:600,y:300},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1'},
   3:{name:'ST.3 海岸',bgmKey:'st3',tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:['obj_palm'],objPos:[[180,640],[280,700],[500,720],[720,670],[900,740],[1050,700],[180,800],[380,840],[600,820],[820,810]],enemies:[['slime',350,400],['slime',700,420],['slime',500,600],['slime',900,380],['bat',400,350],['bat',750,300],['bat',1000,450],['goblin',300,500],['goblin',650,550],['goblin',950,500],['wolf',500,700],['wolf',800,750],['wolf',300,780],['skeleton',400,600],['skeleton',850,550]],boss:{id:'boss3',x:600,y:300},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2'},
   4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
@@ -3144,17 +3144,21 @@ class GameScene extends Phaser.Scene{
     // ポータル（戻る）
     if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
       // ST5は螺旋入口が左下なのでポータルを左下に配置
-      const pbY=this.stage===5?MH-200:MH/2;
-      this.portalBackPos={x:80,y:pbY};
-      this.add.image(80,pbY,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
-      this.add.text(80,pbY+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Arial',color:'#ffd700',align:'center'}).setOrigin(0.5);
+      // cfg.portalBackX/Y が指定されていればそれを優先(画像マップ用)
+      const pbX=cfg.portalBackX!==undefined?cfg.portalBackX:80;
+      const pbY=cfg.portalBackY!==undefined?cfg.portalBackY:(this.stage===5?MH-200:MH/2);
+      this.portalBackPos={x:pbX,y:pbY};
+      this.add.image(pbX,pbY,'portal_'+cfg.portalBackKey.replace('portal_','')).setDisplaySize(80,64);
+      this.add.text(pbX,pbY+44,cfg.portalBackLabel,{fontSize:'10px',fontFamily:'Arial',color:'#ffd700',align:'center'}).setOrigin(0.5);
     }
     // ポータル（次）：常に開放
     this.portalNext=null;this.portalNextImg=null;this.portalNextTxt=null;
     if(cfg.portalTo!==null&&cfg.portalTo!==undefined){
-      this.portalNextImg=this.add.image(MW-80,MH/2,cfg.portalToKey).setDisplaySize(80,64).setAlpha(1.0);
-      this.portalNextTxt=this.add.text(MW-80,MH/2+44,cfg.portalToLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#00e5ff',align:'center'}).setOrigin(0.5);
-      this.portalNext={x:MW-80,y:MH/2,to:cfg.portalTo,open:true};
+      const pnX=cfg.portalNextX!==undefined?cfg.portalNextX:(MW-80);
+      const pnY=cfg.portalNextY!==undefined?cfg.portalNextY:(MH/2);
+      this.portalNextImg=this.add.image(pnX,pnY,cfg.portalToKey).setDisplaySize(80,64).setAlpha(1.0);
+      this.portalNextTxt=this.add.text(pnX,pnY+44,cfg.portalToLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#00e5ff',align:'center'}).setOrigin(0.5);
+      this.portalNext={x:pnX,y:pnY,to:cfg.portalTo,open:true};
     }
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
@@ -3162,6 +3166,18 @@ class GameScene extends Phaser.Scene{
     const fromPortal=this.fromPortal||null;
     let spawnX=fromPortal==='next'?(MW-160):200;
     let spawnY=MH/2;
+    // ステージ個別のスポーン位置オーバーライド(画像マップ用)
+    if(cfg.spawnX!==undefined&&cfg.spawnY!==undefined){
+      // ポータル経由の場合はそれぞれのポータル付近にスポーン
+      if(fromPortal==='next'&&cfg.portalNextX!==undefined){
+        // 次ステージから戻ってきた=次ポータルの近く(少し中央寄り)
+        spawnX=cfg.portalNextX-60; spawnY=cfg.portalNextY||cfg.spawnY;
+      }else if(fromPortal==='back'&&cfg.portalBackX!==undefined){
+        spawnX=cfg.portalBackX+60; spawnY=cfg.portalBackY||cfg.spawnY;
+      }else{
+        spawnX=cfg.spawnX; spawnY=cfg.spawnY;
+      }
+    }
     // 町（stage:0）は建物と被らないよう、宿屋・ショップ・鍛冶屋の間の広場へ
     if(this.stage===0&&!fromPortal){
       spawnX=330;
@@ -6564,19 +6580,14 @@ class GameScene extends Phaser.Scene{
     if(mx<0||my<0||mx>=this._mapMaskW||my>=this._mapMaskH) return false; // マップ外は不可
     const px = this._mapMaskCtx.getImageData(mx, my, 1, 1).data;
     const r = px[0], g = px[1], b = px[2];
-    // ── 厳しめの歩行可否判定 ──
-    // 「歩けるエリア」= 明るい黄緑〜緑〜黄土色(草地・道)のみ
-    // それ以外(深い森・岩・暗いエリア)はすべて壁
     const sum = r + g + b;
-    // 1) 暗いエリアは壁
-    if(sum < 360) return false;
-    // 2) 緑優位かつ明るいなら歩ける(草地)
-    //    - G が R, B より明確に大きい
-    //    - かつ G が一定以上の明るさ
-    if(g > 110 && g >= r - 20 && g >= b + 10) return true;
-    // 3) 黄土色(土・道): R と G がほぼ同じで明るく、B が低め
-    if(r > 130 && g > 120 && b < g && (r + g) > b * 2.5) return true;
-    // それ以外は壁
+    // 1) かなり暗いエリア(深い森・濃い影)は壁
+    if(sum < 280) return false;
+    // 2) 緑優位な草地: G が R 以上、G が B より明確に大きい、最低限明るい
+    if(g >= r && g > b + 15 && g > 80) return true;
+    // 3) 黄土色(土・道): R/G が高めで B が低め
+    if(r > 130 && g > 110 && b < g && r > b) return true;
+    // それ以外(灰色の岩・茶色の幹など)は壁
     return false;
   }
 
