@@ -4388,7 +4388,12 @@ class GameScene extends Phaser.Scene{
       const svX=MX, svY=MY+44;
       const svBtn=this.add.rectangle(svX,svY,56,22,0x003300,0.9).setStrokeStyle(1,0x44aa44).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
       this.add.text(svX,svY,'💾SAVE',{fontSize:'9px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(16);
-      svBtn.on('pointerdown',()=>this.scene.start('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage}));
+      svBtn.on('pointerdown',()=>{
+        if(this._menuOpen||this._gameOver)return;
+        this.physics.pause();
+        this.scene.launch('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage});
+        this.scene.pause();
+      });
       svBtn.on('pointerover',()=>svBtn.setFillStyle(0x006600,0.95));
       svBtn.on('pointerout', ()=>svBtn.setFillStyle(0x003300,0.9));
     }
@@ -4608,6 +4613,8 @@ class GameScene extends Phaser.Scene{
     const close=()=>{
       objs.forEach(o=>{try{if(o&&o.active)o.destroy();}catch(e){}});
       this.physics.resume();
+      // ショップ内で所持金/ポーション数が変動している可能性があるのでHUDを更新
+      this.updateHUD();
     };
 
     // パネル
@@ -4724,6 +4731,25 @@ class GameScene extends Phaser.Scene{
       return out;
     };
     let sellList=buildSellList();
+    // 売却数量（itemId → 売る予定の個数）
+    let sellQty={};
+    const totalSellQty=()=>Object.values(sellQty).reduce((a,b)=>a+b,0);
+    const totalSellGold=()=>{
+      let g=0;
+      Object.keys(sellQty).forEach(id=>{
+        const def=ITEM_DEFS[id]; if(def) g+=def.sell*sellQty[id];
+      });
+      return g;
+    };
+    const clearSellQty=()=>{ sellQty={}; };
+    // 売却数量を変更（クランプ：0〜所持数）
+    const adjustSellQty=(id,delta)=>{
+      const inv=pd.items||{};
+      const have=inv[id]||0;
+      const cur=sellQty[id]||0;
+      const next=Math.max(0,Math.min(have,cur+delta));
+      if(next===0) delete sellQty[id]; else sellQty[id]=next;
+    };
 
     // タブUI（ショップのみ）
     let tabBuyBg,tabBuyTxt,tabSellBg,tabSellTxt;
@@ -4752,11 +4778,13 @@ class GameScene extends Phaser.Scene{
       tabBuyBg.on('pointerdown',()=>{
         if(mode==='buy')return;
         mode='buy'; selectedItem=null; shopScroll=0;
+        clearSellQty();
         refreshTabs(); renderShopItems(0); updateBuyBtn();
       });
       tabSellBg.on('pointerdown',()=>{
         if(mode==='sell')return;
         mode='sell'; selectedItem=null; shopScroll=0;
+        clearSellQty();
         sellList=buildSellList();
         refreshTabs(); renderShopItems(0); updateBuyBtn();
       });
@@ -4773,35 +4801,37 @@ class GameScene extends Phaser.Scene{
       buyBtn.removeAllListeners('pointerout');
       // ── 売却モード ──
       if(mode==='sell'){
-        if(!selectedItem){
+        const tq=totalSellQty();
+        const tg=totalSellGold();
+        if(tq<=0){
           buyBtn.setFillStyle(0x1a1208,0.9).setStrokeStyle(2,0x554433);
-          buyBtnTxt.setText('売却するアイテムを選択してください').setColor('#776655');
+          buyBtnTxt.setText('±ボタンで売却数を選んでください').setColor('#776655');
           buyBtn.removeInteractive(); return;
         }
-        const sid=selectedItem;
-        const def=ITEM_DEFS[sid]; const inv=pd.items||{}; const cnt=inv[sid]||0;
-        if(!def||cnt<=0){
-          buyBtn.setFillStyle(0x1a0a0a,0.9).setStrokeStyle(2,0x553333);
-          buyBtnTxt.setText('✗ 売却できません').setColor('#cc4444');
-          buyBtn.removeInteractive(); return;
-        }
-        const price=def.sell;
         buyBtn.setFillStyle(0x351a0a,0.95).setStrokeStyle(2,0xffaa44);
-        buyBtnTxt.setText('💰 '+def.icon+' '+def.name+' を1個 売る（+'+price+'G）').setColor('#ffaa44');
+        buyBtnTxt.setText('💰 合計 '+tq+'個 を売却（+'+tg+'G）').setColor('#ffaa44');
         buyBtn.setInteractive({useHandCursor:true});
         buyBtn.on('pointerdown',()=>{
-          // 1個売却
-          inv[sid]=cnt-1;
-          if(inv[sid]<=0) delete inv[sid];
-          pd.gold+=price;
+          // 一括売却
+          const inv=pd.items||{};
+          let totalG=0, totalC=0;
+          Object.keys(sellQty).forEach(id=>{
+            const q=sellQty[id]||0; if(q<=0)return;
+            const def=ITEM_DEFS[id]; if(!def)return;
+            const have=inv[id]||0;
+            const sell=Math.min(q,have);
+            inv[id]=have-sell;
+            if(inv[id]<=0) delete inv[id];
+            totalG+=def.sell*sell; totalC+=sell;
+          });
+          pd.gold+=totalG;
           refreshGold();
+          this.updateHUD(); // HUDの所持金表示も即更新
           SE('potion');
-          showResult('💰 '+def.icon+' '+def.name+' を売却（+'+price+'G）','#ffaa44');
-          // リスト再構築
+          showResult('💰 '+totalC+'個 売却（+'+totalG+'G）','#ffaa44');
+          // 状態クリア&リスト再構築
+          clearSellQty();
           sellList=buildSellList();
-          // 在庫切れになったら選択解除
-          if(!pd.items||!pd.items[sid]) selectedItem=null;
-          // スクロール位置調整
           if(shopScroll>Math.max(0,sellList.length-visibleCount)){
             shopScroll=Math.max(0,sellList.length-visibleCount);
           }
@@ -4835,7 +4865,7 @@ class GameScene extends Phaser.Scene{
         buyBtnTxt.setText('💰 '+item.icon+' '+item.label+' を購入する（'+item.price+'G）').setColor('#44aaff');
         buyBtn.setInteractive({useHandCursor:true});
         buyBtn.on('pointerdown',()=>{
-          pd.gold-=item.price; item.action(); refreshGold(); SE('potion');
+          pd.gold-=item.price; item.action(); refreshGold(); this.updateHUD(); SE('potion');
           // ポーションボタンの数字を即座に更新
           if(this.potHPTxt)this.potHPTxt.setText('x'+(pd.potHP||0));
           if(this.potMPTxt)this.potMPTxt.setText('x'+(pd.potMP||0));
@@ -4861,30 +4891,62 @@ class GameScene extends Phaser.Scene{
           addS(this.add.text(PX,listTop+listH2/2,'売れる収集品を持っていません',{fontSize:'13px',fontFamily:'Arial',color:'#778899'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
           return;
         }
-        sellList.slice(offset,offset+visibleCount).forEach((entry,i)=>{
+        const SH_SELL_H=64; // 売却行は背が高い（カウンタ操作行のため）
+        const sellRows=Math.max(1,Math.floor(listH2/SH_SELL_H));
+        sellList.slice(offset,offset+sellRows).forEach((entry,i)=>{
           const ix=PX;
-          const iy=listTop+i*SH_H+SH_H/2;
-          const isSelected=selectedItem===entry.id;
-          const bgCol=isSelected?0x3a2a0a:0x1a1208;
-          const strokeCol=isSelected?0xffcc66:0x554433;
-          const ibg=addS(this.add.rectangle(ix,iy,SH_CW-4,SH_H-4,bgCol,0.9).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+          const iy=listTop+i*SH_SELL_H+SH_SELL_H/2;
+          const qty=sellQty[entry.id]||0;
+          const hasQty=qty>0;
+          const bgCol=hasQty?0x3a2a0a:0x1a1208;
+          const strokeCol=hasQty?0xffcc66:0x554433;
+          // 行背景
+          addS(this.add.rectangle(ix,iy,SH_CW-4,SH_SELL_H-4,bgCol,0.92).setStrokeStyle(hasQty?2:1,strokeCol).setScrollFactor(0).setDepth(72));
+          // ── 上段：アイコン+名前+所持/単価 ──
+          const topY=iy-SH_SELL_H*0.22;
           // アイコン
-          addS(this.add.text(PX-SH_CW/2+20,iy,entry.def.icon,{fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(PX-SH_CW/2+18,topY,entry.def.icon,{fontSize:'18px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
           // 名前
-          const textCol=isSelected?'#ffcc66':'#ffffff';
-          addS(this.add.text(PX-SH_CW/2+42,iy-8,entry.def.name,{fontSize:'13px',fontFamily:'Arial',color:textCol,wordWrap:{width:SH_CW-160},fontStyle:isSelected?'bold':'normal'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-          // 所持数
-          addS(this.add.text(PX-SH_CW/2+42,iy+10,'所持: '+entry.count,{fontSize:'10px',fontFamily:'Arial',color:'#9988aa'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
-          // 売値（右端）
-          addS(this.add.text(PX+SH_CW/2-10,iy,'+'+entry.def.sell+'G',{fontSize:'14px',fontFamily:'Arial',color:'#ffaa44',fontStyle:'bold'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
-          ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:entry.id);renderShopItems(shopScroll);updateBuyBtn();});
-          ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x4a3a1a:0x2a1f0a,0.95));
-          ibg.on('pointerout', ()=>ibg.setFillStyle(bgCol,0.9));
+          addS(this.add.text(PX-SH_CW/2+34,topY,entry.def.name,{fontSize:'13px',fontFamily:'Arial',color:hasQty?'#ffcc66':'#ffffff',fontStyle:hasQty?'bold':'normal'}).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+          // 所持数+単価（右側）
+          addS(this.add.text(PX+SH_CW/2-10,topY,'所持: '+entry.count+'  単価: +'+entry.def.sell+'G',{fontSize:'11px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
+          // ── 下段：[-10][-1] x:N [+1][+10] ──
+          const ctrlY=iy+SH_SELL_H*0.22;
+          const btnW=36, btnH=22, gap=4;
+          // 中央：売却数表示
+          const qtyTxt=hasQty?(qty+'個 (+'+(qty*entry.def.sell)+'G)'):'0個';
+          addS(this.add.text(PX,ctrlY,qtyTxt,{fontSize:'12px',fontFamily:'Arial',color:hasQty?'#ffcc66':'#778899',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          // ボタン作成ヘルパ
+          const mkBtn=(bx,label,delta,col,tcol)=>{
+            const canPress=(delta>0?qty<entry.count:qty>0);
+            const fillCol=canPress?col:0x222222;
+            const strkCol=canPress?col:0x444444;
+            const txCol=canPress?tcol:'#555555';
+            const bg=addS(this.add.rectangle(bx,ctrlY,btnW,btnH,fillCol,canPress?0.85:0.4).setStrokeStyle(1,strkCol).setScrollFactor(0).setDepth(73));
+            addS(this.add.text(bx,ctrlY,label,{fontSize:'12px',fontFamily:'Arial',color:txCol,fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
+            if(canPress){
+              bg.setInteractive({useHandCursor:true});
+              bg.on('pointerdown',()=>{
+                adjustSellQty(entry.id,delta);
+                SE('click');
+                renderShopItems(shopScroll);
+                updateBuyBtn();
+              });
+              bg.on('pointerover',()=>bg.setFillStyle(col,0.95));
+              bg.on('pointerout', ()=>bg.setFillStyle(col,0.85));
+            }
+          };
+          // 左ペア [-10][-1]
+          mkBtn(PX-SH_CW/2+10+btnW/2,            '-10', -10, 0x552222, '#ff8888');
+          mkBtn(PX-SH_CW/2+10+btnW*1.5+gap,      '-1',  -1,  0x552222, '#ff8888');
+          // 右ペア [+1][+10]
+          mkBtn(PX+SH_CW/2-10-btnW*1.5-gap,      '+1',  +1,  0x225522, '#88ff88');
+          mkBtn(PX+SH_CW/2-10-btnW/2,            '+10', +10, 0x225522, '#88ff88');
         });
-        // 件数
-        if(sellList.length>visibleCount){
-          const total=sellList.length, shown=Math.min(offset+visibleCount,total);
-          addS(this.add.text(PX,listBottom+4,(offset+1)+'〜'+shown+' / '+total,{fontSize:'10px',fontFamily:'Arial',color:'#776655'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        // 件数インジケーター
+        if(sellList.length>sellRows){
+          const total=sellList.length, shown=Math.min(offset+sellRows,total);
+          addS(this.add.text(PX,listBottom+4,(offset+1)+'〜'+shown+' / '+total+'　▲▼スワイプでスクロール',{fontSize:'10px',fontFamily:'Arial',color:'#776655'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
         }
         return;
       }
@@ -4927,14 +4989,18 @@ class GameScene extends Phaser.Scene{
 
     // スワイプスクロール
     const shZone=mk(this.add.rectangle(PX,listTop+listH2/2,PW-8,listH2,0x000000,0).setScrollFactor(0).setDepth(71).setInteractive());
+    const SH_SELL_H=64;
+    const sellRowsPerView=()=>Math.max(1,Math.floor(listH2/SH_SELL_H));
     const curListLen=()=>(mode==='sell'?sellList.length:items.length);
-    const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(curListLen()-visibleCount,newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
+    const curMaxScroll=()=>Math.max(0,curListLen()-(mode==='sell'?sellRowsPerView():visibleCount));
+    const curRowH=()=>(mode==='sell'?SH_SELL_H:SH_H);
+    const doShScroll=(newScroll)=>{const c=Math.max(0,Math.min(curMaxScroll(),newScroll));if(c!==shopScroll){shopScroll=c;renderShopItems(shopScroll);}};
     shZone.on('wheel',(_p,_dx,dy)=>{doShScroll(shopScroll+(dy>0?1:-1));});
     shZone.on('pointerdown',(ptr)=>{shSwipeY=ptr.y;shSwipeScroll=shopScroll;});
     shZone.on('pointermove',(ptr)=>{
       if(shSwipeY===null)return;
       const dy=shSwipeY-ptr.y;
-      doShScroll(Math.round(shSwipeScroll+dy/(SH_H*0.7)));
+      doShScroll(Math.round(shSwipeScroll+dy/(curRowH()*0.7)));
     });
     shZone.on('pointerup',()=>{shSwipeY=null;});
     shZone.on('pointerout',()=>{shSwipeY=null;});
