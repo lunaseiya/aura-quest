@@ -6582,11 +6582,11 @@ class GameScene extends Phaser.Scene{
     const r = px[0], g = px[1], b = px[2];
     const sum = r + g + b;
     // 1) かなり暗いエリア(深い森・濃い影)は壁
-    if(sum < 280) return false;
-    // 2) 緑優位な草地: G が R 以上、G が B より明確に大きい、最低限明るい
-    if(g >= r && g > b + 15 && g > 80) return true;
+    if(sum < 240) return false;
+    // 2) 緑優位な草地: G が R 以上、G が B より大きい、最低限明るい
+    if(g >= r && g > b + 10 && g > 60) return true;
     // 3) 黄土色(土・道): R/G が高めで B が低め
-    if(r > 130 && g > 110 && b < g && r > b) return true;
+    if(r > 110 && g > 90 && b < g && r > b) return true;
     // それ以外(灰色の岩・茶色の幹など)は壁
     return false;
   }
