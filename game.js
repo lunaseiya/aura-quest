@@ -901,6 +901,9 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st1', BASE+'maps/st1.png');
     this.load.image('map_st2', BASE+'maps/st2.png');
     this.load.image('map_st3', BASE+'maps/st3.png');
+    this.load.image('map_st4', BASE+'maps/st4.png');
+    this.load.image('map_st5', BASE+'maps/st5.png');
+    this.load.image('map_st6', BASE+'maps/st6.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -2101,6 +2104,332 @@ class BootScene extends Phaser.Scene{
       [[.32,.34],[.38,.31],[.44,.3],[.38,.4]].forEach(([x,y])=>{g.fillCircle(S*x,S*y,S*.03);});
     });
 
+    // ── スコーピオンキング(ST5ボス)──────────────
+    mk('enemy_scorpion_king',140,(g,S)=>{
+      g.fillStyle(0x000000,.22);g.fillEllipse(S*.5,S*.95,S*.75,S*.14);
+      // 暗黒オーラ(王者の威厳)
+      g.fillStyle(0xffaa00,.08);g.fillCircle(S*.5,S*.5,S*.55);
+      g.fillStyle(0xffcc33,.05);g.fillCircle(S*.5,S*.5,S*.48);
+      // 巨大な尻尾(S字・威嚇)
+      g.fillStyle(0x661100,1);
+      g.fillEllipse(S*.80,S*.76,S*.18,S*.24);
+      g.fillEllipse(S*.92,S*.58,S*.14,S*.20);
+      g.fillEllipse(S*.96,S*.38,S*.12,S*.18);
+      g.fillEllipse(S*.90,S*.20,S*.10,S*.16);
+      // 尻尾の光沢
+      g.fillStyle(0x884422,.5);
+      g.fillEllipse(S*.80,S*.72,S*.12,S*.10);
+      g.fillEllipse(S*.92,S*.54,S*.08,S*.08);
+      // 巨大な毒針(金色)
+      g.fillStyle(0xffd700,1);g.fillTriangle(S*.90,S*.08,S*.82,S*.22,S*.98,S*.16);
+      g.fillStyle(0xffee44,1);g.fillTriangle(S*.90,S*.10,S*.84,S*.20,S*.95,S*.16);
+      // 毒液の滴
+      g.fillStyle(0x22ff22,.8);g.fillCircle(S*.89,S*.06,S*.025);
+      // 足(8本・太く)
+      g.fillStyle(0x771100,1);
+      [[.24,.40,.04,.66],[.20,.48,.00,.74],[.21,.56,.02,.80],[.24,.64,.06,.86],
+       [.76,.40,.96,.66],[.80,.48,1.0,.74],[.79,.56,.98,.80],[.76,.64,.94,.86]].forEach(([x1,y1,x2,y2])=>{
+        g.fillRect(S*Math.min(x1,x2),S*y1,S*Math.abs(x2-x1)+S*.05,S*.05);
+      });
+      // 巨大なハサミ(左)
+      g.fillStyle(0xaa1100,1);
+      g.fillEllipse(S*.16,S*.34,S*.28,S*.18);
+      g.fillEllipse(S*.02,S*.24,S*.16,S*.12);
+      g.fillEllipse(S*.02,S*.44,S*.16,S*.12);
+      g.fillStyle(0x880000,1);g.fillCircle(S*.02,S*.24,S*.07);g.fillCircle(S*.02,S*.44,S*.07);
+      // ハサミの光沢
+      g.fillStyle(0xff3322,.6);g.fillEllipse(S*.18,S*.30,S*.14,S*.06);
+      // 胴体
+      g.fillStyle(0xaa2200,1);g.fillEllipse(S*.5,S*.60,S*.48,S*.36);
+      g.fillStyle(0xcc3322,.6);g.fillEllipse(S*.48,S*.55,S*.32,S*.20);
+      // 頭胸
+      g.fillStyle(0xbb3300,1);g.fillEllipse(S*.42,S*.38,S*.40,S*.32);
+      g.fillStyle(0xdd4422,.5);g.fillEllipse(S*.40,S*.34,S*.24,S*.14);
+      // 大きな王冠(金)
+      g.fillStyle(0xffd700,1);
+      g.fillRect(S*.28,S*.20,S*.40,S*.12);
+      g.fillTriangle(S*.28,S*.20,S*.28,S*.06,S*.36,S*.20);
+      g.fillTriangle(S*.44,S*.20,S*.50,S*.04,S*.56,S*.20);
+      g.fillTriangle(S*.72,S*.20,S*.64,S*.20,S*.72,S*.06);
+      // 王冠の宝石
+      g.fillStyle(0xff2200,1);g.fillCircle(S*.32,S*.12,S*.035);g.fillCircle(S*.68,S*.12,S*.035);
+      g.fillStyle(0x22ddff,1);g.fillCircle(S*.50,S*.08,S*.04);
+      g.fillStyle(0xffffff,.6);g.fillCircle(S*.50,S*.07,S*.015);
+      // 王冠の縁
+      g.fillStyle(0xcc9900,1);g.fillRect(S*.28,S*.30,S*.40,S*.02);
+      // 目(8つ、怒りの赤)
+      g.fillStyle(0xff0000,1);
+      [[.30,.38],[.36,.34],[.42,.33],[.48,.34],[.36,.44],[.42,.46]].forEach(([x,y])=>{g.fillCircle(S*x,S*y,S*.035);});
+      g.fillStyle(0xffffff,.9);
+      [[.30,.37],[.36,.33],[.42,.32],[.48,.33]].forEach(([x,y])=>{g.fillCircle(S*x,S*y,S*.012);});
+    });
+
+    // ── ミイラ(砂漠の遺跡のアンデッド)────────────
+    mk('enemy_mummy',76,(g,S)=>{
+      g.fillStyle(0x000000,.18);g.fillEllipse(S*.5,S*.94,S*.45,S*.10);
+      // 脚(包帯ぐるぐる)
+      g.fillStyle(0xccbb88,1);
+      g.fillRect(S*.36,S*.66,S*.12,S*.28);
+      g.fillRect(S*.52,S*.66,S*.12,S*.28);
+      // 包帯の段差(脚)
+      g.fillStyle(0x998866,1);
+      [0.70,0.76,0.82,0.88].forEach(y=>{
+        g.fillRect(S*.36,S*y,S*.12,S*.015);
+        g.fillRect(S*.52,S*y,S*.12,S*.015);
+      });
+      // 胴体(包帯)
+      g.fillStyle(0xddcc99,1);g.fillEllipse(S*.5,S*.54,S*.38,S*.34);
+      // 胴体の包帯ライン(横向き)
+      g.fillStyle(0xaa9966,.7);
+      [0.44,0.52,0.60,0.68].forEach(y=>{g.fillEllipse(S*.5,S*y,S*.38,S*.012);});
+      // 腕(前に伸ばした姿勢)
+      g.fillStyle(0xccbb88,1);
+      g.fillEllipse(S*.22,S*.48,S*.10,S*.22);
+      g.fillEllipse(S*.78,S*.48,S*.10,S*.22);
+      // 手
+      g.fillStyle(0xaa9977,1);
+      g.fillCircle(S*.22,S*.60,S*.06);g.fillCircle(S*.78,S*.60,S*.06);
+      // 頭(包帯の隙間から黒い穴)
+      g.fillStyle(0xddcc99,1);g.fillEllipse(S*.5,S*.24,S*.30,S*.30);
+      // 頭の包帯ライン
+      g.fillStyle(0xaa9966,.7);
+      [0.16,0.22,0.28,0.34].forEach(y=>{g.fillEllipse(S*.5,S*y,S*.30,S*.010);});
+      // 目の穴(不気味な光)
+      g.fillStyle(0x000000,1);
+      g.fillEllipse(S*.40,S*.24,S*.06,S*.06);g.fillEllipse(S*.60,S*.24,S*.06,S*.06);
+      g.fillStyle(0xff2222,1);
+      g.fillCircle(S*.40,S*.24,S*.022);g.fillCircle(S*.60,S*.24,S*.022);
+      g.fillStyle(0xffaa33,.7);
+      g.fillCircle(S*.40,S*.24,S*.010);g.fillCircle(S*.60,S*.24,S*.010);
+      // 口の包帯の裂け目
+      g.fillStyle(0x000000,.9);g.fillEllipse(S*.5,S*.34,S*.10,S*.04);
+      // ほつれた包帯(頭から垂れる)
+      g.fillStyle(0xbbaa88,.8);
+      g.fillRect(S*.30,S*.10,S*.02,S*.18);
+      g.fillRect(S*.68,S*.14,S*.02,S*.14);
+      g.fillRect(S*.42,S*.04,S*.02,S*.10);
+    });
+
+    // ── サンドマン（砂人形・ST4〜5）──────────────
+    mk('enemy_sandman',96,(g,S)=>{
+      g.fillStyle(0x000000,.18);g.fillEllipse(S*.5,S*.94,S*.60,S*.10);
+      // 砂の粒飛散
+      g.fillStyle(0xddbb77,.45);
+      [[.20,.40],[.82,.38],[.18,.68],[.84,.64],[.15,.20],[.85,.18]].forEach(([x,y])=>{
+        g.fillCircle(S*x,S*y,S*.025);
+      });
+      // 胴体（ごつごつした砂の塊）
+      g.fillStyle(0xd4aa55,1);g.fillEllipse(S*.5,S*.62,S*.60,S*.46);
+      g.fillStyle(0xbb9944,1);
+      // 砂のブロック感
+      g.fillRect(S*.28,S*.54,S*.14,S*.10);
+      g.fillRect(S*.55,S*.58,S*.16,S*.08);
+      g.fillRect(S*.34,S*.72,S*.18,S*.10);
+      // ハイライト(陽に照る)
+      g.fillStyle(0xeecc88,.6);g.fillEllipse(S*.38,S*.52,S*.22,S*.10);
+      // 腕(両側・塊状)
+      g.fillStyle(0xd4aa55,1);
+      g.fillEllipse(S*.14,S*.60,S*.16,S*.22);
+      g.fillEllipse(S*.86,S*.60,S*.16,S*.22);
+      g.fillStyle(0xbb9944,1);
+      g.fillCircle(S*.10,S*.72,S*.08);
+      g.fillCircle(S*.90,S*.72,S*.08);
+      // 頭(砂の塊)
+      g.fillStyle(0xd4aa55,1);g.fillEllipse(S*.5,S*.28,S*.40,S*.34);
+      g.fillStyle(0xeecc88,.5);g.fillEllipse(S*.42,S*.22,S*.20,S*.10);
+      // 目(暗い穴・不気味)
+      g.fillStyle(0x221100,1);
+      g.fillEllipse(S*.38,S*.28,S*.07,S*.10);
+      g.fillEllipse(S*.62,S*.28,S*.07,S*.10);
+      // 目の中の赤い光
+      g.fillStyle(0xff4400,.9);g.fillCircle(S*.38,S*.28,S*.025);g.fillCircle(S*.62,S*.28,S*.025);
+      // 口(ぎざぎざ)
+      g.fillStyle(0x332200,1);
+      g.fillRect(S*.38,S*.42,S*.24,S*.03);
+      // 落ちる砂のエフェクト
+      g.fillStyle(0xccaa66,.5);
+      g.fillRect(S*.30,S*.82,S*.02,S*.10);
+      g.fillRect(S*.46,S*.86,S*.02,S*.08);
+      g.fillRect(S*.66,S*.82,S*.02,S*.10);
+    });
+
+    // ── ミイラ(mummy・ST5〜6)──────────────
+    mk('enemy_mummy',92,(g,S)=>{
+      g.fillStyle(0x000000,.2);g.fillEllipse(S*.5,S*.95,S*.50,S*.10);
+      // 胴体(包帯ベース)
+      g.fillStyle(0xddcc99,1);g.fillEllipse(S*.5,S*.58,S*.44,S*.54);
+      // 包帯の段(横縞)
+      g.fillStyle(0xbb9966,.7);
+      [.42,.52,.62,.72,.82].forEach(y=>{
+        g.fillRect(S*.28,S*y,S*.44,S*.025);
+      });
+      // 包帯のほつれ
+      g.fillStyle(0x998866,1);
+      g.fillTriangle(S*.30,S*.68,S*.26,S*.76,S*.32,S*.78);
+      g.fillTriangle(S*.70,S*.72,S*.74,S*.80,S*.68,S*.82);
+      // 腕(前に伸ばす)
+      g.fillStyle(0xddcc99,1);
+      g.fillRect(S*.10,S*.52,S*.18,S*.10);
+      g.fillRect(S*.72,S*.52,S*.18,S*.10);
+      g.fillStyle(0xbb9966,.6);
+      [.54,.58].forEach(y=>{g.fillRect(S*.10,S*y,S*.18,S*.015);g.fillRect(S*.72,S*y,S*.18,S*.015);});
+      // 足の包帯
+      g.fillStyle(0xddcc99,1);
+      g.fillRect(S*.36,S*.84,S*.10,S*.14);
+      g.fillRect(S*.54,S*.84,S*.10,S*.14);
+      // 頭
+      g.fillStyle(0xeedbaa,1);g.fillEllipse(S*.5,S*.28,S*.34,S*.36);
+      // 頭の包帯(斜め)
+      g.fillStyle(0xbb9966,.7);
+      g.fillRect(S*.30,S*.20,S*.40,S*.03);
+      g.fillRect(S*.30,S*.30,S*.40,S*.03);
+      g.fillRect(S*.30,S*.38,S*.40,S*.03);
+      // 目の包帯の隙間から光る目
+      g.fillStyle(0x000000,1);
+      g.fillRect(S*.30,S*.26,S*.40,S*.04); // 目隠し包帯
+      g.fillStyle(0xff2200,.9);
+      g.fillCircle(S*.40,S*.28,S*.025);g.fillCircle(S*.60,S*.28,S*.025);
+      // 口の包帯の隙間
+      g.fillStyle(0x331100,1);g.fillRect(S*.42,S*.42,S*.16,S*.025);
+    });
+
+    // ── 骨竜(bone_dragon・ST6/ST7)──────────────
+    mk('enemy_bone_dragon',140,(g,S)=>{
+      g.fillStyle(0x000000,.28);g.fillEllipse(S*.5,S*.95,S*.82,S*.12);
+      // 尾(骨の連なり)
+      g.fillStyle(0xe8dcc0,1);
+      g.fillEllipse(S*.78,S*.80,S*.08,S*.06);
+      g.fillEllipse(S*.85,S*.72,S*.08,S*.06);
+      g.fillEllipse(S*.90,S*.60,S*.08,S*.06);
+      g.fillEllipse(S*.92,S*.48,S*.08,S*.06);
+      // 尾の先端(矢じり状)
+      g.fillStyle(0xddd0b0,1);
+      g.fillTriangle(S*.92,S*.38,S*.86,S*.48,S*.98,S*.48);
+      // 胴体の骨格(肋骨)
+      g.fillStyle(0x332211,.8);g.fillEllipse(S*.5,S*.65,S*.6,S*.34); // 影
+      g.fillStyle(0xe8dcc0,1);
+      // 背骨
+      g.fillRect(S*.22,S*.63,S*.56,S*.04);
+      // 肋骨(左右対称)
+      [.28,.36,.44,.52,.60,.68].forEach(x=>{
+        g.fillEllipse(S*x,S*.55,S*.025,S*.16);
+        g.fillEllipse(S*x,S*.75,S*.025,S*.16);
+      });
+      // 翼(骨だけ)
+      g.fillStyle(0xccbb88,.5);
+      // 左翼(上方向)
+      g.fillTriangle(S*.25,S*.55,S*.05,S*.18,S*.15,S*.50);
+      g.fillTriangle(S*.15,S*.50,S*.05,S*.18,S*.02,S*.40);
+      // 右翼
+      g.fillTriangle(S*.75,S*.55,S*.95,S*.18,S*.85,S*.50);
+      g.fillTriangle(S*.85,S*.50,S*.95,S*.18,S*.98,S*.40);
+      // 翼の骨の筋
+      g.fillStyle(0xe8dcc0,1);
+      g.fillRect(S*.05,S*.19,S*.18,S*.025);
+      g.fillRect(S*.78,S*.19,S*.18,S*.025);
+      // 前脚
+      g.fillStyle(0xe8dcc0,1);
+      g.fillRect(S*.22,S*.75,S*.04,S*.18);
+      g.fillRect(S*.74,S*.75,S*.04,S*.18);
+      // 爪
+      g.fillStyle(0x999988,1);
+      [.20,.24,.28].forEach(x=>g.fillTriangle(S*x,S*.93,S*(x-.015),S*.99,S*(x+.015),S*.93));
+      [.72,.76,.80].forEach(x=>g.fillTriangle(S*x,S*.93,S*(x-.015),S*.99,S*(x+.015),S*.93));
+      // 首
+      g.fillStyle(0xe8dcc0,1);
+      g.fillEllipse(S*.38,S*.40,S*.06,S*.18);
+      g.fillEllipse(S*.32,S*.28,S*.06,S*.10);
+      // 頭蓋骨
+      g.fillStyle(0xe8dcc0,1);g.fillEllipse(S*.24,S*.22,S*.22,S*.18);
+      // 鼻先(前に尖る)
+      g.fillTriangle(S*.04,S*.24,S*.14,S*.18,S*.14,S*.26);
+      // 目の穴
+      g.fillStyle(0x000000,1);g.fillCircle(S*.22,S*.20,S*.05);
+      // 目の中の怨念の光
+      g.fillStyle(0xff2200,1);g.fillCircle(S*.22,S*.20,S*.02);
+      // 歯
+      g.fillStyle(0xffffff,1);
+      [.07,.10,.13].forEach(x=>g.fillTriangle(S*x,S*.26,S*(x-.01),S*.30,S*(x+.01),S*.26));
+      // 頭の角(2本)
+      g.fillStyle(0xccbb88,1);
+      g.fillTriangle(S*.24,S*.12,S*.18,S*.04,S*.28,S*.10);
+      g.fillTriangle(S*.30,S*.14,S*.34,S*.04,S*.36,S*.16);
+    });
+
+    // ── スコーピオンキング(ボス・ST5) ────────────
+    mk('enemy_scorpion_king',130,(g,S)=>{
+      g.fillStyle(0x000000,.30);g.fillEllipse(S*.5,S*.95,S*.78,S*.14);
+      // 王冠の輝き
+      g.fillStyle(0xffcc00,.3);g.fillCircle(S*.5,S*.18,S*.28);
+      // 巨大な尻尾(S字・黒紫)
+      g.fillStyle(0x441144,1);
+      g.fillEllipse(S*.80,S*.75,S*.16,S*.24);
+      g.fillEllipse(S*.92,S*.58,S*.14,S*.22);
+      g.fillEllipse(S*.96,S*.40,S*.12,S*.18);
+      g.fillEllipse(S*.92,S*.24,S*.10,S*.16);
+      // 尾の節のハイライト
+      g.fillStyle(0x882288,.5);
+      g.fillEllipse(S*.80,S*.72,S*.10,S*.08);
+      g.fillEllipse(S*.92,S*.56,S*.08,S*.06);
+      g.fillEllipse(S*.96,S*.38,S*.06,S*.06);
+      // 毒針(巨大・赤く光る)
+      g.fillStyle(0xff2200,1);g.fillTriangle(S*.92,S*.08,S*.82,S*.24,S*.98,S*.22);
+      g.fillStyle(0xff6644,.6);g.fillTriangle(S*.90,S*.14,S*.84,S*.22,S*.96,S*.20);
+      // 毒の雫
+      g.fillStyle(0x88ff00,1);g.fillCircle(S*.90,S*.06,S*.03);
+      g.fillStyle(0x88ff00,.6);g.fillCircle(S*.88,S*.02,S*.02);
+      // 本体(巨大な甲羅)
+      g.fillStyle(0x551155,1);g.fillEllipse(S*.48,S*.60,S*.72,S*.52);
+      // 甲羅のプレート感
+      g.fillStyle(0x772277,1);
+      g.fillEllipse(S*.36,S*.52,S*.24,S*.20);
+      g.fillEllipse(S*.60,S*.52,S*.24,S*.20);
+      g.fillEllipse(S*.48,S*.70,S*.26,S*.18);
+      // 甲羅の金の模様
+      g.fillStyle(0xffcc00,.7);
+      g.fillTriangle(S*.48,S*.42,S*.40,S*.58,S*.56,S*.58);
+      g.fillRect(S*.46,S*.58,S*.04,S*.18);
+      // 大きなハサミ(左・広げた形)
+      g.fillStyle(0x662266,1);
+      g.fillEllipse(S*.14,S*.52,S*.18,S*.20);
+      // ハサミの爪
+      g.fillStyle(0x441144,1);
+      g.fillTriangle(S*.02,S*.42,S*.20,S*.46,S*.14,S*.56);
+      g.fillTriangle(S*.02,S*.60,S*.20,S*.56,S*.14,S*.50);
+      // 大きなハサミ(右)
+      g.fillStyle(0x662266,1);
+      g.fillEllipse(S*.82,S*.52,S*.18,S*.20);
+      g.fillStyle(0x441144,1);
+      g.fillTriangle(S*.98,S*.42,S*.80,S*.46,S*.86,S*.56);
+      g.fillTriangle(S*.98,S*.60,S*.80,S*.56,S*.86,S*.50);
+      // 足(6本)
+      g.fillStyle(0x331133,1);
+      [.24,.30,.36].forEach(x=>{
+        g.fillTriangle(S*x,S*.78,S*(x-.04),S*.92,S*(x+.02),S*.90);
+      });
+      [.60,.66,.72].forEach(x=>{
+        g.fillTriangle(S*x,S*.78,S*(x+.04),S*.92,S*(x-.02),S*.90);
+      });
+      // 頭部・目
+      g.fillStyle(0x441144,1);g.fillEllipse(S*.48,S*.36,S*.26,S*.18);
+      // 赤い凶悪な目(複数・クラスター)
+      g.fillStyle(0xff0000,1);
+      g.fillCircle(S*.40,S*.34,S*.035);g.fillCircle(S*.56,S*.34,S*.035);
+      g.fillCircle(S*.44,S*.40,S*.025);g.fillCircle(S*.52,S*.40,S*.025);
+      // 目の光
+      g.fillStyle(0xffffff,1);
+      g.fillCircle(S*.40,S*.33,S*.012);g.fillCircle(S*.56,S*.33,S*.012);
+      // 王冠(金)
+      g.fillStyle(0xffcc00,1);
+      g.fillRect(S*.38,S*.18,S*.20,S*.08);
+      g.fillTriangle(S*.38,S*.18,S*.42,S*.10,S*.46,S*.18);
+      g.fillTriangle(S*.46,S*.18,S*.48,S*.06,S*.50,S*.18);
+      g.fillTriangle(S*.50,S*.18,S*.54,S*.10,S*.58,S*.18);
+      // 王冠の宝石
+      g.fillStyle(0xff2266,1);g.fillCircle(S*.48,S*.14,S*.03);
+      g.fillStyle(0x22ccff,1);g.fillCircle(S*.42,S*.16,S*.02);g.fillCircle(S*.54,S*.16,S*.02);
+    });
+
     // ── ミストレス（蜘蛛女王・ボス5）──────────────
     mk('enemy_mistress',160,(g,S)=>{
       g.fillStyle(0x000000,.25);g.fillEllipse(S*.5,S*.96,S*.85,S*.13);
@@ -2512,6 +2841,7 @@ const ITEM_DEFS={
   // id: {name, desc, col, icon, sell（売価G）, usable（使用可能）}
   // 売価は弱い敵ほど安め・強い敵ほど高め、ただし差は控えめ（5〜50G程度）
   town_scroll:  {name:'帰還の巻物',    desc:'使うと即座に町へ帰還できる。',        col:0xffcc44, icon:'📜', sell:0,  usable:true},
+  antidote:     {name:'解毒剤',       desc:'毒状態を治す薬。',                   col:0x88ff88, icon:'🧪', sell:0,  usable:true},
   jelly:        {name:'スライムゼリー',   desc:'スライムの体液。ぷるぷる。',         col:0x33ccaa, icon:'🟢', sell:5 },
   bat_wing:     {name:'コウモリの翼',     desc:'薄くて丈夫な膜。',                  col:0x441166, icon:'🦇', sell:7 },
   goblin_ear:   {name:'ゴブリンの耳',    desc:'とがった耳。コレクター向け。',        col:0x447733, icon:'👂', sell:8 },
@@ -2562,6 +2892,12 @@ const DROP_TABLE={
   // ST3 海岸モンスター
   crab:         [{id:'scorpion_claw',rate:0.40,min:1,max:1},{id:'jelly',rate:0.20,min:1,max:1}],
   seal:         [{id:'troll_hide',rate:0.35,min:1,max:1},{id:'bone',rate:0.25,min:1,max:1}],
+  // ST5 砂漠
+  mummy:        [{id:'bone',rate:0.45,min:1,max:2},{id:'troll_hide',rate:0.20,min:1,max:1}],
+  sandman:      [{id:'sand_core',rate:0.40,min:1,max:1},{id:'jelly',rate:0.20,min:1,max:1}],
+  bone_dragon:  [{id:'bone',rate:0.50,min:2,max:4},{id:'dragon_scale',rate:0.30,min:1,max:1}],
+  // ST5 ボス
+  scorpion_king:[{id:'boss_gem',rate:1.0,min:4,max:6},{id:'chaos_shard',rate:1.0,min:3,max:3},{id:'scorpion_claw',rate:1.0,min:3,max:5}],
 };
 
 const MAX_ITEM_TYPES=40; // 所持できる種類の上限
@@ -2578,6 +2914,11 @@ const KILL_SE={
   dragon:'kill_heavy', giant:'kill_heavy', treant:'kill_heavy', rock_golem:'kill_heavy',
   sandworm:'kill_hiss', scorpion:'kill_hiss',
   crab:'kill_pop', seal:'kill_grunt',
+  mummy:'kill_bone',
+  sandman:'kill_pop',
+  bone_dragon:'kill_bone',
+  // ボス
+  scorpion_king:'kill_boss',
   // ボス全般
   boss1:'kill_boss', boss2:'kill_boss', boss3:'kill_boss', boss4:'kill_boss',
   scorpion_queen:'kill_boss', mistress:'kill_boss', thunder_god:'kill_boss', orc_general:'kill_boss',
@@ -2993,8 +3334,10 @@ const STAGE_CONFIG={
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
   2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:560,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  4:{name:'ST.4 砂漠',bgmKey:'st4',tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:['obj_desert_rock'],objPos:[[200,180],[560,120],[800,220],[130,480],[980,320],[400,680],[860,600],[1050,780],[480,360],[720,850]],enemies:[['sandworm',400,160],['sandworm',700,192],['sandworm',300,640],['sandworm',650,740],['scorpion',500,300],['scorpion',750,330],['scorpion',350,480],['scorpion',600,500],['wolf',250,430],['wolf',700,680],['dragon',500,600],['dragon',800,430],['skeleton',420,750],['skeleton',900,580]],boss:{id:'boss4',x:600,y:300},bossThreshold:12,portalTo:5,portalToLabel:'⛰ ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',portalAlt:{to:7,label:'🪓 ST.7 オーク集落へ',key:'portal_st7',x:600,y:80}},
-  5:{name:'ST.5 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
+  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  6:{name:'ST.6 砂漠の果て',bgmKey:'st5_desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',400,300],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',600,200],['bone_dragon',1000,600]],boss:{id:'bone_dragon',x:700,y:400},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:180,spawnY:540,portalNextX:1280,portalNextY:420,portalBackX:60,portalBackY:540},
+  7:{name:'ST.7 螺旋の崖',bgmKey:'st5',mapW:1600,mapH:1600,
     tiles:['tile_sand_beach','tile_oasis_grass','tile_sand_desert'],tileWeights:[60,25,15],
     objects:[],
     objPos:[],
@@ -3013,13 +3356,15 @@ const STAGE_CONFIG={
       ['scorpion_queen',1200,1300],['hornet',1000,1400],['beetle',800,1450],
       // 中央付近（頂上手前）
       ['bear',700,700],['beetle',900,600],['hornet',800,500],['scorpion_queen',750,800],
+      // 赤ドラゴン(崖上の脅威)
+      ['dragon',1200,400],['dragon',900,900],['dragon',600,1100],
     ],
     boss:{id:'mistress',x:800,y:300},
     bossThreshold:15,
-    portalTo:6,portalToLabel:'☁ ST.6へ',portalToKey:'portal_st6',
-    portalBack:4,portalBackLabel:'🏜 ST.4へ',portalBackKey:'portal_st4',
+    portalTo:8,portalToLabel:'☁ ST.8へ',portalToKey:'portal_st6',
+    portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
   },
-  6:{name:'ST.6 天空の島々',bgmKey:'st6',mapW:1800,mapH:1000,
+  8:{name:'ST.8 天空の島々',bgmKey:'st6',mapW:1800,mapH:1000,
     tiles:['tile_oasis_grass','tile_sand_beach','tile_sea'],tileWeights:[60,25,15],
     objects:['obj_tree'],
     objPos:[[200,500],[500,250],[500,750],[900,500],[1300,250],[1300,750],[1600,500]],
@@ -3027,7 +3372,7 @@ const STAGE_CONFIG={
     boss:{id:'thunder_god',x:1600,y:500},
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
-    portalBack:5,portalBackLabel:'⛰ ST.5へ',portalBackKey:'portal_st5',
+    portalBack:7,portalBackLabel:'⛰ ST.7へ',portalBackKey:'portal_st5',
     // 島データ（地形描画用）
     islands:[
       {cx:200,cy:500,r:160},
@@ -3076,6 +3421,14 @@ const ENEMY_DEFS={
   // ST3 海岸モンスター
   crab:    {hp:90, atk:14,def:6, spd:55, exp:38, gold:9, sz:56,rng:54,acd:1.4, passive:true,  eva:8 },
   seal:    {hp:140,atk:12,def:3, spd:90, exp:50, gold:12,sz:64,rng:60,acd:1.0, passive:false, eva:15},
+  // ST5 砂漠モンスター
+  mummy:   {hp:150,atk:18,def:5, spd:55, exp:70, gold:18,sz:60,rng:56,acd:1.3, passive:false, eva:10},
+  // ST4〜 サンドマン
+  sandman: {hp:180,atk:20,def:8, spd:60, exp:75, gold:18,sz:64,rng:58,acd:1.3, passive:true,  eva:5 },
+  // ST6 骨竜
+  bone_dragon:{hp:500,atk:42,def:16,spd:85,exp:220,gold:55,sz:100,rng:80,acd:1.5,passive:false,eva:15},
+  // ST5 ボス: スコーピオンキング(queenより強化)
+  scorpion_king:{hp:2800,atk:55,def:18,spd:105,exp:3500,gold:1200,sz:140,rng:108,acd:0.8,passive:false,eva:30,isBoss:true},
 };
 
 // ============================================================
@@ -3099,7 +3452,7 @@ class GameScene extends Phaser.Scene{
     this.cfg=cfg;
     // ステージ進入時HP/SP全回復 ③要件§10
     const pd=this.playerData;
-    pd.hp=pd.mhp; pd.sp=pd.msp;
+    // HP/SP/毒などの状態はステージを跨いで持ち越す(仕様)
 
     startBGM(cfg.bgmKey);
     this.cameras.main.setBounds(0,0,MW,MH);
@@ -3608,6 +3961,11 @@ class GameScene extends Phaser.Scene{
         this.facingAngle=Phaser.Math.Angle.Between(this.player.x-this.cameras.main.scrollX,this.player.y-this.cameras.main.scrollY,ptr.x,ptr.y);
     });
     this.createHUD();this.createSkillButtons();this.createMinimap();this.createJoystick();this._createHomeButton();
+    // 毒状態を持ち越している場合は視覚効果を再適用
+    if(pd._poisoned && pd._poisonTimer>0){
+      if(this.player && this.player.setTint) this.player.setTint(0xcc88ff);
+      this._showPoisonHUD();
+    }
     const ann=this.add.text(this.scale.width/2,80,cfg.name,{fontSize:'28px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.tweens.add({targets:ann,alpha:0,duration:2000,delay:1500,onComplete:()=>ann.destroy()});
     const muteBtn=this.add.text(this.scale.width-4,4,'🔊',{fontSize:'16px'}).setOrigin(1,0).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
@@ -4163,6 +4521,18 @@ class GameScene extends Phaser.Scene{
       this.time.delayedCall(600,()=>{
         this._doTransition('Game',{playerData:pd,stage:0});
       });
+    } else if(itemId==='antidote'){
+      // 解毒剤：毒状態を治す
+      if(!pd._poisoned){
+        this.showFloat(this.player.x,this.player.y-50,'毒にかかっていません','#888888','info');
+        return; // 消費しない
+      }
+      pd.items[itemId]--;
+      if(pd.items[itemId]<=0)delete pd.items[itemId];
+      this.clearPoison();
+      this.showFloat(this.player.x,this.player.y-50,'🧪 毒が消えた！','#88ff88','info');
+      SE('potion');
+      this.updateHUD();
     }
   }
 
@@ -4945,6 +5315,7 @@ class GameScene extends Phaser.Scene{
       shop:[
         {label:'HPポーション',price:30,icon:'💊',action:()=>{pd.potHP=(pd.potHP||0)+1;showResult('💊 HPポーション入手！');this.updateHUD();}},
         {label:'MPポーション',price:25,icon:'💧',action:()=>{pd.potMP=(pd.potMP||0)+1;showResult('💧 MPポーション入手！');this.updateHUD();}},
+        {label:'解毒剤　毒状態を治す',price:50,icon:'🧪',action:()=>{if(!pd.items)pd.items={};pd.items['antidote']=(pd.items['antidote']||0)+1;showResult('🧪 解毒剤を入手！');this.updateHUD();}},
         {label:'帰還の巻物　町に帰れる',price:80,icon:'📜',action:()=>{if(!pd.items)pd.items={};pd.items['town_scroll']=(pd.items['town_scroll']||0)+1;showResult('📜 帰還の巻物を入手！');this.updateHUD();}},
       ],
       blacksmith:'craft', // 鍛冶屋はクラフト専用UI
@@ -6879,6 +7250,96 @@ class GameScene extends Phaser.Scene{
     return true;
   }
 
+  // ── 毒システム ──────────────────────────
+  // プレイヤーに毒を付与
+  applyPoison(durationSec){
+    const pd=this.playerData, p=this.player;
+    // 既に毒なら持続時間を延長(リフレッシュ)
+    if(pd._poisoned){
+      pd._poisonTimer=Math.max(pd._poisonTimer||0, durationSec);
+      return;
+    }
+    pd._poisoned=true;
+    pd._poisonTimer=durationSec;
+    pd._poisonTickAccum=0;
+    // 紫色のフラッシュ表示
+    this.showFloat(p.x,p.y-60,'🟣 毒!','#aa22cc','info');
+    SE('hurt');
+    // プレイヤーに紫色のTintを適用
+    if(p && p.setTint) p.setTint(0xcc88ff);
+    // 毒アイコン&タイマーHUD
+    this._showPoisonHUD();
+  }
+
+  // 毒解除
+  clearPoison(){
+    const pd=this.playerData, p=this.player;
+    pd._poisoned=false;
+    pd._poisonTimer=0;
+    if(p && p.clearTint) p.clearTint();
+    if(this._poisonHudBg){
+      this._poisonHudBg.destroy(); this._poisonHudBg=null;
+      this._poisonHudIcon.destroy(); this._poisonHudIcon=null;
+      this._poisonHudTxt.destroy(); this._poisonHudTxt=null;
+    }
+    // 毒パーティクルも止める
+    if(this._poisonParticleTimer){this._poisonParticleTimer.remove();this._poisonParticleTimer=null;}
+  }
+
+  // 毒HUD表示(画面左上のHPバー下あたり)
+  _showPoisonHUD(){
+    if(this._poisonHudBg)return; // 既に表示中
+    const x=92, y=100; // HP/SPバーの下
+    this._poisonHudBg=this.add.rectangle(x,y,70,20,0x330044,0.85).setStrokeStyle(1,0xaa22cc).setScrollFactor(0).setDepth(30);
+    this._poisonHudIcon=this.add.text(x-24,y,'🟣',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    this._poisonHudTxt=this.add.text(x+6,y,'毒 0s',{fontSize:'11px',fontFamily:'Arial',color:'#dd99ff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    // 紫パーティクルを定期的に発生させる
+    this._poisonParticleTimer=this.time.addEvent({
+      delay:200, loop:true,
+      callback:()=>{
+        const pd=this.playerData, p=this.player;
+        if(!pd._poisoned || !p || !p.active) return;
+        // プレイヤーの周りから紫の小さな泡が立ち昇る
+        for(let i=0;i<2;i++){
+          const ox=(Math.random()-0.5)*30, oy=(Math.random()-0.5)*20+5;
+          const c=this.add.circle(p.x+ox, p.y+oy, 2+Math.random()*2, 0xcc55dd, 0.85).setDepth(6);
+          this.tweens.add({
+            targets:c, y:p.y+oy-30-Math.random()*20,
+            alpha:0, scaleX:0.3, scaleY:0.3,
+            duration:700+Math.random()*400,
+            ease:'Cubic.easeOut',
+            onComplete:()=>c.destroy(),
+          });
+        }
+      }
+    });
+  }
+
+  // 毒の毎フレーム処理
+  _tickPoison(dt){
+    const pd=this.playerData, p=this.player;
+    if(!pd._poisoned) return;
+    pd._poisonTimer-=dt;
+    pd._poisonTickAccum=(pd._poisonTickAccum||0)+dt;
+    // 1秒ごとにダメージ(max HPの2%、最低2、最大15)
+    if(pd._poisonTickAccum>=1.0){
+      pd._poisonTickAccum-=1.0;
+      const dmg=Math.max(2,Math.min(15,Math.floor(pd.mhp*0.02)));
+      pd.hp=Math.max(1, pd.hp-dmg); // 毒では死なない(HP1まで)
+      this.showFloat(p.x,p.y-30,'-'+dmg,'#cc55dd','info');
+      this.updateHUD();
+    }
+    // 毒HUDタイマー更新
+    if(this._poisonHudTxt && this._poisonHudTxt.active){
+      this._poisonHudTxt.setText('毒 '+Math.ceil(pd._poisonTimer)+'s');
+    }
+    // 毒時間切れで解除
+    if(pd._poisonTimer<=0){
+      this.showFloat(p.x,p.y-60,'✨ 毒消え','#88ff88','info');
+      this.clearPoison();
+    }
+  }
+
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
     // ゲームオーバー中・メニュー表示中は全処理停止
@@ -6892,6 +7353,8 @@ class GameScene extends Phaser.Scene{
       return;
     }
     this.updateJoystick();
+    // 毒状態処理(毎フレーム)
+    this._tickPoison(dt);
     // spaceKey攻撃はPC専用（スマホはボタンで操作）
     if(!this.sys.game.device.input.touch && Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
@@ -7015,6 +7478,11 @@ class GameScene extends Phaser.Scene{
             pd.hp=Math.max(0,pd.hp-dmg);
             this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c','info');this.updateHUD();
             SE('hurt');
+            // ── 毒付与判定(scorpion系が10〜20%で毒を付与)──
+            const poisonChance={scorpion:0.10, scorpion_queen:0.20, scorpion_king:0.30};
+            if(poisonChance[ed.id] && !pd._poisoned && Math.random()<poisonChance[ed.id]){
+              this.applyPoison(15); // 15秒間毒
+            }
             if(pd.hp<=0){this.gameOver();return;}
           }
         }
