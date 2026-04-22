@@ -6292,11 +6292,11 @@ class GameScene extends Phaser.Scene{
 
   _createHomeButton(){
     const w=this.scale.width,h=this.scale.height;
-    // タイトルボタン
-    const btn=this.add.rectangle(54,h-20,100,28,0x223344,0.75)
+    // タイトルボタン（左下・セーブボタンの真下）
+    const btn=this.add.rectangle(64,h-20,100,28,0x223344,0.75)
       .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x445566,0.8)
       .setInteractive({useHandCursor:true});
-    const txt=this.add.text(54,h-20,'🏠 タイトル',{
+    const txt=this.add.text(64,h-20,'🏠 タイトル',{
       fontSize:'12px',fontFamily:'Arial',color:'#8899aa'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
     btn.on('pointerover',()=>{btn.setFillStyle(0x334455,0.9);txt.setColor('#aabbcc');});
@@ -6317,23 +6317,21 @@ class GameScene extends Phaser.Scene{
       btnN.on('pointerover',()=>btnN.setFillStyle(0x44aaff,0.6));btnN.on('pointerout',()=>btnN.setFillStyle(0x44aaff,0.3));
     });
 
-    // セーブボタン（左下・ポーションボタンと被らない位置）
-    // ポーションボタンがh-POT_H/2-MARGIN≒h-34、x=175〜283を占める
-    // セーブボタンはその上(h-80付近)に配置
-    const saveBtn=this.add.rectangle(50,h-76,88,30,0x0a2a0a,0.85)
+    // セーブボタン（タイトルボタンの真上・ポーションと被らない位置）
+    const saveBtn=this.add.rectangle(64,h-76,100,30,0x0a2a0a,0.85)
       .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x226622,0.9)
       .setInteractive({useHandCursor:true});
-    const saveTxt=this.add.text(50,h-76,'💾 セーブ',{
+    const saveTxt=this.add.text(64,h-76,'💾 セーブ',{
       fontSize:'13px',fontFamily:'Arial',color:'#44aa44',fontStyle:'bold'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
     saveBtn.on('pointerover',()=>{saveBtn.setFillStyle(0x1a4a1a,0.9);saveTxt.setColor('#66cc66');});
     saveBtn.on('pointerout', ()=>{saveBtn.setFillStyle(0x0a2a0a,0.75);saveTxt.setColor('#44aa44');});
     saveBtn.on('pointerdown',()=>{
       if(this._menuOpen||this._gameOver)return;
-      // Gameシーンを完全に止める前にSaveSelectを起動
-      // (Gameのinputが残ると上のSaveSelectのタップを邪魔する)
-      this.scene.pause();
+      // SaveSelectを先にlaunchしてから自分をpauseする
+      // (自分をpauseした後は以降の処理が走らない)
       this.scene.launch('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage});
+      this.scene.pause();
     });
   }
 
