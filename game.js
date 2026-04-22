@@ -7854,28 +7854,67 @@ class GameScene extends Phaser.Scene{
   _enemyShoot(ed, p){
     if(!this.enemyBullets) return;
     const sp=ed.sprite;
+    // ── リッチ専用: 詠唱演出+遅延発射(必中ホーミング魔法) ──
+    if(ed.id==='lich'){
+      // ① 詠唱開始: 大きな魔法陣が足元に出現
+      const circleR=this.add.circle(sp.x, sp.y+sp.displayHeight*0.3, 8, 0xcc44ff, 0).setStrokeStyle(2, 0xcc44ff, 0.9).setDepth(3);
+      this.tweens.add({targets:circleR, radius:50, duration:600, ease:'Cubic.easeOut'});
+      this.tweens.add({targets:circleR, alpha:0, duration:200, delay:600, onComplete:()=>circleR.destroy()});
+      // ② リッチの頭上に紫の魔力球が集まる
+      const charge=this.add.circle(sp.x, sp.y-sp.displayHeight*0.3, 4, 0xcc44ff, 1.0).setDepth(6);
+      this.tweens.add({targets:charge, scaleX:5, scaleY:5, duration:600, ease:'Quad.easeIn'});
+      // ハロー
+      const chargeHalo=this.add.circle(sp.x, sp.y-sp.displayHeight*0.3, 8, 0xcc44ff, 0.5).setDepth(5);
+      this.tweens.add({targets:chargeHalo, scaleX:6, scaleY:6, alpha:0.2, duration:600, ease:'Quad.easeIn'});
+      // ③ 詠唱中の文字
+      const txt=this.add.text(sp.x, sp.y-sp.displayHeight*0.5-20, '🔮 詠唱…', {fontSize:'12px', fontFamily:'Arial', color:'#cc44ff', stroke:'#000', strokeThickness:3}).setOrigin(0.5).setDepth(7);
+      this.tweens.add({targets:txt, alpha:0.5, duration:300, yoyo:true, repeat:1});
+      SE('magic');
+      // ④ 0.7秒後に発射(プレイヤー位置を再取得=多少ホーミング)
+      this.time.delayedCall(700, ()=>{
+        if(charge && charge.active) charge.destroy();
+        if(chargeHalo && chargeHalo.active) chargeHalo.destroy();
+        if(txt && txt.active) txt.destroy();
+        // edが死んでたら撃たない
+        if(!ed.sprite || !ed.sprite.active || ed.dead) return;
+        // 発射時のフラッシュ
+        const flash=this.add.circle(ed.sprite.x, ed.sprite.y-sp.displayHeight*0.3, 30, 0xffffff, 0.9).setDepth(7);
+        this.tweens.add({targets:flash, scaleX:2, scaleY:2, alpha:0, duration:250, onComplete:()=>flash.destroy()});
+        // 弾発射(現在のプレイヤー位置に向かって=ホーミング感)
+        const target=this.player;
+        if(!target || !target.active) return;
+        const ang=Math.atan2(target.y-ed.sprite.y, target.x-ed.sprite.x);
+        const speed=380; // 矢より速い
+        const b=this.add.circle(ed.sprite.x, ed.sprite.y-sp.displayHeight*0.3, 12, 0xcc44ff, 1.0).setDepth(5);
+        this.physics.add.existing(b);
+        b.body.setVelocity(Math.cos(ang)*speed, Math.sin(ang)*speed);
+        b.body.setCircle(12);
+        this.enemyBullets.add(b);
+        b.setData('dmg', ed.atk);
+        b.setData('maxDist', ed.rng+150);
+        b.setData('startX', ed.sprite.x);
+        b.setData('startY', ed.sprite.y);
+        b.setData('magic', true);
+        // 魔法弾の光るオーラ
+        const halo=this.add.circle(ed.sprite.x, ed.sprite.y-sp.displayHeight*0.3, 22, 0xcc44ff, 0.4).setDepth(4);
+        b.setData('halo', halo);
+        // 内側の白い核
+        const core=this.add.circle(b.x, b.y, 5, 0xffffff, 0.9).setDepth(6);
+        b.setData('core', core);
+        SE('shoot');
+      });
+      return;
+    }
+    // ── 矢などの通常弾 ──
     const angle=Math.atan2(p.y-sp.y, p.x-sp.x);
     const speed=320;
-    // 弾の見た目をIDで切り替え
     let color=0xff4444, size=6, isMagic=false;
     if(ed.id==='dark_elf' || ed.id==='orc_archer'){
-      color=0x88ffaa; size=7; // 矢: 緑の弾
-    } else if(ed.id==='lich'){
-      color=0xcc44ff; size=10; isMagic=true; // 魔法: 紫の球
+      color=0x88ffaa; size=7;
     } else if(ed.id==='treant'){
-      color=0x66aa44; size=9; // 種: 緑の球
+      color=0x66aa44; size=9;
     }
-    // 詠唱演出(リッチのみ)
-    if(ed.id==='lich'){
-      // 紫の光を自分の周りに0.3秒見せてから発射
-      const glow=this.add.circle(sp.x, sp.y, 24, 0xcc44ff, 0.6).setDepth(5);
-      this.tweens.add({targets:glow, scaleX:1.5, scaleY:1.5, alpha:0, duration:400, onComplete:()=>glow.destroy()});
-      SE('magic');
-    } else if(ed.id==='dark_elf' || ed.id==='orc_archer'){
-      SE('shoot');
-    } else {
-      SE('shoot');
-    }
+    SE('shoot');
     const b=this.add.circle(sp.x, sp.y, size, color, 1.0).setDepth(5);
     this.physics.add.existing(b);
     b.body.setVelocity(Math.cos(angle)*speed, Math.sin(angle)*speed);
@@ -7883,15 +7922,9 @@ class GameScene extends Phaser.Scene{
     this.enemyBullets.add(b);
     b.setData('dmg', ed.atk);
     b.setData('maxDist', ed.rng+100);
-    b.setData('traveled', 0);
     b.setData('startX', sp.x);
     b.setData('startY', sp.y);
-    b.setData('magic', isMagic);
-    // 魔法弾は光る
-    if(isMagic){
-      const halo=this.add.circle(sp.x, sp.y, size*1.8, color, 0.35).setDepth(4);
-      b.setData('halo', halo);
-    }
+    b.setData('magic', false);
   }
 
   // ── 敵のメテオーム詠唱(ダークイリュージョン用) ──
@@ -7957,15 +7990,20 @@ class GameScene extends Phaser.Scene{
       if(trav>maxD){
         const halo=b.getData('halo');
         if(halo && halo.active) halo.destroy();
+        const core=b.getData('core');
+        if(core && core.active) core.destroy();
         b.destroy();
         return;
       }
       // 光のオーラを魔法弾に追従
       const halo=b.getData('halo');
       if(halo && halo.active){halo.x=b.x; halo.y=b.y;}
+      const core=b.getData('core');
+      if(core && core.active){core.x=b.x; core.y=b.y;}
       // ワールド外なら消す
       if(b.x<-50||b.x>this.MW+50||b.y<-50||b.y>this.MH+50){
         if(halo && halo.active) halo.destroy();
+        if(core && core.active) core.destroy();
         b.destroy();
         return;
       }
@@ -7973,13 +8011,31 @@ class GameScene extends Phaser.Scene{
       const d=Phaser.Math.Distance.Between(b.x, b.y, p.x, p.y);
       if(d<26){
         const dmg=b.getData('dmg')||10;
-        if(pd._parry){
+        const isMagic=b.getData('magic');
+        if(isMagic){
+          // ── 魔法弾: 必中(回避不可・パリィ不可)・魔力(MAG)で耐性 ──
+          // MAG(魔力)1ポイントごとに魔法ダメージを2%軽減(最大80%軽減)
+          const intResist=Math.min(0.80, (pd.intPts||0)*0.02);
+          const finalDmg=Math.max(1, Math.floor(dmg*(1-intResist)));
+          pd.hp=Math.max(0, pd.hp-finalDmg);
+          // 紫色のダメージ表示で魔法と分かるように
+          this.showFloat(p.x, p.y-40, '-'+finalDmg+(intResist>0?' (魔法)':''), '#cc44ff', 'info');
+          this.updateHUD();
+          SE('hurt');
+          // 魔法ヒット時のエフェクト(紫の閃光)
+          const flash=this.add.circle(p.x, p.y, 30, 0xcc44ff, 0.6).setDepth(7);
+          this.tweens.add({targets:flash, scaleX:1.5, scaleY:1.5, alpha:0, duration:300, onComplete:()=>flash.destroy()});
+          if(pd.hp<=0){this.gameOver();}
+        } else if(pd._parry){
+          // ── 物理弾(矢など): パリィ可能 ──
           this.showFloat(p.x, p.y-40, 'PARRY!', '#ffd700', 'info');
           pd._parry=false;
         } else if(Math.random()*100<(pd.agi||0)){
+          // ── 物理弾: AGIで回避可能 ──
           this.showFloat(p.x, p.y-40, 'DODGE!', '#2ecc71', 'info');
           SE('dodge');
         } else {
+          // ── 物理弾被弾: DEFで軽減 ──
           const finalDmg=Math.max(1, dmg-(pd.def||0)+Phaser.Math.Between(0,3));
           pd.hp=Math.max(0, pd.hp-finalDmg);
           this.showFloat(p.x, p.y-40, '-'+finalDmg, '#e74c3c', 'info');
@@ -7988,6 +8044,8 @@ class GameScene extends Phaser.Scene{
           if(pd.hp<=0){this.gameOver();}
         }
         if(halo && halo.active) halo.destroy();
+        const core2=b.getData('core');
+        if(core2 && core2.active) core2.destroy();
         b.destroy();
       }
     });
@@ -8010,8 +8068,8 @@ class GameScene extends Phaser.Scene{
     this._tickPoison(dt);
     // 敵弾のライフサイクル管理
     this._updateEnemyBullets(dt);
-    // スペースキーで通常攻撃(PC・タッチ兼用機でも常時有効)
-    if(Phaser.Input.Keyboard.JustDown(this.spaceKey))this.normalAttack();
+    // スペースキーで通常攻撃(押しっぱで連射対応・atkCooldownで自動的にクール調整)
+    if(this.spaceKey.isDown)this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
     // HP/SP 自動回復（VIT/INTステータスに依存）
     if(!this._regenTimer)this._regenTimer=0;
@@ -8302,3 +8360,14 @@ const _handleResize=()=>{
 // orientationchangeは完了まで時間がかかるため少し待つ
 window.addEventListener('orientationchange',()=>{setTimeout(_handleResize,500);});
 window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
+
+// デバッグ用: ブラウザのコンソールから game.xxx でアクセスできるように
+window.game = _game;
+// よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
+window.debug = {
+  warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
+  bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
+  spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
+  godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
+  info: ()=>{const gs=_game.scene.getScene('Game'); console.log({stage:gs.stage, boss:gs.cfg?.boss, killCount:gs.killCount, threshold:gs.cfg?.bossThreshold, bossSpawned:gs.bossSpawned});},
+};
