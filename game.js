@@ -6317,12 +6317,14 @@ class GameScene extends Phaser.Scene{
       btnN.on('pointerover',()=>btnN.setFillStyle(0x44aaff,0.6));btnN.on('pointerout',()=>btnN.setFillStyle(0x44aaff,0.3));
     });
 
-    // セーブボタン（タイトルの右隣）
-    const saveBtn=this.add.rectangle(164,h-20,80,28,0x0a2a0a,0.75)
-      .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x226622,0.8)
+    // セーブボタン（左下・ポーションボタンと被らない位置）
+    // ポーションボタンがh-POT_H/2-MARGIN≒h-34、x=175〜283を占める
+    // セーブボタンはその上(h-80付近)に配置
+    const saveBtn=this.add.rectangle(50,h-76,88,30,0x0a2a0a,0.85)
+      .setScrollFactor(0).setDepth(25).setStrokeStyle(1,0x226622,0.9)
       .setInteractive({useHandCursor:true});
-    const saveTxt=this.add.text(164,h-20,'💾 セーブ',{
-      fontSize:'12px',fontFamily:'Arial',color:'#44aa44'
+    const saveTxt=this.add.text(50,h-76,'💾 セーブ',{
+      fontSize:'13px',fontFamily:'Arial',color:'#44aa44',fontStyle:'bold'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
     saveBtn.on('pointerover',()=>{saveBtn.setFillStyle(0x1a4a1a,0.9);saveTxt.setColor('#66cc66');});
     saveBtn.on('pointerout', ()=>{saveBtn.setFillStyle(0x0a2a0a,0.75);saveTxt.setColor('#44aa44');});
@@ -7559,8 +7561,16 @@ const _game=new Phaser.Game({
 const _uiScenes=['Title','ClassSelect','SaveSelect'];
 const _handleResize=()=>{
   _uiScenes.forEach(key=>{
-    if(_game.scene.isActive(key)){
-      _game.scene.restart(key);
+    try{
+      if(_game && _game.scene && _game.scene.isActive(key)){
+        const s=_game.scene.getScene(key);
+        if(s && s.scene && typeof s.scene.restart==='function'){
+          s.scene.restart();
+        }
+      }
+    }catch(e){
+      // リサイズ処理のエラーでゲーム全体が止まらないようガード
+      console.warn('resize handler error:',e);
     }
   });
 };
