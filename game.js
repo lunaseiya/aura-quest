@@ -913,7 +913,7 @@ function makePlayerData(cls){
     luk:base.luk,  // 運（クリティカル率%）
     lv:1,exp:0,expNext:100,
     gold:50,potHP:3,potMP:3,kills:0,items:{}, // {itemId: count}
-    equip:{head:null,face:null,shoulder:null,body:null,feet:null,accessory:null}, // 装備スロット
+    equip:{weapon_main:null,weapon_off:null,head:null,face:null,shoulder:null,body:null,feet:null,accessory:null}, // 装備スロット
     statPts:0,      // 未割り振りポイント
     pendingLvUp:0,
     // ジョブシステム
@@ -921,6 +921,43 @@ function makePlayerData(cls){
     // スキルレベル（各職業3スキル、Lv0=未習得）
     sk1:0, sk2:0, sk3:0,
   };
+}
+
+// ============================================================
+//  属性システム(ファイファン式)
+// ============================================================
+// 属性: 'none'(無), 'fire'(炎), 'ice'(氷), 'thunder'(雷), 'water'(水),
+//       'earth'(土), 'wind'(風), 'light'(光), 'dark'(闇)
+const ELEMENT_INFO={
+  none:   {label:'',     icon:'',   color:'#cccccc'},
+  fire:   {label:'炎',   icon:'🔥', color:'#ff6633'},
+  ice:    {label:'氷',   icon:'❄', color:'#88ddff'},
+  thunder:{label:'雷',   icon:'⚡', color:'#ffee44'},
+  water:  {label:'水',   icon:'💧', color:'#3399ff'},
+  earth:  {label:'土',   icon:'⛰', color:'#bb8855'},
+  wind:   {label:'風',   icon:'🌪', color:'#aaffaa'},
+  light:  {label:'光',   icon:'✨', color:'#ffffaa'},
+  dark:   {label:'闇',   icon:'🌑', color:'#aa44ff'},
+};
+// 対立(弱点)ペア
+const ELEMENT_OPPOSITE={
+  fire:'ice', ice:'fire',
+  thunder:'water', water:'thunder',
+  earth:'wind', wind:'earth',
+  light:'dark', dark:'light',
+};
+// 属性相性ダメージ倍率を返す
+// atkElem: 攻撃側の属性, defElem: 防御側の属性
+// 戻り値: {mult: 倍率, label: 'WEAK!'/'RESIST'/null}
+function getElementMult(atkElem, defElem){
+  if(!atkElem || atkElem==='none') return {mult:1.0, label:null};
+  if(!defElem || defElem==='none') return {mult:1.0, label:null};
+  // 同属性 → 0.5倍 (耐性)
+  if(atkElem===defElem) return {mult:0.5, label:'RESIST'};
+  // 対立属性(弱点を突いた) → 2倍
+  if(ELEMENT_OPPOSITE[defElem]===atkElem) return {mult:2.0, label:'WEAK!'};
+  // それ以外は等倍
+  return {mult:1.0, label:null};
 }
 
 // ============================================================
@@ -933,7 +970,7 @@ function calcHit(pd, enemyEva){
 function calcCrit(pd){
   return pd.luk; // luk% がクリティカル率
 }
-function rollAttack(pd, enemyDef, enemyEva){
+function rollAttack(pd, enemyDef, enemyEva, atkElem, defElem){
   // 命中判定（hit - 敵eva%）
   const hitRate=calcHit(pd,enemyEva);
   if(Math.random()*100>hitRate) return {miss:true};
@@ -941,7 +978,10 @@ function rollAttack(pd, enemyDef, enemyEva){
   const isCrit=Math.random()*100<calcCrit(pd);
   let dmg=Math.max(1, Math.floor(pd.atk*1.5) - (enemyDef||0) + Phaser.Math.Between(0,pd.atk));
   if(isCrit) dmg=Math.floor(dmg*2);
-  return {dmg,isCrit,miss:false};
+  // 属性相性
+  const em=getElementMult(atkElem||'none', defElem||'none');
+  if(em.mult!==1.0) dmg=Math.max(1, Math.floor(dmg*em.mult));
+  return {dmg, isCrit, miss:false, elemLabel:em.label, elemMult:em.mult};
 }
 
 // ============================================================
@@ -3187,15 +3227,57 @@ class BootScene extends Phaser.Scene{
 //  装備品定義
 // ============================================================
 const EQUIP_SLOTS=[
-  {id:'head',     label:'頭',       icon:'🪖'},
-  {id:'face',     label:'顔',       icon:'😷'},
-  {id:'shoulder', label:'肩',       icon:'🔰'},
-  {id:'body',     label:'体',       icon:'🥋'},
-  {id:'feet',     label:'足',       icon:'👢'},
-  {id:'accessory',label:'アクセサリー',icon:'💍'},
+  {id:'weapon_main',label:'右手',     icon:'⚔'},
+  {id:'weapon_off', label:'左手',     icon:'🛡'},
+  {id:'head',       label:'頭',       icon:'🪖'},
+  {id:'face',       label:'顔',       icon:'😷'},
+  {id:'shoulder',   label:'肩',       icon:'🔰'},
+  {id:'body',       label:'体',       icon:'🥋'},
+  {id:'feet',       label:'足',       icon:'👢'},
+  {id:'accessory',  label:'アクセサリー',icon:'💍'},
 ];
 
 const EQUIP_DEFS={
+  // ══════════════════════════════════════
+  //  右手(主武器) - weapon_main
+  // ══════════════════════════════════════
+  // ── 剣士向け ──
+  iron_sword:    {name:'鉄の剣',    slot:'weapon_main',icon:'⚔',  desc:'標準的な片手剣',           stats:{atk:8},                price:80,  col:0xaaaaaa, classOnly:'warrior'},
+  steel_sword:   {name:'鋼の剣',    slot:'weapon_main',icon:'🗡', desc:'切れ味のいい鋼の剣',       stats:{atk:14,hit:5},          price:200, col:0xccccdd, classOnly:'warrior'},
+  great_sword:   {name:'両手剣',    slot:'weapon_main',icon:'⚔',  desc:'両手で持つ強力な大剣',     stats:{atk:24,hit:-5},         price:350, col:0xddddff, classOnly:'warrior', twoHand:true},
+  // ── アーチャー向け ──
+  wooden_bow:    {name:'木の弓',    slot:'weapon_main',icon:'🏹', desc:'シンプルな木の弓・片手で持つ',         stats:{atk:7,hit:5},           price:80,  col:0x886633, classOnly:'archer'},
+  composite_bow: {name:'合成弓',    slot:'weapon_main',icon:'🏹', desc:'複数素材を組み合わせた強弓・片手で持つ',stats:{atk:14,hit:8},          price:200, col:0xaa6633, classOnly:'archer'},
+  longbow:       {name:'ロングボウ',slot:'weapon_main',icon:'🏹', desc:'射程と威力に優れた長弓・片手で持つ',   stats:{atk:22,hit:10,luk:3},   price:380, col:0xcc8855, classOnly:'archer'},
+  // ── メイジ向け ──
+  wooden_staff:  {name:'木の杖',    slot:'weapon_main',icon:'🪄', desc:'魔力を高める木製の杖',     stats:{mag:6,msp:10},          price:80,  col:0x886633, classOnly:'mage'},
+  crystal_staff: {name:'水晶の杖',  slot:'weapon_main',icon:'🪄', desc:'水晶が魔力を増幅する',     stats:{mag:12,msp:20},         price:220, col:0x88ddff, classOnly:'mage'},
+  archmage_staff:{name:'大魔導の杖',slot:'weapon_main',icon:'🪄', desc:'両手で扱う極大の魔法杖',   stats:{mag:22,msp:35},         price:400, col:0xaa66ff, classOnly:'mage', twoHand:true},
+  // ── ボマー向け ──
+  bomb_pouch:    {name:'爆弾袋',    slot:'weapon_main',icon:'💣', desc:'標準的な爆弾の袋',         stats:{atk:8},                 price:80,  col:0x664422, classOnly:'bomber'},
+  iron_bomb_pouch:{name:'鉄製爆弾袋',slot:'weapon_main',icon:'💣',desc:'鉄製で威力の上がった爆弾袋',stats:{atk:15,def:2},          price:200, col:0x886644, classOnly:'bomber'},
+  hyper_pouch:   {name:'超爆袋',    slot:'weapon_main',icon:'💣', desc:'両手で抱える特大爆弾',     stats:{atk:25,def:-3},         price:380, col:0xaa4422, classOnly:'bomber', twoHand:true},
+
+  // ══════════════════════════════════════
+  //  左手(副武器/盾/矢筒) - weapon_off
+  // ══════════════════════════════════════
+  // ── 剣士向け 盾 ──
+  wooden_shield: {name:'木の盾',    slot:'weapon_off', icon:'🛡', desc:'軽量な木製の盾',           stats:{def:4},                 price:60,  col:0x886633, classOnly:'warrior'},
+  iron_shield:   {name:'鉄の盾',    slot:'weapon_off', icon:'🛡', desc:'重厚な鉄製の盾',           stats:{def:9,mhp:15},          price:160, col:0xaaaaaa, classOnly:'warrior'},
+  knight_shield: {name:'騎士の盾',  slot:'weapon_off', icon:'🛡', desc:'紋章入りの騎士の盾',       stats:{def:14,mhp:30,hit:3},   price:300, col:0xddddff, classOnly:'warrior'},
+  // ── 剣士向け 双剣の副剣 ──
+  short_sword:   {name:'小剣',      slot:'weapon_off', icon:'🗡', desc:'左手用の短剣・双剣スタイル',stats:{atk:5,agi:5},           price:120, col:0xaaaaaa, classOnly:'warrior'},
+  // ── アーチャー向け 矢筒 ──
+  basic_quiver:  {name:'通常の矢筒',slot:'weapon_off', icon:'🎯', desc:'シンプルな矢筒',           stats:{atk:2,hit:3},           price:50,  col:0x886633, classOnly:'archer'},
+  // ── メイジ向け 魔導書 ──
+  spell_book:    {name:'魔導書',    slot:'weapon_off', icon:'📕', desc:'呪文を記した古い書物',     stats:{mag:5,msp:15},          price:120, col:0x6633aa, classOnly:'mage'},
+  arcane_tome:   {name:'秘術の書',  slot:'weapon_off', icon:'📘', desc:'秘伝の魔術が記された書',   stats:{mag:10,msp:25},         price:240, col:0x4488ff, classOnly:'mage'},
+  // ── ボマー向け 副爆薬 ──
+  spare_bombs:   {name:'予備爆薬',  slot:'weapon_off', icon:'🧨', desc:'追加の小爆弾',             stats:{atk:4},                 price:80,  col:0x884422, classOnly:'bomber'},
+
+  // ══════════════════════════════════════
+  //  防具・アクセサリー(既存)
+  // ══════════════════════════════════════
   // 頭
   iron_helm:    {name:'鉄の兜',    slot:'head',     icon:'🪖', desc:'頭を守る鉄の兜',         stats:{def:4},               price:60,  col:0xaaaaaa},
   leather_cap:  {name:'革の帽子',  slot:'head',     icon:'🎩', desc:'軽くて動きやすい',         stats:{agi:3},               price:40,  col:0x886633},
@@ -3235,6 +3317,45 @@ function calcEquipStats(equip){
 // ============================================================
 // materials: [{id, count}] 最大3種  fee: 加工費(G)
 const CRAFT_RECIPES=[
+  // ════════════════════════════════
+  //  右手(主武器)
+  // ════════════════════════════════
+  // 剣士
+  {result:'iron_sword',     fee:60,  materials:[{id:'bone',count:3},      {id:'troll_hide',count:1},  {id:'wolf_fang',count:2}  ]},
+  {result:'steel_sword',    fee:150, materials:[{id:'bone',count:5},      {id:'wolf_fang',count:3},   {id:'sand_core',count:1}  ]},
+  {result:'great_sword',    fee:280, materials:[{id:'bone',count:6},      {id:'dragon_scale',count:2},{id:'boss_gem',count:1}   ]},
+  // アーチャー
+  {result:'wooden_bow',     fee:50,  materials:[{id:'troll_hide',count:2},{id:'wolf_fang',count:2},   {id:'goblin_ear',count:2} ]},
+  {result:'composite_bow',  fee:160, materials:[{id:'wolf_fang',count:4}, {id:'troll_hide',count:3},  {id:'sand_core',count:1}  ]},
+  {result:'longbow',        fee:300, materials:[{id:'dragon_scale',count:2},{id:'wolf_fang',count:5}, {id:'boss_gem',count:1}   ]},
+  // メイジ
+  {result:'wooden_staff',   fee:50,  materials:[{id:'jelly',count:3},     {id:'bat_wing',count:2},    {id:'bone',count:1}       ]},
+  {result:'crystal_staff',  fee:170, materials:[{id:'jelly',count:4},     {id:'dragon_scale',count:1},{id:'boss_gem',count:1}   ]},
+  {result:'archmage_staff', fee:320, materials:[{id:'jelly',count:5},     {id:'dragon_scale',count:2},{id:'boss_core',count:1}  ]},
+  // ボマー
+  {result:'bomb_pouch',     fee:55,  materials:[{id:'troll_hide',count:2},{id:'goblin_ear',count:2},  {id:'bone',count:2}       ]},
+  {result:'iron_bomb_pouch',fee:160, materials:[{id:'troll_hide',count:3},{id:'sand_core',count:2},   {id:'wolf_fang',count:2}  ]},
+  {result:'hyper_pouch',    fee:300, materials:[{id:'sand_core',count:3}, {id:'dragon_scale',count:1},{id:'boss_gem',count:2}   ]},
+
+  // ════════════════════════════════
+  //  左手(副武器/盾/矢筒)
+  // ════════════════════════════════
+  // 剣士の盾&小剣
+  {result:'wooden_shield',  fee:40,  materials:[{id:'troll_hide',count:2},{id:'goblin_ear',count:2},  {id:'jelly',count:2}      ]},
+  {result:'iron_shield',    fee:120, materials:[{id:'bone',count:4},      {id:'troll_hide',count:3},  {id:'wolf_fang',count:1}  ]},
+  {result:'knight_shield',  fee:240, materials:[{id:'bone',count:5},      {id:'dragon_scale',count:1},{id:'boss_gem',count:1}   ]},
+  {result:'short_sword',    fee:90,  materials:[{id:'bone',count:2},      {id:'wolf_fang',count:2},   {id:'sand_core',count:1}  ]},
+  // アーチャーの矢筒
+  {result:'basic_quiver',   fee:35,  materials:[{id:'troll_hide',count:2},{id:'wolf_fang',count:1},   {id:'bat_wing',count:2}   ]},
+  // メイジの魔導書
+  {result:'spell_book',     fee:90,  materials:[{id:'bat_wing',count:3},  {id:'jelly',count:3},       {id:'bone',count:1}       ]},
+  {result:'arcane_tome',    fee:190, materials:[{id:'bat_wing',count:4},  {id:'dragon_scale',count:1},{id:'boss_gem',count:1}   ]},
+  // ボマーの予備爆薬
+  {result:'spare_bombs',    fee:60,  materials:[{id:'troll_hide',count:1},{id:'sand_core',count:1},   {id:'goblin_ear',count:2} ]},
+
+  // ════════════════════════════════
+  //  防具・アクセサリー(既存)
+  // ════════════════════════════════
   // 頭
   {result:'iron_helm',    fee:40,  materials:[{id:'bone',count:2},    {id:'troll_hide',count:1},  {id:'goblin_ear',count:2} ]},
   {result:'leather_cap',  fee:25,  materials:[{id:'bat_wing',count:2}, {id:'wolf_fang',count:1},  {id:'jelly',count:3}      ]},
@@ -3854,60 +3975,60 @@ const STAGE_CONFIG={
   },
 };
 const ENEMY_DEFS={
-  // passive:true=受動  eva=回避率%（DEXが低いと当たらない）
-  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 },
-  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15},
-  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 },
-  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 },
-  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:56,rng:54,acd:0.8, passive:false, eva:20},
-  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:56,rng:54,acd:1.1, passive:false, eva:10},
-  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:80,rng:72,acd:1.5, passive:false, eva:15},
-  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:76,rng:66,acd:2.0, passive:false, eva:5 },
-  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:52,rng:50,acd:0.7, passive:false, eva:25},
-  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true},
-  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true},
-  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true},
-  boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:130,rng:100,acd:0.7,passive:false,eva:35,isBoss:true},
+  // passive:true=受動  eva=回避率%  element=属性(無/炎/氷/雷/水/土/風/光/闇)
+  slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 ,element:'water'},
+  bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15,element:'dark'},
+  goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 ,element:'none'},
+  troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 ,element:'earth'},
+  wolf:    {hp:65, atk:14,def:1, spd:120,exp:45,gold:10, sz:56,rng:54,acd:0.8, passive:false, eva:20,element:'none'},
+  skeleton:{hp:80, atk:11,def:3, spd:70, exp:40,gold:12, sz:56,rng:54,acd:1.1, passive:false, eva:10,element:'dark'},
+  dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:80,rng:72,acd:1.5, passive:false, eva:15,element:'fire'},
+  sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:76,rng:66,acd:2.0, passive:false, eva:5 ,element:'earth'},
+  scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:52,rng:50,acd:0.7, passive:false, eva:25,element:'earth'},
+  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true,element:'none'},
+  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true,element:'wind'},
+  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true,element:'water'},
+  boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:130,rng:100,acd:0.7,passive:false,eva:35,isBoss:true,element:'fire'},
   // ST5 新モンスター
-  bear:    {hp:200,atk:22,def:8, spd:80, exp:80, gold:20, sz:72,rng:66,acd:1.4, passive:true,  eva:5 },
-  beetle:  {hp:90, atk:16,def:6, spd:60, exp:55, gold:14, sz:60,rng:56,acd:1.0, passive:true,  eva:8 },
-  hornet:  {hp:60, atk:18,def:2, spd:150,exp:50, gold:12, sz:52,rng:50,acd:0.7, passive:false, eva:25},
-  scorpion_queen:{hp:350,atk:28,def:10,spd:70,exp:150,gold:40,sz:80,rng:68,acd:1.2,passive:false,eva:15},
-  mistress:{hp:3500,atk:65,def:20,spd:90,exp:5000,gold:1500,sz:140,rng:110,acd:0.6,passive:false,eva:25,isBoss:true},
+  bear:    {hp:200,atk:22,def:8, spd:80, exp:80, gold:20, sz:72,rng:66,acd:1.4, passive:true,  eva:5 ,element:'earth'},
+  beetle:  {hp:90, atk:16,def:6, spd:60, exp:55, gold:14, sz:60,rng:56,acd:1.0, passive:true,  eva:8 ,element:'earth'},
+  hornet:  {hp:60, atk:18,def:2, spd:150,exp:50, gold:12, sz:52,rng:50,acd:0.7, passive:false, eva:25,element:'wind'},
+  scorpion_queen:{hp:350,atk:28,def:10,spd:70,exp:150,gold:40,sz:80,rng:68,acd:1.2,passive:false,eva:15,element:'earth'},
+  mistress:{hp:3500,atk:65,def:20,spd:90,exp:5000,gold:1500,sz:140,rng:110,acd:0.6,passive:false,eva:25,isBoss:true,element:'dark'},
   // ST6 新モンスター
-  cloud_monkey:{hp:120,atk:20,def:3, spd:160,exp:90, gold:25, sz:60,rng:58,acd:0.9, passive:false, eva:30},
-  treant:      {hp:280,def:12,atk:18,spd:0,  exp:110,gold:30, sz:76,rng:200,acd:2.5,passive:true,  eva:0 },
-  rock_golem:  {hp:600,atk:30,def:25,spd:40, exp:180,gold:45, sz:88,rng:72,acd:2.0, passive:true,  eva:0 },
-  giant:       {hp:450,atk:40,def:15,spd:70, exp:160,gold:40, sz:96,rng:88,acd:1.8, passive:false, eva:5 },
-  thunder_god: {hp:5000,atk:80,def:25,spd:100,exp:8000,gold:2000,sz:150,rng:116,acd:0.5,passive:false,eva:20,isBoss:true},
+  cloud_monkey:{hp:120,atk:20,def:3, spd:160,exp:90, gold:25, sz:60,rng:58,acd:0.9, passive:false, eva:30,element:'wind'},
+  treant:      {hp:280,def:12,atk:18,spd:0,  exp:110,gold:30, sz:76,rng:200,acd:2.5,passive:true,  eva:0 ,element:'earth'},
+  rock_golem:  {hp:600,atk:30,def:25,spd:40, exp:180,gold:45, sz:88,rng:72,acd:2.0, passive:true,  eva:0 ,element:'earth'},
+  giant:       {hp:450,atk:40,def:15,spd:70, exp:160,gold:40, sz:96,rng:88,acd:1.8, passive:false, eva:5 ,element:'earth'},
+  thunder_god: {hp:5000,atk:80,def:25,spd:100,exp:8000,gold:2000,sz:150,rng:116,acd:0.5,passive:false,eva:20,isBoss:true,element:'thunder'},
   // ST7 オーク族
-  orc_warrior: {hp:180,atk:28,def:10,spd:75, exp:100,gold:28, sz:72,rng:66,acd:1.2, passive:false, eva:5 },
-  orc_high:    {hp:300,atk:35,def:14,spd:60, exp:160,gold:40, sz:80,rng:70,acd:1.5, passive:false, eva:5 },
-  orc_lady:    {hp:130,atk:22,def:6, spd:100,exp:85, gold:22, sz:64,rng:58,acd:1.0, passive:true,  eva:12},
-  orc_archer:  {hp:110,atk:20,def:5, spd:90, exp:80, gold:20, sz:60,rng:220,acd:1.8,passive:false, eva:15},
-  orc_general: {hp:4500,atk:70,def:22,spd:85,exp:6500,gold:1800,sz:140,rng:106,acd:0.7,passive:false,eva:15,isBoss:true},
+  orc_warrior: {hp:180,atk:28,def:10,spd:75, exp:100,gold:28, sz:72,rng:66,acd:1.2, passive:false, eva:5 ,element:'none'},
+  orc_high:    {hp:300,atk:35,def:14,spd:60, exp:160,gold:40, sz:80,rng:70,acd:1.5, passive:false, eva:5 ,element:'none'},
+  orc_lady:    {hp:130,atk:22,def:6, spd:100,exp:85, gold:22, sz:64,rng:58,acd:1.0, passive:true,  eva:12,element:'none'},
+  orc_archer:  {hp:110,atk:20,def:5, spd:90, exp:80, gold:20, sz:60,rng:220,acd:1.8,passive:false, eva:15,element:'none'},
+  orc_general: {hp:4500,atk:70,def:22,spd:85,exp:6500,gold:1800,sz:140,rng:106,acd:0.7,passive:false,eva:15,isBoss:true,element:'none'},
   // ST3 海岸モンスター
-  crab:    {hp:90, atk:14,def:6, spd:55, exp:38, gold:9, sz:56,rng:54,acd:1.4, passive:true,  eva:8 },
-  seal:    {hp:140,atk:12,def:3, spd:90, exp:50, gold:12,sz:64,rng:60,acd:1.0, passive:false, eva:15},
+  crab:    {hp:90, atk:14,def:6, spd:55, exp:38, gold:9, sz:56,rng:54,acd:1.4, passive:true,  eva:8 ,element:'water'},
+  seal:    {hp:140,atk:12,def:3, spd:90, exp:50, gold:12,sz:64,rng:60,acd:1.0, passive:false, eva:15,element:'water'},
   // ST5 砂漠モンスター
-  mummy:   {hp:150,atk:18,def:5, spd:55, exp:70, gold:18,sz:60,rng:56,acd:1.3, passive:false, eva:10},
+  mummy:   {hp:150,atk:18,def:5, spd:55, exp:70, gold:18,sz:60,rng:56,acd:1.3, passive:false, eva:10,element:'dark'},
   // ST4〜 サンドマン
-  sandman: {hp:180,atk:20,def:8, spd:60, exp:75, gold:18,sz:64,rng:58,acd:1.3, passive:true,  eva:5 },
+  sandman: {hp:180,atk:20,def:8, spd:60, exp:75, gold:18,sz:64,rng:58,acd:1.3, passive:true,  eva:5 ,element:'earth'},
   // ST6 骨竜
-  bone_dragon:{hp:500,atk:42,def:16,spd:85,exp:220,gold:55,sz:100,rng:80,acd:1.5,passive:false,eva:15},
+  bone_dragon:{hp:500,atk:42,def:16,spd:85,exp:220,gold:55,sz:100,rng:80,acd:1.5,passive:false,eva:15,element:'dark'},
   // ST5 ボス: スコーピオンキング(queenより強化)
-  scorpion_king:{hp:2800,atk:55,def:18,spd:105,exp:3500,gold:1200,sz:140,rng:108,acd:0.8,passive:false,eva:30,isBoss:true},
+  scorpion_king:{hp:2800,atk:55,def:18,spd:105,exp:3500,gold:1200,sz:140,rng:108,acd:0.8,passive:false,eva:30,isBoss:true,element:'earth'},
   // ST6 ボス: 砂漠の墓守(骨の主・死霊の番人)
-  tomb_guardian:{hp:3500,atk:60,def:22,spd:80,exp:5000,gold:1800,sz:150,rng:115,acd:1.0,passive:false,eva:25,isBoss:true},
+  tomb_guardian:{hp:3500,atk:60,def:22,spd:80,exp:5000,gold:1800,sz:150,rng:115,acd:1.0,passive:false,eva:25,isBoss:true,element:'dark'},
   // ── DUN1 ダンジョン専用モンスター ──
-  // ゾンビ: HP重くタンク役、遅い、毒攻撃
-  zombie:        {hp:800, atk:45, def:12, spd:50, exp:280, gold:60, sz:72,rng:64,acd:1.6, passive:false, eva:0 },
-  // リッチ: 詠唱して遠距離魔法、HPはそこそこ
-  lich:          {hp:600, atk:55, def:8,  spd:40, exp:350, gold:80, sz:80,rng:280,acd:2.5, passive:false, eva:10},
-  // ダークエルフ: 遠距離弓、HP少ないが素早い
-  dark_elf:      {hp:450, atk:50, def:5,  spd:110,exp:300, gold:70, sz:68,rng:320,acd:1.8, passive:false, eva:30},
-  // ダークイリュージョン(ダミーボス): 通常攻撃+メテオーム
-  dark_illusion: {hp:4000,atk:70, def:20, spd:90, exp:8000,gold:3000,sz:150,rng:120,acd:1.0,passive:false,eva:20,isBoss:true},
+  // ゾンビ: 闇属性(光に弱い)
+  zombie:        {hp:800, atk:45, def:12, spd:50, exp:280, gold:60, sz:72,rng:64,acd:1.6, passive:false, eva:0 ,element:'dark'},
+  // リッチ: 闇属性(光に弱い)・魔法詠唱
+  lich:          {hp:600, atk:55, def:8,  spd:40, exp:350, gold:80, sz:80,rng:280,acd:2.5, passive:false, eva:10,element:'dark'},
+  // ダークエルフ: 闇属性
+  dark_elf:      {hp:450, atk:50, def:5,  spd:110,exp:300, gold:70, sz:68,rng:320,acd:1.8, passive:false, eva:30,element:'dark'},
+  // ダークイリュージョン: 闇属性ボス・メテオは炎属性
+  dark_illusion: {hp:4000,atk:70, def:20, spd:90, exp:8000,gold:3000,sz:150,rng:120,acd:1.0,passive:false,eva:20,isBoss:true,element:'dark'},
 };
 
 // ============================================================
@@ -3917,6 +4038,11 @@ class GameScene extends Phaser.Scene{
   constructor(){super('Game')}
   init(data){
     this.playerData=data.playerData||makePlayerData('warrior');
+    // 古いセーブデータの装備スロット補完(weapon_main, weapon_off)
+    if(this.playerData.equip){
+      if(this.playerData.equip.weapon_main===undefined) this.playerData.equip.weapon_main=null;
+      if(this.playerData.equip.weapon_off===undefined) this.playerData.equip.weapon_off=null;
+    }
     this.stage=data.stage!==undefined?data.stage:1;
     this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
     this.killCount=0;
@@ -4254,6 +4380,11 @@ class GameScene extends Phaser.Scene{
         return;
       }
 
+      // 属性相性ダメージを適用
+      const bulletElem=bull.getData('element')||'none';
+      const em=getElementMult(bulletElem, ed.element||'none');
+      const finalDmg=Math.max(1, Math.floor(dmg*em.mult));
+
       if(pierce){
         // 貫通弾：同一敵への多重ヒット防止
         const hitSet=bull.getData('hitSet')||new Set();
@@ -4261,10 +4392,10 @@ class GameScene extends Phaser.Scene{
         hitSet.add(ed.sprite);
         bull.setData('hitSet',hitSet);
         if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
-        else this.hitEnemy(ed,dmg,isCrit);
+        else this.hitEnemy(ed,finalDmg,isCrit,false,em.label);
       }else{
         if(bull.getData('miss')){this.showFloat(ed.sprite.x,ed.sprite.y-30,'Miss','#888888','info');SE('miss');}
-        else this.hitEnemy(ed,dmg,isCrit);
+        else this.hitEnemy(ed,finalDmg,isCrit,false,em.label);
         bull.destroy();
       }
     });
@@ -4354,12 +4485,13 @@ class GameScene extends Phaser.Scene{
       this.atkCooldown=this._calcAtkCD(0.7)/berserkMult;
       this.playSpriteAtk();
       if(!closest)return; // 対象なし→エフェクトだけ出して終了
-      const res=rollAttack(pd,closest.def,closest.eva||0);
+      // 剣士は無属性
+      const res=rollAttack(pd,closest.def,closest.eva||0,'none',closest.element||'none');
       if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
-      else{this.hitEnemy(closest,res.dmg,res.isCrit);}
+      else{this.hitEnemy(closest,res.dmg,res.isCrit,false,res.elemLabel);}
 
     }else if(cls==='mage'){
-      // ファイアボール発射（SP3消費）
+      // ファイアボール発射（SP3消費）・炎属性
       if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
       pd.sp-=3;
       const ang=this.getFacingAngle();
@@ -4368,6 +4500,7 @@ class GameScene extends Phaser.Scene{
         dmg:Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag)),
         isCrit:Math.random()*100<calcCrit(pd),
         sz:20,
+        element:'fire',
       });
       SE('magic');this.updateHUD();
       this.atkCooldown=this._calcAtkCD(0.7);
@@ -4416,6 +4549,7 @@ class GameScene extends Phaser.Scene{
         dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
         isCrit:Math.random()*100<calcCrit(pd),
         radius:55*bomberRadiusMult,
+        element:'fire',
       });
       SE('explode');
       this.atkCooldown=this._calcAtkCD(1.0);
@@ -4454,6 +4588,7 @@ class GameScene extends Phaser.Scene{
     b.setData('vy',Math.sin(ang)*opt.spd);
     b.setData('boostHits',opt.boostHits||1); // ブーストアタック多段数
     b.setData('pierce',opt.pierce||false);
+    b.setData('element',opt.element||'none'); // 弾の属性
     b.rotation=ang;
     return b;
   }
@@ -4518,14 +4653,18 @@ class GameScene extends Phaser.Scene{
           const exp=this.add.image(tx,ty,'fx_explosion').setDisplaySize(R*1.2,R*1.2).setDepth(14);
           this.tweens.add({targets:exp,alpha:0,scaleX:1.3,scaleY:1.3,duration:350,onComplete:()=>exp.destroy()});
         }
-        // 範囲ダメージ
+        // 範囲ダメージ(opt.element 属性を適用)
+        const bombElem=opt.element||'none';
         this.enemyDataList.forEach(ed=>{
           if(ed.dead)return;
           const d=Phaser.Math.Distance.Between(tx,ty,ed.sprite.x,ed.sprite.y);
           if(d<=R){
             const decay=1-d/R*0.6;
-            const dmg=Math.max(1,Math.floor(opt.dmg*decay));
-            this.hitEnemy(ed,dmg,opt.isCrit,opt.isSkill||false);
+            let dmg=Math.max(1,Math.floor(opt.dmg*decay));
+            // 属性相性
+            const em=getElementMult(bombElem, ed.element||'none');
+            if(em.mult!==1.0) dmg=Math.max(1, Math.floor(dmg*em.mult));
+            this.hitEnemy(ed,dmg,opt.isCrit,opt.isSkill||false,em.label);
           }
         });
         this.cameras.main.shake(opt.isHyper?400:200,opt.isHyper?0.02:0.008);
@@ -6189,7 +6328,17 @@ class GameScene extends Phaser.Scene{
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
     const stmp={}; S.forEach(s=>{stmp[s.key]=0;}); let tmpPts=pd.statPts||0;
-    const svStr=(key)=>{if(key==='spd')return String(pd.spd);if(key==='mhp')return String(pd.mhp);if(key==='agi')return String(pd.agi||0)+'%';return String(pd[key]);};
+    const svStr=(key)=>{
+      if(key==='spd')return String(pd.spd);
+      if(key==='mhp')return String(pd.mhp);
+      if(key==='agi'){
+        // 実回避率: 逓減カーブ後の値(雑魚相手・上限75%)
+        const raw=pd.agi||0;
+        const actual=Math.min(75, Math.floor(Math.sqrt(raw)*9));
+        return raw+' (回避'+actual+'%)';
+      }
+      return String(pd[key]);
+    };
     const sadd=(o)=>{statCont.add(sf0(o));return o;};
 
     // ポイント残数
@@ -6537,11 +6686,17 @@ class GameScene extends Phaser.Scene{
             fontSize:'10px',fontFamily:'Arial',color:'#88bbaa'
           }).setOrigin(0,0.5));
 
+          // 装備不可判定: classOnly があり該当クラスでない場合
+          const cantEquip=(def.classOnly && def.classOnly!==pd.cls);
+
           // 装備ボタン（右端）
           const btnW=44, btnX=RCOL_X+RCOL_W-btnW/2-6;
           if(isEquipped){
             invAdd(this.add.rectangle(btnX,ry,btnW,ROW_H-12,0x113311,0.85).setStrokeStyle(1,0x44aa44));
             invAdd(this.add.text(btnX,ry,'装備中',{fontSize:'10px',fontFamily:'Arial',color:'#44aa44'}).setOrigin(0.5));
+          }else if(cantEquip){
+            invAdd(this.add.rectangle(btnX,ry,btnW,ROW_H-12,0x331111,0.7).setStrokeStyle(1,0x553333));
+            invAdd(this.add.text(btnX,ry,'不可',{fontSize:'10px',fontFamily:'Arial',color:'#aa6666'}).setOrigin(0.5));
           }else{
             const eqBtn=invAdd(this.add.rectangle(btnX,ry,btnW,ROW_H-12,0x113355,0.85).setStrokeStyle(1,0x4488cc).setInteractive({useHandCursor:true}));
             invAdd(this.add.text(btnX,ry,'装備',{fontSize:'11px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold'}).setOrigin(0.5));
@@ -6549,6 +6704,18 @@ class GameScene extends Phaser.Scene{
             eqBtn.on('pointerout', ()=>eqBtn.setFillStyle(0x113355,0.85));
             eqBtn.on('pointerdown',()=>{
               pd.equip[def.slot]=id;
+              // 両手武器(twoHand)を右手に装備したら、左手を強制的に外す
+              if(def.slot==='weapon_main' && def.twoHand){
+                pd.equip.weapon_off=null;
+              }
+              // 左手を装備しようとした時、右手が両手武器なら拒否(本来cantEquipで弾くべき)
+              if(def.slot==='weapon_off' && pd.equip.weapon_main){
+                const mainDef=EQUIP_DEFS[pd.equip.weapon_main];
+                if(mainDef && mainDef.twoHand){
+                  pd.equip.weapon_off=null;
+                  this.showFloat(this.scale.width/2, this.scale.height/2, '両手武器装備中は左手は装備できません', '#ff8888', 'info');
+                }
+              }
               SE('click');
               this._skipCloseSE=true;
               this._skipOpenSE=true;
@@ -7161,10 +7328,14 @@ class GameScene extends Phaser.Scene{
   // ── 敵スポーン ────────────────────────────────
   spawnEnemy(id,x,y){
     const def=ENEMY_DEFS[id]||ENEMY_DEFS.slime;
+    // スポーン位置が壁内だと敵が詰まってしまうので、安全な近傍を探す
+    const safe=this._findSafeSpawnPos(x, y, 200);
+    x=safe.x; y=safe.y;
     const sp=this.enemies.create(x,y,'enemy_'+id).setDisplaySize(def.sz,def.sz).setDepth(4);
     sp.setCollideWorldBounds(true);
     const ed={
       id,sprite:sp,hp:def.hp,mhp:def.hp,atk:def.atk,def:def.def,spd:def.spd,
+      element:def.element||'none',
       exp:def.exp,gold:def.gold,rng:def.rng,acd:def.acd,
       attackTimer:def.acd+Math.random()*def.acd,
       isBoss:!!def.isBoss,dead:false,
@@ -7196,7 +7367,7 @@ class GameScene extends Phaser.Scene{
   }
 
   // ── ヒット処理（③命中/クリティカル対応）─────────
-  hitEnemy(ed,dmg,isCrit=false,isSkill=false){
+  hitEnemy(ed,dmg,isCrit=false,isSkill=false,elemLabel=null){
     if(ed.dead)return;
     // 凍結中はダメージ1.5倍・解除
     if(ed.frozen){dmg=Math.floor(dmg*1.5);ed.frozen=false;ed.sprite.clearTint();if(ed._iceImg){ed._iceImg.destroy();ed._iceImg=null;}}
@@ -7225,6 +7396,15 @@ class GameScene extends Phaser.Scene{
       const normalCol=isSkill?'#44ffff':'#ffffff';
       this.showFloat(sx,sy-ed.sprite.displayHeight/2,normalTxt,normalCol,normalType);
       this.showHitEffect(sx,sy,'normal');
+    }
+    // 属性ラベル(WEAK!/RESIST)を上に追加表示
+    if(elemLabel==='WEAK!'){
+      this.showFloat(sx, sy-ed.sprite.displayHeight/2-20, 'WEAK!', '#ff44ff', 'info');
+      // 弱点ヒット時の派手なエフェクト(紫の閃光)
+      const flash=this.add.circle(sx,sy,40,0xff44ff,0.6).setDepth(8);
+      this.tweens.add({targets:flash,scaleX:1.8,scaleY:1.8,alpha:0,duration:300,onComplete:()=>flash.destroy()});
+    }else if(elemLabel==='RESIST'){
+      this.showFloat(sx, sy-ed.sprite.displayHeight/2-20, 'RESIST', '#888888', 'info');
     }
     const pct=Math.max(0,ed.hp/ed.mhp);
     ed.hpBar.setSize(ed.hpBarBg.width*pct,5).setFillStyle(pct>0.5?0x2ecc71:pct>0.25?0xf39c12:0xe74c3c);
@@ -7736,6 +7916,87 @@ class GameScene extends Phaser.Scene{
     return true;
   }
 
+  // ── 回避率計算(逓減カーブ・上限75%・ボス補正) ──
+  // AGI 30で約25%, 60で約45%, 100で約60%, 200で約70%, 上限75%
+  // 線形だとAGI100で完全回避になってしまうので、平方根カーブで成長を緩やかに
+  _getDodgeRate(isBoss){
+    const pd=this.playerData;
+    const rawAgi=pd.agi||0;
+    if(rawAgi<=0) return 0;
+    // sqrt(AGI)*9 で逓減: AGI=10→約28%, 50→約63%, 100→約90%だが上限75%でキャップ
+    let rate=Math.sqrt(rawAgi)*9;
+    // ボス相手は-15%(ただし0未満にはしない)
+    if(isBoss) rate=Math.max(0, rate-15);
+    // 最大75%(必中要素を残す)
+    return Math.min(75, rate);
+  }
+
+  // ── 敵の移動(壁判定付き): 壁にぶつかったら速度を殺す ──
+  _moveEnemyWithCollision(ed, vx, vy, dt){
+    const sp=ed.sprite;
+    if(!sp || !sp.active) return;
+    if(!this._mapMaskCtx){
+      sp.setVelocity(vx, vy);
+      return;
+    }
+    // 敵の当たり判定サイズ(スプライトの60%)
+    const halfW=sp.displayWidth*0.3;
+    const halfH=sp.displayHeight*0.3;
+    const lookAhead=Math.max(dt*1.2, 0.02);
+    // X方向テスト
+    if(vx!==0 && !this._canMoveTo(sp.x + vx*lookAhead, sp.y, halfW, halfH)){
+      vx=0;
+      // 壁にぶつかったら徘徊方向をリセット(反対方向に動けるように)
+      ed.wanderVx=-ed.wanderVx;
+      ed.wanderTimer=Math.min(ed.wanderTimer, 0.5);
+    }
+    // Y方向テスト
+    if(vy!==0 && !this._canMoveTo(sp.x, sp.y + vy*lookAhead, halfW, halfH)){
+      vy=0;
+      ed.wanderVy=-ed.wanderVy;
+      ed.wanderTimer=Math.min(ed.wanderTimer, 0.5);
+    }
+    sp.setVelocity(vx, vy);
+  }
+
+  // ── 視線チェック: 2点間に壁がないか(Bresenhamの線で一定間隔をチェック) ──
+  _hasLineOfSight(x1, y1, x2, y2){
+    if(!this._mapMaskCtx) return true;
+    const dist=Phaser.Math.Distance.Between(x1, y1, x2, y2);
+    const steps=Math.ceil(dist/20); // 20pxごとにチェック
+    if(steps<=1) return true;
+    for(let i=1;i<steps;i++){
+      const t=i/steps;
+      const x=x1+(x2-x1)*t;
+      const y=y1+(y2-y1)*t;
+      if(!this._isWalkable(x, y)) return false;
+    }
+    return true;
+  }
+
+  // ── 壁のない安全な座標を近傍から探す(スポーン用) ──
+  _findSafeSpawnPos(x, y, maxRadius){
+    if(!this._mapMaskCtx) return {x, y};
+    // そもそも指定座標が安全ならそのまま返す
+    if(this._canMoveTo(x, y, 20, 20)) return {x, y};
+    // 螺旋状に近傍を探索
+    const step=30;
+    for(let r=step; r<=maxRadius; r+=step){
+      const samples=Math.ceil(r*Math.PI*2/step);
+      for(let i=0;i<samples;i++){
+        const a=(i/samples)*Math.PI*2;
+        const tx=x+Math.cos(a)*r;
+        const ty=y+Math.sin(a)*r;
+        if(tx>=40 && tx<=this.MW-40 && ty>=40 && ty<=this.MH-40 &&
+           this._canMoveTo(tx, ty, 20, 20)){
+          return {x:tx, y:ty};
+        }
+      }
+    }
+    // 見つからない場合は元の位置(どうしようもないので)
+    return {x, y};
+  }
+
   // ── 毒システム ──────────────────────────
   // プレイヤーに毒を付与
   applyPoison(durationSec){
@@ -7833,7 +8094,7 @@ class GameScene extends Phaser.Scene{
       pd._parry=false;
       return;
     }
-    if(Math.random()*100<(pd.agi||0)){
+    if(Math.random()*100<this._getDodgeRate(ed.isBoss)){
       this.showFloat(p.x,p.y-40,'DODGE!','#2ecc71','info');
       SE('dodge');
       return;
@@ -7958,19 +8219,17 @@ class GameScene extends Phaser.Scene{
         if(pl && pl.active){
           const d=Phaser.Math.Distance.Between(tx, ty, pl.x, pl.y);
           if(d<80){
-            if(pd._parry){
-              this.showFloat(pl.x, pl.y-40, 'PARRY!', '#ffd700', 'info');
-              pd._parry=false;
-            } else if(Math.random()*100<(pd.agi||0)){
-              this.showFloat(pl.x, pl.y-40, 'DODGE!', '#2ecc71', 'info');
-              SE('dodge');
-            } else {
-              const dmg=Math.max(1, Math.floor(ed.atk*1.4)-(pd.def||0)+Phaser.Math.Between(0,5));
-              pd.hp=Math.max(0, pd.hp-dmg);
-              this.showFloat(pl.x, pl.y-40, '-'+dmg, '#ff4400', 'info');
-              this.updateHUD();
-              if(pd.hp<=0){this.gameOver();}
-            }
+            // ── メテオは魔法攻撃: 必中(回避・パリィ不可)・MAGで耐性 ──
+            const intResist=Math.min(0.80, (pd.intPts||0)*0.02);
+            const baseDmg=Math.max(1, Math.floor(ed.atk*1.4)-(pd.def||0)+Phaser.Math.Between(0,5));
+            const finalDmg=Math.max(1, Math.floor(baseDmg*(1-intResist)));
+            pd.hp=Math.max(0, pd.hp-finalDmg);
+            this.showFloat(pl.x, pl.y-40, '-'+finalDmg+(intResist>0?' (魔法)':''), '#ff4400', 'info');
+            this.updateHUD();
+            // 紫の閃光(魔法ダメージ強調)
+            const flash=this.add.circle(pl.x, pl.y, 35, 0xcc44ff, 0.6).setDepth(7);
+            this.tweens.add({targets:flash, scaleX:1.5, scaleY:1.5, alpha:0, duration:300, onComplete:()=>flash.destroy()});
+            if(pd.hp<=0){this.gameOver();}
           }
         }
       });
@@ -8030,8 +8289,8 @@ class GameScene extends Phaser.Scene{
           // ── 物理弾(矢など): パリィ可能 ──
           this.showFloat(p.x, p.y-40, 'PARRY!', '#ffd700', 'info');
           pd._parry=false;
-        } else if(Math.random()*100<(pd.agi||0)){
-          // ── 物理弾: AGIで回避可能 ──
+        } else if(Math.random()*100<this._getDodgeRate(false)){
+          // ── 物理弾: AGIで回避可能(矢を撃つ敵は基本ザコ前提) ──
           this.showFloat(p.x, p.y-40, 'DODGE!', '#2ecc71', 'info');
           SE('dodge');
         } else {
@@ -8153,7 +8412,8 @@ class GameScene extends Phaser.Scene{
           ed.wanderVx=Math.cos(ang)*ed.spd*0.2;
           ed.wanderVy=Math.sin(ang)*ed.spd*0.2;
         }
-        sp.setVelocity(ed.wanderVx,ed.wanderVy);
+        // ── 壁判定付きで移動 ──
+        this._moveEnemyWithCollision(ed, ed.wanderVx, ed.wanderVy, dt);
         ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
         ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
         return;
@@ -8161,9 +8421,16 @@ class GameScene extends Phaser.Scene{
 
       // 能動（passive:false）または受動でaggro済み → プレイヤーへ追跡
       const CHASE_RANGE=300;
-      if(dist<CHASE_RANGE){
+      // ── 壁越し視認チェック: 壁の向こう側にプレイヤーがいる場合はaggroを解除 ──
+      let canSeePlayer = true;
+      if(dist<CHASE_RANGE && this._mapMaskCtx){
+        canSeePlayer = this._hasLineOfSight(sp.x, sp.y, p.x, p.y);
+      }
+      let vx=0, vy=0;
+      if(dist<CHASE_RANGE && canSeePlayer){
         const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
-        sp.setVelocity(Math.cos(ang)*ed.spd,Math.sin(ang)*ed.spd);
+        vx=Math.cos(ang)*ed.spd;
+        vy=Math.sin(ang)*ed.spd;
       }else{
         ed.wanderTimer-=dt;
         if(ed.wanderTimer<=0){
@@ -8172,11 +8439,14 @@ class GameScene extends Phaser.Scene{
           ed.wanderVx=Math.cos(ang)*ed.spd*0.25;
           ed.wanderVy=Math.sin(ang)*ed.spd*0.25;
         }
-        sp.setVelocity(ed.wanderVx,ed.wanderVy);
+        vx=ed.wanderVx;
+        vy=ed.wanderVy;
       }
-      // 攻撃
+      // ── 壁判定付きで移動 ──
+      this._moveEnemyWithCollision(ed, vx, vy, dt);
+      // 攻撃(壁越しでは攻撃もしない)
       ed.attackTimer-=dt;
-      if(ed.attackTimer<=0&&dist<ed.rng){
+      if(ed.attackTimer<=0&&dist<ed.rng&&canSeePlayer){
         ed.attackTimer=ed.acd;
         // ── 遠距離攻撃タイプ: rng>=150 の敵は投射物を撃つ ──
         const rangedIds=['orc_archer','dark_elf','lich','treant'];
