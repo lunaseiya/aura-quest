@@ -3929,13 +3929,14 @@ const STAGE_CONFIG={
     bossThreshold:13,
     portalTo:8,portalToLabel:'☁ ST.8へ',portalToKey:'portal_st6',
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
-    magicPortalNext:true, // 下の青魔法門は特殊演出で遷移
-    // 入口=上の鳥居、出口=下の青魔法門
+    // 下の青魔法門はダイアログ式(magicGate)
+    // magicGate: {x, y, to, label, returnX, returnY} 行き先ステージの到着位置も指定
+    magicGate:{x:474, y:1550, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:870},
+    // 入口=上の鳥居(portalBack)、出口=下の青魔法門(magicGate)
     spawnX:474,spawnY:280,           // 初回入場は上の鳥居すぐ下から
     portalBackX:474, portalBackY:150, // 上部の木製鳥居(ST6へ戻る)
-    portalNextX:474, portalNextY:1550,// 下部の青魔法門(ST8へ)
     spawnFromBackX:474, spawnFromBackY:280,  // ST6から戻ってきたら上から
-    spawnFromNextX:474, spawnFromNextY:1450, // ST8から戻ってきたら下から
+    spawnFromNextX:474, spawnFromNextY:1450, // 天空から戻ってきたら下(青ゲート近く)
   },
   8:{name:'ST.8 天空の島々',bgmKey:'st6',
     mapImage:'map_st8', mapType:'sky', mapW:1536, mapH:1024,
@@ -3961,11 +3962,11 @@ const STAGE_CONFIG={
     boss:{id:'thunder_god',x:1320,y:180},
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
-    portalBack:7,portalBackLabel:'⛰ ST.7へ',portalBackKey:'portal_st5',
-    magicPortalBack:true, // 下の青魔法門は特殊演出で遷移
-    // 入口スポーン/ポータル(画像下部中央の青ポータル)
+    portalBack:null,portalBackLabel:'',
+    // 下の青魔法門はダイアログ式: ST7に戻る
+    magicGate:{x:768, y:900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1450},
+    // スポーン(ST7から青ゲートを抜けてきた時)
     spawnX:768,spawnY:870,
-    portalBackX:768,portalBackY:900,
     spawnFromBackX:768,spawnFromBackY:870,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
@@ -3984,7 +3985,9 @@ const STAGE_CONFIG={
     boss:{id:'dark_illusion',x:474,y:1280},
     bossThreshold:12,
     portalTo:null,portalToLabel:'',portalToKey:'portal_st4',
-    portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',
+    portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
+    // DUN1 から ST6 に戻る時: ST6の骨(290,420)の近くにスポーン
+    portalBackSpawnX:290, portalBackSpawnY:460,
     // 入口は画面上中央
     spawnX:474,spawnY:200,
     portalBackX:474,portalBackY:100,
@@ -4062,6 +4065,8 @@ class GameScene extends Phaser.Scene{
     }
     this.stage=data.stage!==undefined?data.stage:1;
     this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
+    this.magicReturnX=data.magicReturnX; // 青魔法ゲート経由の到着位置
+    this.magicReturnY=data.magicReturnY;
     this.killCount=0;
     this.bossSpawned=false;
     this._dungeonGate=null;
@@ -4284,7 +4289,14 @@ class GameScene extends Phaser.Scene{
       // ポータル経由の場合はそれぞれのポータル付近にスポーン
       // ※ ポータル判定半径(70px)より十分離さないと即座に逆戻りトリガする
       // 優先順位: spawnFromNext/Back で明示指定 > 既定の左右オフセット
-      if(fromPortal==='next'){
+      if(fromPortal==='magic'){
+        // 青魔法ゲート経由: 渡された returnX/Y で着地
+        if(this.magicReturnX!==undefined&&this.magicReturnY!==undefined){
+          spawnX=this.magicReturnX; spawnY=this.magicReturnY;
+        }else{
+          spawnX=cfg.spawnX; spawnY=cfg.spawnY;
+        }
+      }else if(fromPortal==='next'){
         if(cfg.spawnFromNextX!==undefined&&cfg.spawnFromNextY!==undefined){
           spawnX=cfg.spawnFromNextX; spawnY=cfg.spawnFromNextY;
         }else if(cfg.portalNextX!==undefined){
@@ -6064,22 +6076,24 @@ class GameScene extends Phaser.Scene{
         }
         // ── 売却モード: 2列×3行グリッド ──
         const SELL_COLS=2;
-        const SH_SELL_H=Math.max(110, Math.floor(listH2/3)); // 3行・コンパクト目に
+        const SH_SELL_H=Math.max(96, Math.min(120, Math.floor((listBottom-listTop)/3) - 6));
         const sellRows=3;
-        const cellW=(PW-24-SB_W-6)/SELL_COLS - 4;
-        const baseX=PX-(SB_W+6)/2; // スクロールバー分左
+        const GAP_S=6;
+        const availW_S=PW-24-SB_W-6;
+        const cellW=Math.floor((availW_S-GAP_S)/SELL_COLS);
+        const baseX=PX-(SB_W+6)/2; // スクロールバー分左にずらした中心
         const cellCx=baseX;
         const startSell=offset*SELL_COLS; // offsetは行単位
         sellList.slice(startSell,startSell+sellRows*SELL_COLS).forEach((entry,i)=>{
           const col=i%SELL_COLS, row=Math.floor(i/SELL_COLS);
-          const ix=baseX-cellW/2-2 + col*(cellW+4) + cellW/2;
-          const iy=listTop+row*SH_SELL_H+SH_SELL_H/2;
+          const ix = baseX + (col===0 ? -(cellW/2 + GAP_S/2) : (cellW/2 + GAP_S/2));
+          const iy = listTop + row*(SH_SELL_H+GAP_S) + SH_SELL_H/2 + 2;
           const qty=sellQty[entry.id]||0;
           const hasQty=qty>0;
           const bgCol=hasQty?0x3a2a0a:0x1a1208;
           const strokeCol=hasQty?0xffcc66:0x554433;
           // セル背景
-          addS(this.add.rectangle(ix,iy,cellW,SH_SELL_H-6,bgCol,0.92).setStrokeStyle(hasQty?2:1,strokeCol).setScrollFactor(0).setDepth(72));
+          addS(this.add.rectangle(ix,iy,cellW-2,SH_SELL_H,bgCol,0.92).setStrokeStyle(hasQty?2:1,strokeCol).setScrollFactor(0).setDepth(72));
           // 上段: アイコン+名前+所持/単価
           const topY=iy-SH_SELL_H*0.30;
           addS(this.add.text(ix-cellW/2+18,topY,entry.def.icon,{fontSize:'18px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
@@ -6132,15 +6146,19 @@ class GameScene extends Phaser.Scene{
       // ── 購入モード：2列×3行グリッド(6個ずつ表示) ──
       const SH_COLS=2;
       const startIdx=offset*SH_COLS; // offsetは「行」単位
-      const rowH=Math.max(80, Math.floor((listBottom-listTop)/3)); // 3行に収める高さ
+      // セル縦を圧縮: 1行内は「アイコン+名前+職業タグ+価格」を横配置
+      const rowH=Math.max(58, Math.min(72, Math.floor((listBottom-listTop)/3) - 6)); // 余白確保のため短めに
       const visRows=3;
-      const cellW=(PW-24-SB_W-6)/SH_COLS - 4;
-      const baseX=PX-(SB_W+6)/2; // 中心X(スクロールバー分左)
+      const GAP=6;
+      const availW=PW-24-SB_W-6;
+      const cellW=Math.floor((availW-GAP)/SH_COLS);
+      const baseX=PX-(SB_W+6)/2; // スクロールバー分左にずらした「2列全体の中心X」
       const endIdx=startIdx+visRows*SH_COLS;
       items.slice(startIdx,endIdx).forEach((item,i)=>{
         const col=i%SH_COLS, row=Math.floor(i/SH_COLS);
-        const ix=baseX-cellW/2-2 + col*(cellW+4) + cellW/2;
-        const iy=listTop+row*rowH+rowH/2;
+        // col=0は左、col=1は右。全体の中心baseX基準に左右配置
+        const ix = baseX + (col===0 ? -(cellW/2 + GAP/2) : (cellW/2 + GAP/2));
+        const iy = listTop + row*(rowH+GAP) + rowH/2 + 2;
         const isSelected=selectedItem===item;
         const mageOnly=item.mageOnly||false;
         const warriorOnly=item.label.includes('剣士専用');
@@ -6153,31 +6171,47 @@ class GameScene extends Phaser.Scene{
         const canAfford=pd.gold>=item.price&&!wrongClass;
         const bgCol=isSelected?0x1a3a1a:wrongClass?0x1a0a0a:canAfford?0x0a1f35:0x0d0d0d;
         const strokeCol=isSelected?0x44ff44:wrongClass?0x552222:canAfford?0x44aaff:0x333333;
-        const ibg=addS(this.add.rectangle(ix,iy,cellW,rowH-6,bgCol,0.92).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
-        // 上部にアイコン
-        const iconY=iy-rowH*0.27;
-        addS(this.add.text(ix,iconY,item.icon,{fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
-        // 商品名(アイコンの下)
+        const ibg=addS(this.add.rectangle(ix,iy,cellW-2,rowH,bgCol,0.92).setStrokeStyle(isSelected?2:1,strokeCol).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
+
+        // ── 横レイアウト: [アイコン | 名前+タグ | 価格] ──
+        const leftX = ix - cellW/2 + 20;
+        // 1. 左端: アイコン
+        addS(this.add.text(leftX, iy, item.icon, {fontSize:'22px'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        // 2. 中央: 名前(上段) + 職業タグ(下段)
         const textCol=isSelected?'#44ff44':wrongClass?'#663333':canAfford?'#ffffff':'#666677';
         const cleanLabel=item.label.replace(/\s*※[^\s]+専用.*$/,'').replace(/\s+/g,' ').trim();
-        addS(this.add.text(ix,iy-rowH*0.04,cleanLabel,{
-          fontSize:'12px',fontFamily:'Arial',color:textCol,
-          fontStyle:isSelected?'bold':'normal',align:'center',wordWrap:{width:cellW-8}
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(73));
-        // 職業専用タグ
+        const centerX = leftX + 18;
+        const nameW = cellW - 20 - 18 - 54; // アイコン+左余白+右価格枠を差し引いた幅
+        // 職業タグの有無で名前位置を調整
         let tagText='', tagColor='#aaaaaa';
         if(mageOnly){tagText='🔮マジシャン';tagColor=pd.cls==='mage'?'#bb88ee':'#663333';}
         else if(warriorOnly){tagText='⚔剣士';tagColor=pd.cls==='warrior'?'#ff6666':'#663333';}
         else if(archerOnly){tagText='🏹アーチャー';tagColor=pd.cls==='archer'?'#66dd66':'#663333';}
         else if(bomberOnly){tagText='💣ボマー';tagColor=pd.cls==='bomber'?'#ffaa44':'#663333';}
-        if(tagText){
-          addS(this.add.text(ix,iy+rowH*0.16,tagText,{fontSize:'9px',fontFamily:'Arial',color:tagColor,fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+        const hasTag = !!tagText;
+        // 名前(タグある時は上寄せ、ない時は中央)
+        addS(this.add.text(centerX, iy + (hasTag?-9:0), cleanLabel, {
+          fontSize:'12px',fontFamily:'Arial',color:textCol,
+          fontStyle:isSelected?'bold':'normal',
+          wordWrap:{width:nameW}
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
+        // タグ(下段)
+        if(hasTag){
+          addS(this.add.text(centerX, iy+9, tagText, {
+            fontSize:'10px',fontFamily:'Arial',color:tagColor,fontStyle:'bold'
+          }).setOrigin(0,0.5).setScrollFactor(0).setDepth(73));
         }
-        // 価格(下端)
+        // 3. 右端: 価格
+        const priceX = ix + cellW/2 - 8;
         if(item.price>0){
-          addS(this.add.text(ix,iy+rowH*0.32,item.price+'G',{fontSize:'14px',fontFamily:'Arial',color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(priceX, iy, item.price+'G', {
+            fontSize:'13px',fontFamily:'Arial',
+            color:wrongClass?'#553333':canAfford?'#ffd700':'#663300',fontStyle:'bold'
+          }).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
         }else{
-          addS(this.add.text(ix,iy+rowH*0.32,'使用',{fontSize:'12px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+          addS(this.add.text(priceX, iy, '使用', {
+            fontSize:'12px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'
+          }).setOrigin(1,0.5).setScrollFactor(0).setDepth(73));
         }
         ibg.on('pointerdown',()=>{selectedItem=(isSelected?null:item);renderShopItems(shopScroll);updateBuyBtn();});
         ibg.on('pointerover',()=>ibg.setFillStyle(isSelected?0x1a4a1a:0x1a2a3a,0.95));
@@ -7583,6 +7617,51 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  // ── 青魔法ゲート ダイアログ ──
+  _showMagicGateDialog(){
+    if(this._magicGateDialogOpen) return;
+    this._magicGateDialogOpen=true;
+    this.physics.pause();
+    const gate=this.cfg.magicGate;
+    const W=this.scale.width, H=this.scale.height;
+    const ov=this.add.rectangle(W/2,H/2,W,H,0x000000,0.75).setScrollFactor(0).setDepth(90).setInteractive();
+    const box=this.add.rectangle(W/2,H/2,380,190,0x0a1a3a,0.98).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(91);
+    const icon=this.add.text(W/2,H/2-64,'✨',{fontSize:'32px'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+    const ttl=this.add.text(W/2,H/2-30,gate.label,{fontSize:'16px',fontFamily:'Arial',color:'#88ddff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+    const sub1=this.add.text(W/2,H/2-4,'天空へのゲートがあるようだ…',{fontSize:'13px',fontFamily:'Arial',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+    const sub2=this.add.text(W/2,H/2+16,'入りますか？',{fontSize:'14px',fontFamily:'Arial',color:'#aaccff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(92);
+    // はい(青ボタン)
+    const btnY=this.add.rectangle(W/2-80,H/2+58,140,38,0x0a3a6a,0.95).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(92).setInteractive({useHandCursor:true});
+    const btnYTxt=this.add.text(W/2-80,H/2+58,'✨ 入る',{fontSize:'15px',fontFamily:'Arial',color:'#88ddff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(93);
+    // 引き返す
+    const btnN=this.add.rectangle(W/2+80,H/2+58,140,38,0x221111,0.95).setStrokeStyle(2,0x663333).setScrollFactor(0).setDepth(92).setInteractive({useHandCursor:true});
+    const btnNTxt=this.add.text(W/2+80,H/2+58,'引き返す',{fontSize:'15px',fontFamily:'Arial',color:'#aa8888'}).setOrigin(0.5).setScrollFactor(0).setDepth(93);
+    const close=()=>{
+      [ov,box,icon,ttl,sub1,sub2,btnY,btnYTxt,btnN,btnNTxt].forEach(o=>{try{o.destroy();}catch(e){}});
+      this._magicGateDialogOpen=false;
+      this.physics.resume();
+    };
+    btnY.on('pointerdown',()=>{
+      SE('click');
+      close();
+      // 入ると即座に青ポータル演出→シーン遷移
+      this._transitioning=true;
+      const sceneData={
+        playerData:this.playerData,
+        stage:gate.to,
+        fromPortal:'magic',       // 特殊マーカー
+        magicReturnX:gate.returnX, // 到着位置(行き先ステージでこれを参照)
+        magicReturnY:gate.returnY,
+      };
+      this._doMagicPortalTransition('Game', sceneData, gate.x, gate.y);
+    });
+    btnN.on('pointerdown',()=>{SE('click');close();});
+    btnY.on('pointerover',()=>btnY.setFillStyle(0x1a5a9a,0.98));
+    btnY.on('pointerout', ()=>btnY.setFillStyle(0x0a3a6a,0.95));
+    btnN.on('pointerover',()=>btnN.setFillStyle(0x332222,0.98));
+    btnN.on('pointerout', ()=>btnN.setFillStyle(0x221111,0.95));
+  }
+
   // ── ダンジョンゲート入場ダイアログ ──
   _showDungeonDialog(){
     if(this._dungeonGate.dialogOpen) return;
@@ -8669,12 +8748,14 @@ class GameScene extends Phaser.Scene{
         const pbY=this.portalBackPos?this.portalBackPos.y:this.MH/2;
         if(Phaser.Math.Distance.Between(p.x,p.y,pbX,pbY)<70){
           this._transitioning=true;
-          // 青ポータル演出するか判定(cfg.magicPortalBack=true なら発動)
-          if(this.cfg.magicPortalBack){
-            this._doMagicPortalTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'}, pbX, pbY);
-          }else{
-            this._doTransition('Game',{playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'});
+          // portalBackSpawnXY で戻り先のスポーン位置を明示(例: DUN1→ST6骨の位置)
+          const dt={playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'};
+          if(this.cfg.portalBackSpawnX!==undefined && this.cfg.portalBackSpawnY!==undefined){
+            dt.fromPortal='magic'; // magic経路なら magicReturnX/Y で着地
+            dt.magicReturnX=this.cfg.portalBackSpawnX;
+            dt.magicReturnY=this.cfg.portalBackSpawnY;
           }
+          this._doTransition('Game',dt);
           return;
         }
       }
@@ -8684,12 +8765,7 @@ class GameScene extends Phaser.Scene{
         this._transitioning=true;
         const nextScene=(!this.cfg.portalTo)?'GameClear':'Game';
         const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to,fromPortal:'back'};
-        // 青ポータル演出するか判定(cfg.magicPortalNext=true なら発動)
-        if(this.cfg.magicPortalNext && this.cfg.portalTo){
-          this._doMagicPortalTransition(nextScene, nextData, this.portalNext.x, this.portalNext.y);
-        }else{
-          this._doTransition(nextScene,nextData);
-        }
+        this._doTransition(nextScene,nextData);
         return;
       }
       // ダンジョンゲート（ボス撃破後に出現・近づくとダイアログ表示）
@@ -8697,6 +8773,13 @@ class GameScene extends Phaser.Scene{
          this._dungeonGate.sprite && this._dungeonGate.sprite.active &&
          Phaser.Math.Distance.Between(p.x,p.y,this._dungeonGate.x,this._dungeonGate.y) < 60){
         this._showDungeonDialog();
+      }
+      // 青魔法ゲート（magicGate: 近づくとダイアログ表示）
+      if(this.cfg.magicGate && !this._magicGateDialogOpen){
+        const mg=this.cfg.magicGate;
+        if(Phaser.Math.Distance.Between(p.x,p.y,mg.x,mg.y) < 70){
+          this._showMagicGateDialog();
+        }
       }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
