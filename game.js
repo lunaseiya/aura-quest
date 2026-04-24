@@ -3952,12 +3952,12 @@ const STAGE_CONFIG={
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
     // 下の青魔法門はダイアログ式(magicGate)
     // magicGate: {x, y, to, label, returnX, returnY} 行き先ステージの到着位置も指定
-    magicGate:{x:474, y:1480, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:790},
+    magicGate:{x:474, y:1380, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:750},
     // 入口=上の鳥居(portalBack)、出口=下の青魔法門(magicGate)
     spawnX:474,spawnY:280,           // 初回入場は上の鳥居すぐ下から
     portalBackX:474, portalBackY:150, // 上部の木製鳥居(ST6へ戻る)
     spawnFromBackX:474, spawnFromBackY:280,  // ST6から戻ってきたら上から
-    spawnFromNextX:474, spawnFromNextY:1390, // 天空から戻ってきたら下(青ゲートより上)
+    spawnFromNextX:474, spawnFromNextY:1280, // 天空から戻ってきたら下(青ゲートより十分上)
   },
   8:{name:'ST.8 天空の島々',bgmKey:'st6',
     mapImage:'map_st8', mapType:'sky', mapW:1536, mapH:1024,
@@ -3985,10 +3985,10 @@ const STAGE_CONFIG={
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
     // 下の青魔法門はダイアログ式: ST7に戻る
-    magicGate:{x:768, y:830, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1390},
-    // スポーン(ST7から青ゲートを抜けてきた時) ポータル上方
-    spawnX:768,spawnY:790,
-    spawnFromBackX:768,spawnFromBackY:790,
+    magicGate:{x:768, y:900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
+    // スポーン(ST7から青ゲートを抜けてきた時) ポータルから十分上方
+    spawnX:768,spawnY:750,
+    spawnFromBackX:768,spawnFromBackY:750,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dun1',mapImage:'map_dun1',mapType:'dungeon',mapW:948,mapH:1659,
@@ -7687,7 +7687,12 @@ class GameScene extends Phaser.Scene{
       };
       this._doMagicPortalTransition('Game', sceneData, gate.x, gate.y);
     });
-    btnN.on('pointerdown',()=>{SE('click');close();});
+    btnN.on('pointerdown',()=>{
+      SE('click');
+      close();
+      // 引き返した場合、2秒間は再ダイアログ起動を止める(ループ防止)
+      this._magicGateCooldownUntil=this.time.now+2000;
+    });
     btnY.on('pointerover',()=>btnY.setFillStyle(0x1a5a9a,0.98));
     btnY.on('pointerout', ()=>btnY.setFillStyle(0x0a3a6a,0.95));
     btnN.on('pointerover',()=>btnN.setFillStyle(0x332222,0.98));
@@ -8832,7 +8837,10 @@ class GameScene extends Phaser.Scene{
       if(this.cfg.magicGate && !this._magicGateDialogOpen){
         const mg=this.cfg.magicGate;
         // 検出半径は狭め(45px)。中心が「触れた位置」に来るようにcfgで調整
-        if(Phaser.Math.Distance.Between(p.x,p.y,mg.x,mg.y) < 45){
+        // クールダウン中は再起動しない(キャンセル直後のリトリガ防止)
+        const now=this.time.now;
+        const cd=this._magicGateCooldownUntil||0;
+        if(now>=cd && Phaser.Math.Distance.Between(p.x,p.y,mg.x,mg.y) < 45){
           this._showMagicGateDialog();
         }
       }
