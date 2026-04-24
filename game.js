@@ -3901,7 +3901,28 @@ const STAGE_CONFIG={
       {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
     ],
   },
-  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1448,mapH:1086,tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],objects:[],objPos:[],enemies:[['slime',550,450],['slime',850,450],['slime',650,600],['slime',940,560],['slime',500,650],['bat',600,500],['bat',900,600],['bat',450,550],['goblin',800,550],['goblin',540,600],['goblin',1000,450],['troll',750,650],['troll',650,450]],boss:{id:'boss1',x:700,y:500},bossThreshold:8,portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',spawnX:420,spawnY:540,portalNextX:1050,portalNextY:490,portalBackX:350,portalBackY:630},
+  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
+    tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],
+    objects:[],objPos:[],
+    enemies:[
+      // 中央広場(627,627中心の広いエリアにバランスよく配置)
+      ['slime',  450,500],['slime',  800,500],['slime',  450,750],['slime',  800,750],
+      ['slime',  627,400],['slime',  627,850],
+      ['bat',    500,600],['bat',    750,600],['bat',    627,500],['bat',    627,750],
+      ['goblin', 400,627],['goblin', 850,627],['goblin', 550,450],['goblin', 700,800],
+      ['troll',  500,800],['troll',  750,450],
+    ],
+    boss:{id:'boss1', x:627, y:627}, // 中央広場の真ん中(広いので戦いやすい)
+    bossThreshold:8,
+    portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',
+    portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',
+    // 入口=左の道(初回スポーン), 出口=右の道
+    spawnX:150, spawnY:627,        // 初回入場(左道から)
+    portalBackX:80, portalBackY:627, // 戻る(町へ): 左の道の端
+    portalNextX:1174, portalNextY:627, // 進む(ST2へ): 右の道の端
+    spawnFromBackX:150, spawnFromBackY:627,  // 町から戻ってきたら左から
+    spawnFromNextX:1100, spawnFromNextY:627, // ST2から戻ってきたら右から
+  },
   2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:560,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -3931,12 +3952,12 @@ const STAGE_CONFIG={
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
     // 下の青魔法門はダイアログ式(magicGate)
     // magicGate: {x, y, to, label, returnX, returnY} 行き先ステージの到着位置も指定
-    magicGate:{x:474, y:1550, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:870},
+    magicGate:{x:474, y:1480, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:790},
     // 入口=上の鳥居(portalBack)、出口=下の青魔法門(magicGate)
     spawnX:474,spawnY:280,           // 初回入場は上の鳥居すぐ下から
     portalBackX:474, portalBackY:150, // 上部の木製鳥居(ST6へ戻る)
     spawnFromBackX:474, spawnFromBackY:280,  // ST6から戻ってきたら上から
-    spawnFromNextX:474, spawnFromNextY:1450, // 天空から戻ってきたら下(青ゲート近く)
+    spawnFromNextX:474, spawnFromNextY:1390, // 天空から戻ってきたら下(青ゲートより上)
   },
   8:{name:'ST.8 天空の島々',bgmKey:'st6',
     mapImage:'map_st8', mapType:'sky', mapW:1536, mapH:1024,
@@ -3964,10 +3985,10 @@ const STAGE_CONFIG={
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
     // 下の青魔法門はダイアログ式: ST7に戻る
-    magicGate:{x:768, y:900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1450},
-    // スポーン(ST7から青ゲートを抜けてきた時)
-    spawnX:768,spawnY:870,
-    spawnFromBackX:768,spawnFromBackY:870,
+    magicGate:{x:768, y:830, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1390},
+    // スポーン(ST7から青ゲートを抜けてきた時) ポータル上方
+    spawnX:768,spawnY:790,
+    spawnFromBackX:768,spawnFromBackY:790,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dun1',mapImage:'map_dun1',mapType:'dungeon',mapW:948,mapH:1659,
@@ -5868,7 +5889,18 @@ class GameScene extends Phaser.Scene{
         }},
       ],
       guild:[
-        {label:'（準備中）',price:0,icon:'⚔',action:()=>{showResult('現在工事中です…','#aaaaaa');}},
+        // ── 各ステージへ無料テレポート(ポータルサービス) ──
+        // 注: action内ではこのscene(=Game)が必要。close()してから _doTransition で飛ぶ
+        {label:'🏘 町(セントラル)',  price:0, icon:'🏠', action:()=>{ close(); this._doGuildWarp(0);  }},
+        {label:'🌳 ST.1 草原',       price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(1);  }},
+        {label:'🌋 ST.2 溶岩',       price:0, icon:'🌋', action:()=>{ close(); this._doGuildWarp(2);  }},
+        {label:'🏖 ST.3 海岸',       price:0, icon:'🏖', action:()=>{ close(); this._doGuildWarp(3);  }},
+        {label:'🏜 ST.4 砂漠',       price:0, icon:'🏜', action:()=>{ close(); this._doGuildWarp(4);  }},
+        {label:'🏛 ST.5 砂漠の集落跡',price:0, icon:'🏛', action:()=>{ close(); this._doGuildWarp(5);  }},
+        {label:'💀 ST.6 砂漠の果て', price:0, icon:'💀', action:()=>{ close(); this._doGuildWarp(6);  }},
+        {label:'⛰ ST.7 天空への路',  price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
+        {label:'☁ ST.8 天空の島々', price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
+        {label:'⚔ DUN.1 地下迷宮',  price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
       ],
     };
 
@@ -8001,6 +8033,28 @@ class GameScene extends Phaser.Scene{
   }
 
 
+  // ── ギルドのテレポート(ポータルサービス) ──
+  // ステージ番号を受け取り、フェード演出を挟んで遷移する
+  _doGuildWarp(stage){
+    if(this._transitioning) return;
+    this._transitioning=true;
+    // 演出: 画面中央に「✨ テレポート ✨」とメッセージ + フェード
+    const W=this.scale.width, H=this.scale.height;
+    const ann=this.add.text(W/2, H/2, '✨ テレポート ✨', {
+      fontSize:'28px', fontFamily:'Arial', color:'#88ddff',
+      stroke:'#000', strokeThickness:5, fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(95).setAlpha(0);
+    this.tweens.add({targets:ann, alpha:1, scaleX:1.2, scaleY:1.2, duration:300, yoyo:false});
+    try{ SE('magic'); }catch(e){}
+    // 短めの白フラッシュ → 遷移
+    this.cameras.main.flash(450, 200, 230, 255);
+    this.time.delayedCall(500, ()=>{
+      try{ ann.destroy(); }catch(e){}
+      this._doTransition('Game', {playerData:this.playerData, stage:stage});
+    });
+  }
+
+
   _doTransition(sceneKey,sceneData){
     stopBGM();
     // 詠唱キャンセル
@@ -8777,7 +8831,8 @@ class GameScene extends Phaser.Scene{
       // 青魔法ゲート（magicGate: 近づくとダイアログ表示）
       if(this.cfg.magicGate && !this._magicGateDialogOpen){
         const mg=this.cfg.magicGate;
-        if(Phaser.Math.Distance.Between(p.x,p.y,mg.x,mg.y) < 70){
+        // 検出半径は狭め(45px)。中心が「触れた位置」に来るようにcfgで調整
+        if(Phaser.Math.Distance.Between(p.x,p.y,mg.x,mg.y) < 45){
           this._showMagicGateDialog();
         }
       }
