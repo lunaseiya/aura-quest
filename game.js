@@ -4026,9 +4026,9 @@ const ENEMY_DEFS={
   dragon:  {hp:200,atk:20,def:4, spd:90, exp:100,gold:30,sz:80,rng:72,acd:1.5, passive:false, eva:15,element:'fire'},
   sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:76,rng:66,acd:2.0, passive:false, eva:5 ,element:'earth'},
   scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:52,rng:50,acd:0.7, passive:false, eva:25,element:'earth'},
-  boss1:   {hp:600,atk:18,def:5, spd:80, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true,element:'none'},
-  boss2:   {hp:900,atk:25,def:8, spd:90, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true,element:'wind'},
-  boss3:   {hp:1400,atk:35,def:10,spd:100,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true,element:'water'},
+  boss1:   {hp:600,atk:18,def:5, spd:50, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true,element:'none'},
+  boss2:   {hp:900,atk:25,def:8, spd:60, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true,element:'wind'},
+  boss3:   {hp:1400,atk:35,def:10,spd:70,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true,element:'water'},
   boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:130,rng:100,acd:0.7,passive:false,eva:35,isBoss:true,element:'fire'},
   // ST5 新モンスター
   bear:    {hp:200,atk:22,def:8, spd:80, exp:80, gold:20, sz:72,rng:66,acd:1.4, passive:true,  eva:5 ,element:'earth'},
