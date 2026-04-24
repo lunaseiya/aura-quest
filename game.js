@@ -3600,11 +3600,17 @@ class SaveSelectScene extends Phaser.Scene{
         }
       }else{
         // セーブデータ表示
-        const cls={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[save.cls]||'？';
+        // クラスアイコン(絵文字) + 漢字 + 色
+        const clsIcon={warrior:'⚔',mage:'🪄',archer:'🏹',bomber:'💣'}[save.cls]||'❓';
+        const clsChar={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[save.cls]||'？';
         const clsCol={warrior:'#e74c3c',mage:'#9b59b6',archer:'#27ae60',bomber:'#f39c12'}[save.cls]||'#ffffff';
-        // アイコン
-        this.add.rectangle(sx-SLOT_W/2+30,sy,48,48,0x1a1a2e,0.8).setStrokeStyle(2,0x556677);
-        this.add.text(sx-SLOT_W/2+30,sy,cls,{fontSize:'24px',fontFamily:'Arial',color:clsCol,fontStyle:'bold'}).setOrigin(0.5);
+        const clsBgCol={warrior:0x3a1414,mage:0x2a1433,archer:0x143a1a,bomber:0x3a2814}[save.cls]||0x1a1a2e;
+        // アイコン枠(クラス色で染める)
+        this.add.rectangle(sx-SLOT_W/2+30,sy,48,48,clsBgCol,0.9).setStrokeStyle(2,Phaser.Display.Color.HexStringToColor(clsCol).color);
+        // 絵文字アイコン(上寄り)
+        this.add.text(sx-SLOT_W/2+30,sy-8,clsIcon,{fontSize:'22px'}).setOrigin(0.5);
+        // 漢字(下寄り)
+        this.add.text(sx-SLOT_W/2+30,sy+14,clsChar,{fontSize:'12px',fontFamily:'Arial',color:clsCol,fontStyle:'bold'}).setOrigin(0.5);
         // 情報
         this.add.text(sx-SLOT_W/2+62,sy-20,save.clsName+' / Lv'+save.lv,{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5);
         this.add.text(sx-SLOT_W/2+62,sy+2,'📍 '+save.stageName,{fontSize:'13px',fontFamily:'Arial',color:'#aaddff'}).setOrigin(0,0.5);
@@ -5644,7 +5650,7 @@ class GameScene extends Phaser.Scene{
     const R=PX+PW/2-6-SB_W-2;
     const BOT_BTN_H=40;
     const listTop=PY-PH/2+62;
-    const listBot=PY+PH/2-44-BOT_BTN_H;
+    const listBot=PY+PH/2-16-BOT_BTN_H;
     const listH=listBot-listTop;
     const COLS=2;
     const visibleRows=3; // 3行固定
@@ -5670,7 +5676,7 @@ class GameScene extends Phaser.Scene{
     };
 
     // 下部：製作ボタン
-    const craftBtnY=listBot+BOT_BTN_H/2+4;
+    const craftBtnY=PY+PH/2-BOT_BTN_H/2-10;
     const craftBtn=mk(this.add.rectangle(PX,craftBtnY,PW-20,BOT_BTN_H-6,0x113311,0.9).setStrokeStyle(2,0x336633).setScrollFactor(0).setDepth(73));
     const craftBtnTxt=mk(this.add.text(PX,craftBtnY,'装備を選択してください',{fontSize:'14px',fontFamily:'Arial',color:'#556677',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
 
@@ -5829,14 +5835,17 @@ class GameScene extends Phaser.Scene{
     const goldTxt=mk(this.add.text(PX,PY-PH/2+42,'💰 所持金: '+pd.gold+'G',{fontSize:'13px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(72));
     const refreshGold=()=>goldTxt.setText('💰 所持金: '+pd.gold+'G');
 
-    // 閉じるボタン
-    const closeBtn=mk(this.add.rectangle(PX,PY+PH/2-22,160,32,0x333333,0.8).setStrokeStyle(1,0x666666).setScrollFactor(0).setDepth(72).setInteractive({useHandCursor:true}));
-    mk(this.add.text(PX,PY+PH/2-22,'✕ 閉じる',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
+    // 閉じるボタン(右上の×)
+    const closeSize=34;
+    const closeCX=PX+PW/2-closeSize/2-6;
+    const closeCY=PY-PH/2+closeSize/2+6;
+    const closeBtn=mk(this.add.rectangle(closeCX,closeCY,closeSize,closeSize,0x3a0a0a,0.9).setStrokeStyle(2,0xaa4444).setScrollFactor(0).setDepth(73).setInteractive({useHandCursor:true}));
+    mk(this.add.text(closeCX,closeCY,'✕',{fontSize:'18px',fontFamily:'Arial',color:'#ff8888',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
     closeBtn.on('pointerdown',close);
-    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0x555555,0.9));
-    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0x333333,0.8));
+    closeBtn.on('pointerover',()=>closeBtn.setFillStyle(0x6a1a1a,0.95));
+    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0x3a0a0a,0.9));
 
-    const msgY=PY+PH/2-58;
+    const msgY=PY+PH/2-30; // メッセージエリアを下端近くに(閉じるボタン削除したので余白が増えた)
     const result=mk(this.add.text(PX,msgY,'',{fontSize:'13px',fontFamily:'Arial',color:'#44ff88',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(73));
     const showResult=(msg,col='#44ff88')=>{result.setText(msg).setColor(col);};
 
@@ -5920,7 +5929,7 @@ class GameScene extends Phaser.Scene{
     const hasTabs=(b.type==='shop');
     const TAB_H=hasTabs?34:0;
     const listTop=PY-PH/2+60+TAB_H;
-    const listBottom=PY+PH/2-48-BUY_H;
+    const listBottom=PY+PH/2-20-BUY_H;
     const listH2=listBottom-listTop;
     const visibleRows=Math.max(1,Math.floor(listH2/SH_H));
     let shopScroll=0;          // 行(=アイテム)単位のスクロール
@@ -6005,8 +6014,8 @@ class GameScene extends Phaser.Scene{
       });
     }
 
-    // 購入ボタン（下部固定）
-    const buyBtnY=PY+PH/2-56-BUY_H/2+4;
+    // 購入ボタン（下部固定・閉じる右上化に伴い下に拡張）
+    const buyBtnY=PY+PH/2-BUY_H/2-10;
     const buyBtn=mk(this.add.rectangle(PX,buyBtnY,PW-20,BUY_H-6,0x0a1525,0.9).setStrokeStyle(2,0x334455).setScrollFactor(0).setDepth(73));
     const buyBtnTxt=mk(this.add.text(PX,buyBtnY,'商品を選択してください',{fontSize:'14px',fontFamily:'Arial',color:'#556677',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(74));
 
@@ -6046,11 +6055,14 @@ class GameScene extends Phaser.Scene{
           showResult('💰 '+totalC+'個 売却（+'+totalG+'G）','#ffaa44');
           // 状態クリア&リスト再構築
           clearSellQty();
+          selectedItem=null; // 選択状態もクリア
           sellList=buildSellList();
-          if(shopScroll>Math.max(0,sellList.length-visibleCount)){
-            shopScroll=Math.max(0,sellList.length-visibleCount);
-          }
+          // スクロール位置を安全な範囲に
+          const maxS=curMaxScroll();
+          if(shopScroll>maxS) shopScroll=maxS;
           renderShopItems(shopScroll); updateBuyBtn();
+          // スクロールバー(thumb)も再構築
+          if(typeof rebuildThumb==='function'){rebuildThumb(); updateSb();}
         });
         buyBtn.on('pointerover',()=>buyBtn.setFillStyle(0x553a1a,0.98));
         buyBtn.on('pointerout', ()=>buyBtn.setFillStyle(0x351a0a,0.95));
@@ -7355,17 +7367,20 @@ class GameScene extends Phaser.Scene{
     // ── 1枚絵マップの色判別による壁衝突判定(複数点・厳しめ) ──
     if(this._mapMaskCtx){
       // プレイヤーの体の半径(やや内側で判定して見た目めり込みを防ぐ)
-      const halfW = (p.displayWidth||64)*0.30;
-      const halfH = (p.displayHeight||64)*0.30;
+      const halfW = Math.min(16, (p.displayWidth||64)*0.20);
+      const halfH = Math.min(16, (p.displayHeight||64)*0.20);
       const speed = pd.spd;
       const lookAhead = Math.max(8, speed*0.06); // 先読み距離(高速ほど大きく)
-      // X方向だけ動かしてみた時の判定
-      if(vx!==0){
-        if(!this._canMoveTo(p.x + vx*lookAhead, p.y, halfW, halfH)) vx=0;
-      }
-      // Y方向だけ動かしてみた時の判定
-      if(vy!==0){
-        if(!this._canMoveTo(p.x, p.y + vy*lookAhead, halfW, halfH)) vy=0;
+      // X方向単独判定
+      const canX = (vx===0) || this._canMoveTo(p.x + vx*lookAhead, p.y, halfW, halfH);
+      // Y方向単独判定
+      const canY = (vy===0) || this._canMoveTo(p.x, p.y + vy*lookAhead, halfW, halfH);
+      if(!canX) vx=0;
+      if(!canY) vy=0;
+      // 現在位置が壁内(スタック)の時は押し出し
+      if(!this._canMoveTo(p.x, p.y, halfW, halfH)){
+        const safe=this._findSafeSpawnPos(p.x, p.y, 60);
+        if(safe){ p.x=safe.x; p.y=safe.y; }
       }
     }
     p.setVelocity(vx*pd.spd,vy*pd.spd);
@@ -8227,24 +8242,36 @@ class GameScene extends Phaser.Scene{
       sp.setVelocity(vx, vy);
       return;
     }
-    // 敵の当たり判定サイズ(スプライトの60%)
-    const halfW=sp.displayWidth*0.3;
-    const halfH=sp.displayHeight*0.3;
+    // 敵の当たり判定サイズ(足元のみ・小さめにして引っかかり防止)
+    // ボスなど大型敵でも判定は控えめに
+    const sz=Math.min(sp.displayWidth, sp.displayHeight);
+    const halfW=Math.min(18, sz*0.22);
+    const halfH=Math.min(18, sz*0.22);
     const lookAhead=Math.max(dt*1.2, 0.02);
-    // X方向テスト
-    if(vx!==0 && !this._canMoveTo(sp.x + vx*lookAhead, sp.y, halfW, halfH)){
-      vx=0;
-      // 壁にぶつかったら徘徊方向をリセット(反対方向に動けるように)
+
+    // 現在位置が既に壁内(スタック状態) → 押し出し: 近くの歩行可能地点へワープ
+    if(!this._canMoveTo(sp.x, sp.y, halfW, halfH)){
+      const safe=this._findSafeSpawnPos(sp.x, sp.y, 60);
+      if(safe){ sp.x=safe.x; sp.y=safe.y; }
+      sp.setVelocity(vx, vy);
+      return;
+    }
+
+    // X方向とY方向を独立に判定(片方失敗しても他方で動ける=スライド)
+    const canX=(vx===0) || this._canMoveTo(sp.x + vx*lookAhead, sp.y, halfW, halfH);
+    const canY=(vy===0) || this._canMoveTo(sp.x, sp.y + vy*lookAhead, halfW, halfH);
+
+    let finalVx=canX?vx:0;
+    let finalVy=canY?vy:0;
+
+    // 両方塞がれてる時のみ方向反転(行き場なしの時だけ)
+    if(!canX && !canY){
       ed.wanderVx=-ed.wanderVx;
-      ed.wanderTimer=Math.min(ed.wanderTimer, 0.5);
-    }
-    // Y方向テスト
-    if(vy!==0 && !this._canMoveTo(sp.x, sp.y + vy*lookAhead, halfW, halfH)){
-      vy=0;
       ed.wanderVy=-ed.wanderVy;
-      ed.wanderTimer=Math.min(ed.wanderTimer, 0.5);
+      ed.wanderTimer=Math.min(ed.wanderTimer||0, 0.3);
     }
-    sp.setVelocity(vx, vy);
+
+    sp.setVelocity(finalVx, finalVy);
   }
 
   // ── 視線チェック: 2点間に壁がないか(Bresenhamの線で一定間隔をチェック) ──
@@ -8443,6 +8470,8 @@ class GameScene extends Phaser.Scene{
         b.setData('maxDist', ed.rng+150);
         b.setData('startX', ed.sprite.x);
         b.setData('startY', ed.sprite.y);
+        b.setData('vx', Math.cos(ang)*speed);
+        b.setData('vy', Math.sin(ang)*speed);
         b.setData('magic', true);
         // 魔法弾の光るオーラ
         const halo=this.add.circle(ed.sprite.x, ed.sprite.y-sp.displayHeight*0.3, 22, 0xcc44ff, 0.4).setDepth(4);
@@ -8473,6 +8502,8 @@ class GameScene extends Phaser.Scene{
     b.setData('maxDist', ed.rng+100);
     b.setData('startX', sp.x);
     b.setData('startY', sp.y);
+    b.setData('vx', Math.cos(angle)*speed);
+    b.setData('vy', Math.sin(angle)*speed);
     b.setData('magic', false);
   }
 
@@ -8530,6 +8561,12 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData, p=this.player;
     this.enemyBullets.getChildren().forEach(b=>{
       if(!b.active) return;
+      // 手動移動(physicsのvelocity不具合対策・確実に飛ばす)
+      const vx=b.getData('vx'), vy=b.getData('vy');
+      if(vx!==undefined && vy!==undefined){
+        b.x += vx*dt;
+        b.y += vy*dt;
+      }
       // 飛距離チェック
       const sx=b.getData('startX')||0, sy=b.getData('startY')||0;
       const trav=Phaser.Math.Distance.Between(sx, sy, b.x, b.y);
@@ -8559,30 +8596,39 @@ class GameScene extends Phaser.Scene{
       if(d<26){
         const dmg=b.getData('dmg')||10;
         const isMagic=b.getData('magic');
+        // パリィは物理のみ(魔法はパリィ不可)
+        if(!isMagic && pd._parry){
+          this.showFloat(p.x, p.y-40, 'PARRY!', '#ffd700', 'info');
+          pd._parry=false;
+          // 弾消費
+          const halo=b.getData('halo'); if(halo && halo.active) halo.destroy();
+          const core=b.getData('core'); if(core && core.active) core.destroy();
+          b.destroy();
+          return;
+        }
+        // AGIでの回避判定は物理のみ(魔法は球が当たったら必中)
+        if(!isMagic && Math.random()*100<this._getDodgeRate(false)){
+          this.showFloat(p.x, p.y-40, 'DODGE!', '#2ecc71', 'info');
+          SE('dodge');
+          // 弾消費
+          const halo=b.getData('halo'); if(halo && halo.active) halo.destroy();
+          const core=b.getData('core'); if(core && core.active) core.destroy();
+          b.destroy();
+          return;
+        }
         if(isMagic){
-          // ── 魔法弾: 必中(回避不可・パリィ不可)・魔力(MAG)で耐性 ──
-          // MAG(魔力)1ポイントごとに魔法ダメージを2%軽減(最大80%軽減)
+          // 魔法弾被弾: MAG(intPts)で耐性・AGI回避は無効
           const intResist=Math.min(0.80, (pd.intPts||0)*0.02);
           const finalDmg=Math.max(1, Math.floor(dmg*(1-intResist)));
           pd.hp=Math.max(0, pd.hp-finalDmg);
-          // 紫色のダメージ表示で魔法と分かるように
           this.showFloat(p.x, p.y-40, '-'+finalDmg+(intResist>0?' (魔法)':''), '#cc44ff', 'info');
           this.updateHUD();
           SE('hurt');
-          // 魔法ヒット時のエフェクト(紫の閃光)
           const flash=this.add.circle(p.x, p.y, 30, 0xcc44ff, 0.6).setDepth(7);
           this.tweens.add({targets:flash, scaleX:1.5, scaleY:1.5, alpha:0, duration:300, onComplete:()=>flash.destroy()});
           if(pd.hp<=0){this.gameOver();}
-        } else if(pd._parry){
-          // ── 物理弾(矢など): パリィ可能 ──
-          this.showFloat(p.x, p.y-40, 'PARRY!', '#ffd700', 'info');
-          pd._parry=false;
-        } else if(Math.random()*100<this._getDodgeRate(false)){
-          // ── 物理弾: AGIで回避可能(矢を撃つ敵は基本ザコ前提) ──
-          this.showFloat(p.x, p.y-40, 'DODGE!', '#2ecc71', 'info');
-          SE('dodge');
         } else {
-          // ── 物理弾被弾: DEFで軽減 ──
+          // 物理弾被弾: DEFで軽減
           const finalDmg=Math.max(1, dmg-(pd.def||0)+Phaser.Math.Between(0,3));
           pd.hp=Math.max(0, pd.hp-finalDmg);
           this.showFloat(p.x, p.y-40, '-'+finalDmg, '#e74c3c', 'info');
