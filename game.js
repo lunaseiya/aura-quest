@@ -3958,11 +3958,12 @@ const STAGE_CONFIG={
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
     // 入口=左下の通路、出口=右下の通路
-    spawnX:300, spawnY:1500,                  // 初回入場(左下から)
-    portalBackX:250, portalBackY:1500,         // 戻る(ST1へ): 左下端の道
-    portalNextX:1300, portalNextY:1600,        // 進む(ST3へ): 右下の道
-    spawnFromBackX:300, spawnFromBackY:1500,   // ST1から戻ってきたら左下
-    spawnFromNextX:1250, spawnFromNextY:1600,  // ST3から戻ってきたら右下
+    // ポータル判定は半径70pxなので、spawnから100px以上離す
+    spawnX:300, spawnY:1500,                  // 初回入場(左下の道の内側)
+    portalBackX:100, portalBackY:1700,         // 戻る(ST1へ): 左下の道の端 (距離≈283px)
+    portalNextX:1400, portalNextY:1700,        // 進む(ST3へ): 右下の道の端
+    spawnFromBackX:300, spawnFromBackY:1500,   // ST1から戻ってきたら左下内側
+    spawnFromNextX:1200, spawnFromNextY:1500,  // ST3から戻ってきたら右下内側 (出口から距離≈283px)
   },
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -7398,23 +7399,28 @@ class GameScene extends Phaser.Scene{
     let vy=ku?-1:kd?1:this.joyDy||0;
     const len=Math.sqrt(vx*vx+vy*vy);
     if(len>1){vx/=len;vy/=len;}
-    // ── 1枚絵マップの色判別による壁衝突判定(複数点・厳しめ) ──
+    // ── 1枚絵マップの色判別による壁衝突判定(緩めにして引っかかり防止) ──
     if(this._mapMaskCtx){
-      // プレイヤーの体の半径(やや内側で判定して見た目めり込みを防ぐ)
-      const halfW = Math.min(16, (p.displayWidth||64)*0.20);
-      const halfH = Math.min(16, (p.displayHeight||64)*0.20);
+      const halfW = Math.min(14, (p.displayWidth||64)*0.18);
+      const halfH = Math.min(14, (p.displayHeight||64)*0.18);
       const speed = pd.spd;
-      const lookAhead = Math.max(8, speed*0.06); // 先読み距離(高速ほど大きく)
+      const lookAhead = Math.max(8, speed*0.06);
       // X方向単独判定
       const canX = (vx===0) || this._canMoveTo(p.x + vx*lookAhead, p.y, halfW, halfH);
       // Y方向単独判定
       const canY = (vy===0) || this._canMoveTo(p.x, p.y + vy*lookAhead, halfW, halfH);
       if(!canX) vx=0;
       if(!canY) vy=0;
-      // 現在位置が壁内(スタック)の時は押し出し
-      if(!this._canMoveTo(p.x, p.y, halfW, halfH)){
-        const safe=this._findSafeSpawnPos(p.x, p.y, 60);
-        if(safe){ p.x=safe.x; p.y=safe.y; }
+      // スタック判定: 中心点1ポイントのみで判断(緩い)
+      // 5点判定で false でも、中心が床なら歩けるとみなす
+      if(!this._isWalkable(p.x, p.y)){
+        // 中心も壁=本当にスタック → 直近の安全位置(_lastSafePos)へ戻す
+        if(this._lastSafePos){
+          p.x=this._lastSafePos.x; p.y=this._lastSafePos.y;
+        }
+      } else {
+        // 中心は床にいる → 安全位置として記録(次回スタック時の戻り先)
+        this._lastSafePos = {x:p.x, y:p.y};
       }
     }
     p.setVelocity(vx*pd.spd,vy*pd.spd);
@@ -8301,12 +8307,13 @@ class GameScene extends Phaser.Scene{
     // 敵の当たり判定サイズ(足元のみ・小さめにして引っかかり防止)
     // ボスなど大型敵でも判定は控えめに
     const sz=Math.min(sp.displayWidth, sp.displayHeight);
-    const halfW=Math.min(18, sz*0.22);
-    const halfH=Math.min(18, sz*0.22);
+    const halfW=Math.min(16, sz*0.20);
+    const halfH=Math.min(16, sz*0.20);
     const lookAhead=Math.max(dt*1.2, 0.02);
 
-    // 現在位置が既に壁内(スタック状態) → 押し出し: 近くの歩行可能地点へワープ
-    if(!this._canMoveTo(sp.x, sp.y, halfW, halfH)){
+    // 現在位置の中心が壁内(本当のスタック)のみ押し出し
+    // 5点判定でNGでも中心が床なら歩ける(縁にひっかかってるだけ)とみなす
+    if(!this._isWalkable(sp.x, sp.y)){
       const safe=this._findSafeSpawnPos(sp.x, sp.y, 60);
       if(safe){ sp.x=safe.x; sp.y=safe.y; }
       sp.setVelocity(vx, vy);
@@ -9048,4 +9055,6 @@ window.debug = {
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
   info: ()=>{const gs=_game.scene.getScene('Game'); console.log({stage:gs.stage, boss:gs.cfg?.boss, killCount:gs.killCount, threshold:gs.cfg?.bossThreshold, bossSpawned:gs.bossSpawned});},
+  // スタック脱出: スポーン位置にワープ
+  unstick: ()=>{const gs=_game.scene.getScene('Game'); if(gs.player&&gs.cfg){ gs.player.x=gs.cfg.spawnX||100; gs.player.y=gs.cfg.spawnY||100; console.log('スポーン位置にワープしました'); }},
 };
