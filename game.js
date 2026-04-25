@@ -3929,7 +3929,41 @@ const STAGE_CONFIG={
     spawnFromBackX:150, spawnFromBackY:627,  // 町から戻ってきたら左から
     spawnFromNextX:1100, spawnFromNextY:627, // ST2から戻ってきたら右から
   },
-  2:{name:'ST.2 森の遺跡',bgmKey:'st2_forest',mapImage:'map_st2',mapW:1448,mapH:1086,tiles:['tile_volcanic','tile_lava','tile_dark_forest'],tileWeights:[72,10,18],objects:[],objPos:[],enemies:[['goblin',300,400],['goblin',170,500],['goblin',1000,420],['goblin',1100,600],['wolf',400,600],['wolf',950,700],['wolf',650,200],['troll',1090,850],['troll',300,600],['troll',700,250],['skeleton',1280,540],['skeleton',1050,850],['skeleton',150,600]],boss:{id:'boss2',x:380,y:480},bossThreshold:10,portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',spawnX:140,spawnY:560,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  2:{name:'ST.2 流れる森',bgmKey:'st2_forest',mapImage:'map_st2',
+    mapW:1537,mapH:1907, mapType:'st2', // 専用色判定
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    // 橋: 川を東西に渡れるゾーン(色判定を無視して歩行可)
+    walkZones:[
+      {x:700, y:1230, w:140, h:110}, // 中央の木製橋
+    ],
+    enemies:[
+      // 入口側(左下) - 草原
+      ['goblin', 350, 1550],['goblin', 250, 1500],
+      ['wolf',   400, 1550],['wolf',   450, 1650],
+      ['skeleton',300, 1500],
+      ['troll',  250, 1600],
+      // 川を渡った先(右下) - メインの戦闘エリア
+      ['goblin', 1100, 1550],['goblin', 1300, 1500],
+      ['wolf',   1250, 1550],['wolf',   1200, 1650],
+      ['skeleton',1300, 1600],
+      ['troll',  1350, 1500],
+      // 中段 〜 上段(オプションエリア)
+      ['wolf',   300, 1000],['wolf',   1230, 1000],
+      ['skeleton',200, 700],['skeleton',1330, 700],
+      ['troll',  200, 400],['troll',  1330, 400],
+    ],
+    // ボスは橋を渡った先(右下の広場・出口手前)
+    boss:{id:'boss2', x:1100, y:1500},
+    bossThreshold:10,
+    portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
+    portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
+    // 入口=左下の通路、出口=右下の通路
+    spawnX:300, spawnY:1500,                  // 初回入場(左下から)
+    portalBackX:250, portalBackY:1500,         // 戻る(ST1へ): 左下端の道
+    portalNextX:1300, portalNextY:1600,        // 進む(ST3へ): 右下の道
+    spawnFromBackX:300, spawnFromBackY:1500,   // ST1から戻ってきたら左下
+    spawnFromNextX:1250, spawnFromNextY:1600,  // ST3から戻ってきたら右下
+  },
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900},
@@ -8160,6 +8194,17 @@ class GameScene extends Phaser.Scene{
     if(!this._mapMaskCtx) return true;
     const cfg = this.cfg;
     if(!cfg) return true;
+
+    // ── 強制歩行ゾーン(橋など): cfg.walkZones の矩形内は色判定無視で歩行可 ──
+    if(cfg.walkZones){
+      for(let i=0;i<cfg.walkZones.length;i++){
+        const z=cfg.walkZones[i];
+        if(worldX>=z.x && worldX<=z.x+z.w && worldY>=z.y && worldY<=z.y+z.h){
+          return true;
+        }
+      }
+    }
+
     // ワールド座標をマスクキャンバス座標に変換
     const mx = Math.floor(worldX / this.MW * this._mapMaskW);
     const my = Math.floor(worldY / this.MH * this._mapMaskH);
@@ -8188,6 +8233,17 @@ class GameScene extends Phaser.Scene{
       // 白っぽい雲 → 壁
       if(r > 200 && g > 210 && b > 210) return false;
       // それ以外(草・道・石畳・岩)は歩ける
+      return true;
+    }
+
+    // ── ST2(森の中央に川が流れるマップ) ──
+    // 草原(緑優位) = 歩ける、川(青優位) = 歩けない、影(暗) = 歩けない
+    if(cfg.mapType==='st2'){
+      // 暗すぎる(木・影・岩) → 壁
+      if(sum < 180) return false;
+      // 水(青が緑以上に強い・暗め) → 壁
+      if(b >= g && b > 80) return false;
+      // それ以外(草原・道・茶色)は歩ける
       return true;
     }
 
