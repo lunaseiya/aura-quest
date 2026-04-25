@@ -3911,15 +3911,21 @@ const STAGE_CONFIG={
     tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],
     objects:[],objPos:[],
     enemies:[
-      // 中央広場(627,627中心の広いエリアにバランスよく配置)
-      ['slime',  450,500],['slime',  800,500],['slime',  450,750],['slime',  800,750],
-      ['slime',  627,400],['slime',  627,850],
-      ['bat',    500,600],['bat',    750,600],['bat',    627,500],['bat',    627,750],
-      ['goblin', 400,627],['goblin', 850,627],['goblin', 550,450],['goblin', 700,800],
-      ['troll',  500,800],['troll',  750,450],
+      // ── 中央広場全域(約 x=200〜1100, y=200〜1100)に分散配置 ──
+      // 北側エリア(y=250〜450)
+      ['slime',  300, 280],['slime',  600, 280],['slime',  900, 320],
+      ['bat',    450, 350],['bat',    750, 350],
+      // 中央エリア(y=500〜750)・スポーン地点(150,627)から離れた位置
+      ['goblin', 350, 550],['goblin', 700, 550],['goblin', 1000, 550],
+      ['troll',  500, 650],['troll',  900, 650],
+      ['bat',    400, 750],['bat',    750, 750],['bat',    1050, 700],
+      // 南側エリア(y=800〜1050)
+      ['slime',  300, 900],['slime',  600, 900],['slime',  900, 900],
+      ['goblin', 450, 1000],['goblin', 800, 1000],
+      ['troll',  600, 1050],
     ],
     boss:{id:'boss1', x:627, y:627}, // 中央広場の真ん中(広いので戦いやすい)
-    bossThreshold:8,
+    bossThreshold:10, // 敵19体に増えたのでthresholdも10に
     portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',
     portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',
     // 入口=左の道(初回スポーン), 出口=右の道
@@ -8355,23 +8361,26 @@ class GameScene extends Phaser.Scene{
   // ── 壁のない安全な座標を近傍から探す(スポーン用) ──
   _findSafeSpawnPos(x, y, maxRadius){
     if(!this._mapMaskCtx) return {x, y};
-    // そもそも指定座標が安全ならそのまま返す
-    if(this._canMoveTo(x, y, 20, 20)) return {x, y};
+    // 判定はやや緩め(14px半径)で、草原の縁にも置けるように
+    const HW=14, HH=14;
+    if(this._canMoveTo(x, y, HW, HH)) return {x, y};
     // 螺旋状に近傍を探索
     const step=30;
-    for(let r=step; r<=maxRadius; r+=step){
+    const limit=maxRadius||300;
+    for(let r=step; r<=limit; r+=step){
       const samples=Math.ceil(r*Math.PI*2/step);
       for(let i=0;i<samples;i++){
         const a=(i/samples)*Math.PI*2;
         const tx=x+Math.cos(a)*r;
         const ty=y+Math.sin(a)*r;
         if(tx>=40 && tx<=this.MW-40 && ty>=40 && ty<=this.MH-40 &&
-           this._canMoveTo(tx, ty, 20, 20)){
+           this._canMoveTo(tx, ty, HW, HH)){
           return {x:tx, y:ty};
         }
       }
     }
-    // 見つからない場合は元の位置(どうしようもないので)
+    // 見つからない場合: 中心点1点歩けるなら採用(緩い基準)
+    if(this._isWalkable(x, y)) return {x, y};
     return {x, y};
   }
 
