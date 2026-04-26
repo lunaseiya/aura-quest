@@ -34,6 +34,7 @@ function makeSaveSummary(pd,stage){
     4:'🏜 ST.4 海と砂漠の境', 5:'🏛 ST.5 砂漠の集落跡', 6:'💀 ST.6 砂漠の果て',
     7:'⛰ ST.7 天空への路', 8:'☁ ST.8 天空の島々',
     10:'⚔ DUN.1 地下迷宮',
+    11:'⛏ DUN.2 炭鉱1F',
     20:'🪓 ゴブリンの集落',
     21:'🔥 ブレイズフォージ',
   };
@@ -1032,6 +1033,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_dun1', BASE+'maps/dun1.png');
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/blaze_forge.png');
+    this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -1124,12 +1126,234 @@ class BootScene extends Phaser.Scene{
         frameRate:a.rate, repeat:a.rep,
       });
     });
+
+    // ノービス アニメーション(同じ構造で player_novice テクスチャを使う)
+    const NA=[
+      {key:'novice_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'novice_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'novice_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'novice_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'novice_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'novice_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'novice_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'novice_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'novice_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    NA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_novice',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
     this.scene.start('Title');
   }
 
   _generateEnemyTextures(){
     const T=32; // タイルサイズ
     const mk2=(key,W,H,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g);g.generateTexture(key,W,H);g.destroy();};
+
+    // ══════════════════════════════════════
+    //  ノービス スプライトシート生成 (5列×3行=15フレーム、各124×124)
+    //  行1: 正面(idle, walk1, walk2, atk1, atk2)
+    //  行2: 後ろ(idle, walk1, walk2, atk1, atk2)
+    //  行3: 横向き(idle, walk1, walk2, atk1, atk2)
+    // ══════════════════════════════════════
+    {
+      const FW=124, FH=124, COLS=5, ROWS=3;
+      const SW=FW*COLS, SH=FH*ROWS;
+      const g=this.make.graphics({x:0,y:0,add:false});
+
+      // 1フレーム描画関数(各フレームの中心ピクセルにキャラを描く)
+      // pose: 'idle','walk1','walk2','atk1','atk2'
+      // facing: 'front','back','side'
+      const drawFrame=(g, fx, fy, pose, facing)=>{
+        const cx=fx+FW/2, cy=fy+FH/2;
+        const S=FW*0.62; // キャラの基準サイズ(約77px)
+        // ── 各種オフセット ──
+        const walkOffset = (pose==='walk1') ? -2 : (pose==='walk2') ? 2 : 0;
+        const atkLean = (pose==='atk1') ? -3 : (pose==='atk2') ? 5 : 0;
+        const armSwing = pose==='atk2' ? 1 : (pose==='atk1' ? 0.3 : 0);
+        // ── 影 ──
+        g.fillStyle(0x000000, 0.3);
+        g.fillEllipse(cx, cy+S*0.45, S*0.55, S*0.10);
+
+        if(facing==='side'){
+          // ─────── 横向き ───────
+          // 足(walk中は前後に開く)
+          const legSpread=(pose==='walk1')?6:(pose==='walk2')?-2:2;
+          g.fillStyle(0x3a2410, 1); // 茶ブーツ
+          g.fillEllipse(cx-4, cy+S*0.42, 8, 6); // 後ろ足
+          g.fillEllipse(cx+legSpread, cy+S*0.42, 8, 6); // 前足
+          // 脚(濃い茶のズボン)
+          g.fillStyle(0x5c3a18, 1);
+          g.fillRect(cx-6, cy+S*0.18, 5, S*0.25);
+          g.fillRect(cx+1, cy+S*0.18, 5, S*0.25);
+          // 体(緑のチュニック)
+          g.fillStyle(0x4a7a3a, 1);
+          g.fillEllipse(cx+atkLean*0.3, cy-S*0.05, S*0.32, S*0.40);
+          // 体の影(暗い緑)
+          g.fillStyle(0x2a5a1a, 0.5);
+          g.fillEllipse(cx+atkLean*0.3-S*0.08, cy-S*0.05, S*0.10, S*0.30);
+          // ベルト
+          g.fillStyle(0x2a1810, 1);
+          g.fillRect(cx-S*0.16+atkLean*0.3, cy+S*0.14, S*0.32, S*0.04);
+          g.fillStyle(0xddaa00, 1); // バックル
+          g.fillRect(cx-S*0.04+atkLean*0.3, cy+S*0.14, S*0.08, S*0.04);
+          // 腕(攻撃時は前へ伸びる)
+          g.fillStyle(0xeebb88, 1); // 肌色
+          if(pose==='atk1' || pose==='atk2'){
+            // 攻撃: 前に腕を突き出す
+            g.fillRect(cx+S*0.10+atkLean, cy-S*0.15, S*0.25+armSwing*8, 6);
+            // 棒(武器・素朴な木の棒)
+            g.fillStyle(0x6b4220, 1);
+            g.fillRect(cx+S*0.32+atkLean+armSwing*8, cy-S*0.18, S*0.30, 4);
+          }else{
+            // 通常: 腕は体の横
+            g.fillRect(cx-S*0.05, cy-S*0.05, 5, S*0.18);
+            g.fillRect(cx+S*0.10, cy-S*0.05, 5, S*0.18);
+          }
+          // 頭(肌色)
+          g.fillStyle(0xeebb88, 1);
+          g.fillEllipse(cx+atkLean*0.5, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
+          // 髪(茶色)
+          g.fillStyle(0x5c3a18, 1);
+          g.fillEllipse(cx+atkLean*0.5, cy-S*0.36+walkOffset*0.5, S*0.22, S*0.10);
+          // 緑の頭巾(ノービスらしさ)
+          g.fillStyle(0x3a6a2a, 1);
+          g.fillEllipse(cx+atkLean*0.5, cy-S*0.40+walkOffset*0.5, S*0.24, S*0.08);
+          // 頭巾の垂れ
+          g.fillStyle(0x2a5a1a, 1);
+          g.fillTriangle(cx-S*0.10+atkLean*0.5, cy-S*0.36, cx-S*0.20+atkLean*0.5, cy-S*0.18, cx-S*0.05+atkLean*0.5, cy-S*0.30);
+          // 目(横向きの片目)
+          g.fillStyle(0x000000, 1);
+          g.fillCircle(cx+S*0.06+atkLean*0.5, cy-S*0.28+walkOffset*0.5, 2);
+
+        }else if(facing==='front'){
+          // ─────── 正面 ───────
+          // 足(両足)
+          const legSpread=(pose==='walk1')?2:(pose==='walk2')?-2:0;
+          g.fillStyle(0x3a2410, 1);
+          g.fillEllipse(cx-S*0.12+legSpread, cy+S*0.43, 9, 6);
+          g.fillEllipse(cx+S*0.12-legSpread, cy+S*0.43, 9, 6);
+          // 脚
+          g.fillStyle(0x5c3a18, 1);
+          g.fillRect(cx-S*0.16+legSpread, cy+S*0.18, 7, S*0.25);
+          g.fillRect(cx+S*0.10-legSpread, cy+S*0.18, 7, S*0.25);
+          // 体(緑チュニック)
+          g.fillStyle(0x4a7a3a, 1);
+          g.fillEllipse(cx, cy-S*0.05, S*0.40, S*0.40);
+          // 体の縦の縫い目
+          g.fillStyle(0x2a5a1a, 0.6);
+          g.fillRect(cx-1, cy-S*0.20, 2, S*0.30);
+          // ベルト
+          g.fillStyle(0x2a1810, 1);
+          g.fillRect(cx-S*0.20, cy+S*0.14, S*0.40, S*0.04);
+          g.fillStyle(0xddaa00, 1);
+          g.fillRect(cx-S*0.04, cy+S*0.14, S*0.08, S*0.04);
+          // 腕(攻撃時は前に振る)
+          g.fillStyle(0xeebb88, 1);
+          if(pose==='atk1'){
+            // 攻撃前: 腕を上げる
+            g.fillRect(cx-S*0.30, cy-S*0.15, 6, S*0.20);
+            g.fillRect(cx+S*0.24, cy-S*0.25, 6, S*0.25);
+            // 棒
+            g.fillStyle(0x6b4220, 1);
+            g.fillRect(cx+S*0.20, cy-S*0.42, 4, S*0.22);
+          }else if(pose==='atk2'){
+            // 攻撃中: 腕を振り下ろす
+            g.fillRect(cx-S*0.30, cy-S*0.10, 6, S*0.20);
+            g.fillRect(cx+S*0.20, cy+S*0.05, 6, S*0.20);
+            // 棒(振り下ろし方向)
+            g.fillStyle(0x6b4220, 1);
+            g.fillRect(cx+S*0.20, cy+S*0.10, 4, S*0.30);
+          }else{
+            // 通常: 腕を体の横
+            g.fillRect(cx-S*0.26, cy-S*0.05, 6, S*0.22);
+            g.fillRect(cx+S*0.20, cy-S*0.05, 6, S*0.22);
+          }
+          // 頭(肌色)
+          g.fillStyle(0xeebb88, 1);
+          g.fillEllipse(cx, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
+          // 髪
+          g.fillStyle(0x5c3a18, 1);
+          g.fillEllipse(cx, cy-S*0.36+walkOffset*0.5, S*0.24, S*0.08);
+          // 頭巾
+          g.fillStyle(0x3a6a2a, 1);
+          g.fillEllipse(cx, cy-S*0.40+walkOffset*0.5, S*0.26, S*0.08);
+          // 頭巾の垂れ(両側)
+          g.fillStyle(0x2a5a1a, 1);
+          g.fillTriangle(cx-S*0.13, cy-S*0.36, cx-S*0.20, cy-S*0.18, cx-S*0.08, cy-S*0.30);
+          g.fillTriangle(cx+S*0.13, cy-S*0.36, cx+S*0.20, cy-S*0.18, cx+S*0.08, cy-S*0.30);
+          // 目(両目)
+          g.fillStyle(0x000000, 1);
+          g.fillCircle(cx-S*0.06, cy-S*0.28+walkOffset*0.5, 2);
+          g.fillCircle(cx+S*0.06, cy-S*0.28+walkOffset*0.5, 2);
+          // 口
+          g.fillStyle(0x6a3010, 0.7);
+          g.fillRect(cx-S*0.04, cy-S*0.20+walkOffset*0.3, S*0.08, 1.5);
+
+        }else if(facing==='back'){
+          // ─────── 後ろ向き ───────
+          // 足
+          const legSpread=(pose==='walk1')?2:(pose==='walk2')?-2:0;
+          g.fillStyle(0x3a2410, 1);
+          g.fillEllipse(cx-S*0.12+legSpread, cy+S*0.43, 9, 6);
+          g.fillEllipse(cx+S*0.12-legSpread, cy+S*0.43, 9, 6);
+          // 脚
+          g.fillStyle(0x5c3a18, 1);
+          g.fillRect(cx-S*0.16+legSpread, cy+S*0.18, 7, S*0.25);
+          g.fillRect(cx+S*0.10-legSpread, cy+S*0.18, 7, S*0.25);
+          // 体(後ろから見たチュニック)
+          g.fillStyle(0x4a7a3a, 1);
+          g.fillEllipse(cx, cy-S*0.05, S*0.40, S*0.40);
+          // 背中の中心線
+          g.fillStyle(0x2a5a1a, 0.6);
+          g.fillRect(cx-1, cy-S*0.25, 2, S*0.40);
+          // ベルト
+          g.fillStyle(0x2a1810, 1);
+          g.fillRect(cx-S*0.20, cy+S*0.14, S*0.40, S*0.04);
+          // 腕(攻撃ポーズも後ろ向きで)
+          g.fillStyle(0xeebb88, 1);
+          if(pose==='atk1' || pose==='atk2'){
+            // 攻撃: 上から振り下ろす(腕が両側に伸びる)
+            g.fillRect(cx-S*0.28, cy-S*0.20+armSwing*5, 6, S*0.20);
+            g.fillRect(cx+S*0.22, cy-S*0.20+armSwing*5, 6, S*0.20);
+            // 棒(後ろから見ると上に)
+            g.fillStyle(0x6b4220, 1);
+            g.fillRect(cx-2, cy-S*0.45+armSwing*8, 4, S*0.20);
+          }else{
+            g.fillRect(cx-S*0.26, cy-S*0.05, 6, S*0.22);
+            g.fillRect(cx+S*0.20, cy-S*0.05, 6, S*0.22);
+          }
+          // 頭(後ろから・髪が見える)
+          g.fillStyle(0x5c3a18, 1);
+          g.fillEllipse(cx, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
+          // 頭巾
+          g.fillStyle(0x3a6a2a, 1);
+          g.fillEllipse(cx, cy-S*0.36+walkOffset*0.5, S*0.26, S*0.20);
+          // 頭巾の垂れ(後ろに長く)
+          g.fillStyle(0x2a5a1a, 1);
+          g.fillTriangle(cx-S*0.10, cy-S*0.30, cx, cy-S*0.10, cx+S*0.10, cy-S*0.30);
+          // 後頭部の影
+          g.fillStyle(0x000000, 0.2);
+          g.fillEllipse(cx, cy-S*0.20, S*0.15, S*0.04);
+        }
+      };
+
+      // 全15フレームを描画
+      const poses=['idle','walk1','walk2','atk1','atk2'];
+      const facings=['front','back','side'];
+      facings.forEach((facing, row)=>{
+        poses.forEach((pose, col)=>{
+          const fx=col*FW, fy=row*FH;
+          drawFrame(g, fx, fy, pose, facing);
+        });
+      });
+      g.generateTexture('player_novice', SW, SH);
+      g.destroy();
+    }
 
     // ══════════════════════════════════════
     //  タイル生成（各32×32px）
@@ -3336,6 +3560,123 @@ class BootScene extends Phaser.Scene{
       g.fillStyle(0xffd700,1);g.fillCircle(S*.875,S*.36,S*.06);
       g.fillStyle(0xff2244,1);g.fillCircle(S*.875,S*.36,S*.03);
     });
+
+    // ── ボーンウォーカー(歩く骸骨・装甲・体力多い)──
+    mk('enemy_bone_walker',96,(g,S)=>{
+      g.fillStyle(0x000000,0.4);g.fillEllipse(S*.5,S*.95,S*.7,S*.10);
+      // 古びた鎧(暗灰色)
+      g.fillStyle(0x4a4a4a,1);g.fillEllipse(S*.5,S*.65,S*.50,S*.46);
+      // 鎧の縁(銹)
+      g.fillStyle(0x8b6e3c,0.7);g.fillRect(S*.24,S*.50,S*.52,S*.04);
+      g.fillStyle(0x6b5a2c,1);g.fillRect(S*.24,S*.78,S*.52,S*.04);
+      // 鎧の鋲
+      g.fillStyle(0x222222,1);[.32,.5,.68].forEach(x=>g.fillCircle(S*x,S*.62,S*.025));
+      // 骨の腕(白)
+      g.fillStyle(0xddccaa,1);g.fillEllipse(S*.16,S*.58,S*.16,S*.30);g.fillEllipse(S*.84,S*.58,S*.16,S*.30);
+      // 骨の指
+      g.fillStyle(0xeeddbb,1);
+      [.10,.14,.18].forEach(x=>g.fillRect(S*x,S*.74,S*.02,S*.06));
+      [.82,.86,.90].forEach(x=>g.fillRect(S*x,S*.74,S*.02,S*.06));
+      // 武器(錆びた剣・右手)
+      g.fillStyle(0x6b5a3a,1);g.fillRect(S*.84,S*.30,S*.04,S*.45); // 柄
+      g.fillStyle(0xaaaaaa,1);g.fillTriangle(S*.84,S*.30,S*.86,S*.05,S*.88,S*.30); // 刃
+      g.fillStyle(0x8a8a8a,1);g.fillRect(S*.83,S*.30,S*.06,S*.04); // ガード
+      // 頭蓋骨(白)
+      g.fillStyle(0xeeddbb,1);g.fillEllipse(S*.5,S*.27,S*.36,S*.34);
+      // 兜(暗灰色・額)
+      g.fillStyle(0x444444,1);g.fillRect(S*.30,S*.10,S*.40,S*.12);
+      g.fillStyle(0x666666,1);g.fillRect(S*.32,S*.13,S*.36,S*.02);
+      // 兜の角(2本・控えめ)
+      g.fillStyle(0x222222,1);
+      g.fillTriangle(S*.30,S*.10,S*.24,S*.0,S*.34,S*.10);
+      g.fillTriangle(S*.70,S*.10,S*.66,S*.10,S*.76,S*.0);
+      // 目の穴(青く光る)
+      g.fillStyle(0x000000,1);g.fillRect(S*.32,S*.24,S*.12,S*.06);g.fillRect(S*.56,S*.24,S*.12,S*.06);
+      g.fillStyle(0x44aaff,1);g.fillEllipse(S*.38,S*.27,S*.08,S*.04);g.fillEllipse(S*.62,S*.27,S*.08,S*.04);
+      // 鼻の穴
+      g.fillStyle(0x000000,1);g.fillTriangle(S*.48,S*.34,S*.46,S*.40,S*.50,S*.40);g.fillTriangle(S*.52,S*.34,S*.50,S*.40,S*.54,S*.40);
+      // 顎の歯
+      g.fillStyle(0xeeddbb,1);
+      [.40,.45,.50,.55,.60].forEach(x=>g.fillRect(S*x,S*.42,S*.02,S*.04));
+      // 顎下の影
+      g.fillStyle(0x000000,0.4);g.fillEllipse(S*.5,S*.48,S*.20,S*.04);
+    });
+
+    // ── トレジャーハント(宝箱モンスター・牙の生えた木箱)──
+    mk('enemy_treasure_hunt',88,(g,S)=>{
+      g.fillStyle(0x000000,0.3);g.fillEllipse(S*.5,S*.94,S*.65,S*.08);
+      // 宝箱の本体(茶色の木)
+      g.fillStyle(0x6b3d11,1);g.fillRect(S*.20,S*.40,S*.60,S*.45);
+      // 宝箱の縁・装飾(金の縁)
+      g.fillStyle(0xffaa00,1);
+      g.fillRect(S*.20,S*.40,S*.60,S*.04); // 上縁
+      g.fillRect(S*.20,S*.81,S*.60,S*.04); // 下縁
+      g.fillRect(S*.20,S*.40,S*.04,S*.45); // 左縁
+      g.fillRect(S*.76,S*.40,S*.04,S*.45); // 右縁
+      // 板の継ぎ目
+      g.fillStyle(0x4a2810,1);
+      g.fillRect(S*.40,S*.44,S*.02,S*.37);
+      g.fillRect(S*.58,S*.44,S*.02,S*.37);
+      // 鍵穴(金)
+      g.fillStyle(0xffd700,1);g.fillCircle(S*.5,S*.65,S*.06);
+      g.fillStyle(0x000000,1);g.fillRect(S*.49,S*.65,S*.02,S*.04);
+      // 開いた口(蓋が開いてる・牙)
+      g.fillStyle(0x4a2810,1);g.fillRect(S*.20,S*.20,S*.60,S*.20); // 蓋
+      g.fillStyle(0x6b3d11,1);g.fillRect(S*.22,S*.20,S*.56,S*.16); // 蓋の表面
+      // 蓋の縁(金)
+      g.fillStyle(0xffaa00,1);g.fillRect(S*.20,S*.20,S*.60,S*.04);
+      // 口の中(暗い)
+      g.fillStyle(0x000000,1);g.fillRect(S*.24,S*.36,S*.52,S*.06);
+      // 牙(下の蓋から上向き)
+      g.fillStyle(0xeeeecc,1);
+      [.28,.36,.44,.52,.60,.68].forEach(x=>g.fillTriangle(S*x,S*.42,S*(x-.02),S*.36,S*(x+.02),S*.36));
+      // 上の牙(蓋から下向き)
+      [.28,.36,.44,.52,.60,.68].forEach(x=>g.fillTriangle(S*x,S*.36,S*(x-.02),S*.42,S*(x+.02),S*.42));
+      // 目(光る赤・口の中)
+      g.fillStyle(0xff4422,1);g.fillCircle(S*.36,S*.27,S*.04);g.fillCircle(S*.64,S*.27,S*.04);
+      g.fillStyle(0xffff00,1);g.fillCircle(S*.36,S*.27,S*.02);g.fillCircle(S*.64,S*.27,S*.02);
+      // 短い足(動く)
+      g.fillStyle(0x4a2810,1);g.fillRect(S*.28,S*.85,S*.08,S*.10);g.fillRect(S*.64,S*.85,S*.08,S*.10);
+      // 中の宝石・金貨ちらり
+      g.fillStyle(0xffd700,0.8);g.fillCircle(S*.44,S*.72,S*.025);g.fillCircle(S*.56,S*.78,S*.025);
+    });
+
+    // ── ゴースト(半透明・幽霊・浮遊)──
+    mk('enemy_ghost',96,(g,S)=>{
+      // 浮遊するため影は薄く小さい
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.92,S*.4,S*.06);
+      // 幽霊の本体(白〜青の半透明)
+      // 体の下部(裾がうねうね)
+      g.fillStyle(0xaaccee,0.7);
+      g.fillTriangle(S*.20,S*.85,S*.30,S*.90,S*.30,S*.70);
+      g.fillTriangle(S*.30,S*.90,S*.40,S*.85,S*.40,S*.70);
+      g.fillTriangle(S*.40,S*.85,S*.50,S*.90,S*.50,S*.70);
+      g.fillTriangle(S*.50,S*.90,S*.60,S*.85,S*.60,S*.70);
+      g.fillTriangle(S*.60,S*.85,S*.70,S*.90,S*.70,S*.70);
+      g.fillTriangle(S*.70,S*.90,S*.80,S*.85,S*.80,S*.70);
+      // 体の中部
+      g.fillStyle(0xccddff,0.85);
+      g.fillEllipse(S*.5,S*.55,S*.50,S*.40);
+      // 体のオーラ(緑がかった毒の気配)
+      g.fillStyle(0x88dd88,0.25);
+      g.fillEllipse(S*.5,S*.55,S*.55,S*.45);
+      // 顔(青白い)
+      g.fillStyle(0xeeeeff,0.95);g.fillEllipse(S*.5,S*.40,S*.36,S*.34);
+      // 不気味な目の穴(黒・縦長)
+      g.fillStyle(0x000000,0.85);
+      g.fillEllipse(S*.38,S*.38,S*.10,S*.16);g.fillEllipse(S*.62,S*.38,S*.10,S*.16);
+      // 目の中の光(緑の毒の光)
+      g.fillStyle(0x44ff88,0.9);
+      g.fillEllipse(S*.38,S*.38,S*.04,S*.06);g.fillEllipse(S*.62,S*.38,S*.04,S*.06);
+      // 開いた口(縦に大きく)
+      g.fillStyle(0x000000,0.85);g.fillEllipse(S*.5,S*.50,S*.10,S*.10);
+      // 毒の煙(口から)
+      g.fillStyle(0x88dd88,0.4);
+      g.fillCircle(S*.46,S*.58,S*.04);g.fillCircle(S*.54,S*.62,S*.03);g.fillCircle(S*.50,S*.66,S*.025);
+      // 浮遊する魂のかけら(周囲に小さな点・緑がかった白)
+      g.fillStyle(0xccffcc,0.6);
+      g.fillCircle(S*.18,S*.30,S*.02);g.fillCircle(S*.85,S*.45,S*.025);g.fillCircle(S*.82,S*.20,S*.018);
+    });
   }
 }
 
@@ -3569,6 +3910,10 @@ const DROP_TABLE={
   goblin_archer:[{id:'goblin_ear',rate:0.45,min:1,max:1},{id:'bat_wing',rate:0.20,min:1,max:1}],
   goblin_axe:   [{id:'goblin_ear',rate:0.50,min:1,max:2},{id:'troll_hide',rate:0.20,min:1,max:1}],
   goblin_leader:[{id:'boss_gem',rate:1.0,min:1,max:2},{id:'goblin_ear',rate:1.0,min:3,max:5}],
+  // DUN.2 炭鉱
+  bone_walker:  [{id:'bone',rate:0.55,min:1,max:3},{id:'troll_hide',rate:0.20,min:1,max:1}],
+  treasure_hunt:[{id:'jelly',rate:0.40,min:1,max:2},{id:'boss_gem',rate:0.20,min:1,max:1}],
+  ghost:        [{id:'bat_wing',rate:0.45,min:1,max:2},{id:'bone',rate:0.30,min:1,max:1}],
 };
 
 const MAX_ITEM_TYPES=40; // 所持できる種類の上限
@@ -3580,6 +3925,7 @@ const KILL_SE={
   bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
   goblin:'kill_grunt',
   goblin_archer:'kill_grunt', goblin_axe:'kill_grunt', goblin_leader:'kill_boss',
+  bone_walker:'kill_bone', treasure_hunt:'kill_pop', ghost:'kill_squeak',
   orc_warrior:'kill_grunt', orc_high:'kill_grunt', orc_lady:'kill_grunt', orc_archer:'kill_grunt',
   troll:'kill_roar', wolf:'kill_roar', bear:'kill_roar', cloud_monkey:'kill_roar',
   skeleton:'kill_bone',
@@ -3870,7 +4216,7 @@ class ClassSelectScene extends Phaser.Scene{
     const cx=w/2, cy=h/2-20;
     const card=this.add.rectangle(cx,cy,420,200,0x44aaff,0.12).setStrokeStyle(2,0x44aaff);
     // 仮アイコン(剣士スプライトを流用・後でノービス専用に)
-    this.add.sprite(cx-130,cy,'player_warrior').setFrame(0).setDisplaySize(80,100);
+    this.add.sprite(cx-130,cy,'player_novice').setFrame(0).setDisplaySize(80,100);
     this.add.text(cx-50,cy-70,'⭐ ノービス',{fontSize:'24px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0,0.5);
     this.add.text(cx-50,cy-40,'駆け出しの冒険者',{fontSize:'13px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(0,0.5);
     this.add.text(cx-50,cy-10,
@@ -4100,21 +4446,17 @@ const STAGE_CONFIG={
   2:{name:'ST.2 流れる森',bgmKey:'st2_forest',mapImage:'map_st2',
     mapW:1537,mapH:1907, mapType:'st2', // 専用色判定
     tiles:[],tileWeights:[],
-    // 継ぎ目(y=940〜1030)に岩と木を散らして自然な分断
+    // 継ぎ目(y=940〜1030)に岩と木をまばらに配置(通りやすく)
     objects:['obj_tree','obj_rock'],
     objPos:[
-      // ── 左の草原: 継ぎ目に岩&木を散らす(隙間あり) ──
-      ['obj_tree', 120, 950],   ['obj_rock', 220, 970],
-      ['obj_tree', 360, 945],   ['obj_rock', 460, 985],
-      ['obj_tree', 580, 960],
-      ['obj_rock', 180, 1010],  ['obj_tree', 320, 1015],
-      ['obj_rock', 480, 1020],  ['obj_tree', 620, 1005],
-      // ── 右の草原: 同様に散らす ──
-      ['obj_tree', 920, 950],   ['obj_rock', 1020, 970],
-      ['obj_tree', 1160, 945],  ['obj_rock', 1260, 985],
-      ['obj_tree', 1380, 960],
-      ['obj_rock', 980, 1010],  ['obj_tree', 1120, 1015],
-      ['obj_rock', 1280, 1020], ['obj_tree', 1420, 1005],
+      // ── 左の草原: 継ぎ目に岩&木をまばらに散らす ──
+      ['obj_tree', 200, 970],
+      ['obj_rock', 420, 990],
+      ['obj_tree', 600, 960],
+      // ── 右の草原: 同様にまばら ──
+      ['obj_tree', 1000, 970],
+      ['obj_rock', 1200, 990],
+      ['obj_tree', 1400, 960],
     ],
     // 橋: 川を東西に渡れるゾーン(色判定を無視して歩行可)
     walkZones:[
@@ -4303,6 +4645,44 @@ const STAGE_CONFIG={
       {x:430, y:790, w:380, h:340, label:'✨ 転職場',   type:'jobchange'},
     ],
   },
+  // ── DUN.2 1F 炭鉱の入口 ──
+  // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
+  11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'dun1', mapImage:'map_dun2_1',
+    mapType:'mine', mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // ── 各エリアにバランスよく配置 ──
+      // 左上の小部屋
+      ['bone_walker', 250, 350],['ghost', 350, 280],
+      // 右上の小部屋
+      ['ghost', 950, 350],['treasure_hunt', 1050, 350],
+      // 中央通路上
+      ['bone_walker', 625, 400],
+      // 左中
+      ['ghost', 250, 600],['bone_walker', 350, 600],
+      // 右中
+      ['treasure_hunt', 1000, 600],
+      // 中央
+      ['ghost', 625, 700],['bone_walker', 470, 700],
+      // 左下の小部屋
+      ['bone_walker', 200, 850],['treasure_hunt', 280, 920],
+      // 右下の小部屋
+      ['ghost', 1000, 850],['bone_walker', 1050, 920],
+      // 中央広間(出口前)
+      ['ghost', 500, 1000],['treasure_hunt', 800, 1000],
+      ['bone_walker', 625, 1000],
+    ],
+    boss:null, bossThreshold:9999, // ボスなし(2Fにいる)
+    // 出口=下の階段(2Fへ)、戻り=上の梯子(ブレイズフォージへ)
+    portalTo:12, portalToLabel:'⛏ 炭鉱2F へ', portalToKey:'portal_st4',
+    portalBack:21, portalBackLabel:'🔥 ブレイズフォージへ', portalBackKey:'portal_st4',
+    // 入口=上の梯子(画像トップ中央)
+    spawnX:625, spawnY:230,
+    portalBackX:625, portalBackY:130,    // 上の梯子(戻り)
+    portalNextX:625, portalNextY:1140,   // 下の階段(2Fへ)
+    spawnFromBackX:625, spawnFromBackY:230,
+    spawnFromNextX:625, spawnFromNextY:1050,
+  },
 };
 const ENEMY_DEFS={
   // passive:true=受動  eva=回避率%  element=属性(無/炎/氷/雷/水/土/風/光/闇)
@@ -4366,6 +4746,13 @@ const ENEMY_DEFS={
   goblin_axe:    {hp:80, atk:14,def:3, spd:50, exp:55, gold:14,sz:62,rng:60, acd:1.4, passive:false, eva:5 ,element:'none'},
   // ゴブリンリーダー: ボス級・連れたゴブリンを統率するイメージ
   goblin_leader: {hp:1200,atk:22,def:8,spd:70, exp:1500,gold:500,sz:110,rng:80,acd:1.0,passive:false,eva:15,isBoss:true,element:'none'},
+  // ── DUN.2 炭鉱ダンジョン ──
+  // ボーンウォーカー: アクティブ・遅い・体力多い・物理高耐性
+  bone_walker: {hp:280, atk:22, def:10, spd:40, exp:120, gold:30, sz:68,rng:54, acd:1.6, passive:false, eva:0 ,element:'dark'},
+  // トレジャーハント: ノンアクティブ(passive)・速い・攻撃力高め(殴られたら反撃)
+  treasure_hunt:{hp:140, atk:32, def:5, spd:160,exp:160, gold:80, sz:60,rng:50, acd:0.7, passive:true,  eva:25,element:'none'},
+  // ゴースト: アクティブ・足普通・体力多い・毒攻撃あり
+  ghost:       {hp:240, atk:18, def:6, spd:80, exp:140, gold:40, sz:64,rng:54, acd:1.2, passive:false, eva:30,element:'dark'},
 };
 
 // ============================================================
@@ -4727,8 +5114,8 @@ class GameScene extends Phaser.Scene{
       spawnX=330;
       spawnY=280;
     }
-    // ノービスは剣士スプライトを流用(専用スプライト未実装)
-    const spriteCls = (pd.cls==='novice') ? 'warrior' : pd.cls;
+    // ノービスは専用スプライトを使用
+    const spriteCls = pd.cls;
     this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+spriteCls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
     this._facing='front';  // 共通向き管理
     this._facingFlip=false;
@@ -4744,9 +5131,13 @@ class GameScene extends Phaser.Scene{
       if(this.anims.exists('mage_front_idle')){
         this.player.play('mage_front_idle');
       }
-    }else if(pd.cls==='warrior' || pd.cls==='novice'){
+    }else if(pd.cls==='warrior'){
       if(this.anims.exists('warrior_front_idle')){
         this.player.play('warrior_front_idle');
+      }
+    }else if(pd.cls==='novice'){
+      if(this.anims.exists('novice_front_idle')){
+        this.player.play('novice_front_idle');
       }
     }
     this.physics.add.collider(this.player,this.obstacles);
@@ -6393,6 +6784,7 @@ class GameScene extends Phaser.Scene{
         {label:'⛰ ST.7 天空への路',  price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
         {label:'☁ ST.8 天空の島々', price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
         {label:'⚔ DUN.1 地下迷宮',  price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
+        {label:'⛏ DUN.2 炭鉱1F',    price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(11); }},
         {label:'🪓 ゴブリンの集落', price:0, icon:'🪓', action:()=>{ close(); this._doGuildWarp(20); }},
         {label:'🔥 ブレイズフォージ(町)',price:0, icon:'🔥', action:()=>{ close(); this._doGuildWarp(21); }},
       ],
@@ -7917,9 +8309,9 @@ class GameScene extends Phaser.Scene{
 
   _updateSpriteAnim(vx,vy){
     const p=this.player,clsRaw=this.playerData.cls;
-    // ノービスは剣士スプライトを流用
-    const cls = (clsRaw==='novice') ? 'warrior' : clsRaw;
-    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior') return;
+    // ノービスも自前のアニメを持つ
+    const cls = clsRaw;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
     const prefix=cls;
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
@@ -7932,7 +8324,7 @@ class GameScene extends Phaser.Scene{
       else{
         facing='side';
         // archerはsideが左向き基準（mage/bomberは右向き基準）なので反転が逆
-        flip=(cls==='archer'||cls==='warrior')?vx>0:vx<0;
+        flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -8596,8 +8988,13 @@ class GameScene extends Phaser.Scene{
       // 転職実行
       try{ SE('magic'); }catch(e){}
       // ── ステータスリセット ──
-      // 現在の振り分けポイントを全部 statPts に戻す: lv-1 が累計獲得pt数
-      const totalPts=(pd.statPts||0) + ((pd.intPts||0)+(pd.strPts||0)+(pd.vitPts||0)+(pd.dexPts||0)+(pd.agiPts||0)+(pd.lukPts||0));
+      // Lv N まで成長すると、累計で (N-1)*3 ポイント獲得しているはず
+      // それを基準に再計算して全ポイントを返却(統計の取り戻し)
+      const lvBasedTotal=Math.max(0, (pd.lv||1)-1) * 3;
+      // 実際にプレイヤーが現在保有しているポイントの合計(積み上げ・割り振り済み・残ポイント)
+      const currentTotal=(pd.statPts||0) + ((pd.intPts||0)+(pd.strPts||0)+(pd.vitPts||0)+(pd.dexPts||0)+(pd.agiPts||0)+(pd.lukPts||0));
+      // 大きい方を採用(レベル基準で正しく振り直しできる量)
+      const totalPts=Math.max(lvBasedTotal, currentTotal);
       // ベース値を新クラス基準に
       const base={
         warrior:{hp:110,sp:60,atk:6,def:6,mag:5,spd:180,hit:80,luk:5,agi:0},
@@ -8809,6 +9206,13 @@ class GameScene extends Phaser.Scene{
       // 暗いエリア(岩壁・建物・煙突) → 壁
       if(sum < 200) return false;
       // それ以外(石畳・砂道・広場) は歩ける
+      return true;
+    }
+
+    // ── DUN.2 炭鉱(暗いマップ・床と壁の差が小さい) ──
+    if(cfg.mapType==='mine'){
+      // ほぼ完全な黒だけ壁(画像が全体的に暗いため緩めに)
+      if(sum < 60) return false;
       return true;
     }
 
@@ -9042,7 +9446,7 @@ class GameScene extends Phaser.Scene{
     this.updateHUD();
     SE('hurt');
     // 毒付与
-    const poisonChance={scorpion:0.10, scorpion_queen:0.20, scorpion_king:0.30, zombie:0.10};
+    const poisonChance={scorpion:0.10, scorpion_queen:0.20, scorpion_king:0.30, zombie:0.10, ghost:0.25};
     if(poisonChance[ed.id] && !pd._poisoned && Math.random()<poisonChance[ed.id]){
       this.applyPoison(15);
     }
