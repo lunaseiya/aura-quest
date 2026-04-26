@@ -28,8 +28,16 @@ function deleteSaveData(slot){
   try{localStorage.removeItem(SAVE_KEY+slot);}catch(e){}
 }
 function makeSaveSummary(pd,stage){
-  const stageNames={0:'町',1:'ST.1草原',2:'ST.2溶岩',3:'ST.3海岸',4:'ST.4砂漠',5:'ST.5螺旋の崖',6:'ST.6天空',7:'ST.7オーク集落'};
-  const clsNames={warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'};
+  const stageNames={
+    0:'🏘 セントラル',
+    1:'🌳 ST.1 草原', 2:'🌲 ST.2 流れる森', 3:'🏖 ST.3 海岸',
+    4:'🏜 ST.4 海と砂漠の境', 5:'🏛 ST.5 砂漠の集落跡', 6:'💀 ST.6 砂漠の果て',
+    7:'⛰ ST.7 天空への路', 8:'☁ ST.8 天空の島々',
+    10:'⚔ DUN.1 地下迷宮',
+    20:'🪓 ゴブリンの集落',
+    21:'🔥 ブレイズフォージ',
+  };
+  const clsNames={novice:'ノービス',warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'};
   return {
     cls:pd.cls, lv:pd.lv, gold:pd.gold,
     stage, stageName:stageNames[stage]||'ST.'+stage,
@@ -899,11 +907,12 @@ function SE(type){
 // ============================================================
 function makePlayerData(cls){
   const base={
+    novice: {hp:100,sp:50,atk:7,def:5,mag:5,spd:180,hit:80,luk:5,agi:0}, // 初心者・剣士の80%程度の基礎力
     warrior:{hp:110,sp:60,atk:6,def:6,mag:5,spd:180,hit:80,luk:5,agi:0},
     mage:   {hp:90, sp:70,atk:5,def:4,mag:8,spd:160,hit:75,luk:5,agi:0},
     archer: {hp:100,sp:65,atk:6,def:5,mag:5,spd:200,hit:85,luk:8,agi:0},
     bomber: {hp:95, sp:80,atk:8,def:4,mag:6,spd:170,hit:78,luk:6,agi:0},
-  }[cls];
+  }[cls]||{hp:80, sp:40,atk:5,def:3,mag:4,spd:170,hit:75,luk:5,agi:0};
   return {
     cls,
     hp:base.hp,mhp:base.hp,
@@ -1021,6 +1030,8 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st7', BASE+'maps/st7.png');
     this.load.image('map_st8', BASE+'maps/st8.png');
     this.load.image('map_dun1', BASE+'maps/dun1.png');
+    this.load.image('map_st20', BASE+'maps/st20.png');
+    this.load.image('map_blaze', BASE+'maps/blaze_forge.png');
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -3221,6 +3232,110 @@ class BootScene extends Phaser.Scene{
       g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.1);g.fillStyle(0xff4400,0.7);g.fillEllipse(S*.5,S*.36,S*.16,S*.06);
       g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.38+i*0.08),S*.35,S*(0.35+i*0.08),S*.42,S*(0.41+i*0.08),S*.35);
     });
+
+    // ── ゴブリンアーチャー(細身・茶のローブ・弓持ち) ──
+    mk('enemy_goblin_archer',88,(g,S)=>{
+      g.fillStyle(0x000000,0.25);g.fillEllipse(S*.5,S*.93,S*.55,S*.08);
+      // 茶色のローブ(細身)
+      g.fillStyle(0x6b4220,1);g.fillEllipse(S*.5,S*.65,S*.36,S*.46);
+      // 緑の肌(細い)
+      g.fillStyle(0x3a7a22,1);g.fillEllipse(S*.5,S*.30,S*.32,S*.30);
+      // 耳(尖)
+      g.fillStyle(0x2d6618,1);g.fillTriangle(S*.20,S*.22,S*.10,S*.10,S*.28,S*.30);g.fillTriangle(S*.80,S*.22,S*.72,S*.30,S*.90,S*.10);
+      // 目(集中・狙う)
+      g.fillStyle(0x111111,1);g.fillRect(S*.34,S*.28,S*.10,S*.03);g.fillRect(S*.56,S*.28,S*.10,S*.03);
+      g.fillStyle(0xffaa44,1);g.fillEllipse(S*.39,S*.31,S*.08,S*.05);g.fillEllipse(S*.61,S*.31,S*.08,S*.05);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.39,S*.31,S*.025);g.fillCircle(S*.61,S*.31,S*.025);
+      // 弓(右手・横向き)
+      g.fillStyle(0x553311,1);
+      g.fillRect(S*.78,S*.40,S*.04,S*.40);
+      g.fillStyle(0xddccaa,0.9);
+      g.fillRect(S*.80,S*.42,S*.01,S*.36); // 弦
+      // 矢(つがえてる)
+      g.fillStyle(0x886633,1);g.fillRect(S*.62,S*.58,S*.18,S*.02);
+      g.fillStyle(0x999999,1);g.fillTriangle(S*.62,S*.59,S*.58,S*.59,S*.62,S*.55);
+      // 矢羽
+      g.fillStyle(0xddaa44,1);g.fillTriangle(S*.78,S*.56,S*.82,S*.58,S*.78,S*.62);
+      // 腰の矢筒
+      g.fillStyle(0x442211,1);g.fillRect(S*.16,S*.58,S*.10,S*.18);
+      g.fillStyle(0x886633,1);[.18,.21,.24].forEach(x=>g.fillRect(S*x,S*.55,S*.012,S*.06));
+      // フード(襟)
+      g.fillStyle(0x4a2a10,1);g.fillEllipse(S*.5,S*.46,S*.30,S*.10);
+    });
+
+    // ── アックスゴブリン(太り・斧持ち・赤鉢巻) ──
+    mk('enemy_goblin_axe',96,(g,S)=>{
+      g.fillStyle(0x000000,0.3);g.fillEllipse(S*.5,S*.94,S*.7,S*.10);
+      // 黒い革鎧
+      g.fillStyle(0x222222,1);g.fillEllipse(S*.5,S*.65,S*.50,S*.50);
+      // 鎧の鋲
+      g.fillStyle(0x888888,1);[.32,.5,.68].forEach(x=>g.fillCircle(S*x,S*.62,S*.025));
+      // 緑の太い腕
+      g.fillStyle(0x3a7a22,1);g.fillEllipse(S*.18,S*.58,S*.20,S*.36);g.fillEllipse(S*.82,S*.58,S*.20,S*.36);
+      // 緑の太い顔
+      g.fillStyle(0x3a7a22,1);g.fillEllipse(S*.5,S*.27,S*.46,S*.40);
+      // 耳(尖)
+      g.fillStyle(0x2d6618,1);g.fillTriangle(S*.18,S*.22,S*.04,S*.10,S*.26,S*.32);g.fillTriangle(S*.82,S*.22,S*.74,S*.32,S*.96,S*.10);
+      // 赤い鉢巻
+      g.fillStyle(0xcc2211,1);g.fillRect(S*.22,S*.16,S*.56,S*.06);
+      g.fillStyle(0x881100,1);g.fillTriangle(S*.78,S*.18,S*.92,S*.12,S*.84,S*.30);
+      // 目(怒)
+      g.fillStyle(0x000000,1);g.fillRect(S*.30,S*.26,S*.16,S*.04);g.fillRect(S*.54,S*.26,S*.16,S*.04);
+      g.fillStyle(0xff2200,1);g.fillEllipse(S*.38,S*.30,S*.10,S*.06);g.fillEllipse(S*.62,S*.30,S*.10,S*.06);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.38,S*.30,S*.03);g.fillCircle(S*.62,S*.30,S*.03);
+      // 牙
+      g.fillStyle(0xeeeecc,1);g.fillTriangle(S*.42,S*.40,S*.40,S*.46,S*.46,S*.40);g.fillTriangle(S*.58,S*.40,S*.54,S*.40,S*.60,S*.46);
+      // 巨大な斧(右肩から)
+      g.fillStyle(0x5c3a14,1);g.fillRect(S*.78,S*.30,S*.04,S*.50); // 柄
+      g.fillStyle(0x888888,1);g.fillTriangle(S*.74,S*.30,S*.96,S*.40,S*.78,S*.45); // 刃
+      g.fillStyle(0xcccccc,1);g.fillTriangle(S*.76,S*.32,S*.94,S*.40,S*.78,S*.42); // 刃の光沢
+    });
+
+    // ── ゴブリンリーダー(王冠・赤マント・大きい・玉座感) ──
+    mk('enemy_goblin_leader',128,(g,S)=>{
+      g.fillStyle(0x000000,0.4);g.fillEllipse(S*.5,S*.95,S*.85,S*.13);
+      // 赤いマント(背中・大きく広がる)
+      g.fillStyle(0x8b1a1a,1);
+      g.fillTriangle(S*.5,S*.40,S*.10,S*.85,S*.90,S*.85);
+      // マントの裏地(金)
+      g.fillStyle(0xddaa00,0.6);
+      g.fillTriangle(S*.5,S*.50,S*.20,S*.80,S*.80,S*.80);
+      // 黒い鎧(豪華)
+      g.fillStyle(0x1a1a1a,1);g.fillEllipse(S*.5,S*.65,S*.54,S*.50);
+      // 鎧の金縁
+      g.fillStyle(0xddaa00,1);g.fillRect(S*.24,S*.48,S*.52,S*.04);g.fillRect(S*.24,S*.78,S*.52,S*.04);
+      // 鎧中央の宝石(赤)
+      g.fillStyle(0xcc1111,1);g.fillEllipse(S*.5,S*.62,S*.10,S*.14);
+      g.fillStyle(0xff4444,1);g.fillEllipse(S*.5,S*.59,S*.05,S*.07);
+      // 緑の腕(太い)
+      g.fillStyle(0x4a8a32,1);g.fillEllipse(S*.18,S*.60,S*.18,S*.34);g.fillEllipse(S*.82,S*.60,S*.18,S*.34);
+      // 緑の顔(濃い色・他のゴブリンと差別化)
+      g.fillStyle(0x4a8a32,1);g.fillEllipse(S*.5,S*.28,S*.40,S*.36);
+      // 顔の入れ墨(部族長の証)
+      g.fillStyle(0xffaa00,0.6);g.fillRect(S*.32,S*.34,S*.08,S*.02);g.fillRect(S*.60,S*.34,S*.08,S*.02);
+      // 耳(尖って大きい)
+      g.fillStyle(0x3a7a22,1);g.fillTriangle(S*.20,S*.20,S*.04,S*.05,S*.28,S*.30);g.fillTriangle(S*.80,S*.20,S*.72,S*.30,S*.96,S*.05);
+      // 王冠(金色の角付き)
+      g.fillStyle(0xddaa00,1);g.fillRect(S*.30,S*.10,S*.40,S*.06);
+      g.fillStyle(0xffd700,1);
+      g.fillTriangle(S*.34,S*.10,S*.30,S*.0,S*.38,S*.10); // 左
+      g.fillTriangle(S*.50,S*.10,S*.46,S*-.04,S*.54,S*.10); // 中央(高い)
+      g.fillTriangle(S*.66,S*.10,S*.62,S*.0,S*.70,S*.10); // 右
+      // 王冠の宝石
+      g.fillStyle(0xff2244,1);g.fillCircle(S*.5,S*.04,S*.04);
+      g.fillStyle(0x44aaff,1);g.fillCircle(S*.36,S*.06,S*.025);g.fillCircle(S*.64,S*.06,S*.025);
+      // 目(鋭く・赤)
+      g.fillStyle(0x000000,1);g.fillRect(S*.32,S*.24,S*.12,S*.03);g.fillRect(S*.56,S*.24,S*.12,S*.03);
+      g.fillStyle(0xff0000,1);g.fillEllipse(S*.38,S*.27,S*.09,S*.05);g.fillEllipse(S*.62,S*.27,S*.09,S*.05);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.38,S*.27,S*.025);g.fillCircle(S*.62,S*.27,S*.025);
+      g.fillStyle(0xffffff,0.8);g.fillCircle(S*.36,S*.25,S*.015);g.fillCircle(S*.60,S*.25,S*.015);
+      // 大きな牙
+      g.fillStyle(0xeeeecc,1);g.fillTriangle(S*.42,S*.36,S*.39,S*.46,S*.46,S*.36);g.fillTriangle(S*.58,S*.36,S*.54,S*.36,S*.61,S*.46);
+      // 王笏(金の杖・右手)
+      g.fillStyle(0xddaa00,1);g.fillRect(S*.86,S*.36,S*.03,S*.40);
+      g.fillStyle(0xffd700,1);g.fillCircle(S*.875,S*.36,S*.06);
+      g.fillStyle(0xff2244,1);g.fillCircle(S*.875,S*.36,S*.03);
+    });
   }
 }
 
@@ -3450,6 +3565,10 @@ const DROP_TABLE={
   lich:         [{id:'bone',rate:0.50,min:1,max:2},{id:'boss_gem',rate:0.15,min:1,max:1}],
   dark_elf:     [{id:'bat_wing',rate:0.40,min:1,max:1},{id:'wolf_fang',rate:0.25,min:1,max:1}],
   dark_illusion:[{id:'boss_gem',rate:1.0,min:5,max:8},{id:'chaos_shard',rate:1.0,min:4,max:4},{id:'boss_core',rate:1.0,min:1,max:1}],
+  // ST20 ゴブリン集落
+  goblin_archer:[{id:'goblin_ear',rate:0.45,min:1,max:1},{id:'bat_wing',rate:0.20,min:1,max:1}],
+  goblin_axe:   [{id:'goblin_ear',rate:0.50,min:1,max:2},{id:'troll_hide',rate:0.20,min:1,max:1}],
+  goblin_leader:[{id:'boss_gem',rate:1.0,min:1,max:2},{id:'goblin_ear',rate:1.0,min:3,max:5}],
 };
 
 const MAX_ITEM_TYPES=40; // 所持できる種類の上限
@@ -3460,6 +3579,7 @@ const KILL_SE={
   slime:'kill_pop',
   bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
   goblin:'kill_grunt',
+  goblin_archer:'kill_grunt', goblin_axe:'kill_grunt', goblin_leader:'kill_boss',
   orc_warrior:'kill_grunt', orc_high:'kill_grunt', orc_lady:'kill_grunt', orc_archer:'kill_grunt',
   troll:'kill_roar', wolf:'kill_roar', bear:'kill_roar', cloud_monkey:'kill_roar',
   skeleton:'kill_bone',
@@ -3601,10 +3721,10 @@ class SaveSelectScene extends Phaser.Scene{
       }else{
         // セーブデータ表示
         // クラスアイコン(絵文字) + 漢字 + 色
-        const clsIcon={warrior:'⚔',mage:'🪄',archer:'🏹',bomber:'💣'}[save.cls]||'❓';
-        const clsChar={warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[save.cls]||'？';
-        const clsCol={warrior:'#e74c3c',mage:'#9b59b6',archer:'#27ae60',bomber:'#f39c12'}[save.cls]||'#ffffff';
-        const clsBgCol={warrior:0x3a1414,mage:0x2a1433,archer:0x143a1a,bomber:0x3a2814}[save.cls]||0x1a1a2e;
+        const clsIcon={novice:'⭐',warrior:'⚔',mage:'🪄',archer:'🏹',bomber:'💣'}[save.cls]||'❓';
+        const clsChar={novice:'初',warrior:'剣',mage:'魔',archer:'弓',bomber:'爆'}[save.cls]||'？';
+        const clsCol={novice:'#88ccff',warrior:'#e74c3c',mage:'#9b59b6',archer:'#27ae60',bomber:'#f39c12'}[save.cls]||'#ffffff';
+        const clsBgCol={novice:0x14283a,warrior:0x3a1414,mage:0x2a1433,archer:0x143a1a,bomber:0x3a2814}[save.cls]||0x1a1a2e;
         // アイコン枠(クラス色で染める)
         this.add.rectangle(sx-SLOT_W/2+30,sy,48,48,clsBgCol,0.9).setStrokeStyle(2,Phaser.Display.Color.HexStringToColor(clsCol).color);
         // 絵文字アイコン(上寄り)
@@ -3744,13 +3864,54 @@ class ClassSelectScene extends Phaser.Scene{
       startBGM('title');
     }
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
-    this.add.text(w/2,36,'⚔ 職業を選ぼう ⚔',{fontSize:'24px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
-    const classes=[
-      {key:'warrior',name:'剣士',      desc:'近接・高耐久\nパリィ・烈風斬',   col:0xe74c3c,x:-180,y:-60},
-      {key:'mage',   name:'マジシャン',  desc:'広範囲魔法\n凍結・大爆発',       col:0x9b59b6,x:180,y:-60},
-      {key:'archer', name:'アーチャー',desc:'高速遠距離\n多方向射撃',         col:0x27ae60,x:-180,y:80},
-      {key:'bomber', name:'ボマー',    desc:'爆弾投擲\n範囲爆発',             col:0xf39c12,x:180,y:80},
+    this.add.text(w/2,36,'✨ 新しい冒険の始まり ✨',{fontSize:'24px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
+
+    // ── ノービス紹介(中央大カード) ──
+    const cx=w/2, cy=h/2-20;
+    const card=this.add.rectangle(cx,cy,420,200,0x44aaff,0.12).setStrokeStyle(2,0x44aaff);
+    // 仮アイコン(剣士スプライトを流用・後でノービス専用に)
+    this.add.sprite(cx-130,cy,'player_warrior').setFrame(0).setDisplaySize(80,100);
+    this.add.text(cx-50,cy-70,'⭐ ノービス',{fontSize:'24px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0,0.5);
+    this.add.text(cx-50,cy-40,'駆け出しの冒険者',{fontSize:'13px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(0,0.5);
+    this.add.text(cx-50,cy-10,
+      '・全ステータス控えめだが\n  自由度が高い\n・ジョブLv5でブレイズフォージにて\n  4つの職業に転職可能',
+      {fontSize:'12px',fontFamily:'Arial',color:'#cccccc',lineSpacing:5}
+    ).setOrigin(0,0.5);
+
+    // 進化先プレビュー(カード下に4職アイコン横並び)
+    const evoY=cy+90;
+    this.add.text(cx,evoY-22,'▼ ジョブLv5で転職可能 ▼',{fontSize:'11px',fontFamily:'Arial',color:'#888888'}).setOrigin(0.5);
+    const evoTexts=[
+      {icon:'⚔',name:'剣士',col:'#e74c3c',x:-150},
+      {icon:'🪄',name:'マジシャン',col:'#9b59b6',x:-50},
+      {icon:'🏹',name:'アーチャー',col:'#27ae60',x:50},
+      {icon:'💣',name:'ボマー',col:'#f39c12',x:150},
     ];
+    evoTexts.forEach(e=>{
+      this.add.text(cx+e.x, evoY+5, e.icon+' '+e.name, {
+        fontSize:'12px',fontFamily:'Arial',color:e.col,fontStyle:'bold'
+      }).setOrigin(0.5);
+    });
+
+    // 「冒険を始める」ボタン
+    const startY=h-90;
+    const startBtn=this.add.rectangle(cx, startY, 240, 50, 0x44aa44, 0.85).setStrokeStyle(2, 0x88ff88).setInteractive({useHandCursor:true});
+    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'18px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+    startBtn.on('pointerover',()=>startBtn.setFillStyle(0x66cc66,0.95));
+    startBtn.on('pointerout', ()=>startBtn.setFillStyle(0x44aa44,0.85));
+    startBtn.on('pointerdown',()=>{
+      const pd=makePlayerData('novice');
+      if(testMode){
+        // テストモード:即転職可能なJobLv5+所持金
+        pd.lv=10; pd.statPts=20;
+        pd.jobLv=5; pd.jobPts=10;
+        pd.gold=9999;
+      }
+      this.scene.start('Game',{playerData:pd, stage:0});
+    });
+
+    // 旧クラス選択ループは無効化(下で何もしない)
+    const classes=[]; // 空配列にして既存コード無効化
     classes.forEach(cls=>{
       const cx=w/2+cls.x,cy=h/2+cls.y;
       const card=this.add.rectangle(cx,cy,280,130,cls.col,0.12).setInteractive({useHandCursor:true}).setStrokeStyle(2,cls.col);
@@ -3869,7 +4030,7 @@ class GameClearScene extends Phaser.Scene{
     this.tweens.add({targets:t1,alpha:1,duration:800,delay:200});
     const panel=this.add.rectangle(w/2,h*0.56,400,240,0x0a1428,0.95).setAlpha(0).setStrokeStyle(2,0xffd700);
     this.tweens.add({targets:panel,alpha:1,duration:600,delay:600});
-    const cls={warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'}[pd.cls]||pd.cls;
+    const cls={novice:'ノービス',warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'}[pd.cls]||pd.cls;
     const scores=[['職業',cls],['最終Lv','Lv '+pd.lv],['ATK/DEF/MAG',pd.atk+'/'+pd.def+'/'+pd.mag],['討伐数',pd.kills+'体'],['獲得Gold',pd.gold+'G']];
     scores.forEach(([k,v],i)=>{
       const y=h*0.41+i*32;
@@ -3892,7 +4053,7 @@ class GameClearScene extends Phaser.Scene{
 //  ステージ設定
 // ============================================================
 const STAGE_CONFIG={
-  0:{name:'TOWN 町',bgmKey:'town',
+  0:{name:'🏘 セントラル', bgmKey:'town',
     tiles:['tile_cobble','tile_town_wall','tile_town_path'],tileWeights:[80,10,10],
     mapW:1200,mapH:800,
     objects:[],objPos:[],
@@ -3905,6 +4066,7 @@ const STAGE_CONFIG={
       {x:750,y:80, w:180,h:130,label:'⚔ ギルド',  type:'guild'},
       {x:150,y:400,w:160,h:120,label:'🔨 鍛冶屋',  type:'blacksmith'},
       {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
+      {x:380,y:440,w:170,h:130,label:'✨ 転職所(仮)',type:'jobchange'},
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
@@ -3937,7 +4099,23 @@ const STAGE_CONFIG={
   },
   2:{name:'ST.2 流れる森',bgmKey:'st2_forest',mapImage:'map_st2',
     mapW:1537,mapH:1907, mapType:'st2', // 専用色判定
-    tiles:[],tileWeights:[],objects:[],objPos:[],
+    tiles:[],tileWeights:[],
+    // 継ぎ目(y=940〜1030)に岩と木を散らして自然な分断
+    objects:['obj_tree','obj_rock'],
+    objPos:[
+      // ── 左の草原: 継ぎ目に岩&木を散らす(隙間あり) ──
+      ['obj_tree', 120, 950],   ['obj_rock', 220, 970],
+      ['obj_tree', 360, 945],   ['obj_rock', 460, 985],
+      ['obj_tree', 580, 960],
+      ['obj_rock', 180, 1010],  ['obj_tree', 320, 1015],
+      ['obj_rock', 480, 1020],  ['obj_tree', 620, 1005],
+      // ── 右の草原: 同様に散らす ──
+      ['obj_tree', 920, 950],   ['obj_rock', 1020, 970],
+      ['obj_tree', 1160, 945],  ['obj_rock', 1260, 985],
+      ['obj_tree', 1380, 960],
+      ['obj_rock', 980, 1010],  ['obj_tree', 1120, 1015],
+      ['obj_rock', 1280, 1020], ['obj_tree', 1420, 1005],
+    ],
     // 橋: 川を東西に渡れるゾーン(色判定を無視して歩行可)
     walkZones:[
       {x:700, y:1230, w:140, h:110}, // 中央の木製橋
@@ -3973,7 +4151,10 @@ const STAGE_CONFIG={
   },
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900},
+  5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900,
+    // 東側にゴブリン集落への分岐ポータル(踏むとダイアログなしで即遷移)
+    sidePortal:{x:1400, y:540, to:20, returnX:200, returnY:540},
+  },
   6:{name:'ST.6 砂漠の果て',bgmKey:'st5_desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',400,300],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',600,200],['bone_dragon',1000,600]],boss:{id:'tomb_guardian',x:290,y:420},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:650,spawnY:200,portalNextX:650,portalNextY:1000,portalBackX:650,portalBackY:50,spawnFromBackX:650,spawnFromBackY:200,spawnFromNextX:650,spawnFromNextY:860,dungeonGate:{x:251,y:400,to:10,label:'DUN.1 忘れられし地下迷宮'}},
   7:{name:'ST.7 天空への路',bgmKey:'st5',
     mapImage:'map_st7', mapType:'sky', mapW:949, mapH:1658,
@@ -4061,6 +4242,67 @@ const STAGE_CONFIG={
     portalBackX:474,portalBackY:100,
     spawnFromBackX:474,spawnFromBackY:230,
   },
+  // ── ST.20 ゴブリンの集落 (ST5から東に行くと到着) ──
+  20:{name:'ST.20 ゴブリンの集落', bgmKey:'st1', mapImage:'map_st20',
+    mapType:'goblin_village', mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // ── 周囲のゴブリン雑魚たち(村のテント周辺・集落感) ──
+      // 北(上)エリア: 普通ゴブリン+アーチャー
+      ['goblin',        400, 400],['goblin',        850, 400],
+      ['goblin_archer', 627, 400],
+      // 中段エリア: 各種混成
+      ['goblin',        300, 627],['goblin_axe',    900, 627],
+      // 南(下)エリア: アックス+アーチャー
+      ['goblin',        400, 850],['goblin',        850, 850],
+      ['goblin_axe',    627, 850],
+      ['goblin_archer', 300, 800],['goblin_archer', 950, 800],
+      // 拡張(集落の活気)
+      ['goblin',        450, 500],['goblin',        800, 500],
+      ['goblin_axe',    500, 350],
+    ],
+    // ボスは中央の焚き火脇(中央 627,627 は壁・焚き火跡)
+    boss:{id:'goblin_leader', x:750, y:627},
+    bossThreshold:8,
+    // 戻る = ST5(砂漠の集落跡)へ、進む = ST21 ブレイズフォージへ
+    portalTo:21, portalToLabel:'🔥 ブレイズフォージへ', portalToKey:'portal_st4',
+    portalBack:5, portalBackLabel:'🏛 ST.5へ', portalBackKey:'portal_st5',
+    // 入口=西の道、出口=東の道
+    spawnX:150, spawnY:627,
+    portalBackX:80, portalBackY:627,
+    portalNextX:1180, portalNextY:627,
+    spawnFromBackX:150, spawnFromBackY:627,
+    spawnFromNextX:1100, spawnFromNextY:627,
+  },
+  // ── ST.21 ブレイズフォージ(火薬都市・ボマー進化の聖地) ──
+  21:{name:'🔥 ブレイズフォージ', bgmKey:'st1', mapImage:'map_blaze',
+    mapType:'blaze', mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[], // 町なので敵なし
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    portalBack:20, portalBackLabel:'🪓 ゴブリンの集落へ', portalBackKey:'portal_st4',
+    // 入口=西から(マップ画像の左端)
+    spawnX:160, spawnY:627,
+    portalBackX:90, portalBackY:627,
+    spawnFromBackX:160, spawnFromBackY:627,
+    spawnFromNextX:160, spawnFromNextY:627,
+    // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
+    // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
+    // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
+    buildings:[
+      // 左上: 宿屋(赤い屋根・煙突・ビアマグ看板)
+      {x:130, y:130, w:340, h:240, label:'🏨 宿屋',     type:'inn'},
+      // 右上: ギルド(時計塔・青い水晶・テレポ円)= 転送屋
+      {x:740, y:80,  w:380, h:330, label:'⚔ ギルド(転送屋)', type:'guild'},
+      // 左中: 鍛冶屋(炉・金床・煙突)
+      {x:120, y:520, w:280, h:230, label:'🔨 鍛冶屋',   type:'blacksmith'},
+      // 右中: ショップ(火薬商・赤屋根・樽)
+      {x:780, y:520, w:330, h:240, label:'🏪 ショップ', type:'shop'},
+      // 下中央: 転職場(寺院・4つの旗・金の炎エンブレム)
+      {x:430, y:790, w:380, h:340, label:'✨ 転職場',   type:'jobchange'},
+    ],
+  },
 };
 const ENEMY_DEFS={
   // passive:true=受動  eva=回避率%  element=属性(無/炎/氷/雷/水/土/風/光/闇)
@@ -4117,6 +4359,13 @@ const ENEMY_DEFS={
   dark_elf:      {hp:450, atk:50, def:5,  spd:110,exp:300, gold:70, sz:68,rng:320,acd:1.8, passive:false, eva:30,element:'dark'},
   // ダークイリュージョン: 闇属性ボス・メテオは炎属性
   dark_illusion: {hp:4000,atk:70, def:20, spd:90, exp:8000,gold:3000,sz:150,rng:120,acd:1.0,passive:false,eva:20,isBoss:true,element:'dark'},
+  // ── ST20 ゴブリンの集落 ──
+  // ゴブリンアーチャー: 遠距離攻撃・攻撃力低め
+  goblin_archer: {hp:38, atk:6, def:1, spd:75, exp:35, gold:8, sz:54,rng:200,acd:1.6, passive:false, eva:15,element:'none'},
+  // アックスゴブリン: 足遅め・攻撃力高め
+  goblin_axe:    {hp:80, atk:14,def:3, spd:50, exp:55, gold:14,sz:62,rng:60, acd:1.4, passive:false, eva:5 ,element:'none'},
+  // ゴブリンリーダー: ボス級・連れたゴブリンを統率するイメージ
+  goblin_leader: {hp:1200,atk:22,def:8,spd:70, exp:1500,gold:500,sz:110,rng:80,acd:1.0,passive:false,eva:15,isBoss:true,element:'none'},
 };
 
 // ============================================================
@@ -4185,8 +4434,29 @@ class GameScene extends Phaser.Scene{
 
     // 障害物
     this.obstacles=this.physics.add.staticGroup();
-    if(cfg.objects&&cfg.objects[0]){
-      cfg.objPos.forEach(([x,y])=>{const o=this.obstacles.create(x,y,cfg.objects[0]).setDisplaySize(64,80);o.refreshBody();});
+    if(cfg.objPos && cfg.objPos.length>0){
+      cfg.objPos.forEach(item=>{
+        // 形式①: [x, y] 単一テクスチャ → cfg.objects[0]を使用
+        // 形式②: [type, x, y] 個別指定
+        let texKey, x, y;
+        if(item.length===3 && typeof item[0]==='string'){
+          texKey=item[0]; x=item[1]; y=item[2];
+        }else if(cfg.objects && cfg.objects[0]){
+          texKey=cfg.objects[0]; x=item[0]; y=item[1];
+        }else{
+          return;
+        }
+        // テクスチャごとにサイズを変える(木は64x80、岩は56x44など)
+        const sizeMap={
+          obj_tree: {w:64, h:80},
+          obj_rock: {w:56, h:44},
+        };
+        const sz=sizeMap[texKey] || {w:64, h:80};
+        const o=this.obstacles.create(x, y, texKey).setDisplaySize(sz.w, sz.h);
+        // 当たり判定は表示サイズより小さく(縁にひっかかり防止)
+        o.setSize(sz.w*0.6, sz.h*0.4); // 横は60%、縦は40%(足元のみ)
+        o.refreshBody();
+      });
     }
     // 町の建物 (stage:0)
     this.buildings=[];
@@ -4204,6 +4474,7 @@ class GameScene extends Phaser.Scene{
           guild:     {wall:0x6a2a2a,roof:0x8b1a1a,roofDark:0x5a0808,trim:0xff8800,door:0x3a0a0a,sign:0xffcc00},
           blacksmith:{wall:0x3a3a3a,roof:0x2a2a2a,roofDark:0x1a1a1a,trim:0xff6600,door:0x1a1a1a,sign:0xff4400},
           magic:     {wall:0x2a1a4a,roof:0x3a0a6a,roofDark:0x1a0040,trim:0xaa44ff,door:0x1a0a2a,sign:0xcc88ff},
+          jobchange: {wall:0x4a4a8a,roof:0x6a4a9a,roofDark:0x3a2a5a,trim:0xffd700,door:0x2a1a4a,sign:0xffeeaa},
         };
         const t=themes[b.type]||themes.inn;
 
@@ -4327,6 +4598,31 @@ class GameScene extends Phaser.Scene{
         wall.body.setOffset(0,0);
       });
     }
+    // ── 画像マップ町(ブレイズフォージ等)の建物入店判定 ──
+    // 建物の絵は画像で既にあるので、当たり判定と入店ロジックだけ追加
+    if(this.stage!==0 && cfg.buildings){
+      cfg.buildings.forEach(b=>{
+        this.buildings.push(b);
+        const bx=b.x, by=b.y, bw=b.w, bh=b.h;
+        const cx=bx+bw/2, cy=by+bh/2;
+        // 建物の物理壁(歩行不可エリア)
+        // 画像で既に建物が見えるので、上部70%だけ壁にしてドア前は通れる
+        const wall=this.obstacles.create(cx,cy-bh*0.15,'wall_block').setDisplaySize(bw,bh*0.7).setAlpha(0);
+        wall.refreshBody();
+        // 建物名のラベル(屋根の上)
+        this.add.text(cx, by-12, b.label, {
+          fontSize:'14px', fontFamily:'Arial', color:'#ffeecc', fontStyle:'bold',
+          stroke:'#000', strokeThickness:3
+        }).setOrigin(0.5).setDepth(4);
+        // 入店促し表示(ドア下の[入る]アイコン)
+        const enterY=by+bh+6;
+        const enterTxt=this.add.text(cx, enterY, '[入る]', {
+          fontSize:'11px', fontFamily:'Arial', color:'#ffaa44', fontStyle:'bold',
+          stroke:'#000', strokeThickness:2
+        }).setOrigin(0.5).setDepth(4);
+        this.tweens.add({targets:enterTxt, alpha:0.5, duration:1000, yoyo:true, repeat:-1});
+      });
+    }
     // ポータル（戻る）
     if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
       // ST7(旧ST5)は螺旋入口が左下なのでポータルを左下に配置
@@ -4345,6 +4641,52 @@ class GameScene extends Phaser.Scene{
       this.portalNextImg=this.add.image(pnX,pnY,cfg.portalToKey).setDisplaySize(80,64).setAlpha(1.0);
       this.portalNextTxt=this.add.text(pnX,pnY+44,cfg.portalToLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#00e5ff',align:'center'}).setOrigin(0.5);
       this.portalNext={x:pnX,y:pnY,to:cfg.portalTo,open:true};
+    }
+    // 分岐ポータル(sidePortal): 別ルートへの入り口
+    if(cfg.sidePortal){
+      const sp=cfg.sidePortal;
+      // ポータル本体(portal_st4 を流用 = 砂色のリング)
+      this.add.image(sp.x, sp.y, 'portal_st4').setDisplaySize(80, 64).setAlpha(0.95);
+      // ── 視覚的な道しるべ ──
+      // 1. 砂の道(ポータルの手前から)
+      const pathG=this.add.graphics().setDepth(1);
+      pathG.fillStyle(0xc4a878, 0.6); // 薄い砂色の道
+      // ポータルから西側200pxの範囲に道を描画
+      for(let i=0;i<8;i++){
+        const t=i/7;
+        const px=sp.x - 200 + t*200;
+        const py=sp.y + Math.sin(t*Math.PI*2)*4; // 軽いウェーブ
+        pathG.fillCircle(px, py, 28-t*4);
+      }
+      // 2. 看板(矢印付き)
+      const signX=sp.x-100, signY=sp.y-60;
+      const signG=this.add.graphics().setDepth(3);
+      // 看板の柱
+      signG.fillStyle(0x6b4220, 1); // 茶色の木
+      signG.fillRect(signX-2, signY+10, 4, 40);
+      // 看板の本体(板)
+      signG.fillStyle(0x8b6235, 1);
+      signG.fillRect(signX-50, signY-20, 100, 40);
+      signG.lineStyle(2, 0x4a2810, 1);
+      signG.strokeRect(signX-50, signY-20, 100, 40);
+      // 看板の影
+      signG.fillStyle(0x000000, 0.2);
+      signG.fillRect(signX-48, signY+22, 96, 4);
+      // 看板の文字
+      this.add.text(signX, signY-10, '🪓 ゴブリン集落', {
+        fontSize:'10px', fontFamily:'Arial', color:'#ffeecc', fontStyle:'bold',
+        stroke:'#000', strokeThickness:2
+      }).setOrigin(0.5).setDepth(4);
+      this.add.text(signX, signY+5, '→', {
+        fontSize:'14px', fontFamily:'Arial', color:'#ffaa44', fontStyle:'bold',
+        stroke:'#000', strokeThickness:2
+      }).setOrigin(0.5).setDepth(4);
+      // 3. ポータル下に説明テキスト(明滅で目立たせる)
+      const portalTxt=this.add.text(sp.x, sp.y+44, '🪓 ゴブリンの集落へ\n[近づいて移動]', {
+        fontSize:'9px', fontFamily:'Arial', color:'#ffaa44', align:'center',
+        stroke:'#000', strokeThickness:2
+      }).setOrigin(0.5).setDepth(4);
+      this.tweens.add({targets:portalTxt, alpha:0.5, duration:1000, yoyo:true, repeat:-1});
     }
     // プレイヤー（mageは128x128スプライトシートなので少し大きく）
     const pSize=pd.cls==='mage'?80:64;
@@ -4385,7 +4727,9 @@ class GameScene extends Phaser.Scene{
       spawnX=330;
       spawnY=280;
     }
-    this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+pd.cls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
+    // ノービスは剣士スプライトを流用(専用スプライト未実装)
+    const spriteCls = (pd.cls==='novice') ? 'warrior' : pd.cls;
+    this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+spriteCls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
     this._facing='front';  // 共通向き管理
     this._facingFlip=false;
     // スプライトシートキャラのアニメ初期再生
@@ -4400,7 +4744,7 @@ class GameScene extends Phaser.Scene{
       if(this.anims.exists('mage_front_idle')){
         this.player.play('mage_front_idle');
       }
-    }else if(pd.cls==='warrior'){
+    }else if(pd.cls==='warrior' || pd.cls==='novice'){
       if(this.anims.exists('warrior_front_idle')){
         this.player.play('warrior_front_idle');
       }
@@ -4562,7 +4906,29 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData,p=this.player;
     const cls=pd.cls;
 
-    if(cls==='warrior'){
+    if(cls==='novice'){
+      // ノービス: 標準的な近接攻撃(範囲66px・剣士の少し下)
+      let closest=null,cd=66;
+      this.enemyDataList.forEach(ed=>{
+        if(ed.dead)return;
+        const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+        if(d<cd){cd=d;closest=ed;}
+      });
+      const ang=closest
+        ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
+        : (this._lastAngle||0);
+      const slashX=p.x+Math.cos(ang)*42, slashY=p.y+Math.sin(ang)*42;
+      const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(42,42).setDepth(20).setAlpha(0.85);
+      this.tweens.add({targets:slash,alpha:0,scaleX:1.4,scaleY:1.4,duration:200,onComplete:()=>slash.destroy()});
+      SE('hit');
+      this.atkCooldown=this._calcAtkCD(0.8); // 剣士0.7に対しノービスは0.8
+      this.playSpriteAtk();
+      if(!closest)return;
+      const res=rollAttack(pd,closest.def,closest.eva||0,'none',closest.element||'none');
+      if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
+      else{this.hitEnemy(closest,res.dmg,res.isCrit,false,res.elemLabel);}
+
+    }else if(cls==='warrior'){
       // 近接：周囲72px最近傍
       let closest=null,cd=72;
       this.enemyDataList.forEach(ed=>{
@@ -4774,6 +5140,10 @@ class GameScene extends Phaser.Scene{
   getSkillDefs(){
     // 各職業のスキル3種定義（要件書§4）
     return {
+      novice:[
+        {id:'sk1',name:'スーパーアタック',cost:5, cd:1.5,desc:'単体に強力な一撃 (Lv5でATK×4.5倍)'},
+        {id:'sk2',name:'手当',          cost:8, cd:4,  desc:'自分のHPを回復 (Lv5で40%回復)'},
+      ],
       warrior:[
         {id:'sk1',name:'烈風斬',    cost:20,cd:2,  desc:'周囲140px全敵に4倍ダメージ'},
         {id:'sk2',name:'ハードガード',cost:15,cd:4, desc:'DEF+30・6秒間'},
@@ -5151,6 +5521,78 @@ class GameScene extends Phaser.Scene{
     if(this._casting){return;} // 詠唱中は新しいスキル不可
     if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
     pd.sp-=sk.cost; SE('skill');
+
+    // ─ ノービス ─
+    if(pd.cls==='novice'){
+      if(num===1){ // スーパーアタック: 単体への強攻撃
+        SE('hit');
+        // 最寄りの敵(範囲90px)
+        let closest=null, cd=90;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<cd){cd=d; closest=ed;}
+        });
+        // エフェクト(対象がいなくても表示)
+        const ang=closest
+          ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
+          : (this._lastAngle||0);
+        const fx=p.x+Math.cos(ang)*44, fy=p.y+Math.sin(ang)*44;
+        const slash=this.add.image(fx,fy,'fx_slash').setRotation(ang).setDisplaySize(72,72).setDepth(20).setAlpha(1.0).setTint(0xffee44);
+        this.tweens.add({targets:slash,alpha:0,scaleX:2,scaleY:2,duration:300,onComplete:()=>slash.destroy()});
+        // 黄色い閃光
+        const flash=this.add.circle(p.x,p.y,40,0xffee88,0.5).setDepth(19);
+        this.tweens.add({targets:flash,scaleX:2,scaleY:2,alpha:0,duration:250,onComplete:()=>flash.destroy()});
+        this.cameras.main.shake(120,0.008);
+        this.showFloat(p.x,p.y-60,'⚡ スーパーアタック！','#ffee44');
+        if(closest){
+          // ダメージ: ATK × (2.0 + Lv×0.5) = Lv1:2.5x, Lv5:4.5x
+          const skLv=pd.sk1||1;
+          const mult=2.0 + skLv*0.5;
+          const baseDmg=Math.max(1, Math.floor(pd.atk*mult));
+          // クリティカル判定
+          const isCrit=Math.random()*100<calcCrit(pd);
+          const finalDmg=isCrit ? Math.floor(baseDmg*2) : baseDmg;
+          // 属性相性(ノービスは無属性)
+          const em=getElementMult('none', closest.element||'none');
+          const dmg=Math.max(1, Math.floor(finalDmg*em.mult));
+          this.hitEnemy(closest, dmg, isCrit, true, em.label);
+        }
+        this[cdKey]=sk.cd;
+      }else if(num===2){ // 手当: 自己回復
+        SE('skill');
+        // 回復量: 最大HPの (15% + Lv×5%) = Lv1:20%, Lv5:40%
+        const skLv=pd.sk2||1;
+        const ratio=0.15 + skLv*0.05;
+        const heal=Math.max(1, Math.floor(pd.mhp*ratio));
+        const before=pd.hp;
+        pd.hp=Math.min(pd.mhp, pd.hp+heal);
+        const actualHeal=pd.hp-before;
+        // 緑の十字エフェクト + キラキラ
+        const cross=this.add.text(p.x, p.y-40, '✚', {fontSize:'40px', color:'#44ff88', stroke:'#000', strokeThickness:3}).setOrigin(0.5).setDepth(20);
+        this.tweens.add({targets:cross, y:p.y-100, alpha:0, scaleX:1.5, scaleY:1.5, duration:600, onComplete:()=>cross.destroy()});
+        // 上向きパーティクル
+        for(let i=0;i<6;i++){
+          const px=p.x+(Math.random()-0.5)*40;
+          const py=p.y+10;
+          const dot=this.add.circle(px, py, 3+Math.random()*3, 0x88ff88, 0.9).setDepth(20);
+          this.tweens.add({
+            targets:dot,
+            y:py-50-Math.random()*30,
+            alpha:0,
+            duration:600+Math.random()*200,
+            onComplete:()=>dot.destroy(),
+          });
+        }
+        // 緑のオーラ
+        const aura=this.add.circle(p.x, p.y, 30, 0x44ff88, 0.4).setDepth(19);
+        this.tweens.add({targets:aura, scaleX:1.8, scaleY:1.8, alpha:0, duration:500, onComplete:()=>aura.destroy()});
+        this.showFloat(p.x, p.y-60, '+'+actualHeal+' HP', '#44ff88', 'info');
+        this.updateHUD();
+        this[cdKey]=sk.cd;
+      }
+      return;
+    }
 
     // ─ 剣士 ─
     if(pd.cls==='warrior'){
@@ -5941,7 +6383,7 @@ class GameScene extends Phaser.Scene{
       guild:[
         // ── 各ステージへ無料テレポート(ポータルサービス) ──
         // 注: action内ではこのscene(=Game)が必要。close()してから _doTransition で飛ぶ
-        {label:'🏘 町(セントラル)',  price:0, icon:'🏠', action:()=>{ close(); this._doGuildWarp(0);  }},
+        {label:'🏘 セントラル(町)',  price:0, icon:'🏠', action:()=>{ close(); this._doGuildWarp(0);  }},
         {label:'🌳 ST.1 草原',       price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(1);  }},
         {label:'🌋 ST.2 溶岩',       price:0, icon:'🌋', action:()=>{ close(); this._doGuildWarp(2);  }},
         {label:'🏖 ST.3 海岸',       price:0, icon:'🏖', action:()=>{ close(); this._doGuildWarp(3);  }},
@@ -5951,6 +6393,15 @@ class GameScene extends Phaser.Scene{
         {label:'⛰ ST.7 天空への路',  price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
         {label:'☁ ST.8 天空の島々', price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
         {label:'⚔ DUN.1 地下迷宮',  price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
+        {label:'🪓 ゴブリンの集落', price:0, icon:'🪓', action:()=>{ close(); this._doGuildWarp(20); }},
+        {label:'🔥 ブレイズフォージ(町)',price:0, icon:'🔥', action:()=>{ close(); this._doGuildWarp(21); }},
+      ],
+      jobchange:[
+        // ── 転職屋: ノービス専用、ジョブLv5以上で4職に転職可 ──
+        {label:'⚔ 剣士に転職',     price:0, icon:'⚔', action:()=>{ this._doJobChange('warrior', close, showResult); }},
+        {label:'🪄 マジシャンに転職',price:0, icon:'🪄', action:()=>{ this._doJobChange('mage',    close, showResult); }},
+        {label:'🏹 アーチャーに転職',price:0, icon:'🏹', action:()=>{ this._doJobChange('archer',  close, showResult); }},
+        {label:'💣 ボマーに転職',   price:0, icon:'💣', action:()=>{ this._doJobChange('bomber',  close, showResult); }},
       ],
     };
 
@@ -6561,6 +7012,12 @@ class GameScene extends Phaser.Scene{
     //  スキルタブ（＋/－仮割り振り→確定）
     // ════════════════════════════════
     const DEFS={
+      novice:[
+        {id:'sk1',name:'スーパーアタック',maxLv:5, desc:'単体への強力な一撃'},
+        {id:'sk2',name:'手当',          maxLv:5, desc:'自分のHPを回復'},
+        {id:'sk3',locked:true},{id:'sk4',locked:true},
+        {id:'sk5',locked:true},{id:'sk6',locked:true},
+      ],
       warrior:[
         {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
         {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
@@ -7431,7 +7888,7 @@ class GameScene extends Phaser.Scene{
     }
     p.setVelocity(vx*pd.spd,vy*pd.spd);
     // ボマーアニメ更新
-    if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer'||pd.cls==='warrior') this._updateSpriteAnim(vx,vy);
+    if(pd.cls==='bomber'||pd.cls==='mage'||pd.cls==='archer'||pd.cls==='warrior'||pd.cls==='novice') this._updateSpriteAnim(vx,vy);
     // 最後に動いた向きを記録（攻撃方向決定用）
     if(vx!==0||vy!==0) this._lastAngle=Math.atan2(vy,vx);
   }
@@ -7459,7 +7916,9 @@ class GameScene extends Phaser.Scene{
   }
 
   _updateSpriteAnim(vx,vy){
-    const p=this.player,cls=this.playerData.cls;
+    const p=this.player,clsRaw=this.playerData.cls;
+    // ノービスは剣士スプライトを流用
+    const cls = (clsRaw==='novice') ? 'warrior' : clsRaw;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior') return;
     const prefix=cls;
     const cur=p.anims.currentAnim;
@@ -8099,6 +8558,84 @@ class GameScene extends Phaser.Scene{
   }
 
 
+  // ── 転職処理(ノービス → 4職) ──
+  // 条件: 現職がノービス、ジョブLv5以上
+  // 効果: クラス変更、ステータス完全リセット、ステ振りポイント返却
+  // 注意: 一度転職したら他クラスに変更不可
+  _doJobChange(newCls, closeFn, showResultFn){
+    const pd=this.playerData;
+    // 既に二次職なら拒否
+    if(pd.cls!=='novice'){
+      showResultFn('一度転職したクラスは変更できません', '#ff8888');
+      try{ SE('miss'); }catch(e){}
+      return;
+    }
+    // ジョブLv5未満なら拒否
+    if((pd.jobLv||1)<5){
+      showResultFn('ジョブLv5以上で転職できます (現在 JLv'+(pd.jobLv||1)+')', '#ffaa44');
+      try{ SE('miss'); }catch(e){}
+      return;
+    }
+    // 確認ダイアログ
+    const W=this.scale.width, H=this.scale.height;
+    const clsName={warrior:'剣士',mage:'マジシャン',archer:'アーチャー',bomber:'ボマー'}[newCls];
+    const clsIcon={warrior:'⚔',mage:'🪄',archer:'🏹',bomber:'💣'}[newCls];
+    const ov=this.add.rectangle(W/2,H/2,W,H,0x000000,0.85).setScrollFactor(0).setDepth(95).setInteractive();
+    const box=this.add.rectangle(W/2,H/2,420,250,0x0a1a3a,0.98).setStrokeStyle(2,0xffd700).setScrollFactor(0).setDepth(96);
+    const ic=this.add.text(W/2,H/2-80,clsIcon,{fontSize:'40px'}).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    const ttl=this.add.text(W/2,H/2-30,clsName+'に転職しますか？',{fontSize:'18px',fontFamily:'Arial',color:'#ffd700',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    const sub1=this.add.text(W/2,H/2,'⚠ 一度転職すると他のクラスに',{fontSize:'12px',fontFamily:'Arial',color:'#ff8888'}).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    const sub2=this.add.text(W/2,H/2+18,'変更できません',{fontSize:'12px',fontFamily:'Arial',color:'#ff8888'}).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    const sub3=this.add.text(W/2,H/2+44,'※ステ振りポイントは全て返却されます',{fontSize:'11px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(0.5).setScrollFactor(0).setDepth(97);
+    const btnY=this.add.rectangle(W/2-90,H/2+90,160,40,0x44aa44,0.85).setStrokeStyle(2,0x88ff88).setScrollFactor(0).setDepth(97).setInteractive({useHandCursor:true});
+    const btnYTxt=this.add.text(W/2-90,H/2+90,'✨ 転職する',{fontSize:'15px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(98);
+    const btnN=this.add.rectangle(W/2+90,H/2+90,160,40,0x444444,0.85).setStrokeStyle(2,0x888888).setScrollFactor(0).setDepth(97).setInteractive({useHandCursor:true});
+    const btnNTxt=this.add.text(W/2+90,H/2+90,'やめる',{fontSize:'15px',fontFamily:'Arial',color:'#cccccc'}).setOrigin(0.5).setScrollFactor(0).setDepth(98);
+    const cleanup=()=>[ov,box,ic,ttl,sub1,sub2,sub3,btnY,btnYTxt,btnN,btnNTxt].forEach(o=>{try{o.destroy();}catch(e){}});
+    btnY.on('pointerdown',()=>{
+      // 転職実行
+      try{ SE('magic'); }catch(e){}
+      // ── ステータスリセット ──
+      // 現在の振り分けポイントを全部 statPts に戻す: lv-1 が累計獲得pt数
+      const totalPts=(pd.statPts||0) + ((pd.intPts||0)+(pd.strPts||0)+(pd.vitPts||0)+(pd.dexPts||0)+(pd.agiPts||0)+(pd.lukPts||0));
+      // ベース値を新クラス基準に
+      const base={
+        warrior:{hp:110,sp:60,atk:6,def:6,mag:5,spd:180,hit:80,luk:5,agi:0},
+        mage:   {hp:90, sp:70,atk:5,def:4,mag:8,spd:160,hit:75,luk:5,agi:0},
+        archer: {hp:100,sp:65,atk:6,def:5,mag:5,spd:200,hit:85,luk:8,agi:0},
+        bomber: {hp:95, sp:80,atk:8,def:4,mag:6,spd:170,hit:78,luk:6,agi:0},
+      }[newCls];
+      pd.cls=newCls;
+      pd.mhp=base.hp; pd.hp=base.hp;
+      pd.msp=base.sp; pd.sp=base.sp;
+      pd.atk=base.atk; pd.def=base.def; pd.mag=base.mag;
+      pd.spd=base.spd; pd.hit=base.hit; pd.luk=base.luk; pd.agi=base.agi;
+      // ステ振りリセット
+      pd.statPts=totalPts;
+      pd.intPts=0; pd.strPts=0; pd.vitPts=0; pd.dexPts=0; pd.agiPts=0; pd.lukPts=0;
+      // スキルリセット(別職のスキルだから)
+      pd.sk1=0; pd.sk2=0; pd.sk3=0; pd.sk4=0;
+      pd._hasBerserk=false; pd._hasMeteoorm=false; pd._hasBoostAtk=false; pd._hasBomberPower=false;
+      // ジョブはリセット(新職としてやり直し)
+      pd.jobLv=1; pd.jobExp=0; pd.jobExpNext=80; pd.jobPts=0;
+
+      cleanup();
+      closeFn(); // 転職屋を閉じる
+      // 派手な演出
+      this.cameras.main.flash(600, 255, 230, 100);
+      try{ SE('lvup'); }catch(e){}
+      // シーン再起動でスプライト切替
+      this.time.delayedCall(700, ()=>{
+        this._doTransition('Game', {playerData:pd, stage:this.stage});
+      });
+    });
+    btnY.on('pointerover',()=>btnY.setFillStyle(0x66cc66,0.95));
+    btnY.on('pointerout', ()=>btnY.setFillStyle(0x44aa44,0.85));
+    btnN.on('pointerdown',()=>{ try{SE('click');}catch(e){} cleanup(); });
+    btnN.on('pointerover',()=>btnN.setFillStyle(0x666666,0.95));
+    btnN.on('pointerout', ()=>btnN.setFillStyle(0x444444,0.85));
+  }
+
   // ── ギルドのテレポート(ポータルサービス) ──
   // ステージ番号を受け取り、フェード演出を挟んで遷移する
   _doGuildWarp(stage){
@@ -8259,15 +8796,28 @@ class GameScene extends Phaser.Scene{
       return true;
     }
 
-    // ── フィールドマップ用色判定(既存ロジック) ──
-    // 1) かなり暗いエリア(深い森・濃い影)は壁
-    if(sum < 240) return false;
-    // 2) 緑優位な草地: G が R 以上、G が B より大きい、最低限明るい
-    if(g >= r && g > b + 10 && g > 60) return true;
-    // 3) 黄土色(土・道): R/G が高めで B が低め
-    if(r > 110 && g > 90 && b < g && r > b) return true;
-    // それ以外(灰色の岩・茶色の幹など)は壁
-    return false;
+    // ── ST20 ゴブリン集落(草原・砂道・テント・木・岩) ──
+    if(cfg.mapType==='goblin_village'){
+      // 暗いエリア(森・テント・焚き火跡・岩) → 壁
+      if(sum < 180) return false;
+      // それ以外(草原・砂道) は歩ける
+      return true;
+    }
+
+    // ── ST21 ブレイズフォージ(石畳の道・建物・岩壁) ──
+    if(cfg.mapType==='blaze'){
+      // 暗いエリア(岩壁・建物・煙突) → 壁
+      if(sum < 200) return false;
+      // それ以外(石畳・砂道・広場) は歩ける
+      return true;
+    }
+
+    // ── フィールドマップ用色判定(緩めにして歩行範囲を広く) ──
+    // ST1〜6など mapType 指定なしのフィールドマップ用
+    // 1) 真っ暗な部分(深い森・濃い影・木の幹)は壁
+    if(sum < 180) return false;
+    // 2) それ以外は基本歩ける(草原・道・茶色)
+    return true;
   }
 
   // 複数の判定点を使った当たり判定(プレイヤーの体の輪郭に合わせて)
@@ -8962,6 +9512,20 @@ class GameScene extends Phaser.Scene{
           this._showMagicGateDialog();
         }
       }
+      // 分岐ポータル(sidePortal): ダイアログ無し・触れると即遷移
+      if(this.cfg.sidePortal && !this._transitioning){
+        const sp=this.cfg.sidePortal;
+        if(Phaser.Math.Distance.Between(p.x,p.y,sp.x,sp.y) < 50){
+          this._transitioning=true;
+          this._doTransition('Game', {
+            playerData: this.playerData,
+            stage: sp.to,
+            fromPortal: 'magic',  // magicReturnX/Yで着地
+            magicReturnX: sp.returnX,
+            magicReturnY: sp.returnY,
+          });
+        }
+      }
     }
     if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
     // ドロップアイテムの拾得チェック（60フレームに1回）
@@ -8989,7 +9553,7 @@ class GameScene extends Phaser.Scene{
       this.normalAttack();
     }
     // 建物ドア前接近チェック（ドア座標から60px以内）
-    if(this.stage===0&&this.buildings&&!this._menuOpen&&!this._gameOver){
+    if(this.buildings && this.buildings.length>0 && !this._menuOpen && !this._gameOver){
       let nearB=null;
       let minDist=70; // ドア前の判定距離
       this.buildings.forEach(b=>{
