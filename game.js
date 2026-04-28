@@ -1355,19 +1355,34 @@ class BootScene extends Phaser.Scene{
           drawFrame(g, fx, fy, pose, facing);
         });
       });
-      g.generateTexture('player_novice', SW, SH);
+      g.generateTexture('player_novice_raw', SW, SH);
       g.destroy();
-      // 生成したテクスチャをスプライトシートとして分割
-      // iOS Safari等での互換性確保のため、TextureSourceから直接フレームを登録
-      const tex=this.textures.get('player_novice');
-      if(tex && tex.source && tex.source[0]){
-        for(let row=0; row<ROWS; row++){
-          for(let col=0; col<COLS; col++){
-            const idx=row*COLS+col;
-            try{
-              tex.add(idx, 0, col*FW, row*FH, FW, FH);
-            }catch(e){
-              console.warn('frame add failed', idx, e);
+      // 一旦 _raw のシングルフレームで生成 → ImageオブジェクトにしてaddSpriteSheetで再登録
+      // これで Phaser が正しくフレーム分割してくれる
+      try{
+        const rawTex=this.textures.get('player_novice_raw');
+        const srcImg=rawTex.getSourceImage();
+        // 既存の player_novice があれば削除
+        if(this.textures.exists('player_novice')){
+          this.textures.remove('player_novice');
+        }
+        this.textures.addSpriteSheet('player_novice', srcImg, {
+          frameWidth: FW,
+          frameHeight: FH,
+        });
+      }catch(e){
+        console.warn('addSpriteSheet failed, fallback to manual:', e);
+        // フォールバック: 手動add
+        const tex=this.textures.get('player_novice_raw');
+        if(this.textures.exists('player_novice')){
+          this.textures.remove('player_novice');
+        }
+        const newTex=this.textures.addImage('player_novice', tex.getSourceImage());
+        if(newTex){
+          for(let row=0; row<ROWS; row++){
+            for(let col=0; col<COLS; col++){
+              const idx=row*COLS+col;
+              try{ newTex.add(idx, 0, col*FW, row*FH, FW, FH); }catch(e2){}
             }
           }
         }
