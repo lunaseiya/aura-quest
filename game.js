@@ -1034,6 +1034,10 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/town1.png');
     this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
+    // 画像ロード失敗を検出(ファイル不在等)
+    this.load.on('loaderror', (file)=>{
+      console.warn('画像ロード失敗:', file.key, file.url);
+    });
   }
   create(){
     // ボマー スプライトアニメーション定義
@@ -1354,13 +1358,17 @@ class BootScene extends Phaser.Scene{
       g.generateTexture('player_novice', SW, SH);
       g.destroy();
       // 生成したテクスチャをスプライトシートとして分割
-      // 各フレームを 'player_novice' テクスチャに矩形として登録
+      // iOS Safari等での互換性確保のため、TextureSourceから直接フレームを登録
       const tex=this.textures.get('player_novice');
-      if(tex){
+      if(tex && tex.source && tex.source[0]){
         for(let row=0; row<ROWS; row++){
           for(let col=0; col<COLS; col++){
             const idx=row*COLS+col;
-            tex.add(idx, 0, col*FW, row*FH, FW, FH);
+            try{
+              tex.add(idx, 0, col*FW, row*FH, FW, FH);
+            }catch(e){
+              console.warn('frame add failed', idx, e);
+            }
           }
         }
       }
@@ -4831,6 +4839,18 @@ class GameScene extends Phaser.Scene{
       // ピクセル色判別用の隠しキャンバスを準備
       this._mapMaskReady = this._buildMapColorMask(cfg.mapImage);
       // タイル描画はスキップ
+    }else if(cfg.mapImage){
+      // 画像が指定されてるがロード失敗: フォールバック背景(色判定の代わりに常に歩ける)
+      console.warn('マップ画像なし(フォールバック背景):', cfg.mapImage);
+      this.add.rectangle(0,0,MW,MH,0x3a2a1a,1).setOrigin(0,0).setDepth(-10);
+      // 中央にメッセージ表示
+      this.add.text(MW/2, MH/2, '画像読み込みエラー\n('+cfg.mapImage+')', {
+        fontSize:'24px',fontFamily:'Arial',color:'#ff6666',align:'center',stroke:'#000',strokeThickness:3
+      }).setOrigin(0.5).setDepth(10);
+      // 色判定はしない(常に歩ける)
+      this._mapMaskCtx=null;
+      this._mapMaskCanvas=null;
+      this._mapMaskReady=false;
     }else{
     // 画像マップでないステージでは前ステージのマスクが残らないようにクリア
     this._mapMaskCtx=null;
@@ -10148,6 +10168,42 @@ window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
 
 // デバッグ用: ブラウザのコンソールから game.xxx でアクセスできるように
 window.game = _game;
+
+// スマホ用デバッグオーバーレイ: console.log/warn/error を画面に表示
+// URLに ?debug=1 を付けると有効化
+(function(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('debug')!=='1') return;
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:40vh;overflow-y:auto;background:rgba(0,0,0,0.8);color:#0f0;font:11px monospace;padding:6px;z-index:99999;pointer-events:none;white-space:pre-wrap;';
+    document.body.appendChild(div);
+    const lines = [];
+    const addLine = (color, args)=>{
+      const s = args.map(a=>{
+        if(a instanceof Error) return a.message+'\n'+(a.stack||'');
+        if(typeof a==='object') try{return JSON.stringify(a);}catch(e){return String(a);}
+        return String(a);
+      }).join(' ');
+      lines.push('<span style="color:'+color+'">'+s.replace(/</g,'&lt;')+'</span>');
+      if(lines.length>50) lines.shift();
+      div.innerHTML = lines.join('<br>');
+      div.scrollTop = div.scrollHeight;
+    };
+    const orig = {log:console.log, warn:console.warn, error:console.error};
+    console.log = function(){ orig.log.apply(console,arguments); addLine('#0f0', Array.from(arguments)); };
+    console.warn = function(){ orig.warn.apply(console,arguments); addLine('#fc0', Array.from(arguments)); };
+    console.error = function(){ orig.error.apply(console,arguments); addLine('#f44', Array.from(arguments)); };
+    window.addEventListener('error', (ev)=>{
+      addLine('#f44', ['ERROR:', ev.message, '@', ev.filename, ':', ev.lineno]);
+    });
+    window.addEventListener('unhandledrejection', (ev)=>{
+      addLine('#f44', ['REJECT:', ev.reason]);
+    });
+    addLine('#0ff', ['📱 デバッグログ起動','URL:',location.href]);
+  }catch(e){}
+})();
+
 // よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
 window.debug = {
   warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
