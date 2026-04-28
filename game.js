@@ -1170,7 +1170,7 @@ class BootScene extends Phaser.Scene{
       // facing: 'front','back','side'
       const drawFrame=(g, fx, fy, pose, facing)=>{
         const cx=fx+FW/2, cy=fy+FH/2;
-        const S=FW*0.62; // キャラの基準サイズ(約77px)
+        const S=FW*0.50; // キャラの基準サイズ(約62px)・枠124pxに余裕を持たせる
         // ── 各種オフセット ──
         const walkOffset = (pose==='walk1') ? -2 : (pose==='walk2') ? 2 : 0;
         const atkLean = (pose==='atk1') ? -3 : (pose==='atk2') ? 5 : 0;
@@ -4426,7 +4426,7 @@ const STAGE_CONFIG={
       // 中央エリア(y=500〜750)・スポーン地点(150,627)から離れた位置
       ['goblin', 350, 550],['goblin', 700, 550],['goblin', 1000, 550],
       ['troll',  500, 650],['troll',  900, 650],
-      ['bat',    400, 750],['bat',    750, 750],['bat',    1050, 700],
+      ['bat',    400, 750],['bat',    750, 750],['bat',    900, 800],
       // 南側エリア(y=800〜1050)
       ['slime',  300, 900],['slime',  600, 900],['slime',  900, 900],
       ['goblin', 450, 1000],['goblin', 800, 1000],
@@ -4458,9 +4458,11 @@ const STAGE_CONFIG={
       ['obj_rock', 1200, 990],
       ['obj_tree', 1400, 960],
     ],
-    // 橋: 川を東西に渡れるゾーン(色判定を無視して歩行可)
+    // 橋: 川を南北に渡れるゾーン(色判定を無視して歩行可)
+    // 橋の周辺を広めに取って、橋へのアプローチも確保
     walkZones:[
-      {x:700, y:1230, w:140, h:110}, // 中央の木製橋
+      {x:680, y:1180, w:200, h:200},   // 中央の木製橋(縦長で南北アクセス確保)
+      {x:660, y:1290, w:240, h:60},    // 橋の上(東西方向の本体)
     ],
     enemies:[
       // 入口側(左下) - 草原
@@ -4492,7 +4494,7 @@ const STAGE_CONFIG={
     spawnFromNextX:1200, spawnFromNextY:1500,  // ST3から戻ってきたら右下内側 (出口から距離≈283px)
   },
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',90,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900,
     // 東側にゴブリン集落への分岐ポータル(踏むとダイアログなしで即遷移)
     sidePortal:{x:1400, y:540, to:20, returnX:200, returnY:540},
@@ -7319,6 +7321,18 @@ class GameScene extends Phaser.Scene{
       {key:'hit',label:'命中 DEX',desc:'HIT +2/pt', col:'#3498db',apply:(p,n)=>{p.hit+=n*2}},
     ];
     const stmp={}; S.forEach(s=>{stmp[s.key]=0;}); let tmpPts=pd.statPts||0;
+    // ── ROのステ振り増分コスト ──
+    // 現在の振り分け値が N の時、+1 するためのコスト = floor(N/10) + 2
+    // N=0〜9: 2pt, N=10〜19: 3pt, N=20〜29: 4pt, ..., N=90〜98: 11pt
+    const STAT_MAX = 99; // 1ステ最大99
+    // 各ステの現在の「振り分け済み量」を取得(基本値からの差分ではなく、累計振り分けpts)
+    // 既存仕様: pd.intPts/strPts/vitPts/dexPts/agiPts/lukPts に振り分けptsを記録
+    const getAllocated=(s)=>{
+      const map={atk:'strPts',mag:'intPts',mhp:'vitPts',hit:'dexPts',agi:'agiPts',luk:'lukPts'};
+      const k=map[s.key];
+      return (pd[k]||0) + (stmp[s.key]||0);
+    };
+    const getCost=(currentN)=>Math.floor(currentN/10)+2;
     const svStr=(key)=>{
       if(key==='spd')return String(pd.spd);
       if(key==='mhp')return String(pd.mhp);
@@ -7374,11 +7388,33 @@ class GameScene extends Phaser.Scene{
       // ＋ ボタン
       const bp=sadd(this.add.rectangle(bpX2,cy,btnW,CELL_H-16,0x44aaff,0.25).setStrokeStyle(2,0x44aaff).setInteractive());
       sadd(this.add.text(bpX2,cy,'＋',{fontSize:'18px',fontFamily:'Arial',color:'#44aaff'}).setOrigin(0.5));
+      // 現在値+仮割り振り後のN(+1コスト計算用)
+      const updateAddTxt=()=>{
+        const n=stmp[s.key]||0;
+        const allocated=getAllocated(s);
+        const nextCost=getCost(allocated);
+        if(n>0){
+          addTxt.setText('(+'+n+'  次:'+getCost(allocated)+'pt)');
+        }else{
+          addTxt.setText('次:'+nextCost+'pt');
+        }
+      };
+      updateAddTxt();
       const adj=(dir)=>{
         const n=stmp[s.key]||0;
-        if(dir>0&&tmpPts<=0)return; if(dir<0&&n<=0)return;
-        stmp[s.key]=n+dir; tmpPts-=dir;
-        addTxt.setText(stmp[s.key]>0?'(+'+stmp[s.key]+')':'');
+        const allocated=getAllocated(s);
+        if(dir>0){
+          if(allocated>=STAT_MAX)return; // MAX到達
+          const cost=getCost(allocated);
+          if(tmpPts<cost)return;
+          stmp[s.key]=n+1; tmpPts-=cost;
+        }else{
+          if(n<=0)return; // 仮割り振り分のみ-可
+          // -1 の払い戻し: 1個前のコストを返す(allocated-1のコスト)
+          const refund=getCost(allocated-1);
+          stmp[s.key]=n-1; tmpPts+=refund;
+        }
+        updateAddTxt();
         refreshPts(); SE('click');
       };
       bm.on('pointerdown',()=>adj(-1)); bm.on('pointerover',()=>bm.setFillStyle(0xe74c3c,0.5)); bm.on('pointerout',()=>bm.setFillStyle(0xe74c3c,0.25));
@@ -7396,7 +7432,14 @@ class GameScene extends Phaser.Scene{
       let any=false;
       S.forEach(s=>{const n=stmp[s.key]||0;if(n>0){s.apply(pd,n);any=true;}stmp[s.key]=0;});
       pd.statPts=tmpPts;
-      S.forEach(s=>{if(vt[s.key])vt[s.key].setText(svStr(s.key));if(at[s.key])at[s.key].setText('');});
+      S.forEach(s=>{
+        if(vt[s.key])vt[s.key].setText(svStr(s.key));
+        // 確定後はコスト表示を再計算
+        if(at[s.key]){
+          const allocated=(pd[{atk:'strPts',mag:'intPts',mhp:'vitPts',hit:'dexPts',agi:'agiPts',luk:'lukPts'}[s.key]]||0);
+          at[s.key].setText('次:'+(Math.floor(allocated/10)+2)+'pt');
+        }
+      });
       refreshPts(); if(any){SE('levelup');this.updateHUD();}
     });
 
@@ -8654,8 +8697,47 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     while(pd.exp>=pd.expNext){
       pd.exp-=pd.expNext;pd.lv++;pd.expNext=Math.floor(pd.expNext*1.4);
-      pd.mhp+=8;pd.hp=pd.mhp;pd.atk+=1;pd.def+=1;pd.msp+=5;pd.sp=pd.msp;
-      pd.statPts=(pd.statPts||0)+3;
+      // クラス別の緩やかな自動成長
+      const cls=pd.cls||'novice';
+      // 共通の最低限の成長(全クラス)
+      pd.mhp+=4; pd.hp=pd.mhp;
+      pd.msp+=2; pd.sp=pd.msp;
+      // クラス別ボーナス成長(2Lvに1回など緩やかに)
+      const lv=pd.lv;
+      if(cls==='warrior'){
+        // 剣士: HP・DEF特化
+        pd.mhp+=3; pd.hp=pd.mhp;
+        if(lv%2===0){pd.atk+=1;}
+        if(lv%2===0){pd.def+=1;}
+      }else if(cls==='mage'){
+        // メイジ: MAG・SP特化
+        pd.msp+=3; pd.sp=pd.msp;
+        if(lv%2===0){pd.mag+=1;}
+        if(lv%3===0){pd.def+=1;}
+      }else if(cls==='archer'){
+        // アーチャー: ATK・命中特化
+        if(lv%2===0){pd.atk+=1;}
+        if(lv%2===0){pd.hit+=1;}
+        if(lv%3===0){pd.def+=1;}
+      }else if(cls==='bomber'){
+        // ボマー: バランス・SP多め
+        pd.msp+=2; pd.sp=pd.msp;
+        if(lv%2===0){pd.atk+=1;}
+        if(lv%3===0){pd.mag+=1;}
+        if(lv%3===0){pd.def+=1;}
+      }else{
+        // ノービス: 全部緩やか
+        if(lv%3===0){pd.atk+=1;}
+        if(lv%3===0){pd.def+=1;}
+        if(lv%4===0){pd.mag+=1;}
+      }
+      // 振り分けポイント: Lvが上がるほど多めに(ROっぽい曲線)
+      // 1〜10Lv: +3pt, 11〜30Lv: +4pt, 31〜60Lv: +5pt, 61〜: +6pt
+      let ptGain=3;
+      if(lv>=11)ptGain=4;
+      if(lv>=31)ptGain=5;
+      if(lv>=61)ptGain=6;
+      pd.statPts=(pd.statPts||0)+ptGain;
       SE('levelup');
       this._showLevelUpEffect(pd.lv);
     }
@@ -9021,9 +9103,19 @@ class GameScene extends Phaser.Scene{
       // 派手な演出
       this.cameras.main.flash(600, 255, 230, 100);
       try{ SE('lvup'); }catch(e){}
+      // 現在位置を保持して再スポーン(転職場の前で発動)
+      const keepX=this.player ? this.player.x : null;
+      const keepY=this.player ? this.player.y : null;
       // シーン再起動でスプライト切替
       this.time.delayedCall(700, ()=>{
-        this._doTransition('Game', {playerData:pd, stage:this.stage});
+        const data={playerData:pd, stage:this.stage};
+        // 現在位置を保持
+        if(keepX!==null && keepY!==null){
+          data.fromPortal='magic';
+          data.magicReturnX=keepX;
+          data.magicReturnY=keepY;
+        }
+        this._doTransition('Game', data);
       });
     });
     btnY.on('pointerover',()=>btnY.setFillStyle(0x66cc66,0.95));
