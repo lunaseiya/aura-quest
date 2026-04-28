@@ -1032,7 +1032,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st8', BASE+'maps/st8.png');
     this.load.image('map_dun1', BASE+'maps/dun1.png');
     this.load.image('map_st20', BASE+'maps/st20.png');
-    this.load.image('map_blaze', BASE+'maps/blaze_forge.png');
+    this.load.image('map_blaze', BASE+'maps/town1.png');
     this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
   }
   create(){
@@ -1353,6 +1353,17 @@ class BootScene extends Phaser.Scene{
       });
       g.generateTexture('player_novice', SW, SH);
       g.destroy();
+      // 生成したテクスチャをスプライトシートとして分割
+      // 各フレームを 'player_novice' テクスチャに矩形として登録
+      const tex=this.textures.get('player_novice');
+      if(tex){
+        for(let row=0; row<ROWS; row++){
+          for(let col=0; col<COLS; col++){
+            const idx=row*COLS+col;
+            tex.add(idx, 0, col*FW, row*FH, FW, FH);
+          }
+        }
+      }
     }
 
     // ══════════════════════════════════════
@@ -4210,41 +4221,61 @@ class ClassSelectScene extends Phaser.Scene{
       startBGM('title');
     }
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
-    this.add.text(w/2,36,'✨ 新しい冒険の始まり ✨',{fontSize:'24px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
+    this.add.text(w/2,40,'✨ 新しい冒険の始まり ✨',{fontSize:'24px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
 
-    // ── ノービス紹介(中央大カード) ──
-    const cx=w/2, cy=h/2-20;
-    const card=this.add.rectangle(cx,cy,420,200,0x44aaff,0.12).setStrokeStyle(2,0x44aaff);
-    // 仮アイコン(剣士スプライトを流用・後でノービス専用に)
-    this.add.sprite(cx-130,cy,'player_novice').setFrame(0).setDisplaySize(80,100);
-    this.add.text(cx-50,cy-70,'⭐ ノービス',{fontSize:'24px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0,0.5);
-    this.add.text(cx-50,cy-40,'駆け出しの冒険者',{fontSize:'13px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(0,0.5);
-    this.add.text(cx-50,cy-10,
-      '・全ステータス控えめだが\n  自由度が高い\n・ジョブLv5でブレイズフォージにて\n  4つの職業に転職可能',
-      {fontSize:'12px',fontFamily:'Arial',color:'#cccccc',lineSpacing:5}
-    ).setOrigin(0,0.5);
+    // ── ノービス紹介カード(縦長で文字も見やすく) ──
+    const cx=w/2, cy=h/2-30;
+    const cardW=460, cardH=300;
+    this.add.rectangle(cx,cy,cardW,cardH,0x0a1a3a,0.92).setStrokeStyle(2,0x44aaff);
 
-    // 進化先プレビュー(カード下に4職アイコン横並び)
-    const evoY=cy+90;
-    this.add.text(cx,evoY-22,'▼ ジョブLv5で転職可能 ▼',{fontSize:'11px',fontFamily:'Arial',color:'#888888'}).setOrigin(0.5);
+    // 上部: アイコン横並び
+    const topY = cy - cardH/2 + 50;
+    // 左: スプライト
+    this.add.sprite(cx-cardW/2+70, topY+10, 'player_novice', 0).setDisplaySize(76,76);
+    // 右: クラス名+サブ説明
+    this.add.text(cx-80, topY-10, '⭐ ノービス', {
+      fontSize:'26px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2
+    }).setOrigin(0,0.5);
+    this.add.text(cx-80, topY+18, '〜 駆け出しの冒険者 〜', {
+      fontSize:'13px',fontFamily:'Arial',color:'#aaccdd',fontStyle:'italic'
+    }).setOrigin(0,0.5);
+
+    // 区切り線
+    this.add.rectangle(cx, cy-15, cardW-40, 1, 0x44aaff, 0.5);
+
+    // 中央: 説明文(行間ゆったり)
+    const descY = cy + 25;
+    this.add.text(cx, descY, '全ステータスは控えめだが\n自由度の高い基本クラス', {
+      fontSize:'14px',fontFamily:'Arial',color:'#ffffff',align:'center',lineSpacing:6
+    }).setOrigin(0.5);
+    this.add.text(cx, descY + 60, 'ジョブLv5でブレイズフォージにて\n4つの職業に転職可能', {
+      fontSize:'12px',fontFamily:'Arial',color:'#aaccdd',align:'center',lineSpacing:6
+    }).setOrigin(0.5);
+
+    // 下部: 進化先プレビュー(カード下)
+    const evoY = cy + cardH/2 + 30;
+    this.add.text(cx, evoY-12, '▼ 転職先 ▼', {
+      fontSize:'12px',fontFamily:'Arial',color:'#888888'
+    }).setOrigin(0.5);
     const evoTexts=[
-      {icon:'⚔',name:'剣士',col:'#e74c3c',x:-150},
-      {icon:'🪄',name:'マジシャン',col:'#9b59b6',x:-50},
-      {icon:'🏹',name:'アーチャー',col:'#27ae60',x:50},
-      {icon:'💣',name:'ボマー',col:'#f39c12',x:150},
+      {icon:'⚔', name:'剣士',     col:'#e74c3c',x:-180},
+      {icon:'🪄', name:'マジシャン',col:'#9b59b6',x:-60},
+      {icon:'🏹', name:'アーチャー',col:'#27ae60',x:60},
+      {icon:'💣', name:'ボマー',    col:'#f39c12',x:180},
     ];
     evoTexts.forEach(e=>{
-      this.add.text(cx+e.x, evoY+5, e.icon+' '+e.name, {
+      this.add.text(cx+e.x, evoY+12, e.icon, {fontSize:'18px'}).setOrigin(0.5);
+      this.add.text(cx+e.x, evoY+34, e.name, {
         fontSize:'12px',fontFamily:'Arial',color:e.col,fontStyle:'bold'
       }).setOrigin(0.5);
     });
 
-    // 「冒険を始める」ボタン
-    const startY=h-90;
-    const startBtn=this.add.rectangle(cx, startY, 240, 50, 0x44aa44, 0.85).setStrokeStyle(2, 0x88ff88).setInteractive({useHandCursor:true});
-    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'18px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
-    startBtn.on('pointerover',()=>startBtn.setFillStyle(0x66cc66,0.95));
-    startBtn.on('pointerout', ()=>startBtn.setFillStyle(0x44aa44,0.85));
+    // 「冒険を始める」ボタン(画面下)
+    const startY=h-80;
+    const startBtn=this.add.rectangle(cx, startY, 260, 56, 0x44aa44, 0.9).setStrokeStyle(3, 0x88ff88).setInteractive({useHandCursor:true});
+    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'20px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+    startBtn.on('pointerover',()=>startBtn.setFillStyle(0x66cc66,1));
+    startBtn.on('pointerout', ()=>startBtn.setFillStyle(0x44aa44,0.9));
     startBtn.on('pointerdown',()=>{
       const pd=makePlayerData('novice');
       if(testMode){
@@ -4256,7 +4287,7 @@ class ClassSelectScene extends Phaser.Scene{
       this.scene.start('Game',{playerData:pd, stage:0});
     });
 
-    // 旧クラス選択ループは無効化(下で何もしない)
+    // 旧クラス選択ループは無効化
     const classes=[]; // 空配列にして既存コード無効化
     classes.forEach(cls=>{
       const cx=w/2+cls.x,cy=h/2+cls.y;
