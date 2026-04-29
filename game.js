@@ -10185,38 +10185,47 @@ window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
 window.game = _game;
 
 // スマホ用デバッグオーバーレイ: console.log/warn/error を画面に表示
-// URLに ?debug=1 を付けると有効化
+// 自動有効: ?debug=1 OR エラーが起きたら自動表示
 (function(){
-  try{
-    const params = new URLSearchParams(window.location.search);
-    if(params.get('debug')!=='1') return;
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:40vh;overflow-y:auto;background:rgba(0,0,0,0.8);color:#0f0;font:11px monospace;padding:6px;z-index:99999;pointer-events:none;white-space:pre-wrap;';
+  let div = null;
+  const lines = [];
+  const ensure = ()=>{
+    if(div) return div;
+    div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:80px;left:5px;right:5px;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,0.92);color:#0f0;font:11px monospace;padding:8px;z-index:99999;pointer-events:auto;white-space:pre-wrap;border:2px solid #0f0;border-radius:8px;';
+    // 閉じるボタン
+    const close = document.createElement('div');
+    close.textContent = '×閉じる';
+    close.style.cssText = 'position:absolute;top:2px;right:6px;color:#fff;background:#a00;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;';
+    close.onclick = ()=>{div.style.display='none';};
+    div.appendChild(close);
     document.body.appendChild(div);
-    const lines = [];
-    const addLine = (color, args)=>{
-      const s = args.map(a=>{
-        if(a instanceof Error) return a.message+'\n'+(a.stack||'');
-        if(typeof a==='object') try{return JSON.stringify(a);}catch(e){return String(a);}
-        return String(a);
-      }).join(' ');
-      lines.push('<span style="color:'+color+'">'+s.replace(/</g,'&lt;')+'</span>');
-      if(lines.length>50) lines.shift();
-      div.innerHTML = lines.join('<br>');
-      div.scrollTop = div.scrollHeight;
-    };
-    const orig = {log:console.log, warn:console.warn, error:console.error};
-    console.log = function(){ orig.log.apply(console,arguments); addLine('#0f0', Array.from(arguments)); };
-    console.warn = function(){ orig.warn.apply(console,arguments); addLine('#fc0', Array.from(arguments)); };
-    console.error = function(){ orig.error.apply(console,arguments); addLine('#f44', Array.from(arguments)); };
-    window.addEventListener('error', (ev)=>{
-      addLine('#f44', ['ERROR:', ev.message, '@', ev.filename, ':', ev.lineno]);
-    });
-    window.addEventListener('unhandledrejection', (ev)=>{
-      addLine('#f44', ['REJECT:', ev.reason]);
-    });
-    addLine('#0ff', ['📱 デバッグログ起動','URL:',location.href]);
-  }catch(e){}
+    return div;
+  };
+  const addLine = (color, args)=>{
+    const s = args.map(a=>{
+      if(a instanceof Error) return a.message+'\n'+(a.stack||'');
+      if(typeof a==='object') try{return JSON.stringify(a);}catch(e){return String(a);}
+      return String(a);
+    }).join(' ');
+    lines.push('<span style="color:'+color+'">'+s.replace(/</g,'&lt;')+'</span>');
+    if(lines.length>80) lines.shift();
+    const d = ensure();
+    d.style.display = 'block';
+    d.innerHTML = '<div style="position:absolute;top:2px;right:6px;color:#fff;background:#a00;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;" onclick="this.parentElement.style.display=\'none\'">×閉じる</div>' + lines.join('<br>');
+    d.scrollTop = d.scrollHeight;
+  };
+  const orig = {log:console.log, warn:console.warn, error:console.error};
+  console.log = function(){ orig.log.apply(console,arguments); addLine('#0f0', Array.from(arguments)); };
+  console.warn = function(){ orig.warn.apply(console,arguments); addLine('#fc0', Array.from(arguments)); };
+  console.error = function(){ orig.error.apply(console,arguments); addLine('#f44', Array.from(arguments)); };
+  window.addEventListener('error', (ev)=>{
+    addLine('#f44', ['❌ ERROR:', ev.message, '@', (ev.filename||'').split('/').pop(), ':', ev.lineno]);
+  });
+  window.addEventListener('unhandledrejection', (ev)=>{
+    addLine('#f44', ['❌ REJECT:', ev.reason && ev.reason.message ? ev.reason.message : ev.reason]);
+  });
+  console.log('📱 デバッグログ起動 URL:'+location.href);
 })();
 
 // よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
