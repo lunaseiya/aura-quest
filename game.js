@@ -1033,6 +1033,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_dun1', BASE+'maps/dun1.png');
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/town1.png');
+    this.load.image('map_town0', BASE+'maps/town0.png');
     this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
@@ -4454,19 +4455,30 @@ class GameClearScene extends Phaser.Scene{
 // ============================================================
 const STAGE_CONFIG={
   0:{name:'🏘 セントラル', bgmKey:'town',
-    tiles:['tile_cobble','tile_town_wall','tile_town_path'],tileWeights:[80,10,10],
-    mapW:1200,mapH:800,
+    mapImage:'map_town0', mapType:'town0',
+    mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],
     objects:[],objPos:[],
     enemies:[],boss:null,bossThreshold:999,
-    portalTo:1,portalToLabel:'🌿 ST.1へ出発',portalToKey:'portal_st1',
-    portalBack:null,portalBackLabel:'',portalBackKey:'portal_town',
+    // ST1 への出口 = 右側のゲート
+    portalTo:1, portalToLabel:'🌿 ST.1へ出発', portalToKey:'portal_st1',
+    portalBack:null, portalBackLabel:'', portalBackKey:'portal_town',
+    // 入口・出口位置
+    spawnX:625, spawnY:700,           // 中央広場(噴水の少し下)
+    portalNextX:1200, portalNextY:610, // 右側のゲート(ST1へ)
+    spawnFromNextX:1130, spawnFromNextY:610,
+    // 5つの建物 (画像の建物位置に合わせる)
     buildings:[
-      {x:100,y:80, w:180,h:130,label:'🏨 宿屋',   type:'inn'},
-      {x:400,y:80, w:200,h:140,label:'🏪 ショップ',type:'shop'},
-      {x:750,y:80, w:180,h:130,label:'⚔ ギルド',  type:'guild'},
-      {x:150,y:400,w:160,h:120,label:'🔨 鍛冶屋',  type:'blacksmith'},
-      {x:600,y:380,w:200,h:150,label:'📖 スキル屋',  type:'magic'},
-      {x:380,y:440,w:170,h:130,label:'✨ 転職所(仮)',type:'jobchange'},
+      // 左上: ポータル屋(紫屋根・水晶・転送魔法陣)
+      {x:130, y:130, w:280, h:280, label:'✨ ポータル屋', type:'guild'},
+      // 中央上: 宿屋(オレンジ屋根・煙突)
+      {x:470, y:60,  w:340, h:330, label:'🏨 宿屋',     type:'inn'},
+      // 右上: スキル屋(緑屋根・本)
+      {x:870, y:140, w:280, h:280, label:'📖 スキル屋', type:'magic'},
+      // 左下: アイテム屋(青屋根・縞テント・果物)
+      {x:130, y:680, w:340, h:300, label:'🏪 アイテム屋', type:'shop'},
+      // 右下: 鍛冶屋(赤屋根・炉・金床)
+      {x:780, y:680, w:380, h:300, label:'🔨 鍛冶屋',   type:'blacksmith'},
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
@@ -4913,9 +4925,9 @@ class GameScene extends Phaser.Scene{
         o.refreshBody();
       });
     }
-    // 町の建物 (stage:0)
+    // 町の建物 (stage:0 で 画像マップを使ってない場合のみコードで描画)
     this.buildings=[];
-    if(this.stage===0&&cfg.buildings){
+    if(this.stage===0 && cfg.buildings && !cfg.mapImage){
       cfg.buildings.forEach(b=>{
         this.buildings.push(b);
         const bx=b.x, by=b.y, bw=b.w, bh=b.h;
@@ -5053,9 +5065,9 @@ class GameScene extends Phaser.Scene{
         wall.body.setOffset(0,0);
       });
     }
-    // ── 画像マップ町(ブレイズフォージ等)の建物入店判定 ──
+    // ── 画像マップ町の建物入店判定 ──
     // 建物の絵は画像で既にあるので、当たり判定と入店ロジックだけ追加
-    if(this.stage!==0 && cfg.buildings){
+    if(cfg.mapImage && cfg.buildings){
       cfg.buildings.forEach(b=>{
         this.buildings.push(b);
         const bx=b.x, by=b.y, bw=b.w, bh=b.h;
@@ -5177,10 +5189,10 @@ class GameScene extends Phaser.Scene{
         spawnX=cfg.spawnX; spawnY=cfg.spawnY;
       }
     }
-    // 町（stage:0）は建物と被らないよう、宿屋・ショップ・鍛冶屋の間の広場へ
+    // 町（stage:0）の初期スポーン位置: cfg.spawnX/Y を優先、なければハードコード
     if(this.stage===0&&!fromPortal){
-      spawnX=330;
-      spawnY=280;
+      spawnX=(cfg.spawnX!==undefined)?cfg.spawnX:330;
+      spawnY=(cfg.spawnY!==undefined)?cfg.spawnY:280;
     }
     // ノービスは専用スプライトを使用
     const spriteCls = pd.cls;
@@ -5348,6 +5360,12 @@ class GameScene extends Phaser.Scene{
         this.facingAngle=Phaser.Math.Angle.Between(this.player.x-this.cameras.main.scrollX,this.player.y-this.cameras.main.scrollY,ptr.x,ptr.y);
     });
     this.createHUD();this.createSkillButtons();this.createMinimap();this.createJoystick();this._createHomeButton();
+
+    // ── 画面回転対応: リサイズ時にUIを再配置 ──
+    if(!this._resizeHandlerSet){
+      this._resizeHandlerSet=true;
+      this.scale.on('resize', this._onScreenResize, this);
+    }
     // 毒状態を持ち越している場合は視覚効果を再適用
     if(pd._poisoned && pd._poisonTimer>0){
       if(this.player && this.player.setTint) this.player.setTint(0xcc88ff);
@@ -8095,6 +8113,30 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  _onScreenResize(gameSize){
+    // 画面回転やウィンドウリサイズ時にUIを再配置
+    // ジョイスティック・ミニマップ・スキルボタンは固定座標で作られているため
+    // 画面サイズが変わったら一旦破棄して作り直す
+    try{
+      // ジョイスティック関連の破棄
+      if(this.joyBase){this.joyBase.destroy();this.joyBase=null;}
+      if(this.joyKnob){this.joyKnob.destroy();this.joyKnob=null;}
+      if(this.joyLabel){this.joyLabel.destroy();this.joyLabel=null;}
+      // ミニマップ関連の破棄(複雑なのでminimapマーカーも対象)
+      if(this.mmBg){this.mmBg.destroy();this.mmBg=null;}
+      if(this.mmStageLabel){this.mmStageLabel.destroy();this.mmStageLabel=null;}
+      if(this.mmPlayerDot){this.mmPlayerDot.destroy();this.mmPlayerDot=null;}
+      if(this.mmEnemyDots){this.mmEnemyDots.forEach(d=>{try{d.destroy();}catch(e){}});this.mmEnemyDots=[];}
+      // スキルボタン・攻撃ボタン関連はthis._skillBtnsとthis._atkBtnなど未管理
+      // → 破棄しないが、画面回転時は新しいUIが既存の上に重なる
+      // 最低限ジョイスティックとミニマップだけは再配置すれば操作性が回復する
+      this.createMinimap();
+      this.createJoystick();
+    }catch(e){
+      console.warn('UI再配置エラー:', e);
+    }
+  }
+
   createSkillButtons(){
     const w=this.scale.width,h=this.scale.height,pd=this.playerData;
     const skillCols={warrior:0xe74c3c,mage:0x9b59b6,archer:0x27ae60,bomber:0xf39c12};
@@ -8218,8 +8260,8 @@ class GameScene extends Phaser.Scene{
     const w=this.scale.width,h=this.scale.height;
     const mw=110,mh=80,mx=w-mw-6,my=6;
     const cfg=this.cfg;
-    this.add.rectangle(mx,my,mw,mh,0x000000,0.72).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0xffd700);
-    this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+    this.mmBg=this.add.rectangle(mx,my,mw,mh,0x000000,0.72).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0xffd700);
+    this.mmStageLabel=this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
     this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
     this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
 
@@ -9367,6 +9409,14 @@ class GameScene extends Phaser.Scene{
       return true;
     }
 
+    // ── セントラル(町)town0(石畳・草・建物・森) ──
+    if(cfg.mapType==='town0'){
+      // 暗いエリア(森・建物・噴水・岩壁) → 壁
+      if(sum < 200) return false;
+      // それ以外(石畳・砂道) は歩ける
+      return true;
+    }
+
     // ── DUN.2 炭鉱(暗いマップ・床と壁の差が小さい) ──
     if(cfg.mapType==='mine'){
       // ほぼ完全な黒だけ壁(画像が全体的に暗いため緩めに)
@@ -10183,50 +10233,6 @@ window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
 
 // デバッグ用: ブラウザのコンソールから game.xxx でアクセスできるように
 window.game = _game;
-
-// スマホ用デバッグオーバーレイ: console.log/warn/error を画面に表示
-// 自動有効: ?debug=1 OR エラーが起きたら自動表示
-(function(){
-  let div = null;
-  const lines = [];
-  const ensure = ()=>{
-    if(div) return div;
-    div = document.createElement('div');
-    div.style.cssText = 'position:fixed;top:80px;left:5px;right:5px;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,0.92);color:#0f0;font:11px monospace;padding:8px;z-index:99999;pointer-events:auto;white-space:pre-wrap;border:2px solid #0f0;border-radius:8px;';
-    // 閉じるボタン
-    const close = document.createElement('div');
-    close.textContent = '×閉じる';
-    close.style.cssText = 'position:absolute;top:2px;right:6px;color:#fff;background:#a00;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;';
-    close.onclick = ()=>{div.style.display='none';};
-    div.appendChild(close);
-    document.body.appendChild(div);
-    return div;
-  };
-  const addLine = (color, args)=>{
-    const s = args.map(a=>{
-      if(a instanceof Error) return a.message+'\n'+(a.stack||'');
-      if(typeof a==='object') try{return JSON.stringify(a);}catch(e){return String(a);}
-      return String(a);
-    }).join(' ');
-    lines.push('<span style="color:'+color+'">'+s.replace(/</g,'&lt;')+'</span>');
-    if(lines.length>80) lines.shift();
-    const d = ensure();
-    d.style.display = 'block';
-    d.innerHTML = '<div style="position:absolute;top:2px;right:6px;color:#fff;background:#a00;padding:2px 8px;border-radius:4px;cursor:pointer;font-weight:bold;" onclick="this.parentElement.style.display=\'none\'">×閉じる</div>' + lines.join('<br>');
-    d.scrollTop = d.scrollHeight;
-  };
-  const orig = {log:console.log, warn:console.warn, error:console.error};
-  console.log = function(){ orig.log.apply(console,arguments); addLine('#0f0', Array.from(arguments)); };
-  console.warn = function(){ orig.warn.apply(console,arguments); addLine('#fc0', Array.from(arguments)); };
-  console.error = function(){ orig.error.apply(console,arguments); addLine('#f44', Array.from(arguments)); };
-  window.addEventListener('error', (ev)=>{
-    addLine('#f44', ['❌ ERROR:', ev.message, '@', (ev.filename||'').split('/').pop(), ':', ev.lineno]);
-  });
-  window.addEventListener('unhandledrejection', (ev)=>{
-    addLine('#f44', ['❌ REJECT:', ev.reason && ev.reason.message ? ev.reason.message : ev.reason]);
-  });
-  console.log('📱 デバッグログ起動 URL:'+location.href);
-})();
 
 // よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
 window.debug = {
