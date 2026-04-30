@@ -1008,6 +1008,8 @@ class BootScene extends Phaser.Scene{
     this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
     this.load.on('fileprogress',f=>txt.setText(f.key));
     this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:124,frameHeight:124});
+    // novice はスプライトシート (128×128px, 5×3=15コマ)
+    this.load.spritesheet('player_novice', BASE+'players/novice_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -1159,236 +1161,9 @@ class BootScene extends Phaser.Scene{
     const T=32; // タイルサイズ
     const mk2=(key,W,H,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g);g.generateTexture(key,W,H);g.destroy();};
 
-    // ══════════════════════════════════════
-    //  ノービス スプライトシート生成 (5列×3行=15フレーム、各124×124)
-    //  行1: 正面(idle, walk1, walk2, atk1, atk2)
-    //  行2: 後ろ(idle, walk1, walk2, atk1, atk2)
-    //  行3: 横向き(idle, walk1, walk2, atk1, atk2)
-    // ══════════════════════════════════════
-    {
-      const FW=124, FH=124, COLS=5, ROWS=3;
-      const SW=FW*COLS, SH=FH*ROWS;
-      const g=this.make.graphics({x:0,y:0,add:false});
 
-      // 1フレーム描画関数(各フレームの中心ピクセルにキャラを描く)
-      // pose: 'idle','walk1','walk2','atk1','atk2'
-      // facing: 'front','back','side'
-      const drawFrame=(g, fx, fy, pose, facing)=>{
-        const cx=fx+FW/2, cy=fy+FH/2;
-        const S=FW*0.50; // キャラの基準サイズ(約62px)・枠124pxに余裕を持たせる
-        // ── 各種オフセット ──
-        const walkOffset = (pose==='walk1') ? -2 : (pose==='walk2') ? 2 : 0;
-        const atkLean = (pose==='atk1') ? -3 : (pose==='atk2') ? 5 : 0;
-        const armSwing = pose==='atk2' ? 1 : (pose==='atk1' ? 0.3 : 0);
-        // ── 影 ──
-        g.fillStyle(0x000000, 0.3);
-        g.fillEllipse(cx, cy+S*0.45, S*0.55, S*0.10);
+    // ノービススプライトシートはpreloadで読み込み済み (player_novice)
 
-        if(facing==='side'){
-          // ─────── 横向き ───────
-          // 足(walk中は前後に開く)
-          const legSpread=(pose==='walk1')?6:(pose==='walk2')?-2:2;
-          g.fillStyle(0x3a2410, 1); // 茶ブーツ
-          g.fillEllipse(cx-4, cy+S*0.42, 8, 6); // 後ろ足
-          g.fillEllipse(cx+legSpread, cy+S*0.42, 8, 6); // 前足
-          // 脚(濃い茶のズボン)
-          g.fillStyle(0x5c3a18, 1);
-          g.fillRect(cx-6, cy+S*0.18, 5, S*0.25);
-          g.fillRect(cx+1, cy+S*0.18, 5, S*0.25);
-          // 体(緑のチュニック)
-          g.fillStyle(0x4a7a3a, 1);
-          g.fillEllipse(cx+atkLean*0.3, cy-S*0.05, S*0.32, S*0.40);
-          // 体の影(暗い緑)
-          g.fillStyle(0x2a5a1a, 0.5);
-          g.fillEllipse(cx+atkLean*0.3-S*0.08, cy-S*0.05, S*0.10, S*0.30);
-          // ベルト
-          g.fillStyle(0x2a1810, 1);
-          g.fillRect(cx-S*0.16+atkLean*0.3, cy+S*0.14, S*0.32, S*0.04);
-          g.fillStyle(0xddaa00, 1); // バックル
-          g.fillRect(cx-S*0.04+atkLean*0.3, cy+S*0.14, S*0.08, S*0.04);
-          // 腕(攻撃時は前へ伸びる)
-          g.fillStyle(0xeebb88, 1); // 肌色
-          if(pose==='atk1' || pose==='atk2'){
-            // 攻撃: 前に腕を突き出す
-            g.fillRect(cx+S*0.10+atkLean, cy-S*0.15, S*0.25+armSwing*8, 6);
-            // 棒(武器・素朴な木の棒)
-            g.fillStyle(0x6b4220, 1);
-            g.fillRect(cx+S*0.32+atkLean+armSwing*8, cy-S*0.18, S*0.30, 4);
-          }else{
-            // 通常: 腕は体の横
-            g.fillRect(cx-S*0.05, cy-S*0.05, 5, S*0.18);
-            g.fillRect(cx+S*0.10, cy-S*0.05, 5, S*0.18);
-          }
-          // 頭(肌色)
-          g.fillStyle(0xeebb88, 1);
-          g.fillEllipse(cx+atkLean*0.5, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
-          // 髪(茶色)
-          g.fillStyle(0x5c3a18, 1);
-          g.fillEllipse(cx+atkLean*0.5, cy-S*0.36+walkOffset*0.5, S*0.22, S*0.10);
-          // 緑の頭巾(ノービスらしさ)
-          g.fillStyle(0x3a6a2a, 1);
-          g.fillEllipse(cx+atkLean*0.5, cy-S*0.40+walkOffset*0.5, S*0.24, S*0.08);
-          // 頭巾の垂れ
-          g.fillStyle(0x2a5a1a, 1);
-          g.fillTriangle(cx-S*0.10+atkLean*0.5, cy-S*0.36, cx-S*0.20+atkLean*0.5, cy-S*0.18, cx-S*0.05+atkLean*0.5, cy-S*0.30);
-          // 目(横向きの片目)
-          g.fillStyle(0x000000, 1);
-          g.fillCircle(cx+S*0.06+atkLean*0.5, cy-S*0.28+walkOffset*0.5, 2);
-
-        }else if(facing==='front'){
-          // ─────── 正面 ───────
-          // 足(両足)
-          const legSpread=(pose==='walk1')?2:(pose==='walk2')?-2:0;
-          g.fillStyle(0x3a2410, 1);
-          g.fillEllipse(cx-S*0.12+legSpread, cy+S*0.43, 9, 6);
-          g.fillEllipse(cx+S*0.12-legSpread, cy+S*0.43, 9, 6);
-          // 脚
-          g.fillStyle(0x5c3a18, 1);
-          g.fillRect(cx-S*0.16+legSpread, cy+S*0.18, 7, S*0.25);
-          g.fillRect(cx+S*0.10-legSpread, cy+S*0.18, 7, S*0.25);
-          // 体(緑チュニック)
-          g.fillStyle(0x4a7a3a, 1);
-          g.fillEllipse(cx, cy-S*0.05, S*0.40, S*0.40);
-          // 体の縦の縫い目
-          g.fillStyle(0x2a5a1a, 0.6);
-          g.fillRect(cx-1, cy-S*0.20, 2, S*0.30);
-          // ベルト
-          g.fillStyle(0x2a1810, 1);
-          g.fillRect(cx-S*0.20, cy+S*0.14, S*0.40, S*0.04);
-          g.fillStyle(0xddaa00, 1);
-          g.fillRect(cx-S*0.04, cy+S*0.14, S*0.08, S*0.04);
-          // 腕(攻撃時は前に振る)
-          g.fillStyle(0xeebb88, 1);
-          if(pose==='atk1'){
-            // 攻撃前: 腕を上げる
-            g.fillRect(cx-S*0.30, cy-S*0.15, 6, S*0.20);
-            g.fillRect(cx+S*0.24, cy-S*0.25, 6, S*0.25);
-            // 棒
-            g.fillStyle(0x6b4220, 1);
-            g.fillRect(cx+S*0.20, cy-S*0.42, 4, S*0.22);
-          }else if(pose==='atk2'){
-            // 攻撃中: 腕を振り下ろす
-            g.fillRect(cx-S*0.30, cy-S*0.10, 6, S*0.20);
-            g.fillRect(cx+S*0.20, cy+S*0.05, 6, S*0.20);
-            // 棒(振り下ろし方向)
-            g.fillStyle(0x6b4220, 1);
-            g.fillRect(cx+S*0.20, cy+S*0.10, 4, S*0.30);
-          }else{
-            // 通常: 腕を体の横
-            g.fillRect(cx-S*0.26, cy-S*0.05, 6, S*0.22);
-            g.fillRect(cx+S*0.20, cy-S*0.05, 6, S*0.22);
-          }
-          // 頭(肌色)
-          g.fillStyle(0xeebb88, 1);
-          g.fillEllipse(cx, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
-          // 髪
-          g.fillStyle(0x5c3a18, 1);
-          g.fillEllipse(cx, cy-S*0.36+walkOffset*0.5, S*0.24, S*0.08);
-          // 頭巾
-          g.fillStyle(0x3a6a2a, 1);
-          g.fillEllipse(cx, cy-S*0.40+walkOffset*0.5, S*0.26, S*0.08);
-          // 頭巾の垂れ(両側)
-          g.fillStyle(0x2a5a1a, 1);
-          g.fillTriangle(cx-S*0.13, cy-S*0.36, cx-S*0.20, cy-S*0.18, cx-S*0.08, cy-S*0.30);
-          g.fillTriangle(cx+S*0.13, cy-S*0.36, cx+S*0.20, cy-S*0.18, cx+S*0.08, cy-S*0.30);
-          // 目(両目)
-          g.fillStyle(0x000000, 1);
-          g.fillCircle(cx-S*0.06, cy-S*0.28+walkOffset*0.5, 2);
-          g.fillCircle(cx+S*0.06, cy-S*0.28+walkOffset*0.5, 2);
-          // 口
-          g.fillStyle(0x6a3010, 0.7);
-          g.fillRect(cx-S*0.04, cy-S*0.20+walkOffset*0.3, S*0.08, 1.5);
-
-        }else if(facing==='back'){
-          // ─────── 後ろ向き ───────
-          // 足
-          const legSpread=(pose==='walk1')?2:(pose==='walk2')?-2:0;
-          g.fillStyle(0x3a2410, 1);
-          g.fillEllipse(cx-S*0.12+legSpread, cy+S*0.43, 9, 6);
-          g.fillEllipse(cx+S*0.12-legSpread, cy+S*0.43, 9, 6);
-          // 脚
-          g.fillStyle(0x5c3a18, 1);
-          g.fillRect(cx-S*0.16+legSpread, cy+S*0.18, 7, S*0.25);
-          g.fillRect(cx+S*0.10-legSpread, cy+S*0.18, 7, S*0.25);
-          // 体(後ろから見たチュニック)
-          g.fillStyle(0x4a7a3a, 1);
-          g.fillEllipse(cx, cy-S*0.05, S*0.40, S*0.40);
-          // 背中の中心線
-          g.fillStyle(0x2a5a1a, 0.6);
-          g.fillRect(cx-1, cy-S*0.25, 2, S*0.40);
-          // ベルト
-          g.fillStyle(0x2a1810, 1);
-          g.fillRect(cx-S*0.20, cy+S*0.14, S*0.40, S*0.04);
-          // 腕(攻撃ポーズも後ろ向きで)
-          g.fillStyle(0xeebb88, 1);
-          if(pose==='atk1' || pose==='atk2'){
-            // 攻撃: 上から振り下ろす(腕が両側に伸びる)
-            g.fillRect(cx-S*0.28, cy-S*0.20+armSwing*5, 6, S*0.20);
-            g.fillRect(cx+S*0.22, cy-S*0.20+armSwing*5, 6, S*0.20);
-            // 棒(後ろから見ると上に)
-            g.fillStyle(0x6b4220, 1);
-            g.fillRect(cx-2, cy-S*0.45+armSwing*8, 4, S*0.20);
-          }else{
-            g.fillRect(cx-S*0.26, cy-S*0.05, 6, S*0.22);
-            g.fillRect(cx+S*0.20, cy-S*0.05, 6, S*0.22);
-          }
-          // 頭(後ろから・髪が見える)
-          g.fillStyle(0x5c3a18, 1);
-          g.fillEllipse(cx, cy-S*0.30+walkOffset*0.5, S*0.22, S*0.26);
-          // 頭巾
-          g.fillStyle(0x3a6a2a, 1);
-          g.fillEllipse(cx, cy-S*0.36+walkOffset*0.5, S*0.26, S*0.20);
-          // 頭巾の垂れ(後ろに長く)
-          g.fillStyle(0x2a5a1a, 1);
-          g.fillTriangle(cx-S*0.10, cy-S*0.30, cx, cy-S*0.10, cx+S*0.10, cy-S*0.30);
-          // 後頭部の影
-          g.fillStyle(0x000000, 0.2);
-          g.fillEllipse(cx, cy-S*0.20, S*0.15, S*0.04);
-        }
-      };
-
-      // 全15フレームを描画
-      const poses=['idle','walk1','walk2','atk1','atk2'];
-      const facings=['front','back','side'];
-      facings.forEach((facing, row)=>{
-        poses.forEach((pose, col)=>{
-          const fx=col*FW, fy=row*FH;
-          drawFrame(g, fx, fy, pose, facing);
-        });
-      });
-      g.generateTexture('player_novice_raw', SW, SH);
-      g.destroy();
-      // 一旦 _raw のシングルフレームで生成 → ImageオブジェクトにしてaddSpriteSheetで再登録
-      // これで Phaser が正しくフレーム分割してくれる
-      try{
-        const rawTex=this.textures.get('player_novice_raw');
-        const srcImg=rawTex.getSourceImage();
-        // 既存の player_novice があれば削除
-        if(this.textures.exists('player_novice')){
-          this.textures.remove('player_novice');
-        }
-        this.textures.addSpriteSheet('player_novice', srcImg, {
-          frameWidth: FW,
-          frameHeight: FH,
-        });
-      }catch(e){
-        console.warn('addSpriteSheet failed, fallback to manual:', e);
-        // フォールバック: 手動add
-        const tex=this.textures.get('player_novice_raw');
-        if(this.textures.exists('player_novice')){
-          this.textures.remove('player_novice');
-        }
-        const newTex=this.textures.addImage('player_novice', tex.getSourceImage());
-        if(newTex){
-          for(let row=0; row<ROWS; row++){
-            for(let col=0; col<COLS; col++){
-              const idx=row*COLS+col;
-              try{ newTex.add(idx, 0, col*FW, row*FH, FW, FH); }catch(e2){}
-            }
-          }
-        }
-      }
-    }
 
     // ══════════════════════════════════════
     //  タイル生成（各32×32px）
@@ -3411,30 +3186,62 @@ class BootScene extends Phaser.Scene{
     });
 
     // ボス1
+    // ボス1: キングスライム(巨大なスライム・ぷるぷるしてる)
     mk('enemy_boss1',128,(g,S)=>{
-      g.fillStyle(0x000000,0.4);g.fillEllipse(S*.5,S*.96,S*.9,S*.14);
-      g.fillStyle(0x6600cc,0.1);g.fillCircle(S*.5,S*.5,S*.54);
-      g.fillStyle(0x220044,0.95);g.fillTriangle(S*.5,S*.36,S*.0,S*.04,S*.26,S*.54);g.fillTriangle(S*.5,S*.36,S*1.0,S*.04,S*.74,S*.54);
-      g.fillStyle(0x440066,0.4);g.fillTriangle(S*.5,S*.36,S*.04,S*.08,S*.28,S*.52);g.fillTriangle(S*.5,S*.36,S*.96,S*.08,S*.72,S*.52);
-      g.lineStyle(2,0xaa44ff,0.6);g.lineBetween(S*.5,S*.36,S*.0,S*.04);g.lineBetween(S*.5,S*.36,S*.26,S*.54);g.lineBetween(S*.5,S*.36,S*1.0,S*.04);g.lineBetween(S*.5,S*.36,S*.74,S*.54);g.lineBetween(S*.5,S*.36,S*.14,S*.16);g.lineBetween(S*.5,S*.36,S*.86,S*.16);
-      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.62,S*.52,S*.52);
-      g.fillStyle(0xffcc00,0.7);g.fillRect(S*.35,S*.5,S*.3,S*.03);g.fillRect(S*.35,S*.58,S*.3,S*.03);g.fillRect(S*.48,S*.46,S*.04,S*.22);g.fillEllipse(S*.5,S*.46,S*.16,S*.08);
-      g.fillStyle(0x2a2a3e,1);g.fillEllipse(S*.2,S*.5,S*.2,S*.16);g.fillEllipse(S*.8,S*.5,S*.2,S*.16);
-      g.fillStyle(0xffcc00,0.5);g.fillEllipse(S*.2,S*.5,S*.12,S*.08);g.fillEllipse(S*.8,S*.5,S*.12,S*.08);
-      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.16,S*.6,S*.16,S*.3);g.fillEllipse(S*.84,S*.6,S*.16,S*.3);
-      g.fillStyle(0x111111,1);g.fillCircle(S*.16,S*.74,S*.09);g.fillCircle(S*.84,S*.74,S*.09);
-      g.fillStyle(0xaa44ff,0.6);[-.06,-.02,.02,.06].forEach(o=>{g.fillRect(S*(.16+o),S*.8,S*.02,S*.07);g.fillRect(S*(.84+o),S*.8,S*.02,S*.07);});
-      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.34,S*.82,S*.18,S*.28);g.fillEllipse(S*.66,S*.82,S*.18,S*.28);
-      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.2);
-      g.fillStyle(0x1a1a2e,1);g.fillEllipse(S*.5,S*.24,S*.42,S*.34);
-      g.fillStyle(0xffcc00,1);g.fillRect(S*.3,S*.1,S*.4,S*.08);[0,1,2,3,4].forEach(i=>g.fillTriangle(S*(0.3+i*0.1),S*.1,S*(0.35+i*0.1),S*.02,S*(0.4+i*0.1),S*.1));
-      g.fillStyle(0xff2200,0.8);g.fillCircle(S*.35,S*.08,S*.03);g.fillCircle(S*.5,S*.04,S*.04);g.fillCircle(S*.65,S*.08,S*.03);
-      g.fillStyle(0xaa44ff,1);g.fillEllipse(S*.37,S*.23,S*.14,S*.12);g.fillEllipse(S*.63,S*.23,S*.14,S*.12);
-      g.fillStyle(0xcc88ff,0.7);g.fillEllipse(S*.37,S*.23,S*.08,S*.08);g.fillEllipse(S*.63,S*.23,S*.08,S*.08);
-      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.21,S*.03);g.fillCircle(S*.61,S*.21,S*.03);
-      g.fillStyle(0x110011,1);g.fillEllipse(S*.5,S*.32,S*.26,S*.1);
-      g.fillStyle(0xaa44ff,0.5);g.fillEllipse(S*.5,S*.31,S*.14,S*.05);
-      g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.39+i*0.075),S*.29,S*(0.37+i*0.075),S*.35,S*(0.41+i*0.075),S*.29);
+      // 影
+      g.fillStyle(0x000000,0.45);g.fillEllipse(S*.5,S*.96,S*.95,S*.12);
+      // 外側のオーラ(青緑)
+      g.fillStyle(0x44ddaa,0.15);g.fillEllipse(S*.5,S*.55,S*.55,S*.50);
+      g.fillStyle(0x66ffcc,0.20);g.fillEllipse(S*.5,S*.55,S*.50,S*.45);
+      // 本体・大きな水滴形(下が広く、上が丸い)
+      g.fillStyle(0x88ddff,1);g.fillEllipse(S*.5,S*.62,S*.86,S*.66);
+      // 本体の影(下半分・少し暗め)
+      g.fillStyle(0x4499cc,0.5);g.fillEllipse(S*.5,S*.78,S*.78,S*.32);
+      // 本体の中の透明感(白いハイライト・大)
+      g.fillStyle(0xffffff,0.5);g.fillEllipse(S*.32,S*.38,S*.30,S*.20);
+      g.fillStyle(0xffffff,0.7);g.fillEllipse(S*.30,S*.36,S*.16,S*.10);
+      // 王冠(キングスライム!)
+      g.fillStyle(0xffd700,1);g.fillRect(S*.30,S*.18,S*.40,S*.10);
+      // 王冠の三角(5つ)
+      [0,1,2,3,4].forEach(i=>{
+        const cx=0.32+i*0.09;
+        g.fillTriangle(S*cx, S*.18, S*(cx+0.045), S*.06, S*(cx+0.09), S*.18);
+      });
+      // 王冠の宝石(中央に赤・両側に青)
+      g.fillStyle(0xff2244,1);g.fillCircle(S*.5,S*.10,S*.04);
+      g.fillStyle(0xffffaa,0.8);g.fillCircle(S*.49,S*.09,S*.015);
+      g.fillStyle(0x44aaff,1);g.fillCircle(S*.36,S*.13,S*.025);g.fillCircle(S*.64,S*.13,S*.025);
+      // 王冠の縁(暗い金)
+      g.fillStyle(0xaa8800,1);g.fillRect(S*.30,S*.26,S*.40,S*.02);
+      // 大きな目(2つ)
+      g.fillStyle(0xffffff,1);g.fillEllipse(S*.36,S*.50,S*.14,S*.16);g.fillEllipse(S*.64,S*.50,S*.14,S*.16);
+      // 黒目
+      g.fillStyle(0x000000,1);g.fillEllipse(S*.36,S*.52,S*.08,S*.10);g.fillEllipse(S*.64,S*.52,S*.08,S*.10);
+      // 目の光(キラリ)
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.34,S*.50,S*.025);g.fillCircle(S*.62,S*.50,S*.025);
+      // 大きな口(笑顔)
+      g.fillStyle(0x224466,1);g.fillEllipse(S*.5,S*.72,S*.30,S*.12);
+      // 口の中(舌・赤紫)
+      g.fillStyle(0xff66aa,1);g.fillEllipse(S*.5,S*.74,S*.20,S*.06);
+      // 牙(かわいい牙2本)
+      g.fillStyle(0xffffff,1);
+      g.fillTriangle(S*.42,S*.66,S*.40,S*.74,S*.46,S*.70);
+      g.fillTriangle(S*.58,S*.66,S*.54,S*.70,S*.60,S*.74);
+      // 体の周りにこぼれる滴(スライムらしさ)
+      g.fillStyle(0x88ddff,0.85);
+      g.fillCircle(S*.18,S*.85,S*.05);
+      g.fillCircle(S*.82,S*.88,S*.045);
+      g.fillCircle(S*.10,S*.78,S*.03);
+      g.fillCircle(S*.90,S*.80,S*.04);
+      // ハイライト(滴)
+      g.fillStyle(0xffffff,0.6);
+      g.fillCircle(S*.17,S*.84,S*.018);
+      g.fillCircle(S*.81,S*.87,S*.015);
+      // 体の中の小さな気泡
+      g.fillStyle(0xffffff,0.4);
+      g.fillCircle(S*.45,S*.82,S*.025);
+      g.fillCircle(S*.58,S*.86,S*.020);
+      g.fillCircle(S*.65,S*.80,S*.018);
     });
 
     // ボス2（溶岩の覇者）
@@ -4245,59 +4052,59 @@ class ClassSelectScene extends Phaser.Scene{
       startBGM('title');
     }
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
-    this.add.text(w/2,40,'✨ 新しい冒険の始まり ✨',{fontSize:'24px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
+    this.add.text(w/2,32,'✨ 新しい冒険の始まり ✨',{fontSize:'20px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
 
-    // ── ノービス紹介カード(縦長で文字も見やすく) ──
-    const cx=w/2, cy=h/2-30;
-    const cardW=460, cardH=300;
+    // ── ノービス紹介カード(コンパクト) ──
+    const cx=w/2, cy=h/2-20;
+    const cardW=320, cardH=200;
     this.add.rectangle(cx,cy,cardW,cardH,0x0a1a3a,0.92).setStrokeStyle(2,0x44aaff);
 
     // 上部: アイコン横並び
-    const topY = cy - cardH/2 + 50;
+    const topY = cy - cardH/2 + 32;
     // 左: スプライト
-    this.add.sprite(cx-cardW/2+70, topY+10, 'player_novice', 0).setDisplaySize(76,76);
+    this.add.sprite(cx-cardW/2+38, topY+4, 'player_novice', 0).setDisplaySize(48,48);
     // 右: クラス名+サブ説明
-    this.add.text(cx-80, topY-10, '⭐ ノービス', {
-      fontSize:'26px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2
+    this.add.text(cx-50, topY-7, '⭐ ノービス', {
+      fontSize:'18px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2
     }).setOrigin(0,0.5);
-    this.add.text(cx-80, topY+18, '〜 駆け出しの冒険者 〜', {
-      fontSize:'13px',fontFamily:'Arial',color:'#aaccdd',fontStyle:'italic'
+    this.add.text(cx-50, topY+12, '〜 駆け出しの冒険者 〜', {
+      fontSize:'10px',fontFamily:'Arial',color:'#aaccdd',fontStyle:'italic'
     }).setOrigin(0,0.5);
 
     // 区切り線
-    this.add.rectangle(cx, cy-15, cardW-40, 1, 0x44aaff, 0.5);
+    this.add.rectangle(cx, cy-10, cardW-30, 1, 0x44aaff, 0.5);
 
     // 中央: 説明文(行間ゆったり)
-    const descY = cy + 25;
+    const descY = cy + 18;
     this.add.text(cx, descY, '全ステータスは控えめだが\n自由度の高い基本クラス', {
-      fontSize:'14px',fontFamily:'Arial',color:'#ffffff',align:'center',lineSpacing:6
+      fontSize:'11px',fontFamily:'Arial',color:'#ffffff',align:'center',lineSpacing:4
     }).setOrigin(0.5);
-    this.add.text(cx, descY + 60, 'ジョブLv5でブレイズフォージにて\n4つの職業に転職可能', {
-      fontSize:'12px',fontFamily:'Arial',color:'#aaccdd',align:'center',lineSpacing:6
+    this.add.text(cx, descY + 42, 'ジョブLv5でブレイズフォージにて\n4つの職業に転職可能', {
+      fontSize:'10px',fontFamily:'Arial',color:'#aaccdd',align:'center',lineSpacing:4
     }).setOrigin(0.5);
 
     // 下部: 進化先プレビュー(カード下)
-    const evoY = cy + cardH/2 + 30;
-    this.add.text(cx, evoY-12, '▼ 転職先 ▼', {
-      fontSize:'12px',fontFamily:'Arial',color:'#888888'
+    const evoY = cy + cardH/2 + 22;
+    this.add.text(cx, evoY-10, '▼ 転職先 ▼', {
+      fontSize:'10px',fontFamily:'Arial',color:'#888888'
     }).setOrigin(0.5);
     const evoTexts=[
-      {icon:'⚔', name:'剣士',     col:'#e74c3c',x:-180},
-      {icon:'🪄', name:'マジシャン',col:'#9b59b6',x:-60},
-      {icon:'🏹', name:'アーチャー',col:'#27ae60',x:60},
-      {icon:'💣', name:'ボマー',    col:'#f39c12',x:180},
+      {icon:'⚔', name:'剣士',     col:'#e74c3c',x:-120},
+      {icon:'🪄', name:'マジシャン',col:'#9b59b6',x:-40},
+      {icon:'🏹', name:'アーチャー',col:'#27ae60',x:40},
+      {icon:'💣', name:'ボマー',    col:'#f39c12',x:120},
     ];
     evoTexts.forEach(e=>{
-      this.add.text(cx+e.x, evoY+12, e.icon, {fontSize:'18px'}).setOrigin(0.5);
-      this.add.text(cx+e.x, evoY+34, e.name, {
-        fontSize:'12px',fontFamily:'Arial',color:e.col,fontStyle:'bold'
+      this.add.text(cx+e.x, evoY+8, e.icon, {fontSize:'14px'}).setOrigin(0.5);
+      this.add.text(cx+e.x, evoY+24, e.name, {
+        fontSize:'10px',fontFamily:'Arial',color:e.col,fontStyle:'bold'
       }).setOrigin(0.5);
     });
 
     // 「冒険を始める」ボタン(画面下)
-    const startY=h-80;
-    const startBtn=this.add.rectangle(cx, startY, 260, 56, 0x44aa44, 0.9).setStrokeStyle(3, 0x88ff88).setInteractive({useHandCursor:true});
-    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'20px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+    const startY=h-60;
+    const startBtn=this.add.rectangle(cx, startY, 200, 44, 0x44aa44, 0.9).setStrokeStyle(2, 0x88ff88).setInteractive({useHandCursor:true});
+    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'16px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
     startBtn.on('pointerover',()=>startBtn.setFillStyle(0x66cc66,1));
     startBtn.on('pointerout', ()=>startBtn.setFillStyle(0x44aa44,0.9));
     startBtn.on('pointerdown',()=>{
@@ -4499,7 +4306,7 @@ const STAGE_CONFIG={
       ['troll',  600, 1050],
     ],
     boss:{id:'boss1', x:627, y:627}, // 中央広場の真ん中(広いので戦いやすい)
-    bossThreshold:10, // 敵19体に増えたのでthresholdも10に
+    bossThreshold:15, // 敵を15体倒すとボス出現(1.5倍に引き上げ)
     portalTo:2,portalToLabel:'⛰ ST.2へ',portalToKey:'portal_st2',
     portalBack:0,portalBackLabel:'🏘 町へ',portalBackKey:'portal_town',
     // 入口=左の道(初回スポーン), 出口=右の道
@@ -4548,7 +4355,7 @@ const STAGE_CONFIG={
     ],
     // ボスは橋を渡った先(右下の広場・出口手前)
     boss:{id:'boss2', x:1100, y:1500},
-    bossThreshold:10,
+    bossThreshold:15,
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
     // 入口=左下の通路、出口=右下の通路
@@ -4559,8 +4366,8 @@ const STAGE_CONFIG={
     spawnFromBackX:300, spawnFromBackY:1500,   // ST1から戻ってきたら左下内側
     spawnFromNextX:1200, spawnFromNextY:1500,  // ST3から戻ってきたら右下内側 (出口から距離≈283px)
   },
-  3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:12,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:12,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900,
     // 東側にゴブリン集落への分岐ポータル(踏むとダイアログなしで即遷移)
     sidePortal:{x:1400, y:540, to:20, returnX:200, returnY:540},
@@ -4752,6 +4559,27 @@ const STAGE_CONFIG={
     spawnFromNextX:625, spawnFromNextY:1050,
   },
 };
+// 敵の日本語名(ラベル表示用)
+const ENEMY_NAMES={
+  slime:'スライム', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
+  wolf:'ウルフ', skeleton:'スケルトン', dragon:'ドラゴン',
+  crab:'カニ', seal:'シール', sandworm:'サンドワーム', scorpion:'スコーピオン',
+  sandman:'サンドマン', mummy:'ミイラ', bone_dragon:'ボーンドラゴン',
+  zombie:'ゾンビ', orc:'オーク', orc_general:'オーク将軍',
+  fire_bat:'フレイムバット', ice_wolf:'アイスウルフ', thunder_bird:'サンダーバード',
+  cloud_drake:'クラウドドレイク', mistress:'幻惑の女王', sky_serpent:'スカイサーペント',
+  thunder_god:'雷神',
+  // ボス
+  boss1:'キングスライム', boss2:'溶岩の覇者', boss3:'海の支配者', boss4:'砂嵐の暴君',
+  scorpion_queen:'蠍の女王', scorpion_king:'蠍王',
+  tomb_guardian:'墓守の王', dark_illusion:'ダークイリュージョン',
+  // ゴブリン集落
+  goblin_archer:'ゴブリンアーチャー', goblin_axe:'アックスゴブリン',
+  goblin_leader:'ゴブリンリーダー',
+  // 炭鉱
+  bone_walker:'ボーンウォーカー', treasure_hunt:'トレジャーハント', ghost:'ゴースト',
+};
+
 const ENEMY_DEFS={
   // passive:true=受動  eva=回避率%  element=属性(無/炎/氷/雷/水/土/風/光/闇)
   slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 ,element:'water'},
@@ -5072,9 +4900,14 @@ class GameScene extends Phaser.Scene{
         this.buildings.push(b);
         const bx=b.x, by=b.y, bw=b.w, bh=b.h;
         const cx=bx+bw/2, cy=by+bh/2;
-        // 建物の物理壁(歩行不可エリア)
-        // 画像で既に建物が見えるので、上部70%だけ壁にしてドア前は通れる
-        const wall=this.obstacles.create(cx,cy-bh*0.15,'wall_block').setDisplaySize(bw,bh*0.7).setAlpha(0);
+        // 建物の物理壁(歩行不可エリア)を建物本体の中心部分のみに絞る
+        // 周囲の道・草地は色判定で歩けるようにする
+        // 矩形サイズ: 幅 60%, 高さ 50%(中心寄り) で配置
+        const ww = bw * 0.60;
+        const wh = bh * 0.50;
+        const wcx = cx;          // 中心X
+        const wcy = by + bh*0.4; // 中心Y(やや上寄り = ドア前を空ける)
+        const wall=this.obstacles.create(wcx, wcy, 'wall_block').setDisplaySize(ww, wh).setAlpha(0);
         wall.refreshBody();
         // 建物名のラベル(屋根の上)
         this.add.text(cx, by-12, b.label, {
@@ -5199,6 +5032,12 @@ class GameScene extends Phaser.Scene{
     this.player=this.physics.add.sprite(spawnX,spawnY,'player_'+spriteCls).setDisplaySize(pSize,pSize).setCollideWorldBounds(true).setDepth(5);
     this._facing='front';  // 共通向き管理
     this._facingFlip=false;
+    // ── プレイヤーのHPバー(キャラクターの下) ──
+    const phpW = pSize * 0.9;
+    this._playerHpBarBg = this.add.rectangle(spawnX, spawnY+pSize/2+8, phpW, 5, 0x222222, 0.85).setDepth(6);
+    this._playerHpBarBg.setStrokeStyle(1, 0x000000, 0.7);
+    this._playerHpBar = this.add.rectangle(spawnX-phpW/2, spawnY+pSize/2+8, phpW, 5, 0x44dd44).setOrigin(0,0.5).setDepth(7);
+    this._playerHpBarW = phpW;
     // スプライトシートキャラのアニメ初期再生
     if(pd.cls==='bomber'){
       if(this.anims.exists('bomber_front_idle')){
@@ -8529,6 +8368,16 @@ class GameScene extends Phaser.Scene{
     };
     ed.hpBarBg=this.add.rectangle(x,y-def.sz/2-6,def.sz,5,0x333333).setDepth(5);
     ed.hpBar=this.add.rectangle(x-def.sz/2,y-def.sz/2-6,def.sz,5,0xe74c3c).setOrigin(0,0.5).setDepth(6);
+    // 敵の名前ラベル(HPバーの上)
+    const enemyName=ENEMY_NAMES[id]||id;
+    ed.nameLabel=this.add.text(x, y-def.sz/2-14, enemyName, {
+      fontSize: ed.isBoss?'13px':'10px',
+      fontFamily:'Arial',
+      color: ed.isBoss?'#ff6644':'#ffeecc',
+      fontStyle:'bold',
+      stroke:'#000',
+      strokeThickness:2
+    }).setOrigin(0.5).setDepth(6);
     this.enemyDataList.push(ed);
     if(ed.isBoss){this.bossData=ed;this.updateBossHP(ed);}
     return ed;
@@ -8639,6 +8488,7 @@ class GameScene extends Phaser.Scene{
     const isBoss=ed.isBoss;
     this.tweens.add({targets:ed.sprite,alpha:0,duration:300,onComplete:()=>{
       ed.sprite.destroy();ed.hpBarBg.destroy();ed.hpBar.destroy();
+      if(ed.nameLabel){ed.nameLabel.destroy();}
       // ボス以外: 5〜10秒後にランダム位置でリスポーン
       if(!isBoss){
         const delay=Phaser.Math.Between(5000,10000);
@@ -9891,6 +9741,17 @@ class GameScene extends Phaser.Scene{
       return;
     }
     this.updateJoystick();
+    // プレイヤーHPバーの追従と更新
+    if(this._playerHpBar && p){
+      const psize = p.displayHeight;
+      this._playerHpBarBg.setPosition(p.x, p.y + psize/2 + 8);
+      const ratio = Math.max(0, Math.min(1, pd.hp / pd.mhp));
+      this._playerHpBar.setPosition(p.x - this._playerHpBarW/2, p.y + psize/2 + 8);
+      this._playerHpBar.setSize(this._playerHpBarW * ratio, 5);
+      // 体力に応じて色変化(緑→黄→赤)
+      const col = ratio > 0.5 ? 0x44dd44 : (ratio > 0.25 ? 0xf39c12 : 0xe74c3c);
+      this._playerHpBar.setFillStyle(col);
+    }
     // 毒状態処理(毎フレーム)
     this._tickPoison(dt);
     // 敵弾のライフサイクル管理
@@ -9959,6 +9820,7 @@ class GameScene extends Phaser.Scene{
         sp.setVelocity(0,0);
         ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
         ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        if(ed.nameLabel)ed.nameLabel.setPosition(sp.x,sp.y-sp.displayHeight/2-14);
         return;
       }
 
@@ -9968,6 +9830,7 @@ class GameScene extends Phaser.Scene{
         sp.setVelocity(ed.knockVx,ed.knockVy);
         ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
         ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        if(ed.nameLabel)ed.nameLabel.setPosition(sp.x,sp.y-sp.displayHeight/2-14);
         return;
       }
 
@@ -9984,6 +9847,7 @@ class GameScene extends Phaser.Scene{
         this._moveEnemyWithCollision(ed, ed.wanderVx, ed.wanderVy, dt);
         ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
         ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        if(ed.nameLabel)ed.nameLabel.setPosition(sp.x,sp.y-sp.displayHeight/2-14);
         return;
       }
 
@@ -10037,6 +9901,7 @@ class GameScene extends Phaser.Scene{
 
       ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
       ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        if(ed.nameLabel)ed.nameLabel.setPosition(sp.x,sp.y-sp.displayHeight/2-14);
       if(ed._iceImg)ed._iceImg.setPosition(sp.x,sp.y);
     });
 
