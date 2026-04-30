@@ -8328,7 +8328,7 @@ class GameScene extends Phaser.Scene{
 
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
-    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior') return;
+    if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
     const key=cls+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
