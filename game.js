@@ -978,6 +978,10 @@ function calcHit(pd, enemyEva){
   return Math.min(99, Math.max(5, pd.hit - (enemyEva||0)));
 }
 function calcCrit(pd){
+  // オールクリティカル中は100%
+  if(pd._allCritUntil && Date.now() < pd._allCritUntil){
+    return 100;
+  }
   return pd.luk; // luk% がクリティカル率
 }
 function rollAttack(pd, enemyDef, enemyEva, atkElem, defElem){
@@ -3550,6 +3554,8 @@ const EQUIP_DEFS={
   muramasa:      {name:'妖刀 村雨',  slot:'weapon_main',icon:'🗡', desc:'呪われた妖刀。装備すると侍化が可能になる',stats:{atk:18,agi:5},     price:0,   col:0xff2244, classOnly:'warrior', awakening:'samurai'},
   // ── ヘヴィカスタマイズ(ボマー専用・覚醒「重装兵器」を発動可能) ──
   heavy_customize:{name:'ヘヴィカスタマイズ',slot:'weapon_main',icon:'🦾', desc:'重武装の改造装備。装備すると換装が可能になる',stats:{atk:22,def:5},price:0,col:0x4488cc, classOnly:'bomber', awakening:'heavy', twoHand:true},
+  // ── 精霊の弓(アーチャー専用・覚醒「転生」を発動可能) ──
+  spirit_bow:    {name:'精霊の弓',  slot:'weapon_main',icon:'🏹', desc:'精霊が宿る神秘の弓。装備するとエルフ化が可能になる',stats:{atk:20,hit:5},price:0,col:0x88ee88, classOnly:'archer', awakening:'spirit'},
   // ── アーチャー向け ──
   wooden_bow:    {name:'木の弓',    slot:'weapon_main',icon:'🏹', desc:'シンプルな木の弓・片手で持つ',         stats:{atk:7,hit:5},           price:80,  col:0x886633, classOnly:'archer'},
   composite_bow: {name:'合成弓',    slot:'weapon_main',icon:'🏹', desc:'複数素材を組み合わせた強弓・片手で持つ',stats:{atk:14,hit:8},          price:200, col:0xaa6633, classOnly:'archer'},
@@ -4573,6 +4579,7 @@ const AWAKENINGS = {
     icon: '🗡',
     baseClass: 'warrior',           // 元クラス(これ以外では発動不可)
     requiresEquip: 'muramasa',      // 武器に装備されている必要あり
+    manualDeactivate: false,        // 手動解除不可(自動解除のみ)
     statMul: {
       atk: 1.6,    // ATK +60%
       def: 0.5,    // DEF -50%
@@ -4612,7 +4619,35 @@ const AWAKENINGS = {
       {id:'sk3', name:'プリザーブドバスター',cost:28, cd:5, desc:'氷の波動で正面範囲に攻撃+凍結'},
     ],
   },
-  // 将来の追加: oni(剣士・鬼神化), elf(アーチャー), possess(メイジ)
+  // ── 転生・エルフ(アーチャー)──
+  spirit: {
+    name: 'エルフ',
+    icon: '🍃',
+    activateLabel: '転生',
+    deactivateLabel: '解除',
+    baseClass: 'archer',
+    requiresEquip: 'spirit_bow',
+    statMul: {
+      atk: 1.4,
+      def: 0.9,
+      mag: 1.5,
+      spd: 1.2,
+      hit: 1.2,
+      agi: 1.4,
+    },
+    // 発動時にHPを1/4にする(ペナルティ)
+    onActivateHpRatio: 0.25,
+    // 回復不可フラグ
+    blockHeal: true,
+    // 全スキル使い切ったら強制解除
+    autoDeactivateOnSkillsUsed: true,
+    skills: [
+      {id:'sk1', name:'ウインドカッター',cost:0, cd:0, desc:'扇状の風属性攻撃・1回限定'},
+      {id:'sk2', name:'精霊の誓い',     cost:0, cd:0, desc:'2体の精霊召喚で多段ビーム・1回限定'},
+      {id:'sk3', name:'オールクリティカル',cost:0, cd:0, desc:'一定時間100%クリティカル・1回限定'},
+    ],
+  },
+  // 将来の追加: oni(剣士・鬼神化), possess(メイジ)
 };
 
 // 敵の日本語名(ラベル表示用)
@@ -5847,6 +5882,14 @@ class GameScene extends Phaser.Scene{
     if(!pd.items||!pd.items[itemId]||pd.items[itemId]<=0)return;
     const def=ITEM_DEFS[itemId];
     if(!def||!def.usable)return;
+    // 覚醒中で回復禁止フラグがあれば、回復系アイテムをブロック
+    if(pd.awakened && AWAKENINGS[pd.awakened] && AWAKENINGS[pd.awakened].blockHeal){
+      const blocked=['hp_potion','sp_potion','elixir','antidote'];
+      if(blocked.includes(itemId)){
+        this.showFloat(this.player.x, this.player.y-50, '🍃 転生中は使えない', '#aaccaa', 'info');
+        return;
+      }
+    }
 
     if(itemId==='town_scroll'){
       // 帰還の巻物：消費して町（stage:0）へ
@@ -5896,8 +5939,17 @@ class GameScene extends Phaser.Scene{
     const cdKey='skillCD'+num;
     if((this[cdKey]||0)>0)return;
     if(this._casting){return;} // 詠唱中は新しいスキル不可
-    if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
-    pd.sp-=sk.cost; SE('skill');
+    // エルフ「転生」中: 各スキルは1回限定
+    if(pd.awakened==='spirit'){
+      if(pd._awakSkillsUsed && pd._awakSkillsUsed[num]){
+        this.showFloat(p.x,p.y-50,'使用済み','#888888','info');
+        return;
+      }
+    }else{
+      if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
+      pd.sp-=sk.cost;
+    }
+    SE('skill');
 
     // ─ 覚醒「重装兵器」(ヘヴィ) ─
     if(pd.awakened==='heavy'){
@@ -6099,6 +6151,176 @@ class GameScene extends Phaser.Scene{
         this.cameras.main.shake(150, 0.008);
         this.showFloat(p.x, p.y-80, '❄ プリザーブドバスター', '#aaeeff');
         this[cdKey]=sk.cd;
+      }
+      return;
+    }
+
+    // ─ 覚醒「エルフ」(spirit) ─
+    if(pd.awakened==='spirit'){
+      // 使用済みフラグ立て(共通処理)
+      if(!pd._awakSkillsUsed) pd._awakSkillsUsed={};
+      pd._awakSkillsUsed[num] = true;
+
+      if(num===1){ // ウインドカッター: 扇状の風属性攻撃
+        // 向き判定
+        let targetAng = 0;
+        let nearest=null, nd=600;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<nd){nd=d; nearest=ed;}
+        });
+        if(nearest){
+          targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
+        }
+        // 弓の発射演出: 中央から風が広がる
+        const bowFx = this.add.text(p.x, p.y-10, '🏹', {fontSize:'32px'}).setOrigin(0.5).setDepth(20).setRotation(targetAng);
+        this.tweens.add({targets: bowFx, alpha:0, scaleX:1.5, scaleY:1.5, duration:400, onComplete:()=>bowFx.destroy()});
+        // 風の刃を扇形に16発放つ
+        const fanAng = Math.PI / 3; // 60度の扇
+        const blades = 16;
+        for(let i=0;i<blades;i++){
+          const ang = targetAng + ((i/(blades-1)) - 0.5) * fanAng;
+          const len = 320;
+          const ex = p.x + Math.cos(ang) * len;
+          const ey = p.y + Math.sin(ang) * len;
+          // 風の刃エフェクト
+          const blade = this.add.line(0, 0, p.x, p.y, p.x+Math.cos(ang)*30, p.y+Math.sin(ang)*30, 0xaaffaa, 0.85).setOrigin(0).setLineWidth(4).setDepth(18);
+          this.tweens.add({
+            targets: blade,
+            duration: 300,
+            onUpdate: (tween)=>{
+              const t = tween.progress;
+              blade.setTo(p.x+Math.cos(ang)*30*(1+t*8), p.y+Math.sin(ang)*30*(1+t*8), p.x+Math.cos(ang)*60*(1+t*8), p.y+Math.sin(ang)*60*(1+t*8));
+            },
+            onComplete: ()=>blade.destroy(),
+          });
+          // 葉っぱも一緒に飛ぶ
+          if(i%3===0){
+            const leaf = this.add.text(p.x, p.y, '🍃', {fontSize:'18px'}).setOrigin(0.5).setDepth(18);
+            this.tweens.add({
+              targets: leaf,
+              x: ex, y: ey,
+              rotation: Math.PI*2,
+              alpha: 0,
+              duration: 400,
+              onComplete: ()=>leaf.destroy(),
+            });
+          }
+        }
+        // 範囲内の敵にダメージ
+        const targets = this.enemyDataList.filter(ed=>{
+          if(ed.dead) return false;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d > 320) return false;
+          const a = Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          let dAng = a - targetAng;
+          while(dAng > Math.PI) dAng -= Math.PI*2;
+          while(dAng < -Math.PI) dAng += Math.PI*2;
+          return Math.abs(dAng) < fanAng/2;
+        });
+        targets.forEach(ed=>{
+          const baseDmg = Math.max(1, Math.floor(pd.atk * 3.0 + (pd.mag||0) * 1.5));
+          const isCrit = Math.random()*100 < calcCrit(pd);
+          const em = getElementMult('wind', ed.element||'none');
+          const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
+          this.hitEnemy(ed, dmg, isCrit, true, em.label);
+        });
+        this.cameras.main.shake(150, 0.008);
+        this.showFloat(p.x, p.y-80, '🍃 ウインドカッター', '#aaffaa');
+      }else if(num===2){ // 精霊の誓い: 2体の精霊を召喚し10発のビーム
+        // 最寄り敵をターゲット
+        let target=null, td=500;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<td){td=d; target=ed;}
+        });
+        if(!target){
+          this.showFloat(p.x,p.y-50,'敵が居ない','#888888','info');
+          // 使用済みフラグを取り消し(復活させる)
+          pd._awakSkillsUsed[num] = false;
+          return;
+        }
+        // 精霊2体を生成(プレイヤーから飛び出す)
+        const spirits=[];
+        for(let i=0;i<2;i++){
+          const sp = this.add.text(p.x+(i===0?-30:30), p.y, '✨', {fontSize:'28px'}).setOrigin(0.5).setDepth(19);
+          // 浮遊するアニメーション
+          spirits.push({sprite:sp, phase: i*Math.PI});
+        }
+        // 5発ずつ、合計10発(交互に)
+        const totalShots = 10;
+        for(let i=0;i<totalShots;i++){
+          this.time.delayedCall(i*200, ()=>{
+            if(target.dead || !target.sprite) return;
+            const spIdx = i%2;
+            const sp = spirits[spIdx].sprite;
+            // 精霊の動き(対象周囲を右往左往)
+            const around = (Math.random()-0.5) * 100;
+            const aroundY = (Math.random()-0.5) * 80;
+            this.tweens.add({
+              targets: sp,
+              x: target.sprite.x + around,
+              y: target.sprite.y + aroundY,
+              duration: 150,
+              onComplete: ()=>{
+                if(target.dead || !target.sprite) return;
+                // ビーム発射
+                const beam = this.add.line(0, 0, sp.x, sp.y, target.sprite.x, target.sprite.y, 0x88ffaa, 1).setOrigin(0).setLineWidth(3).setDepth(18);
+                this.tweens.add({targets:beam, alpha:0, duration:200, onComplete:()=>beam.destroy()});
+                // ダメージ
+                const baseDmg = Math.max(1, Math.floor(pd.atk * 0.8));
+                const isCrit = Math.random()*100 < calcCrit(pd);
+                const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
+                this.hitEnemy(target, dmg, isCrit, true, '');
+                // ヒット閃光
+                const flash = this.add.circle(target.sprite.x, target.sprite.y, 8, 0x88ffaa, 0.8).setDepth(18);
+                this.tweens.add({targets:flash, alpha:0, scaleX:2, scaleY:2, duration:200, onComplete:()=>flash.destroy()});
+              },
+            });
+          });
+        }
+        // 全弾終わったら精霊を消す
+        this.time.delayedCall(totalShots*200 + 300, ()=>{
+          spirits.forEach(s=>{
+            this.tweens.add({targets:s.sprite, alpha:0, scaleX:0, scaleY:0, duration:300, onComplete:()=>{try{s.sprite.destroy();}catch(e){}}});
+          });
+        });
+        this.showFloat(p.x, p.y-80, '✨ 精霊の誓い', '#88ffaa');
+      }else if(num===3){ // オールクリティカル: 一定時間100%CRIT
+        const dur = 8000; // 8秒
+        pd._allCritUntil = Date.now() + dur;
+        this.showBuffTimer('オールCRIT','#ffaa44', dur);
+        // 黄金のオーラを足元に追加
+        const ring = this.add.circle(p.x, p.y, 50, 0xffaa44, 0).setStrokeStyle(4, 0xffcc66, 0.85).setDepth(15);
+        pd._allCritRing = ring;
+        this.tweens.add({
+          targets: ring,
+          rotation: Math.PI * 2,
+          duration: 2000,
+          repeat: -1,
+        });
+        // 解除タイマー
+        this.time.delayedCall(dur, ()=>{
+          if(pd._allCritRing){try{pd._allCritRing.destroy();}catch(e){} pd._allCritRing=null;}
+          pd._allCritUntil = 0;
+        });
+        this.showFloat(p.x, p.y-80, '⭐ オールクリティカル', '#ffaa44');
+      }
+      // 全スキル使い切った? → 自動解除
+      const A = AWAKENINGS.spirit;
+      if(A.autoDeactivateOnSkillsUsed){
+        const allUsed = pd._awakSkillsUsed[1] && pd._awakSkillsUsed[2] && pd._awakSkillsUsed[3];
+        if(allUsed){
+          // 少し演出を見せてから解除
+          this.time.delayedCall(2500, ()=>{
+            if(pd.awakened==='spirit'){
+              this.showFloat(p.x, p.y-60, '転生 終了', '#aaccaa');
+              this._deactivateAwakening(false);
+            }
+          });
+        }
       }
       return;
     }
@@ -8267,6 +8489,12 @@ class GameScene extends Phaser.Scene{
       try{ SE('click'); }catch(e){}
       const pd=this.playerData;
       if(pd.awakened){
+        // 手動解除可否をチェック(侍は自動解除のみ)
+        const A = AWAKENINGS[pd.awakened];
+        if(A && A.manualDeactivate === false){
+          // 手動解除不可: 何もしない
+          return;
+        }
         this._deactivateAwakening();
       }else{
         // 装備中の武器から覚醒種別を判定
@@ -8297,7 +8525,18 @@ class GameScene extends Phaser.Scene{
     const eq=pd.equip&&pd.equip.weapon_main;
     const def=eq?EQUIP_DEFS[eq]:null;
     const canAwaken = def && def.awakening && AWAKENINGS[def.awakening];
-    const visible = !!canAwaken || !!pd.awakened;
+    // 覚醒中で手動解除不可ならボタン自体を隠す
+    let visible;
+    if(pd.awakened){
+      const A = AWAKENINGS[pd.awakened];
+      if(A && A.manualDeactivate === false){
+        visible = false;
+      }else{
+        visible = true;
+      }
+    }else{
+      visible = !!canAwaken;
+    }
     this._awakBtnBg.setVisible(visible);
     this._awakBtnTxt.setVisible(visible);
     this._awakBtnLabel.setVisible(visible);
@@ -8309,6 +8548,9 @@ class GameScene extends Phaser.Scene{
       if(pd.awakened==='heavy'){
         this._awakBtnBg.setFillStyle(0x4488cc, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0x88ccff);
+      }else if(pd.awakened==='spirit'){
+        this._awakBtnBg.setFillStyle(0x44aa66, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0x88ffaa);
       }else{
         this._awakBtnBg.setFillStyle(0x442288, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0xaa66ff);
@@ -8321,6 +8563,9 @@ class GameScene extends Phaser.Scene{
       if(def.awakening==='heavy'){
         this._awakBtnBg.setFillStyle(0x2266aa, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0x66aaff);
+      }else if(def.awakening==='spirit'){
+        this._awakBtnBg.setFillStyle(0x228844, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0x66ee88);
       }else{
         this._awakBtnBg.setFillStyle(0xff2244, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0xff8866);
@@ -8358,16 +8603,33 @@ class GameScene extends Phaser.Scene{
     // 状態フラグ設定
     pd.awakened = awakKey;
     pd._awakElapsed = 0;
+    // 発動時のHPカット(エルフなど)
+    if(A.onActivateHpRatio){
+      pd.hp = Math.max(1, Math.floor(pd.mhp * A.onActivateHpRatio));
+    }
+    // スキル使用済み追跡(精霊の誓いなど一回限定用)
+    pd._awakSkillsUsed = {};
     // ── 派手な発動演出 ──
     const p=this.player;
     // 種類別の色
     const isHeavy = (awakKey==='heavy');
-    const flashCol = isHeavy ? [100, 200, 255] : [255, 50, 50];
-    const auraCol = isHeavy ? 0x4488ff : 0xff2244;
-    const ringCol = isHeavy ? 0x66aaff : 0xff4466;
+    const isSpirit = (awakKey==='spirit');
+    let flashCol, auraCol, ringCol;
+    if(isHeavy){
+      flashCol=[100,200,255]; auraCol=0x4488ff; ringCol=0x66aaff;
+    }else if(isSpirit){
+      flashCol=[150,255,150]; auraCol=0x66ff88; ringCol=0x88ffaa;
+    }else{
+      flashCol=[255,50,50]; auraCol=0xff2244; ringCol=0xff4466;
+    }
     // 閃光
     this.cameras.main.flash(800, flashCol[0], flashCol[1], flashCol[2]);
-    this.cameras.main.shake(300, 0.012);
+    // 振動(ヘヴィは迫力ある重い振動)
+    if(isHeavy){
+      this.cameras.main.shake(700, 0.025);
+    }else{
+      this.cameras.main.shake(300, 0.012);
+    }
     // 周囲に拡散リング
     for(let i=0;i<3;i++){
       const ring=this.add.circle(p.x, p.y, 20, ringCol, 0).setStrokeStyle(4, ringCol, 0.9).setDepth(15);
@@ -8391,9 +8653,62 @@ class GameScene extends Phaser.Scene{
       repeat: -1,
     });
     // タイトル表示
-    const title = isHeavy ? '🦾 換装・重装兵器 🦾' : '🗡 覚醒・侍 🗡';
-    const titleCol = isHeavy ? '#66aaff' : '#ff4466';
+    let title, titleCol;
+    if(isHeavy){
+      title='🦾 換装・重装兵器 🦾'; titleCol='#66aaff';
+    }else if(isSpirit){
+      title='🍃 転生・エルフ 🍃'; titleCol='#88ffaa';
+    }else{
+      title='🗡 覚醒・侍 🗡'; titleCol='#ff4466';
+    }
     this.showFloat(p.x, p.y-80, title, titleCol);
+    // エルフ転生時: 葉っぱ・草風の渦エフェクト
+    if(isSpirit){
+      // 緑のオーラ拡散
+      const halo=this.add.circle(p.x, p.y, 50, 0x66ff88, 0.4).setDepth(15);
+      this.tweens.add({
+        targets: halo, scaleX:3, scaleY:3, alpha:0,
+        duration: 1000,
+        onComplete: ()=>halo.destroy(),
+      });
+      // 葉っぱ24枚が螺旋を描いて舞う
+      for(let i=0;i<24;i++){
+        const ang0 = (i/24) * Math.PI * 2;
+        const startR = 60;
+        const sx = p.x + Math.cos(ang0) * startR;
+        const sy = p.y + Math.sin(ang0) * startR;
+        const leaf = this.add.text(sx, sy, '🍃', {fontSize:'20px'}).setOrigin(0.5).setDepth(16);
+        // 螺旋的にプレイヤーへ吸い込まれる動き
+        this.tweens.add({
+          targets: leaf,
+          x: p.x + (Math.random()-0.5)*15,
+          y: p.y + (Math.random()-0.5)*15,
+          rotation: Math.PI * 4,
+          alpha: 0,
+          scaleX: 0.3, scaleY: 0.3,
+          duration: 800 + i*15,
+          ease: 'Cubic.easeIn',
+          onComplete: ()=>leaf.destroy(),
+        });
+      }
+      // 上空に向かって葉っぱが舞い上がる
+      for(let i=0;i<10;i++){
+        this.time.delayedCall(i*40, ()=>{
+          const sx = p.x + (Math.random()-0.5)*30;
+          const sy = p.y + 20;
+          const leaf = this.add.text(sx, sy, '🍃', {fontSize:'18px'}).setOrigin(0.5).setDepth(16);
+          this.tweens.add({
+            targets: leaf,
+            x: sx + (Math.random()-0.5)*120,
+            y: sy - 100 - Math.random()*80,
+            rotation: (Math.random()-0.5) * Math.PI * 6,
+            alpha: 0,
+            duration: 1200 + Math.random()*400,
+            onComplete: ()=>leaf.destroy(),
+          });
+        });
+      }
+    }
     // 雷電エフェクトの初期化(動くと発動)
     this._awakLightnings = [];
     this._lastAwakLightningTime = 0;
@@ -8420,6 +8735,10 @@ class GameScene extends Phaser.Scene{
     }
     pd.awakened = null;
     pd._awakElapsed = 0;
+    pd._awakSkillsUsed = null;
+    // エルフ専用バフ解除
+    pd._allCritUntil = 0;
+    if(pd._allCritRing){try{pd._allCritRing.destroy();}catch(e){} pd._allCritRing=null;}
     // ── 解除演出 ──
     this.cameras.main.flash(400, 200, 200, 255);
     if(this._awakAura){
@@ -8488,6 +8807,8 @@ class GameScene extends Phaser.Scene{
           this._spawnLightning(p.x, p.y);
         }else if(pd.awakened==='heavy'){
           this._spawnSteam(p.x, p.y);
+        }else if(pd.awakened==='spirit'){
+          this._spawnLeaf(p.x, p.y);
         }
       }
     }
@@ -8548,6 +8869,20 @@ class GameScene extends Phaser.Scene{
       y: spark.y + 8,
       duration: 200,
       onComplete: ()=>spark.destroy(),
+    });
+  }
+
+  // エルフ用: 葉っぱエフェクト
+  _spawnLeaf(x, y){
+    const leaf = this.add.text(x+(Math.random()-0.5)*20, y+(Math.random()-0.5)*15, '🍃', {fontSize:'14px'}).setOrigin(0.5).setDepth(15);
+    this.tweens.add({
+      targets: leaf,
+      x: leaf.x + (Math.random()-0.5)*30,
+      y: leaf.y - 25 - Math.random()*15,
+      rotation: (Math.random()-0.5) * Math.PI * 2,
+      alpha: 0,
+      duration: 600,
+      onComplete: ()=>leaf.destroy(),
     });
   }
 
@@ -9458,6 +9793,11 @@ class GameScene extends Phaser.Scene{
 
   usePotion(type){
     const pd=this.playerData;
+    // 覚醒中で回復禁止フラグがあればブロック
+    if(pd.awakened && AWAKENINGS[pd.awakened] && AWAKENINGS[pd.awakened].blockHeal){
+      this.showFloat(this.player.x, this.player.y-50, '🍃 転生中は使えない', '#aaccaa', 'info');
+      return;
+    }
     if(type==='hp'&&(pd.potHP||0)>0){pd.potHP--;pd.hp=Math.min(pd.mhp,pd.hp+50);SE('potion');this.showFloat(this.player.x,this.player.y-50,'💊 HP+50','#2ecc71');}
     else if(type==='mp'&&(pd.potMP||0)>0){pd.potMP--;pd.sp=Math.min(pd.msp,pd.sp+50);SE('potion');this.showFloat(this.player.x,this.player.y-50,'💧 SP+50','#3498db');}
     this.updateHUD();
@@ -9738,6 +10078,11 @@ class GameScene extends Phaser.Scene{
         if(!pd.items) pd.items={};
         pd.items['heavy_customize'] = (pd.items['heavy_customize']||0) + 1;
       }
+      // アーチャーに転職した時、精霊の弓を自動取得
+      if(newCls==='archer'){
+        if(!pd.items) pd.items={};
+        pd.items['spirit_bow'] = (pd.items['spirit_bow']||0) + 1;
+      }
 
       cleanup();
       closeFn(); // 転職屋を閉じる
@@ -9825,6 +10170,10 @@ class GameScene extends Phaser.Scene{
 
   gameOver(){
     if(this._gameOver)return;
+    // 覚醒中なら強制解除(死亡時)
+    if(this.playerData.awakened){
+      try{ this._deactivateAwakening(true); }catch(e){console.warn(e);}
+    }
     this._gameOver=true;
     this.physics.pause();
     stopBGM();
@@ -10468,15 +10817,17 @@ class GameScene extends Phaser.Scene{
     this._regenTimer+=dt;
     if(this._regenTimer>=1.0){ // 1秒ごとに回復
       this._regenTimer=0;
+      // 覚醒中で回復禁止フラグがあれば自動回復もスキップ
+      const blockReg = pd.awakened && AWAKENINGS[pd.awakened] && AWAKENINGS[pd.awakened].blockHeal;
       // HP自動回復: VITポイント × 0.5/秒（最低0）
       const vitRegen=(pd.vitPts||0)*0.5;
-      if(vitRegen>0&&pd.hp<pd.mhp){
+      if(!blockReg && vitRegen>0&&pd.hp<pd.mhp){
         pd.hp=Math.min(pd.mhp,pd.hp+vitRegen);
         this.updateHUD();
       }
       // SP自動回復: INTポイント × 0.3/秒（最低0）
       const intRegen=(pd.intPts||0)*0.3;
-      if(intRegen>0&&pd.sp<pd.msp){
+      if(!blockReg && intRegen>0&&pd.sp<pd.msp){
         pd.sp=Math.min(pd.msp,pd.sp+intRegen);
         this.updateHUD();
       }
