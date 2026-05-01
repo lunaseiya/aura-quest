@@ -1040,6 +1040,7 @@ class BootScene extends Phaser.Scene{
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
+      // 失敗してもロードプロセスを続行(無限ループ回避)
     });
   }
   create(){
@@ -3547,6 +3548,8 @@ const EQUIP_DEFS={
   great_sword:   {name:'両手剣',    slot:'weapon_main',icon:'⚔',  desc:'両手で持つ強力な大剣',     stats:{atk:24,hit:-5},         price:350, col:0xddddff, classOnly:'warrior', twoHand:true},
   // ── 妖刀村雨(剣士専用・覚醒「侍」を発動可能にする呪われた刀) ──
   muramasa:      {name:'妖刀 村雨',  slot:'weapon_main',icon:'🗡', desc:'呪われた妖刀。装備すると侍化が可能になる',stats:{atk:18,agi:5},     price:0,   col:0xff2244, classOnly:'warrior', awakening:'samurai'},
+  // ── ヘヴィカスタマイズ(ボマー専用・覚醒「重装兵器」を発動可能) ──
+  heavy_customize:{name:'ヘヴィカスタマイズ',slot:'weapon_main',icon:'🦾', desc:'重武装の改造装備。装備すると換装が可能になる',stats:{atk:22,def:5},price:0,col:0x4488cc, classOnly:'bomber', awakening:'heavy', twoHand:true},
   // ── アーチャー向け ──
   wooden_bow:    {name:'木の弓',    slot:'weapon_main',icon:'🏹', desc:'シンプルな木の弓・片手で持つ',         stats:{atk:7,hit:5},           price:80,  col:0x886633, classOnly:'archer'},
   composite_bow: {name:'合成弓',    slot:'weapon_main',icon:'🏹', desc:'複数素材を組み合わせた強弓・片手で持つ',stats:{atk:14,hit:8},          price:200, col:0xaa6633, classOnly:'archer'},
@@ -4585,7 +4588,31 @@ const AWAKENINGS = {
       {id:'sk3', name:'鬼殺し',    cost:15, cd:6,   desc:'範囲内の敵に5回連撃'},
     ],
   },
-  // 将来の追加: oni(剣士・鬼神化), elf(アーチャー), possess(メイジ), heavy(ボマー)
+  // ── 換装・ヘヴィ(ボマー)──
+  heavy: {
+    name: '重装兵器',
+    icon: '🦾',
+    activateLabel: '換装',
+    deactivateLabel: '解除',
+    baseClass: 'bomber',
+    requiresEquip: 'heavy_customize',
+    statMul: {
+      atk: 1.3,
+      def: 1.5,    // DEF UP(装甲)
+      mag: 1.4,
+      spd: 0.5,    // 速度半減(超鈍重)
+      hit: 1.0,
+      agi: 0.6,
+    },
+    spDrainPerSec: 1.5,           // SP毎秒1.5消費
+    forceDeactivateSp: true,      // SPが0になったら強制解除
+    skills: [
+      {id:'sk1', name:'エンペラーボムズ',cost:30, cd:6,  desc:'空に巨大ドクロ爆弾を投げ、画面範囲ダメージ'},
+      {id:'sk2', name:'マシンガン',     cost:25, cd:5,  desc:'15連射の多段攻撃・発射までタメあり'},
+      {id:'sk3', name:'プリザーブドバスター',cost:28, cd:5, desc:'氷の波動で正面範囲に攻撃+凍結'},
+    ],
+  },
+  // 将来の追加: oni(剣士・鬼神化), elf(アーチャー), possess(メイジ)
 };
 
 // 敵の日本語名(ラベル表示用)
@@ -5871,6 +5898,210 @@ class GameScene extends Phaser.Scene{
     if(this._casting){return;} // 詠唱中は新しいスキル不可
     if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
     pd.sp-=sk.cost; SE('skill');
+
+    // ─ 覚醒「重装兵器」(ヘヴィ) ─
+    if(pd.awakened==='heavy'){
+      if(num===1){ // エンペラーボムズ: 上空に投げて画面範囲ダメージ
+        // 上空にドクロ爆弾を投げる演出
+        const cam = this.cameras.main;
+        // ドクロ爆弾(プレイヤー位置から上空へ)
+        const bomb = this.add.text(p.x, p.y, '💀', {fontSize:'48px'}).setOrigin(0.5).setDepth(20);
+        this.tweens.add({
+          targets: bomb,
+          y: p.y - 600,
+          rotation: Math.PI * 4,
+          scaleX: 1.5, scaleY: 1.5,
+          duration: 1200,
+          ease: 'Sine.easeOut',
+          onComplete: ()=>{
+            bomb.destroy();
+            // 着弾: 画面全体に巨大な赤い閃光
+            this.cameras.main.flash(800, 255, 100, 50);
+            this.cameras.main.shake(500, 0.025);
+            // 画面範囲のドクロ爆発エフェクト
+            const skullExp = this.add.text(p.x, p.y-50, '💀', {fontSize:'120px'}).setOrigin(0.5).setDepth(25).setAlpha(0);
+            this.tweens.add({
+              targets: skullExp,
+              alpha: 1,
+              scaleX: 3, scaleY: 3,
+              duration: 200,
+              yoyo: true,
+              onComplete: ()=>skullExp.destroy(),
+            });
+            // 拡散リング
+            for(let i=0;i<5;i++){
+              const r=this.add.circle(p.x, p.y, 30, 0xff4422, 0).setStrokeStyle(6, 0xff8844, 0.9).setDepth(20);
+              this.tweens.add({
+                targets:r, scaleX:15, scaleY:15, alpha:0,
+                duration:800+i*100, delay:i*60,
+                onComplete:()=>r.destroy(),
+              });
+            }
+            // 画面内の全敵にダメージ(画面範囲)
+            const cw = this.scale.width / cam.zoom;
+            const ch = this.scale.height / cam.zoom;
+            const screenLeft = cam.scrollX;
+            const screenTop = cam.scrollY;
+            const dmgBase = Math.max(1, Math.floor(pd.atk * 5.5 + (pd.mag||0) * 2));
+            this.enemyDataList.forEach(ed=>{
+              if(ed.dead) return;
+              const ex = ed.sprite.x, ey = ed.sprite.y;
+              if(ex>=screenLeft && ex<=screenLeft+cw && ey>=screenTop && ey<=screenTop+ch){
+                const isCrit = Math.random()*100 < calcCrit(pd);
+                const dmg = isCrit ? Math.floor(dmgBase*2) : dmgBase;
+                this.hitEnemy(ed, dmg, isCrit, true, '');
+              }
+            });
+            // 中心に火柱を残す
+            for(let i=0;i<8;i++){
+              const ang = (i/8) * Math.PI * 2;
+              const fx = p.x + Math.cos(ang) * 60;
+              const fy = p.y + Math.sin(ang) * 60;
+              const fire = this.add.circle(fx, fy, 18, 0xff6622, 0.85).setDepth(20);
+              this.tweens.add({
+                targets:fire, scaleX:0, scaleY:0, alpha:0,
+                duration: 600,
+                onComplete: ()=>fire.destroy(),
+              });
+            }
+          },
+        });
+        this.showFloat(p.x, p.y-80, '💀 エンペラーボムズ', '#ff8844');
+        this[cdKey]=sk.cd;
+      }else if(num===2){ // マシンガン: 15連射の多段攻撃
+        // 発射前のタメ演出
+        const charge=this.add.circle(p.x, p.y, 20, 0xffaa44, 0).setStrokeStyle(3, 0xffcc66, 0.9).setDepth(15);
+        this.tweens.add({
+          targets: charge,
+          scaleX: 2.5, scaleY: 2.5,
+          alpha: 0.7,
+          duration: 800,
+          onComplete: ()=>{
+            charge.destroy();
+            // 15連射
+            const totalShots = 15;
+            const interval = 80; // 80msごと
+            for(let i=0;i<totalShots;i++){
+              this.time.delayedCall(i*interval, ()=>{
+                if(!this.player) return;
+                // 最寄り敵を再取得(動く敵対応)
+                let closest=null, cd=400;
+                this.enemyDataList.forEach(ed=>{
+                  if(ed.dead) return;
+                  const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+                  if(d<cd){cd=d; closest=ed;}
+                });
+                if(!closest) return;
+                // 弾丸エフェクト
+                const ang = Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y);
+                const startX = p.x + Math.cos(ang)*20;
+                const startY = p.y + Math.sin(ang)*20;
+                const bullet = this.add.circle(startX, startY, 4, 0xffdd44, 1).setDepth(18);
+                bullet.setStrokeStyle(2, 0xffffff, 0.9);
+                this.tweens.add({
+                  targets: bullet,
+                  x: closest.sprite.x,
+                  y: closest.sprite.y,
+                  duration: 60,
+                  onComplete: ()=>{
+                    bullet.destroy();
+                    if(closest.dead) return;
+                    const baseDmg = Math.max(1, Math.floor(pd.atk * 0.5));
+                    const isCrit = Math.random()*100 < calcCrit(pd);
+                    const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
+                    this.hitEnemy(closest, dmg, isCrit, true, '');
+                    // ヒット火花
+                    const hit = this.add.circle(closest.sprite.x, closest.sprite.y, 6, 0xffff88, 0.8).setDepth(18);
+                    this.tweens.add({targets:hit, alpha:0, scaleX:2, scaleY:2, duration:120, onComplete:()=>hit.destroy()});
+                  },
+                });
+                // 銃口閃光
+                const flash = this.add.circle(startX, startY, 8, 0xffffaa, 0.85).setDepth(18);
+                this.tweens.add({targets:flash, alpha:0, scaleX:1.6, scaleY:1.6, duration:80, onComplete:()=>flash.destroy()});
+                this.cameras.main.shake(40, 0.003);
+              });
+            }
+          },
+        });
+        this.showFloat(p.x, p.y-80, '🔫 マシンガン', '#ffdd44');
+        this[cdKey]=sk.cd;
+      }else if(num===3){ // プリザーブドバスター: 氷の波動・正面範囲+凍結
+        // 向きを取得(最寄り敵の方向か、最後の向き)
+        let targetAng = this._lastAngle || 0;
+        let nearest=null, nd=500;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<nd){nd=d; nearest=ed;}
+        });
+        if(nearest){
+          targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
+        }
+        // 氷の波動エフェクト(扇形)
+        const waveLen = 280;
+        const waveHalfAng = Math.PI / 4; // 90度の扇
+        // 複数の青い氷片を扇方向に飛ばす
+        for(let i=0;i<12;i++){
+          this.time.delayedCall(i*30, ()=>{
+            const a = targetAng + (Math.random()*2 - 1) * waveHalfAng;
+            const dist = 50 + Math.random()*200;
+            const sx = p.x;
+            const sy = p.y;
+            const ex = p.x + Math.cos(a) * dist;
+            const ey = p.y + Math.sin(a) * dist;
+            const ice = this.add.text(sx, sy, '❄', {fontSize:'24px', color:'#aaddff'}).setOrigin(0.5).setDepth(18);
+            this.tweens.add({
+              targets: ice,
+              x: ex, y: ey,
+              alpha: 0,
+              rotation: Math.PI * 2,
+              duration: 500,
+              onComplete: ()=>ice.destroy(),
+            });
+          });
+        }
+        // 範囲リング(青)
+        const ring=this.add.circle(p.x, p.y, 30, 0x88ccff, 0).setStrokeStyle(4, 0xaaeeff, 0.9).setDepth(15);
+        this.tweens.add({targets:ring, scaleX:6, scaleY:6, alpha:0, duration:600, onComplete:()=>ring.destroy()});
+        // 範囲内の敵にダメージ+凍結
+        const targets = this.enemyDataList.filter(ed=>{
+          if(ed.dead) return false;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d > waveLen) return false;
+          const a = Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          let dAng = a - targetAng;
+          while(dAng > Math.PI) dAng -= Math.PI*2;
+          while(dAng < -Math.PI) dAng += Math.PI*2;
+          return Math.abs(dAng) < waveHalfAng;
+        });
+        targets.forEach(ed=>{
+          const baseDmg = Math.max(1, Math.floor((pd.atk*1.5) + (pd.mag||0) * 3));
+          const isCrit = Math.random()*100 < calcCrit(pd);
+          // 氷属性
+          const em = getElementMult('ice', ed.element||'none');
+          const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
+          this.hitEnemy(ed, dmg, isCrit, true, em.label);
+          // 凍結適用(3秒)
+          if(!ed.frozen){
+            ed.frozen = true;
+            ed.frozenUntil = this.time.now + 3000;
+            ed.sprite.setTint(0x88ccff);
+            // 解凍タイマー
+            this.time.delayedCall(3000, ()=>{
+              if(ed && !ed.dead){
+                ed.frozen = false;
+                ed.frozenUntil = 0;
+                ed.sprite.clearTint();
+              }
+            });
+          }
+        });
+        this.cameras.main.shake(150, 0.008);
+        this.showFloat(p.x, p.y-80, '❄ プリザーブドバスター', '#aaeeff');
+        this[cdKey]=sk.cd;
+      }
+      return;
+    }
 
     // ─ 覚醒「侍」 ─
     if(pd.awakened==='samurai'){
@@ -8038,8 +8269,12 @@ class GameScene extends Phaser.Scene{
       if(pd.awakened){
         this._deactivateAwakening();
       }else{
-        // 利用可能な覚醒を判定(ここでは侍のみ)
-        this._activateAwakening('samurai');
+        // 装備中の武器から覚醒種別を判定
+        const eq=pd.equip&&pd.equip.weapon_main;
+        const def=eq?EQUIP_DEFS[eq]:null;
+        if(def && def.awakening && AWAKENINGS[def.awakening]){
+          this._activateAwakening(def.awakening);
+        }
       }
     });
     // パルスアニメ(発動可能時に光る)
@@ -8069,15 +8304,27 @@ class GameScene extends Phaser.Scene{
     if(pd.awakened){
       const A = AWAKENINGS[pd.awakened];
       this._awakBtnTxt.setText(A.icon);
-      this._awakBtnLabel.setText('解除');
-      this._awakBtnBg.setFillStyle(0x442288, 0.85);
-      this._awakBtnBg.setStrokeStyle(3, 0xaa66ff);
+      this._awakBtnLabel.setText(A.deactivateLabel || '解除');
+      // クラス別の解除中の色
+      if(pd.awakened==='heavy'){
+        this._awakBtnBg.setFillStyle(0x4488cc, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0x88ccff);
+      }else{
+        this._awakBtnBg.setFillStyle(0x442288, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0xaa66ff);
+      }
     }else if(canAwaken){
       const A = AWAKENINGS[def.awakening];
       this._awakBtnTxt.setText(A.icon);
-      this._awakBtnLabel.setText('覚醒');
-      this._awakBtnBg.setFillStyle(0xff2244, 0.85);
-      this._awakBtnBg.setStrokeStyle(3, 0xff8866);
+      this._awakBtnLabel.setText(A.activateLabel || '覚醒');
+      // 覚醒種類別の発動前色
+      if(def.awakening==='heavy'){
+        this._awakBtnBg.setFillStyle(0x2266aa, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0x66aaff);
+      }else{
+        this._awakBtnBg.setFillStyle(0xff2244, 0.85);
+        this._awakBtnBg.setStrokeStyle(3, 0xff8866);
+      }
     }
   }
 
@@ -8113,12 +8360,17 @@ class GameScene extends Phaser.Scene{
     pd._awakElapsed = 0;
     // ── 派手な発動演出 ──
     const p=this.player;
-    // 赤い閃光
-    this.cameras.main.flash(800, 255, 50, 50);
+    // 種類別の色
+    const isHeavy = (awakKey==='heavy');
+    const flashCol = isHeavy ? [100, 200, 255] : [255, 50, 50];
+    const auraCol = isHeavy ? 0x4488ff : 0xff2244;
+    const ringCol = isHeavy ? 0x66aaff : 0xff4466;
+    // 閃光
+    this.cameras.main.flash(800, flashCol[0], flashCol[1], flashCol[2]);
     this.cameras.main.shake(300, 0.012);
     // 周囲に拡散リング
     for(let i=0;i<3;i++){
-      const ring=this.add.circle(p.x, p.y, 20, 0xff2244, 0).setStrokeStyle(4, 0xff4466, 0.9).setDepth(15);
+      const ring=this.add.circle(p.x, p.y, 20, ringCol, 0).setStrokeStyle(4, ringCol, 0.9).setDepth(15);
       this.tweens.add({
         targets:ring,
         scaleX:5, scaleY:5,
@@ -8129,7 +8381,7 @@ class GameScene extends Phaser.Scene{
       });
     }
     // 覚醒オーラ(継続)
-    this._awakAura = this.add.circle(p.x, p.y, 40, 0xff2244, 0.25).setDepth(4);
+    this._awakAura = this.add.circle(p.x, p.y, 40, auraCol, 0.25).setDepth(4);
     this.tweens.add({
       targets: this._awakAura,
       scaleX: 1.3, scaleY: 1.3,
@@ -8139,7 +8391,9 @@ class GameScene extends Phaser.Scene{
       repeat: -1,
     });
     // タイトル表示
-    this.showFloat(p.x, p.y-80, '🗡 覚醒・侍 🗡', '#ff4466');
+    const title = isHeavy ? '🦾 換装・重装兵器 🦾' : '🗡 覚醒・侍 🗡';
+    const titleCol = isHeavy ? '#66aaff' : '#ff4466';
+    this.showFloat(p.x, p.y-80, title, titleCol);
     // 雷電エフェクトの初期化(動くと発動)
     this._awakLightnings = [];
     this._lastAwakLightningTime = 0;
@@ -8200,10 +8454,18 @@ class GameScene extends Phaser.Scene{
     if(!pd.awakened) return;
     const A = AWAKENINGS[pd.awakened];
     if(!A) return;
-    // HP減少
+    // HP減少(侍など)
     if(A.hpDrainRatio){
       const drain = pd.mhp * A.hpDrainRatio * dt;
       pd.hp = Math.max(0.01, pd.hp - drain);
+    }
+    // SP減少(ヘヴィなど)
+    if(A.spDrainPerSec){
+      pd.sp = Math.max(0, pd.sp - A.spDrainPerSec * dt);
+      if(A.forceDeactivateSp && pd.sp <= 0){
+        this._deactivateAwakening(true);
+        return;
+      }
     }
     pd._awakElapsed += dt;
     // 強制解除条件: HP低下
@@ -8215,14 +8477,18 @@ class GameScene extends Phaser.Scene{
     if(this._awakAura){
       this._awakAura.setPosition(this.player.x, this.player.y);
     }
-    // 移動中に雷電エフェクト発生
+    // 移動中エフェクト(覚醒種類で違う)
     const p=this.player;
     const speed = Math.sqrt((p.body.velocity.x||0)**2 + (p.body.velocity.y||0)**2);
     if(speed > 30){
       const now = this.time.now;
       if(now - (this._lastAwakLightningTime||0) > 80){
         this._lastAwakLightningTime = now;
-        this._spawnLightning(p.x, p.y);
+        if(pd.awakened==='samurai'){
+          this._spawnLightning(p.x, p.y);
+        }else if(pd.awakened==='heavy'){
+          this._spawnSteam(p.x, p.y);
+        }
       }
     }
   }
@@ -8255,6 +8521,33 @@ class GameScene extends Phaser.Scene{
       alpha: 0,
       duration: 250,
       onComplete: ()=>dot.destroy(),
+    });
+  }
+
+  // ヘヴィ用: 蒸気エフェクト
+  _spawnSteam(x, y){
+    // 灰色の煙が後方に流れる
+    for(let i=0;i<2;i++){
+      const sx = x + (Math.random()-0.5) * 30;
+      const sy = y + 5 + Math.random()*15;
+      const cloud = this.add.circle(sx, sy, 8+Math.random()*6, 0xaaaaaa, 0.6).setDepth(4);
+      this.tweens.add({
+        targets: cloud,
+        y: sy - 25 - Math.random()*15,
+        scaleX: 1.8, scaleY: 1.8,
+        alpha: 0,
+        duration: 600 + Math.random()*200,
+        onComplete: ()=>cloud.destroy(),
+      });
+    }
+    // 火花
+    const spark = this.add.circle(x+(Math.random()-0.5)*20, y+10, 2, 0xffaa44, 0.85).setDepth(15);
+    this.tweens.add({
+      targets: spark,
+      alpha: 0,
+      y: spark.y + 8,
+      duration: 200,
+      onComplete: ()=>spark.destroy(),
     });
   }
 
@@ -9435,10 +9728,15 @@ class GameScene extends Phaser.Scene{
       // ジョブはリセット(新職としてやり直し)
       pd.jobLv=1; pd.jobExp=0; pd.jobExpNext=80; pd.jobPts=0;
 
-      // 剣士に転職した時、妖刀「村雨」を自動取得(インベントリに1個)
+      // 剣士に転職した時、妖刀「村雨」を自動取得
       if(newCls==='warrior'){
-        if(!pd.inventory) pd.inventory={};
-        pd.inventory['muramasa'] = (pd.inventory['muramasa']||0) + 1;
+        if(!pd.items) pd.items={};
+        pd.items['muramasa'] = (pd.items['muramasa']||0) + 1;
+      }
+      // ボマーに転職した時、ヘヴィカスタマイズを自動取得
+      if(newCls==='bomber'){
+        if(!pd.items) pd.items={};
+        pd.items['heavy_customize'] = (pd.items['heavy_customize']||0) + 1;
       }
 
       cleanup();
