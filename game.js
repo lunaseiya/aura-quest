@@ -6105,12 +6105,12 @@ class GameScene extends Phaser.Scene{
                 if(ed.dead || !ed.sprite) return;
                 // TOTAL表示: Press Start 2P (レトロ8bit感)・黄色・赤縁取り
                 const totalTxt = this.add.text(ed.sprite.x, ed.sprite.y - 60, 'TOTAL '+total, {
-                  fontSize:'18px',
+                  fontSize:'30px',
                   fontFamily:'"Press Start 2P", "Arial Black", monospace',
                   color:'#ffee00',     // 黄色(指定)
                   fontStyle:'bold',
                   stroke:'#aa2200',
-                  strokeThickness:5,
+                  strokeThickness:7,
                 }).setOrigin(0.5).setDepth(30);
                 totalTxt.setShadow(2, 2, '#000000', 4, true, true);
                 this.tweens.add({
@@ -10783,9 +10783,9 @@ class GameScene extends Phaser.Scene{
 
     const cfg={
       normal:   {fs:'20px',sw:4,sc:1.0,toY:65, dur:1400,ease:'Cubic.easeOut',   startSc:1.0},
-      crit:     {fs:'34px',sw:7,sc:0.5,toY:100,dur:2400,ease:'Back.easeOut',    startSc:0.5},
-      skill:    {fs:'26px',sw:6,sc:0.8,toY:90, dur:2200,ease:'Cubic.easeOut',   startSc:0.8},
-      skillcrit:{fs:'40px',sw:8,sc:0.4,toY:110,dur:2800,ease:'Back.easeOut',    startSc:0.4},
+      crit:     {fs:'48px',sw:8,sc:0.5,toY:110,dur:2400,ease:'Back.easeOut',    startSc:0.5},
+      skill:    {fs:'36px',sw:7,sc:0.8,toY:100,dur:2200,ease:'Cubic.easeOut',   startSc:0.8},
+      skillcrit:{fs:'56px',sw:9,sc:0.4,toY:130,dur:2800,ease:'Back.easeOut',    startSc:0.4},
       info:     {fs:'14px',sw:2,sc:1.0,toY:40, dur:1000,ease:'Cubic.easeOut',   startSc:1.0},
     }[type]||{fs:'20px',sw:4,sc:1.0,toY:65,dur:1400,ease:'Cubic.easeOut',startSc:1.0};
 
