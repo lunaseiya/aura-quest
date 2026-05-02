@@ -1014,6 +1014,8 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:124,frameHeight:124});
     // novice はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_novice', BASE+'players/novice_sprite_sheet.png', {frameWidth:128,frameHeight:128});
+    // samurai はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
+    this.load.spritesheet('player_samurai', BASE+'players/sprite_sheet_samurai.png', {frameWidth:128,frameHeight:128});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -1156,6 +1158,26 @@ class BootScene extends Phaser.Scene{
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_novice',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // 侍 アニメーション(覚醒時に使用)
+    const SA=[
+      {key:'samurai_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'samurai_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'samurai_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'samurai_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'samurai_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'samurai_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'samurai_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'samurai_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'samurai_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    SA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_samurai',frame:f})),
         frameRate:a.rate, repeat:a.rep,
       });
     });
@@ -9249,6 +9271,13 @@ class GameScene extends Phaser.Scene{
     this._awakLightnings = [];
     this._lastAwakLightningTime = 0;
     try{ SE('skill'); }catch(e){}
+    // 覚醒中の専用スプライトに切り替え(侍など)
+    if(awakKey==='samurai' && this.textures.exists('player_samurai')){
+      try{
+        this.player.setTexture('player_samurai', 0);
+        this.player.play('samurai_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('samurai texture switch failed', e);}
+    }
     // UIを更新
     this._updateAwakeningButton();
     // スキルボタンを再構築(覚醒スキルが表示される)
@@ -9261,6 +9290,7 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     if(!pd.awakened) return;
     const p=this.player;
+    const wasKey = pd.awakened;  // 解除前の覚醒種別
     // ステータスを元に戻す
     if(pd._preAwakeStats){
       const s=pd._preAwakeStats;
@@ -9272,6 +9302,13 @@ class GameScene extends Phaser.Scene{
     pd.awakened = null;
     pd._awakElapsed = 0;
     pd._awakSkillsUsed = null;
+    // 元クラスのテクスチャに戻す
+    if(wasKey==='samurai' && this.textures.exists('player_warrior')){
+      try{
+        this.player.setTexture('player_warrior', 0);
+        this.player.play('warrior_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('warrior texture restore failed', e);}
+    }
     // エルフ専用バフ解除
     pd._allCritUntil = 0;
     if(pd._allCritRing){try{pd._allCritRing.destroy();}catch(e){} pd._allCritRing=null;}
@@ -10061,7 +10098,11 @@ class GameScene extends Phaser.Scene{
     // ノービスも自前のアニメを持つ
     const cls = clsRaw;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
-    const prefix=cls;
+    // 覚醒中は専用prefix(侍など)
+    let prefix=cls;
+    if(this.playerData.awakened==='samurai'){
+      prefix='samurai';
+    }
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
 
@@ -10072,8 +10113,11 @@ class GameScene extends Phaser.Scene{
       if(Math.abs(vy)>Math.abs(vx)*0.5){facing=vy<0?'back':'front';flip=false;}
       else{
         facing='side';
-        // archerはsideが左向き基準（mage/bomberは右向き基準）なので反転が逆
+        // archerはsideが左向き基準(mage/bomberは右向き基準)なので反転が逆
+        // 侍はマジシャンと同じ配置なので右向き基準扱い
         flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
+        // 侍中は配置が違うので上書き(マジシャンと同じ右向き基準)
+        if(prefix==='samurai') flip=vx<0;
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -10088,10 +10132,13 @@ class GameScene extends Phaser.Scene{
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
-    const key=cls+'_'+(this._facing||'front')+'_atk';
+    // 覚醒中(侍)は専用アニメ
+    let prefix=cls;
+    if(this.playerData.awakened==='samurai') prefix='samurai';
+    const key=prefix+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
-      p.play(cls+'_'+(this._facing||'front')+'_idle',true);
+      p.play(prefix+'_'+(this._facing||'front')+'_idle',true);
     });
   }
 
