@@ -4534,11 +4534,11 @@ const STAGE_CONFIG={
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
     portalBack:20, portalBackLabel:'🪓 ゴブリンの集落へ', portalBackKey:'portal_st4',
-    // 入口=西から(マップ画像の左端)
-    spawnX:160, spawnY:627,
-    portalBackX:90, portalBackY:627,
-    spawnFromBackX:160, spawnFromBackY:627,
-    spawnFromNextX:160, spawnFromNextY:627,
+    // 入口=西から(マップ画像の左端・橋の中央)
+    spawnX:160, spawnY:580,
+    portalBackX:90, portalBackY:580,
+    spawnFromBackX:160, spawnFromBackY:580,
+    spawnFromNextX:160, spawnFromNextY:580,
     // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
     // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
     // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
@@ -4663,12 +4663,14 @@ const AWAKENINGS = {
     onActivateHpRatio: 0.25,
     // 回復不可フラグ
     blockHeal: true,
-    // 全スキル使い切ったら強制解除
-    autoDeactivateOnSkillsUsed: true,
+    // SPを継続的に消費(ペナルティに置換)
+    spDrainPerSec: 1.2,
+    // SP10%以下で強制解除
+    forceDeactivateSpRatio: 0.10,
     skills: [
-      {id:'sk1', name:'ウインドカッター',cost:0, cd:0, desc:'正面に飛ぶ風属性の一撃・1回限定'},
-      {id:'sk2', name:'精霊の誓い',     cost:0, cd:0, desc:'2体の精霊召喚で多段ビーム・1回限定'},
-      {id:'sk3', name:'オールクリティカル',cost:0, cd:0, desc:'一定時間100%クリティカル・1回限定'},
+      {id:'sk1', name:'ウインドカッター',cost:25, cd:3,  desc:'正面に飛ぶ風属性の一撃'},
+      {id:'sk2', name:'精霊の誓い',     cost:30, cd:5,  desc:'2体の精霊召喚で多段ビーム'},
+      {id:'sk3', name:'オールクリティカル',cost:40, cd:15, desc:'一定時間100%クリティカル'},
     ],
   },
   // ── 妖魔化(マジシャン)──
@@ -5990,16 +5992,8 @@ class GameScene extends Phaser.Scene{
     const cdKey='skillCD'+num;
     if((this[cdKey]||0)>0)return;
     if(this._casting){return;} // 詠唱中は新しいスキル不可
-    // エルフ「転生」中: 各スキルは1回限定
-    if(pd.awakened==='spirit'){
-      if(pd._awakSkillsUsed && pd._awakSkillsUsed[num]){
-        this.showFloat(p.x,p.y-50,'使用済み','#888888','info');
-        return;
-      }
-    }else{
-      if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
-      pd.sp-=sk.cost;
-    }
+    if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
+    pd.sp-=sk.cost;
     SE('skill');
 
     // ─ 覚醒「重装兵器」(ヘヴィ) ─
@@ -6109,11 +6103,16 @@ class GameScene extends Phaser.Scene{
             this.time.delayedCall(3*350 + 250, ()=>{
               totalsByEnemy.forEach((total, ed)=>{
                 if(ed.dead || !ed.sprite) return;
-                // 大きめの黄色文字でTOTAL表示
+                // TOTAL表示: Press Start 2P (レトロ8bit感)・黄色・赤縁取り
                 const totalTxt = this.add.text(ed.sprite.x, ed.sprite.y - 60, 'TOTAL '+total, {
-                  fontSize:'20px', fontFamily:'Arial', color:'#ffdd44',
-                  fontStyle:'bold', stroke:'#aa3300', strokeThickness:4,
+                  fontSize:'18px',
+                  fontFamily:'"Press Start 2P", "Arial Black", monospace',
+                  color:'#ffee00',     // 黄色(指定)
+                  fontStyle:'bold',
+                  stroke:'#aa2200',
+                  strokeThickness:5,
                 }).setOrigin(0.5).setDepth(30);
+                totalTxt.setShadow(2, 2, '#000000', 4, true, true);
                 this.tweens.add({
                   targets: totalTxt,
                   y: totalTxt.y - 30,
@@ -6308,10 +6307,6 @@ class GameScene extends Phaser.Scene{
 
     // ─ 覚醒「エルフ」(spirit) ─
     if(pd.awakened==='spirit'){
-      // 使用済みフラグ立て(共通処理)
-      if(!pd._awakSkillsUsed) pd._awakSkillsUsed={};
-      pd._awakSkillsUsed[num] = true;
-
       if(num===1){ // ウインドカッター: 正面広範囲に飛ぶ風属性攻撃の一撃
         // 向き判定(最寄り敵の方向、なければ_lastAngle)
         let targetAng = this._lastAngle || 0;
@@ -6401,6 +6396,7 @@ class GameScene extends Phaser.Scene{
         });
         this.cameras.main.shake(200, 0.012);
         this.showFloat(p.x, p.y-80, '🍃 ウインドカッター', '#aaffaa');
+        this[cdKey]=sk.cd;
       }else if(num===2){ // 精霊の誓い: 2体の精霊(ファンネル)が敵周辺を飛び回って攻撃
         // 最寄り敵をターゲット
         let target=null, td=500;
@@ -6411,7 +6407,8 @@ class GameScene extends Phaser.Scene{
         });
         if(!target){
           this.showFloat(p.x,p.y-50,'敵が居ない','#888888','info');
-          pd._awakSkillsUsed[num] = false;
+          pd.sp += sk.cost; // SP返金
+          this[cdKey]=0.3;
           return;
         }
         // 召喚演出: プレイヤーから精霊が飛び出す
@@ -6513,6 +6510,7 @@ class GameScene extends Phaser.Scene{
           });
         });
         this.showFloat(p.x, p.y-80, '✨ 精霊の誓い', '#88ffaa');
+        this[cdKey]=sk.cd;
       }else if(num===3){ // オールクリティカル: 一定時間100%CRIT
         const dur = 8000; // 8秒
         pd._allCritUntil = Date.now() + dur;
@@ -6532,20 +6530,7 @@ class GameScene extends Phaser.Scene{
           pd._allCritUntil = 0;
         });
         this.showFloat(p.x, p.y-80, '⭐ オールクリティカル', '#ffaa44');
-      }
-      // 全スキル使い切った? → 自動解除
-      const A = AWAKENINGS.spirit;
-      if(A.autoDeactivateOnSkillsUsed){
-        const allUsed = pd._awakSkillsUsed[1] && pd._awakSkillsUsed[2] && pd._awakSkillsUsed[3];
-        if(allUsed){
-          // 少し演出を見せてから解除
-          this.time.delayedCall(2500, ()=>{
-            if(pd.awakened==='spirit'){
-              this.showFloat(p.x, p.y-60, '転生 終了', '#aaccaa');
-              this._deactivateAwakening(false);
-            }
-          });
-        }
+        this[cdKey]=sk.cd;
       }
       return;
     }
@@ -6652,7 +6637,7 @@ class GameScene extends Phaser.Scene{
         });
         this.showFloat(p.x, p.y-80, '🌑 ダークフォール', '#aa66ff');
         this[cdKey]=sk.cd;
-      }else if(num===2){ // ダークストライク: 闇の球体6個が連続着弾
+      }else if(num===2){ // ダークストライク: プレイヤーから闇の球体6個が飛ぶ
         let target=null, td=500;
         this.enemyDataList.forEach(ed=>{
           if(ed.dead) return;
@@ -6665,39 +6650,72 @@ class GameScene extends Phaser.Scene{
           this[cdKey]=0.3;
           return;
         }
-        // 6個の闇の球体が空から降ってくる
+        // プレイヤー位置で発射準備の小さな閃光
+        const muzzle = this.add.circle(p.x, p.y-10, 18, 0xaa44ff, 0.7).setDepth(19).setStrokeStyle(2, 0xcc88ff, 0.9);
+        this.tweens.add({targets: muzzle, scaleX:1.5, scaleY:1.5, alpha:0, duration:300, onComplete:()=>muzzle.destroy()});
+        // 6個の闇の球体がプレイヤーから飛ぶ
         const orbCount = 6;
         for(let i=0;i<orbCount;i++){
-          this.time.delayedCall(i*120, ()=>{
-            if(target.dead || !target.sprite) return;
-            // 上空のランダム位置から発生
-            const offX = (Math.random()-0.5) * 80;
-            const startX = target.sprite.x + offX;
-            const startY = target.sprite.y - 200 - Math.random()*60;
-            // 闇の球体
+          this.time.delayedCall(i*100, ()=>{
+            if(!this.player || target.dead || !target.sprite) return;
+            // プレイヤー位置を起点に、少しランダム性
+            const startX = this.player.x + (Math.random()-0.5)*20;
+            const startY = this.player.y - 10 + (Math.random()-0.5)*20;
+            // 球体出現時の小さな閃光
+            const sparkOut = this.add.circle(startX, startY, 10, 0xffffff, 0.7).setDepth(19);
+            this.tweens.add({targets: sparkOut, scaleX:2, scaleY:2, alpha:0, duration:200, onComplete:()=>sparkOut.destroy()});
+            // 闇の球体(プレイヤーから出る)
             const orb = this.add.circle(startX, startY, 14, 0x331166, 1).setDepth(18).setStrokeStyle(2, 0xaa44ff, 0.9);
-            // 中心の白点
             const orbCore = this.add.circle(startX, startY, 5, 0xffffff, 0.6).setDepth(19);
-            // 着弾点まで弧を描いて飛ぶ
-            this.tweens.add({
-              targets: [orb, orbCore],
-              x: target.sprite.x,
-              y: target.sprite.y,
-              duration: 350,
-              ease: 'Cubic.easeIn',
-              onComplete: ()=>{
-                try{orb.destroy();}catch(e){}
-                try{orbCore.destroy();}catch(e){}
-                if(target.dead || !target.sprite) return;
-                // 着弾エフェクト
-                const burst = this.add.circle(target.sprite.x, target.sprite.y, 16, 0xaa44ff, 0.85).setDepth(20);
-                this.tweens.add({targets: burst, scaleX:2.5, scaleY:2.5, alpha:0, duration:300, onComplete:()=>burst.destroy()});
-                // ダメージ
-                const baseDmg = Math.max(1, Math.floor((pd.mag||0) * 1.8));
-                const isCrit = Math.random()*100 < calcCrit(pd);
-                const em = getElementMult('dark', target.element||'none');
-                const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
-                this.hitEnemy(target, dmg, isCrit, true, em.label);
+            // ターゲットへ飛ぶ(ホーミング感を出すために updateで追従)
+            const flightDur = 450;
+            const startTime = this.time.now;
+            // 軌道に揺らぎを加えるための制御点
+            const ang = Phaser.Math.Angle.Between(startX, startY, target.sprite.x, target.sprite.y);
+            const perpAng = ang + Math.PI/2;
+            const swayAmp = (Math.random()-0.5) * 60; // 各球体ごとの揺らぎ
+            // 軌跡の小粒子を残しながら飛行
+            const flightLoop = this.time.addEvent({
+              delay: 16,
+              loop: true,
+              callback: ()=>{
+                const elapsed = this.time.now - startTime;
+                const t = Math.min(1, elapsed / flightDur);
+                if(target.dead || !target.sprite || !orb.scene){
+                  flightLoop.remove();
+                  return;
+                }
+                // 起点から終点への線形補間 + 中央付近で perp方向に膨らむ(sin)
+                const tx = target.sprite.x;
+                const ty = target.sprite.y;
+                const baseX = startX + (tx - startX) * t;
+                const baseY = startY + (ty - startY) * t;
+                const sway = Math.sin(t * Math.PI) * swayAmp;
+                const px = baseX + Math.cos(perpAng) * sway;
+                const py = baseY + Math.sin(perpAng) * sway;
+                orb.setPosition(px, py);
+                orbCore.setPosition(px, py);
+                // 軌跡: 小さな紫の粒
+                if(Math.random() < 0.4){
+                  const trail = this.add.circle(px, py, 3, 0xaa44ff, 0.6).setDepth(17);
+                  this.tweens.add({targets: trail, alpha:0, scaleX:0.3, scaleY:0.3, duration:400, onComplete:()=>trail.destroy()});
+                }
+                // 着弾
+                if(t >= 1){
+                  flightLoop.remove();
+                  try{orb.destroy();}catch(e){}
+                  try{orbCore.destroy();}catch(e){}
+                  if(target.dead || !target.sprite) return;
+                  // 着弾エフェクト
+                  const burst = this.add.circle(target.sprite.x, target.sprite.y, 16, 0xaa44ff, 0.85).setDepth(20);
+                  this.tweens.add({targets: burst, scaleX:2.5, scaleY:2.5, alpha:0, duration:300, onComplete:()=>burst.destroy()});
+                  // ダメージ
+                  const baseDmg = Math.max(1, Math.floor((pd.mag||0) * 1.8));
+                  const isCrit = Math.random()*100 < calcCrit(pd);
+                  const em = getElementMult('dark', target.element||'none');
+                  const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
+                  this.hitEnemy(target, dmg, isCrit, true, em.label);
+                }
               },
             });
           });
@@ -6754,9 +6772,11 @@ class GameScene extends Phaser.Scene{
           // ヒット判定(直線+幅・遅延付き)
           const cosA = Math.cos(targetAng);
           const sinA = Math.sin(targetAng);
-          // 龍が通過するタイミングで段階的にダメージ
+          // 龍が通過するタイミングで段階的にダメージ(龍のスピードに合わせて遅く)
+          // 18セグメント × 130ms = 2340ms かけて到達するので、5段階に分割
+          const totalDur = 18 * 130;
           for(let stage=0; stage<5; stage++){
-            this.time.delayedCall(stage*120, ()=>{
+            this.time.delayedCall(Math.floor(stage * totalDur / 5), ()=>{
               const stageStart = (stage/5) * range;
               const stageEnd = ((stage+1)/5) * range;
               const targets = this.enemyDataList.filter(ed=>{
@@ -9601,9 +9621,9 @@ class GameScene extends Phaser.Scene{
     const cosA = Math.cos(ang);
     const sinA = Math.sin(ang);
     const perpAng = ang + Math.PI/2;
-    // 龍の体節を10個並べて、それぞれ順次出現してうねる
-    const segments = 12;
-    const segDelay = 50; // 段ごとの開始ディレイ
+    // 龍の体節を増やしてゆっくり進む
+    const segments = 18;
+    const segDelay = 130; // 段ごとの開始ディレイ(50→130 でゆっくり)
     for(let i=0; i<segments; i++){
       this.time.delayedCall(i*segDelay, ()=>{
         // 進行方向にi/segments * range進んだ位置(ベース)
@@ -9611,67 +9631,149 @@ class GameScene extends Phaser.Scene{
         const baseX = sx + cosA * range * t;
         const baseY = sy + sinA * range * t;
         // うねり(perp方向に sin で揺れる)
-        const undulation = Math.sin(t * Math.PI * 3) * 35; // 3周期の波
+        const undulation = Math.sin(t * Math.PI * 3) * 40;
         const segX = baseX + Math.cos(perpAng) * undulation;
         const segY = baseY + Math.sin(perpAng) * undulation;
-        // 龍の体節(黒い丸+紫オーラ)
-        const outerSize = (width/2) * (1 - t*0.3); // 後ろほど細くなる
-        const seg = this.add.circle(segX, segY, outerSize, 0x110022, 1).setDepth(19).setStrokeStyle(3, 0xaa44ff, 0.9);
-        // 中心の白い線(龍の魂)
-        const core = this.add.circle(segX, segY, outerSize*0.3, 0xffffff, 0.7).setDepth(20);
-        // 紫の煙(尾を引く)
-        const smoke = this.add.circle(segX, segY, outerSize*1.3, 0x6622aa, 0.4).setDepth(18);
-        // 段階的に広がってから消える
+        // ── 炎感を出す多層構造 ──
+        const outerSize = (width/2) * (1 - t*0.25);
+        // 1. 一番外側: 紫オーラ(暗紫の煙)
+        const smoke = this.add.circle(segX, segY, outerSize*1.5, 0x331144, 0.45).setDepth(17);
+        // 2. 中間: 紫の炎
+        const purpleFlame = this.add.circle(segX, segY, outerSize*1.1, 0x6622aa, 0.7).setDepth(18);
+        // 3. 中心の黒い体(龍の本体)
+        const seg = this.add.circle(segX, segY, outerSize*0.85, 0x110022, 1).setDepth(19).setStrokeStyle(3, 0xaa44ff, 0.95);
+        // 4. 内側に赤紫の炎芯(炎が燃え盛る感じ)
+        const flameCore = this.add.circle(segX, segY, outerSize*0.5, 0xcc2266, 0.85).setDepth(20);
+        // 5. 中心の白光(龍の魂・最も明るい)
+        const core = this.add.circle(segX, segY, outerSize*0.25, 0xffffff, 0.9).setDepth(21);
+        // 6. 周辺に飛び散る火の粉
+        for(let k=0;k<2;k++){
+          const sparkAng = Math.random() * Math.PI * 2;
+          const sparkR = outerSize * (0.8 + Math.random()*0.5);
+          const spark = this.add.circle(
+            segX + Math.cos(sparkAng)*sparkR,
+            segY + Math.sin(sparkAng)*sparkR,
+            3 + Math.random()*2,
+            Math.random()<0.5 ? 0xff66cc : 0xaa44ff,
+            0.85
+          ).setDepth(20);
+          this.tweens.add({
+            targets: spark,
+            x: spark.x + Math.cos(sparkAng) * 30,
+            y: spark.y + Math.sin(sparkAng) * 30 - 15,  // 上方向にも
+            alpha: 0,
+            scaleX: 0.3, scaleY: 0.3,
+            duration: 700,
+            onComplete: ()=>spark.destroy(),
+          });
+        }
+        // 体節は長めに残ってフェードアウト(炎が燃え続ける感)
         this.tweens.add({
           targets: seg,
-          scaleX: 1.2, scaleY: 1.2,
+          scaleX: 1.1, scaleY: 1.1,
           alpha: 0,
-          duration: 800,
+          duration: 1400,
           ease: 'Cubic.easeOut',
           onComplete: ()=>seg.destroy(),
         });
         this.tweens.add({
+          targets: flameCore,
+          scaleX: 1.3, scaleY: 1.3,
+          alpha: 0,
+          duration: 1000,
+          ease: 'Sine.easeOut',
+          onComplete: ()=>flameCore.destroy(),
+        });
+        this.tweens.add({
           targets: core,
           alpha: 0,
-          duration: 600,
+          duration: 800,
           onComplete: ()=>core.destroy(),
         });
         this.tweens.add({
-          targets: smoke,
-          scaleX: 2, scaleY: 2,
+          targets: purpleFlame,
+          scaleX: 1.6, scaleY: 1.6,
           alpha: 0,
-          duration: 1000,
+          duration: 1200,
+          ease: 'Sine.easeOut',
+          onComplete: ()=>purpleFlame.destroy(),
+        });
+        this.tweens.add({
+          targets: smoke,
+          scaleX: 2.2, scaleY: 2.2,
+          alpha: 0,
+          duration: 1600,
+          ease: 'Sine.easeOut',
           onComplete: ()=>smoke.destroy(),
         });
-        // 先頭セグメント(i=0)に龍の頭を表示
+        // 先頭セグメント(i=0)に龍の頭を表示・ゆっくり進む
         if(i===0){
-          const head = this.add.text(segX, segY, '🐉', {fontSize:'48px'}).setOrigin(0.5).setDepth(21).setRotation(ang);
+          const head = this.add.text(segX, segY, '🐉', {fontSize:'56px'}).setOrigin(0.5).setDepth(22).setRotation(ang);
+          // 頭の周りにも炎オーラ
+          const headFlame = this.add.circle(segX, segY, 45, 0xcc2266, 0.4).setDepth(21);
           this.tweens.add({
-            targets: head,
+            targets: headFlame,
+            scaleX: 1.4, scaleY: 1.4,
+            alpha: 0.7,
+            duration: 600,
+            yoyo: true,
+            repeat: 3,
+          });
+          this.tweens.add({
+            targets: [head, headFlame],
             x: sx + cosA * range,
             y: sy + sinA * range,
             duration: segments * segDelay,
             ease: 'Linear',
             onComplete: ()=>{
-              this.tweens.add({targets:head, alpha:0, scaleX:1.5, scaleY:1.5, duration:300, onComplete:()=>head.destroy()});
+              this.tweens.add({
+                targets:[head, headFlame],
+                alpha:0, scaleX:2, scaleY:2,
+                duration:500,
+                onComplete:()=>{
+                  try{head.destroy();}catch(e){}
+                  try{headFlame.destroy();}catch(e){}
+                },
+              });
             },
           });
         }
       });
     }
-    // 軌道全体に紫の閃光残像
+    // 軌道終了時の大爆発
     this.time.delayedCall(segments * segDelay + 200, ()=>{
-      // 着弾点で紫の爆発
       const ex = sx + cosA * range;
       const ey = sy + sinA * range;
+      // 紫炎の爆発(複数層)
       const finalBurst = this.add.circle(ex, ey, 30, 0xaa44ff, 0.8).setDepth(20);
+      const finalFlame = this.add.circle(ex, ey, 30, 0xcc2266, 0.7).setDepth(20);
       this.tweens.add({
         targets: finalBurst,
-        scaleX: 5, scaleY: 5,
+        scaleX: 6, scaleY: 6,
         alpha: 0,
-        duration: 600,
+        duration: 800,
         onComplete: ()=>finalBurst.destroy(),
       });
+      this.tweens.add({
+        targets: finalFlame,
+        scaleX: 4, scaleY: 4,
+        alpha: 0,
+        duration: 1000,
+        onComplete: ()=>finalFlame.destroy(),
+      });
+      // 火の粉が四方に飛び散る
+      for(let k=0;k<16;k++){
+        const sparkAng = (k/16) * Math.PI * 2;
+        const spark = this.add.circle(ex, ey, 4, k%2===0?0xff66cc:0xaa44ff, 0.9).setDepth(21);
+        this.tweens.add({
+          targets: spark,
+          x: ex + Math.cos(sparkAng) * 100,
+          y: ey + Math.sin(sparkAng) * 100,
+          alpha: 0,
+          duration: 700,
+          onComplete: ()=>spark.destroy(),
+        });
+      }
     });
   }
 
@@ -10680,24 +10782,46 @@ class GameScene extends Phaser.Scene{
     if(type===false) type='normal';
 
     const cfg={
-      normal:   {fs:'18px',sw:3,sc:1.0,toY:65, dur:1400,ease:'Cubic.easeOut',   startSc:1.0},
-      crit:     {fs:'28px',sw:6,sc:0.5,toY:100,dur:2400,ease:'Back.easeOut',    startSc:0.5},
-      skill:    {fs:'24px',sw:5,sc:0.8,toY:90, dur:2200,ease:'Cubic.easeOut',   startSc:0.8},
-      skillcrit:{fs:'32px',sw:7,sc:0.4,toY:110,dur:2800,ease:'Back.easeOut',    startSc:0.4},
+      normal:   {fs:'20px',sw:4,sc:1.0,toY:65, dur:1400,ease:'Cubic.easeOut',   startSc:1.0},
+      crit:     {fs:'34px',sw:7,sc:0.5,toY:100,dur:2400,ease:'Back.easeOut',    startSc:0.5},
+      skill:    {fs:'26px',sw:6,sc:0.8,toY:90, dur:2200,ease:'Cubic.easeOut',   startSc:0.8},
+      skillcrit:{fs:'40px',sw:8,sc:0.4,toY:110,dur:2800,ease:'Back.easeOut',    startSc:0.4},
       info:     {fs:'14px',sw:2,sc:1.0,toY:40, dur:1000,ease:'Cubic.easeOut',   startSc:1.0},
-    }[type]||{fs:'18px',sw:3,sc:1.0,toY:65,dur:1400,ease:'Cubic.easeOut',startSc:1.0};
+    }[type]||{fs:'20px',sw:4,sc:1.0,toY:65,dur:1400,ease:'Cubic.easeOut',startSc:1.0};
 
-    // ダメージ系はArial Bold、情報系はArial
-    const isInfo=(type==='info');
-    const fontFamily=isInfo?'Arial':'Arial Black, Arial Bold, Arial';
-    const fontStyle=isInfo?'normal':'bold';
+    // フォントとカラー設定(用途別)
+    let fontFamily, fontStyle, displayColor, strokeCol;
+    if(type==='info'){
+      fontFamily = 'Arial';
+      fontStyle = 'normal';
+      displayColor = col;
+      strokeCol = '#000000';
+    }else if(type==='crit' || type==='skillcrit'){
+      // クリティカル: Bangers(爆発感)・紅色・太い縁取り
+      fontFamily = '"Bangers", Impact, "Arial Black", sans-serif';
+      fontStyle = 'bold';
+      displayColor = '#ff2244';        // 紅色(指定)
+      strokeCol = '#440000';           // 暗赤の縁取り
+    }else{
+      // 通常ダメ・スキルダメ: Orbitron(SF・サイバー)・太字
+      fontFamily = '"Orbitron", "Arial Black", sans-serif';
+      fontStyle = 'bold';
+      displayColor = col;
+      strokeCol = '#000000';
+    }
+
     const t=this.add.text(x,y,txt,{
       fontSize:cfg.fs,
       fontFamily:fontFamily,
       fontStyle:fontStyle,
-      color:col,
-      stroke:'#000000',strokeThickness:cfg.sw,
+      color:displayColor,
+      stroke:strokeCol,strokeThickness:cfg.sw,
     }).setOrigin(0.5).setDepth(32).setScale(cfg.startSc);
+
+    // クリティカルは追加で影を付けて立体感
+    if(type==='crit' || type==='skillcrit'){
+      t.setShadow(2, 2, '#000000', 4, true, true);
+    }
 
     this.tweens.add({
       targets:t,
