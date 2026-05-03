@@ -1667,6 +1667,76 @@ class BootScene extends Phaser.Scene{
       g.lineBetween(8,40,40,8);
     });
 
+    // ポップなドクロ(エンペラーボムズ用・怖くない可愛いドクロ)
+    mk2('pop_skull',128,128,g=>{
+      const S=128;
+      // 影
+      g.fillStyle(0x000000,0.3); g.fillEllipse(S*.5, S*.92, S*.55, S*.08);
+      // 頭蓋骨の本体(クリーム色で柔らかく)
+      g.fillStyle(0xfff8e8,1); g.fillCircle(S*.5, S*.42, S*.34);
+      // 顎部分(細め)
+      g.fillStyle(0xfff8e8,1); g.fillRoundedRect(S*.32, S*.55, S*.36, S*.30, 18);
+      g.fillCircle(S*.32, S*.70, S*.06);  // 左頬
+      g.fillCircle(S*.68, S*.70, S*.06);  // 右頬
+      // 頭蓋骨の縁(ピンクの優しい縁取り)
+      g.lineStyle(3, 0xffaadd, 0.7);
+      g.strokeCircle(S*.5, S*.42, S*.34);
+      // 大きな丸い目(目自体は黒、丸くて可愛い)
+      g.fillStyle(0x222244,1);
+      g.fillCircle(S*.36, S*.42, S*.10);
+      g.fillCircle(S*.64, S*.42, S*.10);
+      // 目のキラキラハイライト(2つ・大小)
+      g.fillStyle(0xffffff,1);
+      g.fillCircle(S*.33, S*.39, S*.04);
+      g.fillCircle(S*.61, S*.39, S*.04);
+      g.fillCircle(S*.40, S*.45, S*.018);
+      g.fillCircle(S*.68, S*.45, S*.018);
+      // 鼻(小さなハート型・かわいい)
+      g.fillStyle(0xff88aa,0.9);
+      g.fillCircle(S*.46, S*.53, S*.025);
+      g.fillCircle(S*.54, S*.53, S*.025);
+      g.fillTriangle(S*.435, S*.535, S*.565, S*.535, S*.5, S*.59);
+      // ニッコリ口(にこちゃん風)
+      g.lineStyle(4, 0x222244, 1);
+      // 弧を線分で表現
+      const cx=S*.5, cy=S*.74, r=S*.10;
+      let prevX=cx-r, prevY=cy;
+      for(let k=1;k<=12;k++){
+        const t=k/12;
+        const ang=Math.PI*t;
+        const nx=cx-Math.cos(ang)*r;
+        const ny=cy+Math.sin(ang)*r;
+        g.lineBetween(prevX, prevY, nx, ny);
+        prevX=nx; prevY=ny;
+      }
+      // 歯(白いブロックを4つ・ニコッと感)
+      g.fillStyle(0xffffff,1);
+      g.fillRect(S*.42, S*.74, S*.04, S*.06);
+      g.fillRect(S*.47, S*.74, S*.04, S*.06);
+      g.fillRect(S*.52, S*.74, S*.04, S*.06);
+      g.fillRect(S*.57, S*.74, S*.04, S*.06);
+      // 頬っぺた(ピンクの円・かわいさUP)
+      g.fillStyle(0xffaacc,0.6);
+      g.fillCircle(S*.22, S*.55, S*.06);
+      g.fillCircle(S*.78, S*.55, S*.06);
+      // 頭の上のリボン蝶結び(超ポップ要素)
+      g.fillStyle(0xff6699,1);
+      g.fillTriangle(S*.42, S*.10, S*.50, S*.16, S*.42, S*.22);
+      g.fillTriangle(S*.58, S*.10, S*.50, S*.16, S*.58, S*.22);
+      g.fillCircle(S*.50, S*.16, S*.025);
+      g.fillStyle(0xffaacc,1);
+      g.fillCircle(S*.45, S*.14, S*.012);
+      g.fillCircle(S*.55, S*.14, S*.012);
+      // ☆ 周囲にキラキラ
+      g.fillStyle(0xffee44,1);
+      g.fillTriangle(S*.10, S*.30, S*.13, S*.34, S*.10, S*.38);
+      g.fillTriangle(S*.13, S*.34, S*.17, S*.34, S*.13, S*.34);
+      g.fillCircle(S*.12, S*.34, S*.018);
+      g.fillCircle(S*.88, S*.34, S*.020);
+      g.fillCircle(S*.18, S*.62, S*.014);
+      g.fillCircle(S*.84, S*.62, S*.016);
+    });
+
     // ── フリーズエフェクト ──
     mk2('fx_freeze',48,48,g=>{
       g.fillStyle(0x88ccff,0.3);g.fillCircle(24,24,23);
@@ -5226,6 +5296,13 @@ class GameScene extends Phaser.Scene{
 
       // ブーストアタック：多段ヒット処理
       const boostHits=bull.getData('boostHits')||1;
+      // バルカン/ブースト累積(連射全弾・多段ヒットの合計用)
+      const vulcanAcc = bull.getData('vulcanAcc');
+      // 1段目を累積に加算(死亡前の最後のダメージなのでmiss判定後でも入る)
+      if(vulcanAcc && !bull.getData('miss')){
+        vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + dmg);
+        if(ed.sprite) vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+      }
       if(boostHits>1&&!ed.dead){
         // 1段目は通常通り下で処理、2段目以降を遅延で追加
         for(let h=1;h<boostHits;h++){
@@ -5233,6 +5310,11 @@ class GameScene extends Phaser.Scene{
             if(ed.dead)return;
             this.hitEnemy(ed,dmg,isCrit,true); // isSkill=trueでスキルダメージ表示
             SE('arrow');
+            // 累積に2段目以降も加算
+            if(vulcanAcc){
+              vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + dmg);
+              if(ed.sprite) vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+            }
           });
         }
       }
@@ -5279,6 +5361,12 @@ class GameScene extends Phaser.Scene{
       const bulletElem=bull.getData('element')||'none';
       const em=getElementMult(bulletElem, ed.element||'none');
       const finalDmg=Math.max(1, Math.floor(dmg*em.mult));
+
+      // バルカン累積に1段目を加算
+      if(vulcanAcc && !bull.getData('miss')){
+        vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + finalDmg);
+        vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+      }
 
       if(pierce){
         // 貫通弾：同一敵への多重ヒット防止
@@ -5443,7 +5531,22 @@ class GameScene extends Phaser.Scene{
       const ang=this.getFacingAngle();
       const res=rollAttack(pd,0,this._nearestEnemyEva());
       const baseDmg=res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk));
-      this.fireBullet(p.x,p.y,ang,'proj_arrow',{
+      // 多段ヒット時はTOTAL累積を準備
+      let boostAcc = null;
+      if(hitCount > 1){
+        boostAcc = {
+          totalsByEnemy: new Map(),
+          lastPosByEnemy: new Map(),
+        };
+        // hitCount * 120ms + 余裕で TOTAL 表示
+        this.time.delayedCall(hitCount*120 + 500, ()=>{
+          boostAcc.totalsByEnemy.forEach((total, ed)=>{
+            const pos = boostAcc.lastPosByEnemy.get(ed) || {x:p.x,y:p.y};
+            this.showTotalDamage(pos.x, pos.y, total);
+          });
+        });
+      }
+      const b = this.fireBullet(p.x,p.y,ang,'proj_arrow',{
         spd:540,maxDist:650,
         dmg:baseDmg,
         isCrit:!res.miss&&res.isCrit,
@@ -5454,6 +5557,10 @@ class GameScene extends Phaser.Scene{
         boostScene:this,
         boostPd:pd,
       });
+      // ブーストアタックの累積を弾に紐付け(vulcanAccと同じ仕組みを流用)
+      if(b && boostAcc){
+        b.setData('vulcanAcc', boostAcc);
+      }
       SE('arrow');
       // 2段・3段の追加ヒットは弾着弾時に処理（hitBullet内で対応）
       // フロートテキスト
@@ -6002,7 +6109,7 @@ class GameScene extends Phaser.Scene{
         // 上空にドクロ爆弾を投げる演出
         const cam = this.cameras.main;
         // ドクロ爆弾(プレイヤー位置から上空へ)
-        const bomb = this.add.text(p.x, p.y, '💀', {fontSize:'48px'}).setOrigin(0.5).setDepth(20);
+        const bomb = this.add.image(p.x, p.y, 'pop_skull').setOrigin(0.5).setDepth(20).setDisplaySize(56, 56);
         this.tweens.add({
           targets: bomb,
           y: p.y - 600,
@@ -6016,7 +6123,7 @@ class GameScene extends Phaser.Scene{
             this.cameras.main.flash(800, 255, 100, 50);
             this.cameras.main.shake(500, 0.025);
             // 画面範囲のドクロ爆発エフェクト(長めに表示)
-            const skullExp = this.add.text(p.x, p.y-50, '💀', {fontSize:'120px'}).setOrigin(0.5).setDepth(25).setAlpha(0).setScale(0.3);
+            const skullExp = this.add.image(p.x, p.y-50, 'pop_skull').setOrigin(0.5).setDepth(25).setDisplaySize(140, 140).setAlpha(0).setScale(0.3);
             // 1段階目: 一気にドーン!と出現(200ms)
             this.tweens.add({
               targets: skullExp,
@@ -6103,25 +6210,7 @@ class GameScene extends Phaser.Scene{
             this.time.delayedCall(3*350 + 250, ()=>{
               totalsByEnemy.forEach((total, ed)=>{
                 if(ed.dead || !ed.sprite) return;
-                // TOTAL表示: Press Start 2P (レトロ8bit感)・黄色・赤縁取り
-                const totalTxt = this.add.text(ed.sprite.x, ed.sprite.y - 60, 'TOTAL '+total, {
-                  fontSize:'30px',
-                  fontFamily:'"Press Start 2P", "Arial Black", monospace',
-                  color:'#ffee00',     // 黄色(指定)
-                  fontStyle:'bold',
-                  stroke:'#aa2200',
-                  strokeThickness:7,
-                }).setOrigin(0.5).setDepth(30);
-                totalTxt.setShadow(2, 2, '#000000', 4, true, true);
-                this.tweens.add({
-                  targets: totalTxt,
-                  y: totalTxt.y - 30,
-                  alpha: 0,
-                  scaleX: 1.3, scaleY: 1.3,
-                  duration: 1200,
-                  ease: 'Cubic.easeOut',
-                  onComplete: ()=>totalTxt.destroy(),
-                });
+                this.showTotalDamage(ed.sprite.x, ed.sprite.y, total);
               });
             });
             // 中心に火柱を残す
@@ -6478,26 +6567,50 @@ class GameScene extends Phaser.Scene{
         const totalShots = 10;
         const interval = 200;
         const startDelay = 500; // 召喚モーション後に発射開始
+        // 累積ダメージ
+        let totalDmg = 0;
+        let hitCount = 0;
+        // ターゲットの最後の位置を記憶
+        let lastTargetX = target.sprite.x;
+        let lastTargetY = target.sprite.y;
         for(let i=0;i<totalShots;i++){
           this.time.delayedCall(startDelay + i*interval, ()=>{
-            if(target.dead || !target.sprite) return;
             const spIdx = i%2;
             const sp = spiritData[spIdx].sprite;
             if(!sp || !sp.scene) return;
-            // 精霊の現在位置からビーム発射
-            const beam = this.add.line(0, 0, sp.x, sp.y, target.sprite.x, target.sprite.y, 0x88ffaa, 1).setOrigin(0).setLineWidth(3).setDepth(18);
+            // ターゲット位置を更新(生きてれば最新、死んでれば最後の位置)
+            let tx, ty;
+            if(target.dead || !target.sprite){
+              tx = lastTargetX; ty = lastTargetY;
+            }else{
+              tx = target.sprite.x; ty = target.sprite.y;
+              lastTargetX = tx; lastTargetY = ty;
+            }
+            // 精霊の現在位置からビーム発射(死後も演出)
+            const beam = this.add.line(0, 0, sp.x, sp.y, tx, ty, 0x88ffaa, 1).setOrigin(0).setLineWidth(3).setDepth(18);
             this.tweens.add({targets:beam, alpha:0, duration:250, onComplete:()=>beam.destroy()});
             // 発射時の精霊が一瞬光る
             const flash = this.add.circle(sp.x, sp.y, 14, 0xaaffaa, 0.8).setDepth(18);
             this.tweens.add({targets:flash, alpha:0, scaleX:2, scaleY:2, duration:200, onComplete:()=>flash.destroy()});
-            // ダメージ
+            // ダメージ計算(死後でも記録)
             const baseDmg = Math.max(1, Math.floor(pd.atk * 0.8));
             const isCrit = Math.random()*100 < calcCrit(pd);
             const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
-            this.hitEnemy(target, dmg, isCrit, true, '');
-            // ヒット閃光(ターゲット側)
-            const hitFlash = this.add.circle(target.sprite.x, target.sprite.y, 10, 0x88ffaa, 0.8).setDepth(18);
+            totalDmg += dmg;
+            hitCount++;
+            // 敵生存中なら実ダメージ反映
+            if(!target.dead && target.sprite){
+              this.hitEnemy(target, dmg, isCrit, true, '');
+            }
+            // ヒット閃光(死後でも演出)
+            const hitFlash = this.add.circle(tx, ty, 10, 0x88ffaa, 0.8).setDepth(18);
             this.tweens.add({targets:hitFlash, alpha:0, scaleX:2.5, scaleY:2.5, duration:250, onComplete:()=>hitFlash.destroy()});
+            // 全弾終了後にTOTAL表示
+            if(hitCount >= totalShots){
+              this.time.delayedCall(200, ()=>{
+                this.showTotalDamage(tx, ty, totalDmg);
+              });
+            }
           });
         }
         // 全弾終わったら精霊を消す
@@ -6650,14 +6763,28 @@ class GameScene extends Phaser.Scene{
           this[cdKey]=0.3;
           return;
         }
+        // ターゲットが消えても、最後の位置を記憶する仕組み
+        const lockOn = {
+          ed: target,
+          lastX: target.sprite.x,
+          lastY: target.sprite.y,
+        };
         // プレイヤー位置で発射準備の小さな閃光
         const muzzle = this.add.circle(p.x, p.y-10, 18, 0xaa44ff, 0.7).setDepth(19).setStrokeStyle(2, 0xcc88ff, 0.9);
         this.tweens.add({targets: muzzle, scaleX:1.5, scaleY:1.5, alpha:0, duration:300, onComplete:()=>muzzle.destroy()});
         // 6個の闇の球体がプレイヤーから飛ぶ
         const orbCount = 6;
+        // 累積ダメージを記録(全弾終了後にTOTAL表示)
+        let totalDmg = 0;
+        let hitCount = 0;
         for(let i=0;i<orbCount;i++){
           this.time.delayedCall(i*100, ()=>{
-            if(!this.player || target.dead || !target.sprite) return;
+            if(!this.player) return;
+            // ターゲット位置を更新(生きてれば最新位置・死んでれば最後の位置)
+            if(lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite){
+              lockOn.lastX = lockOn.ed.sprite.x;
+              lockOn.lastY = lockOn.ed.sprite.y;
+            }
             // プレイヤー位置を起点に、少しランダム性
             const startX = this.player.x + (Math.random()-0.5)*20;
             const startY = this.player.y - 10 + (Math.random()-0.5)*20;
@@ -6667,35 +6794,41 @@ class GameScene extends Phaser.Scene{
             // 闇の球体(プレイヤーから出る)
             const orb = this.add.circle(startX, startY, 14, 0x331166, 1).setDepth(18).setStrokeStyle(2, 0xaa44ff, 0.9);
             const orbCore = this.add.circle(startX, startY, 5, 0xffffff, 0.6).setDepth(19);
-            // ターゲットへ飛ぶ(ホーミング感を出すために updateで追従)
+            // 着弾点を発射時点で固定(ターゲットが居れば現在位置、なければ最後の位置)
+            const aimX = (lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite) ? lockOn.ed.sprite.x : lockOn.lastX;
+            const aimY = (lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite) ? lockOn.ed.sprite.y : lockOn.lastY;
             const flightDur = 450;
             const startTime = this.time.now;
-            // 軌道に揺らぎを加えるための制御点
-            const ang = Phaser.Math.Angle.Between(startX, startY, target.sprite.x, target.sprite.y);
+            const ang = Phaser.Math.Angle.Between(startX, startY, aimX, aimY);
             const perpAng = ang + Math.PI/2;
-            const swayAmp = (Math.random()-0.5) * 60; // 各球体ごとの揺らぎ
-            // 軌跡の小粒子を残しながら飛行
+            const swayAmp = (Math.random()-0.5) * 60;
             const flightLoop = this.time.addEvent({
               delay: 16,
               loop: true,
               callback: ()=>{
+                if(!orb.scene){ flightLoop.remove(); return; }
                 const elapsed = this.time.now - startTime;
                 const t = Math.min(1, elapsed / flightDur);
-                if(target.dead || !target.sprite || !orb.scene){
-                  flightLoop.remove();
-                  return;
+                // 着弾点を更新(ターゲット生存中は現在位置を追跡、死んだら最後の位置で止まる)
+                let curAimX = aimX, curAimY = aimY;
+                if(lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite){
+                  curAimX = lockOn.ed.sprite.x;
+                  curAimY = lockOn.ed.sprite.y;
+                  lockOn.lastX = curAimX;
+                  lockOn.lastY = curAimY;
+                }else{
+                  curAimX = lockOn.lastX;
+                  curAimY = lockOn.lastY;
                 }
-                // 起点から終点への線形補間 + 中央付近で perp方向に膨らむ(sin)
-                const tx = target.sprite.x;
-                const ty = target.sprite.y;
-                const baseX = startX + (tx - startX) * t;
-                const baseY = startY + (ty - startY) * t;
+                // 起点から終点への線形補間 + sin で揺らぎ
+                const baseX = startX + (curAimX - startX) * t;
+                const baseY = startY + (curAimY - startY) * t;
                 const sway = Math.sin(t * Math.PI) * swayAmp;
                 const px = baseX + Math.cos(perpAng) * sway;
                 const py = baseY + Math.sin(perpAng) * sway;
                 orb.setPosition(px, py);
                 orbCore.setPosition(px, py);
-                // 軌跡: 小さな紫の粒
+                // 軌跡
                 if(Math.random() < 0.4){
                   const trail = this.add.circle(px, py, 3, 0xaa44ff, 0.6).setDepth(17);
                   this.tweens.add({targets: trail, alpha:0, scaleX:0.3, scaleY:0.3, duration:400, onComplete:()=>trail.destroy()});
@@ -6705,16 +6838,29 @@ class GameScene extends Phaser.Scene{
                   flightLoop.remove();
                   try{orb.destroy();}catch(e){}
                   try{orbCore.destroy();}catch(e){}
-                  if(target.dead || !target.sprite) return;
-                  // 着弾エフェクト
-                  const burst = this.add.circle(target.sprite.x, target.sprite.y, 16, 0xaa44ff, 0.85).setDepth(20);
+                  // 着弾エフェクト(敵生死問わず)
+                  const burst = this.add.circle(curAimX, curAimY, 16, 0xaa44ff, 0.85).setDepth(20);
                   this.tweens.add({targets: burst, scaleX:2.5, scaleY:2.5, alpha:0, duration:300, onComplete:()=>burst.destroy()});
-                  // ダメージ
+                  // ダメージ計算(常に実行)
                   const baseDmg = Math.max(1, Math.floor((pd.mag||0) * 1.8));
                   const isCrit = Math.random()*100 < calcCrit(pd);
-                  const em = getElementMult('dark', target.element||'none');
+                  const em = getElementMult('dark', (lockOn.ed && lockOn.ed.element)||'none');
                   const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
-                  this.hitEnemy(target, dmg, isCrit, true, em.label);
+                  totalDmg += dmg;
+                  hitCount++;
+                  // 敵が生きていれば実ダメージ反映
+                  if(lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite){
+                    this.hitEnemy(lockOn.ed, dmg, isCrit, true, em.label);
+                  }
+                  // 全弾着弾後にTOTAL表示
+                  if(hitCount >= orbCount){
+                    this.time.delayedCall(200, ()=>{
+                      // 表示位置: 敵が生きていればその位置、死んでれば最後の位置
+                      const tx = (lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite) ? lockOn.ed.sprite.x : lockOn.lastX;
+                      const ty = (lockOn.ed && !lockOn.ed.dead && lockOn.ed.sprite) ? lockOn.ed.sprite.y : lockOn.lastY;
+                      this.showTotalDamage(tx, ty, totalDmg);
+                    });
+                  }
                 }
               },
             });
@@ -6773,31 +6919,56 @@ class GameScene extends Phaser.Scene{
           const cosA = Math.cos(targetAng);
           const sinA = Math.sin(targetAng);
           // 龍が通過するタイミングで段階的にダメージ(龍のスピードに合わせて遅く)
-          // 18セグメント × 130ms = 2340ms かけて到達するので、5段階に分割
-          const totalDur = 18 * 130;
-          for(let stage=0; stage<5; stage++){
-            this.time.delayedCall(Math.floor(stage * totalDur / 5), ()=>{
-              const stageStart = (stage/5) * range;
-              const stageEnd = ((stage+1)/5) * range;
-              const targets = this.enemyDataList.filter(ed=>{
-                if(ed.dead) return false;
-                const dx = ed.sprite.x - p.x;
-                const dy = ed.sprite.y - p.y;
+          // 24セグメント × 200ms = 4800ms かけて到達するので、6段階に分割
+          const totalDur = 24 * 200;
+          // 各敵ごとの累積ダメ追跡(死んだ敵にも演出だけ続ける)
+          const totalsByEnemy = new Map();
+          const lastPosByEnemy = new Map();
+          for(let stage=0; stage<6; stage++){
+            this.time.delayedCall(Math.floor(stage * totalDur / 6), ()=>{
+              const stageStart = (stage/6) * range;
+              const stageEnd = ((stage+1)/6) * range;
+              this.enemyDataList.forEach(ed=>{
+                if(!ed.sprite) return;
+                // 既にこの敵がこの龍で貫かれた事があるか?
+                const wasInDragon = totalsByEnemy.has(ed);
+                // 範囲チェック(死んでなければ現在位置、死んでたら最後の位置で判定)
+                let chkX, chkY;
+                if(ed.dead){
+                  if(!wasInDragon) return; // 元から死んでた敵は無視
+                  const lp = lastPosByEnemy.get(ed);
+                  chkX = lp.x; chkY = lp.y;
+                }else{
+                  chkX = ed.sprite.x; chkY = ed.sprite.y;
+                }
+                const dx = chkX - p.x;
+                const dy = chkY - p.y;
                 const fwd = dx*cosA + dy*sinA;
-                if(fwd < stageStart || fwd > stageEnd) return false;
+                if(fwd < stageStart || fwd > stageEnd) return;
                 const perp = Math.abs(dx*(-sinA) + dy*cosA);
-                return perp < beamWidth/2;
-              });
-              targets.forEach(ed=>{
+                if(perp >= beamWidth/2) return;
+                // ヒット
                 const baseDmg = Math.max(1, Math.floor((pd.atk*1.2) + (pd.mag||0) * 4.5));
                 const isCrit = Math.random()*100 < calcCrit(pd);
                 const em = getElementMult('dark', ed.element||'none');
                 const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
-                this.hitEnemy(ed, dmg, isCrit, true, em.label);
+                // 累積記録
+                totalsByEnemy.set(ed, (totalsByEnemy.get(ed)||0) + dmg);
+                if(!ed.dead){
+                  lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+                  this.hitEnemy(ed, dmg, isCrit, true, em.label);
+                }
               });
             });
           }
           this.cameras.main.shake(500, 0.020);
+          // 全段階終了後にTOTAL表示
+          this.time.delayedCall(totalDur + 300, ()=>{
+            totalsByEnemy.forEach((total, ed)=>{
+              const pos = lastPosByEnemy.get(ed) || {x: p.x, y: p.y};
+              this.showTotalDamage(pos.x, pos.y, total);
+            });
+          });
         });
         this.showFloat(p.x, p.y-80, '🐉 黒龍炎', '#aa44ff');
         this[cdKey]=sk.cd;
@@ -6871,24 +7042,44 @@ class GameScene extends Phaser.Scene{
         // 範囲リング表示
         const ring=this.add.circle(p.x, p.y, radius, 0xff4466, 0.15).setStrokeStyle(3, 0xff4466, 0.7).setDepth(15);
         this.tweens.add({targets:ring, alpha:0, duration:600, onComplete:()=>ring.destroy()});
+        // 各敵ごとの累積ダメ追跡
+        const totalsByEnemy = new Map();
+        const lastPos = new Map();
+        targets.forEach(ed=>{
+          totalsByEnemy.set(ed, 0);
+          lastPos.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+        });
         // 5回連続ヒット(各回 ATK × 0.7)
         const hits = 5;
         for(let i=0;i<hits;i++){
           this.time.delayedCall(i*120, ()=>{
             targets.forEach(ed=>{
-              if(ed.dead || !ed.sprite) return;
+              if(!ed.sprite) return;
               const baseDmg = Math.max(1, Math.floor(pd.atk * 0.7));
               const isCrit = Math.random()*100 < calcCrit(pd);
               const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
-              this.hitEnemy(ed, dmg, isCrit, true, '');
-              // 各ヒットの斬撃エフェクト
+              // 累積記録(死後でも続ける)
+              totalsByEnemy.set(ed, (totalsByEnemy.get(ed)||0) + dmg);
+              if(!ed.dead){
+                lastPos.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+                this.hitEnemy(ed, dmg, isCrit, true, '');
+              }
+              // 斬撃エフェクト(死後でも演出)
+              const pos = lastPos.get(ed);
               const ang = Math.random()*Math.PI*2;
-              const slash=this.add.image(ed.sprite.x, ed.sprite.y, 'fx_slash').setRotation(ang).setDisplaySize(60,60).setDepth(20).setTint(0xff4466).setAlpha(0.85);
+              const slash=this.add.image(pos.x, pos.y, 'fx_slash').setRotation(ang).setDisplaySize(60,60).setDepth(20).setTint(0xff4466).setAlpha(0.85);
               this.tweens.add({targets:slash, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash.destroy()});
             });
             this.cameras.main.shake(80, 0.006);
           });
         }
+        // 全弾終了後にTOTAL表示
+        this.time.delayedCall(hits*120 + 200, ()=>{
+          totalsByEnemy.forEach((total, ed)=>{
+            const pos = lastPos.get(ed) || {x:p.x,y:p.y};
+            this.showTotalDamage(pos.x, pos.y, total);
+          });
+        });
         this.showFloat(p.x, p.y-60, '👹 鬼殺し！', '#ff4466');
         this[cdKey]=sk.cd;
       }
@@ -7266,16 +7457,34 @@ class GameScene extends Phaser.Scene{
           this._gloryTimer=null;
         });
         this.showBuffTimer('⭐ グロリアスショット','#ffd700',dur);
-      }else if(num===3){ // バルカンショット（連射）
+      }else if(num===3){ // バルカンショット（連射・TOTAL対応）
         const shots=2+pd.sk3;
         const ang=this.getFacingAngle();
+        // 連射全弾の累積管理(各敵ごとにダメ蓄積)
+        const accumulator = {
+          totalsByEnemy: new Map(),
+          lastPosByEnemy: new Map(),
+          hitsCounted: 0,
+          totalShots: shots,
+        };
         for(let i=0;i<shots;i++){
           this.time.delayedCall(i*80,()=>{
             const res=rollAttack(pd,0,this._nearestEnemyEva());
             const dmg=res.miss?0:Math.max(1,Math.floor(pd.atk*2));
-            this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
+            const b = this.fireBullet(p.x,p.y,ang+(Math.random()-0.5)*0.1,'proj_arrow',{spd:560,maxDist:650,dmg,isCrit:!res.miss&&res.isCrit,sz:14});
+            if(b){
+              b.setData('vulcanAcc', accumulator);
+              b.setData('vulcanIdx', i);
+            }
           });
         }
+        // 全弾終了後にTOTAL表示(最後の弾発射 + 余裕)
+        this.time.delayedCall(shots*80 + 1500, ()=>{
+          accumulator.totalsByEnemy.forEach((total, ed)=>{
+            const pos = accumulator.lastPosByEnemy.get(ed) || {x:p.x,y:p.y};
+            this.showTotalDamage(pos.x, pos.y, total);
+          });
+        });
         this.showFloat(p.x,p.y-60,'🏹 バルカン'+shots+'連射！','#27ae60');SE('multishot');
       }
     }
@@ -9622,8 +9831,8 @@ class GameScene extends Phaser.Scene{
     const sinA = Math.sin(ang);
     const perpAng = ang + Math.PI/2;
     // 龍の体節を増やしてゆっくり進む
-    const segments = 18;
-    const segDelay = 130; // 段ごとの開始ディレイ(50→130 でゆっくり)
+    const segments = 24;
+    const segDelay = 200; // 段ごとの開始ディレイ(さらにゆっくり・派手に)
     for(let i=0; i<segments; i++){
       this.time.delayedCall(i*segDelay, ()=>{
         // 進行方向にi/segments * range進んだ位置(ベース)
@@ -9646,24 +9855,24 @@ class GameScene extends Phaser.Scene{
         const flameCore = this.add.circle(segX, segY, outerSize*0.5, 0xcc2266, 0.85).setDepth(20);
         // 5. 中心の白光(龍の魂・最も明るい)
         const core = this.add.circle(segX, segY, outerSize*0.25, 0xffffff, 0.9).setDepth(21);
-        // 6. 周辺に飛び散る火の粉
-        for(let k=0;k<2;k++){
+        // 6. 周辺に飛び散る火の粉(派手に)
+        for(let k=0;k<4;k++){
           const sparkAng = Math.random() * Math.PI * 2;
-          const sparkR = outerSize * (0.8 + Math.random()*0.5);
+          const sparkR = outerSize * (0.8 + Math.random()*0.7);
           const spark = this.add.circle(
             segX + Math.cos(sparkAng)*sparkR,
             segY + Math.sin(sparkAng)*sparkR,
-            3 + Math.random()*2,
+            4 + Math.random()*3,
             Math.random()<0.5 ? 0xff66cc : 0xaa44ff,
-            0.85
+            0.9
           ).setDepth(20);
           this.tweens.add({
             targets: spark,
-            x: spark.x + Math.cos(sparkAng) * 30,
-            y: spark.y + Math.sin(sparkAng) * 30 - 15,  // 上方向にも
+            x: spark.x + Math.cos(sparkAng) * 50,
+            y: spark.y + Math.sin(sparkAng) * 50 - 25,  // 上方向にも
             alpha: 0,
             scaleX: 0.3, scaleY: 0.3,
-            duration: 700,
+            duration: 900,
             onComplete: ()=>spark.destroy(),
           });
         }
@@ -10776,6 +10985,28 @@ class GameScene extends Phaser.Scene{
   }
 
   // type: 'normal' | 'crit' | 'skill' | 'skillcrit' | 'info'
+  // TOTAL ダメージ表示(Press Start 2P・黄色・赤縁)
+  showTotalDamage(x, y, total){
+    const totalTxt = this.add.text(x, y - 60, 'TOTAL '+total, {
+      fontSize:'30px',
+      fontFamily:'"Press Start 2P", "Arial Black", monospace',
+      color:'#ffee00',
+      fontStyle:'bold',
+      stroke:'#aa2200',
+      strokeThickness:7,
+    }).setOrigin(0.5).setDepth(30);
+    totalTxt.setShadow(2, 2, '#000000', 4, true, true);
+    this.tweens.add({
+      targets: totalTxt,
+      y: totalTxt.y - 30,
+      alpha: 0,
+      scaleX: 1.3, scaleY: 1.3,
+      duration: 1200,
+      ease: 'Cubic.easeOut',
+      onComplete: ()=>totalTxt.destroy(),
+    });
+  }
+
   showFloat(x,y,txt,col,type='normal'){
     // 後方互換: isCrit=true が来た場合
     if(type===true) type='crit';
@@ -11206,8 +11437,9 @@ class GameScene extends Phaser.Scene{
     // ── ST20 ゴブリン集落(草原・砂道・テント・木・岩) ──
     if(cfg.mapType==='goblin_village'){
       // 暗いエリア(森・テント・焚き火跡・岩) → 壁
-      if(sum < 180) return false;
-      // それ以外(草原・砂道) は歩ける
+      // 判定を緩めて歩きやすく
+      if(sum < 130) return false;
+      // それ以外(草原・砂道・草陰) は歩ける
       return true;
     }
 
