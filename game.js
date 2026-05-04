@@ -768,23 +768,70 @@ function _playCliffBGM(){
 }
 
 function startBGM(key){
-  if(_bgmKey===key)return;
-  // 既存BGM停止
-  if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
+  // 同じキーで既に鳴ってれば何もしない
+  if(_bgmKey===key && (_bgmAudio || _bgmNodes.length>0)) return;
+  // 既存BGM停止(必ずクリーンアップ)
+  if(_bgmAudio){
+    try{_bgmAudio.pause();_bgmAudio.currentTime=0;}catch(e){}
+    _bgmAudio=null;
+  }
   _stopSynthBGM();
   _bgmKey=key;
   if(muted)return;
+  if(!key)return;
+  // AudioContext を起こす(ブラウザ自動再生制限対応)
+  try{
+    const ac=getAC();
+    if(ac && ac.state==='suspended'){
+      ac.resume().catch(()=>{});
+    }
+  }catch(e){}
   // MP3があればMP3を優先
   const file=BGM_FILES[key];
   if(file){
-    if(muted)return; // ミュート中は再生しない
-    const audio=new Audio(file);
-    audio.loop=true; audio.volume=0.5;
-    audio.play().catch(()=>{});
-    _bgmAudio=audio;
+    try{
+      const audio=new Audio(file);
+      audio.loop=true;
+      audio.volume=0.5;
+      audio.preload='auto';
+      // ループ失敗時の保険(端末によってはlooping=trueが効かない場合あり)
+      audio.addEventListener('ended', ()=>{
+        if(_bgmAudio===audio && !muted){
+          try{audio.currentTime=0; audio.play().catch(()=>{});}catch(e){}
+        }
+      });
+      // エラー時は合成BGMにフォールバック
+      audio.addEventListener('error', ()=>{
+        if(_bgmAudio===audio){
+          console.warn('[BGM] MP3 error event, falling back to synth', key);
+          _bgmAudio=null;
+          _fallbackSynth(key);
+        }
+      });
+      // 再生失敗時は合成BGMにフォールバック
+      const playPromise=audio.play();
+      if(playPromise && playPromise.catch){
+        playPromise.catch((err)=>{
+          console.warn('[BGM] MP3 play failed, falling back to synth', key, err);
+          if(_bgmAudio===audio){
+            _bgmAudio=null;
+            _fallbackSynth(key);
+          }
+        });
+      }
+      _bgmAudio=audio;
+    }catch(e){
+      console.warn('[BGM] MP3 load failed, fallback', key, e);
+      _fallbackSynth(key);
+    }
     return;
   }
   // 合成BGM
+  _fallbackSynth(key);
+}
+
+// 合成BGMフォールバック
+function _fallbackSynth(key){
   if(key==='title') _playTitleBGM();
   else if(key==='town') _playTownBGM();
   else if(key==='st2_forest') _playForestBGM();
@@ -796,6 +843,7 @@ function startBGM(key){
   else if(key==='st7') _playOrcBGM();
   else if(key==='boss') _playBossBGM();
   else if(key==='clear') _playClearBGM();
+  // それ以外は無音
 }
 
 function updateBGM(){
@@ -4897,6 +4945,8 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     // HP/SP/毒などの状態はステージを跨いで持ち越す(仕様)
 
+    // BGM: シーン開始時に強制リセット → 新規再生(重複・残留防止)
+    stopBGM();
     startBGM(cfg.bgmKey);
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
@@ -6124,10 +6174,10 @@ class GameScene extends Phaser.Scene{
             this.cameras.main.shake(500, 0.025);
             // 画面範囲のドクロ爆発エフェクト(長めに表示)
             const skullExp = this.add.image(p.x, p.y-50, 'pop_skull').setOrigin(0.5).setDepth(25).setDisplaySize(140, 140).setAlpha(0).setScale(0.3);
-            // 1段階目: 一気にドーン!と出現(200ms)
+            // 1段階目: 一気にドーン!と出現(200ms・半透明)
             this.tweens.add({
               targets: skullExp,
-              alpha: 1,
+              alpha: 0.55,
               scaleX: 3.5, scaleY: 3.5,
               duration: 200,
               ease: 'Back.easeOut',
@@ -6228,6 +6278,7 @@ class GameScene extends Phaser.Scene{
           },
         });
         this.showFloat(p.x, p.y-80, '💀 エンペラーボムズ', '#ff8844');
+        try{SE('bigbomb');SE('explode');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===2){ // マシンガン: 15連射の多段攻撃
         // 発射中はさらに速度を半減(踏ん張って撃つ感)
@@ -6296,6 +6347,7 @@ class GameScene extends Phaser.Scene{
                 const flash = this.add.circle(startX, startY, 8, 0xffffaa, 0.85).setDepth(18);
                 this.tweens.add({targets:flash, alpha:0, scaleX:1.6, scaleY:1.6, duration:80, onComplete:()=>flash.destroy()});
                 this.cameras.main.shake(40, 0.003);
+                try{SE('arrow');}catch(e){}
               });
             }
             // 全弾発射完了後に速度を復元
@@ -6329,38 +6381,131 @@ class GameScene extends Phaser.Scene{
         const beamWidth = 80;      // ビーム太さ
         const cosA = Math.cos(targetAng);
         const sinA = Math.sin(targetAng);
-        // 起点(プレイヤー前方20px)
-        const sx = p.x + cosA * 20;
-        const sy = p.y + sinA * 20;
-        const ex = sx + cosA * beamLen;
-        const ey = sy + sinA * beamLen;
+        // 起点(プレイヤー前方20px・タメ中はプレイヤー追従に変更)
+        let muzzleOffsetX = cosA * 20;
+        let muzzleOffsetY = sinA * 20;
 
-        // 1. チャージ演出: 砲口に光球が集まる(150ms)
-        const charge = this.add.circle(sx, sy, 12, 0xaaeeff, 1).setDepth(20).setStrokeStyle(3, 0xffffff, 0.9);
+        // ── タメ演出(0.8秒) ──
+        const chargeDur = 800;
+        // 1. 砲口の光球(プレイヤー追従)
+        const chargeBall = this.add.circle(p.x + muzzleOffsetX, p.y + muzzleOffsetY, 8, 0xaaeeff, 1).setDepth(20).setStrokeStyle(2, 0xffffff, 0.9);
+        // 2. 足元の氷の輪っか
+        const iceRing = this.add.circle(p.x, p.y+10, 30, 0x88ccff, 0).setStrokeStyle(3, 0x88ccff, 0.7).setDepth(7);
+        // 光球が脈動しながら膨らむ
         this.tweens.add({
-          targets: charge,
-          scaleX: 2.5, scaleY: 2.5,
-          duration: 150,
-          onComplete: ()=>{
-            try{charge.destroy();}catch(e){}
-            // 2. ビーム本体発射
-            this._fireMegaBeam(sx, sy, ex, ey, targetAng, beamWidth, beamLen);
+          targets: chargeBall,
+          scaleX: 3.5, scaleY: 3.5,
+          duration: chargeDur,
+          ease: 'Cubic.easeOut',
+        });
+        // 氷の輪っか脈動
+        this.tweens.add({
+          targets: iceRing,
+          scaleX: 1.8, scaleY: 1.8,
+          alpha: 1,
+          duration: chargeDur/2,
+          yoyo: true,
+        });
+        // 砲口光球の追従ループ
+        const chargeFollow = this.time.addEvent({
+          delay: 16,
+          loop: true,
+          callback: ()=>{
+            if(this.player && chargeBall.scene){
+              chargeBall.setPosition(this.player.x + muzzleOffsetX, this.player.y + muzzleOffsetY);
+            }
+            if(this.player && iceRing.scene){
+              iceRing.setPosition(this.player.x, this.player.y+10);
+            }
+          },
+        });
+        // 3. 周囲から青い粒子が砲口に集まる(複数発射)
+        const particleCount = 18;
+        for(let i=0;i<particleCount;i++){
+          const delay = (i / particleCount) * (chargeDur - 200); // 700ms以内に出現
+          this.time.delayedCall(delay, ()=>{
+            if(!this.player) return;
+            // ランダム方向の遠い位置から発生
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 100 + Math.random() * 80;
+            const sx2 = this.player.x + Math.cos(ang) * dist;
+            const sy2 = this.player.y + Math.sin(ang) * dist;
+            // 粒子の種類をランダム(❄ or 円 or ·)
+            let particle;
+            const pType = Math.random();
+            if(pType < 0.4){
+              particle = this.add.text(sx2, sy2, '❄', {fontSize:'18px', color:'#aaeeff'}).setOrigin(0.5).setDepth(18);
+            }else if(pType < 0.75){
+              particle = this.add.circle(sx2, sy2, 4 + Math.random()*3, 0xaaeeff, 0.85).setDepth(18);
+            }else{
+              particle = this.add.circle(sx2, sy2, 3, 0xffffff, 0.9).setDepth(18);
+            }
+            // 砲口に吸い込まれる(プレイヤーが動いても追従)
+            const flightTime = 350 + Math.random()*150;
+            const startTime2 = this.time.now;
+            const flyLoop = this.time.addEvent({
+              delay: 16,
+              loop: true,
+              callback: ()=>{
+                if(!particle.scene){flyLoop.remove(); return;}
+                const t = Math.min(1, (this.time.now - startTime2) / flightTime);
+                const tx = this.player ? this.player.x + muzzleOffsetX : sx2;
+                const ty = this.player ? this.player.y + muzzleOffsetY : sy2;
+                particle.x = sx2 + (tx - sx2) * t;
+                particle.y = sy2 + (ty - sy2) * t;
+                particle.setAlpha(1 - t*0.5);
+                if(particle.setScale) particle.setScale(1 - t*0.7);
+                if(t >= 1){
+                  flyLoop.remove();
+                  try{particle.destroy();}catch(e){}
+                }
+              },
+            });
+          });
+        }
+        // 4. 足元に冷気の薄い円(タメ中ずっと見える)
+        const coldCircle = this.add.circle(p.x, p.y+10, 80, 0x88ccff, 0.15).setDepth(6);
+        const coldFollow = this.time.addEvent({
+          delay: 16,
+          loop: true,
+          callback: ()=>{
+            if(this.player && coldCircle.scene){
+              coldCircle.setPosition(this.player.x, this.player.y+10);
+            }
           },
         });
 
-        // 範囲内の敵にダメージ+凍結(直線+幅判定)
-        // ビーム発射タイミングに合わせる(150ms後)
-        this.time.delayedCall(180, ()=>{
+        // 5. タメ完了 → ビーム発射
+        this.time.delayedCall(chargeDur, ()=>{
+          // 追従ループ停止
+          chargeFollow.remove();
+          coldFollow.remove();
+          try{chargeBall.destroy();}catch(e){}
+          try{iceRing.destroy();}catch(e){}
+          // 冷気円はフェードアウト
+          this.tweens.add({
+            targets: coldCircle,
+            alpha: 0, scaleX: 1.8, scaleY: 1.8,
+            duration: 400,
+            onComplete: ()=>{try{coldCircle.destroy();}catch(e){}},
+          });
+          // 発射時の起点(プレイヤー追従後の最終位置)
+          const sx = this.player.x + muzzleOffsetX;
+          const sy = this.player.y + muzzleOffsetY;
+          const ex = sx + cosA * beamLen;
+          const ey = sy + sinA * beamLen;
+          // ビーム本体発射
+          this._fireMegaBeam(sx, sy, ex, ey, targetAng, beamWidth, beamLen);
+          try{SE('freeze');SE('meteor');}catch(e){}
+          // ダメージ判定(直線+幅判定)
           const targets = this.enemyDataList.filter(ed=>{
             if(ed.dead) return false;
             const dx = ed.sprite.x - sx;
             const dy = ed.sprite.y - sy;
-            // 進行方向への投影
             const fwd = dx*cosA + dy*sinA;
             if(fwd < 0 || fwd > beamLen) return false;
-            // 進行方向に対する垂直距離
             const perp = Math.abs(dx*(-sinA) + dy*cosA);
-            return perp < beamWidth/2 + 15; // 少し余裕を持たせて当たりやすく
+            return perp < beamWidth/2 + 15;
           });
           targets.forEach(ed=>{
             const baseDmg = Math.max(1, Math.floor((pd.atk*1.5) + (pd.mag||0) * 3));
@@ -6371,23 +6516,20 @@ class GameScene extends Phaser.Scene{
             // ヒット位置に氷の爆発
             const burst = this.add.text(ed.sprite.x, ed.sprite.y, '❄', {fontSize:'40px', color:'#aaeeff'}).setOrigin(0.5).setDepth(20);
             this.tweens.add({targets: burst, alpha:0, scaleX:2, scaleY:2, rotation:Math.PI*2, duration:500, onComplete:()=>burst.destroy()});
-            // 凍結適用(3秒)
-            if(!ed.frozen){
-              ed.frozen = true;
-              ed.frozenUntil = this.time.now + 3000;
-              ed.sprite.setTint(0x88ccff);
-              this.time.delayedCall(3000, ()=>{
-                if(ed && !ed.dead){
-                  ed.frozen = false;
-                  ed.frozenUntil = 0;
-                  ed.sprite.clearTint();
-                }
-              });
+            // 凍結適用(マジシャンのフロストと同じ仕組み・3秒)
+            ed.frozen = true;
+            ed.frozenTimer = 3.0;
+            ed.sprite.setTint(0x88ccff);
+            if(ed._iceImg){
+              try{ed._iceImg.destroy();}catch(e){}
+              ed._iceImg = null;
             }
+            const ice = this.add.image(ed.sprite.x, ed.sprite.y, 'fx_freeze').setDisplaySize(40,40).setDepth(8).setAlpha(0.8);
+            ed._iceImg = ice;
           });
+          this.cameras.main.shake(400, 0.018);
         });
 
-        this.cameras.main.shake(400, 0.018);
         this.showFloat(p.x, p.y-80, '❄ プリザーブドバスター', '#aaeeff');
         this[cdKey]=sk.cd;
       }
@@ -6485,6 +6627,7 @@ class GameScene extends Phaser.Scene{
         });
         this.cameras.main.shake(200, 0.012);
         this.showFloat(p.x, p.y-80, '🍃 ウインドカッター', '#aaffaa');
+        try{SE('vortex');SE('arrow');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===2){ // 精霊の誓い: 2体の精霊(ファンネル)が敵周辺を飛び回って攻撃
         // 最寄り敵をターゲット
@@ -6623,6 +6766,7 @@ class GameScene extends Phaser.Scene{
           });
         });
         this.showFloat(p.x, p.y-80, '✨ 精霊の誓い', '#88ffaa');
+        try{SE('magic');SE('multishot');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===3){ // オールクリティカル: 一定時間100%CRIT
         const dur = 8000; // 8秒
@@ -6643,6 +6787,7 @@ class GameScene extends Phaser.Scene{
           pd._allCritUntil = 0;
         });
         this.showFloat(p.x, p.y-80, '⭐ オールクリティカル', '#ffaa44');
+        try{SE('boost');SE('crit');}catch(e){}
         this[cdKey]=sk.cd;
       }
       return;
@@ -6749,6 +6894,7 @@ class GameScene extends Phaser.Scene{
           });
         });
         this.showFloat(p.x, p.y-80, '🌑 ダークフォール', '#aa66ff');
+        try{SE('magic');SE('meteor');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===2){ // ダークストライク: プレイヤーから闇の球体6個が飛ぶ
         let target=null, td=500;
@@ -6867,6 +7013,7 @@ class GameScene extends Phaser.Scene{
           });
         }
         this.showFloat(p.x, p.y-80, '✦ ダークストライク', '#cc88ff');
+        try{SE('multishot');SE('magic');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===3){ // 黒龍炎: 黒い龍が貫通する
         // 詠唱(1.5秒)
@@ -6971,6 +7118,7 @@ class GameScene extends Phaser.Scene{
           });
         });
         this.showFloat(p.x, p.y-80, '🐉 黒龍炎', '#aa44ff');
+        try{SE('boss');SE('meteor');}catch(e){}
         this[cdKey]=sk.cd;
       }
       return;
@@ -7010,6 +7158,7 @@ class GameScene extends Phaser.Scene{
         this.hitEnemy(closest, dmg, isCrit, true, '');
         this.cameras.main.shake(150, 0.012);
         this.showFloat(p.x, p.y-60, '🗡 居合斬り', '#ff4466');
+        try{SE('slash');SE('crit');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===2){ // 燕返し: 5秒間カウンター態勢
         pd._samuraiCounterUntil = this.time.now + 5000;
@@ -7026,6 +7175,7 @@ class GameScene extends Phaser.Scene{
           onComplete: ()=>{ try{cnt.destroy();}catch(e){} pd._samuraiCounterRing=null; },
         });
         this.showFloat(p.x, p.y-60, '🌪 燕返し 構え', '#aaccff');
+        try{SE('parry');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===3){ // 鬼殺し: 範囲内の敵に5回連撃
         const radius = 120;
@@ -7071,6 +7221,7 @@ class GameScene extends Phaser.Scene{
               this.tweens.add({targets:slash, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash.destroy()});
             });
             this.cameras.main.shake(80, 0.006);
+            try{SE('slash');}catch(e){}
           });
         }
         // 全弾終了後にTOTAL表示
@@ -9988,10 +10139,14 @@ class GameScene extends Phaser.Scene{
 
   // スキルボタンを破棄して再構築
   _rebuildSkillButtons(){
-    if(this._skillBtns){
-      this._skillBtns.forEach(b=>{ try{b.bg.destroy();b.icon.destroy();b.cd.destroy();b.label.destroy();}catch(e){} });
+    // 既存のスキル関連オブジェクトを全部破棄
+    if(this._allSkillBtnObjs){
+      this._allSkillBtnObjs.forEach(o=>{ try{o.destroy();}catch(e){} });
     }
+    this._allSkillBtnObjs = [];
     this._skillBtns = null;
+    this.skillCDOverlays = [];
+    this.skillBtnRefs = [];
     this.createSkillButtons();
   }
 
@@ -10089,6 +10244,10 @@ class GameScene extends Phaser.Scene{
     const col=skillCols[pd.cls]||0xffd700;
     const defs=this.getSkillDefs();
 
+    // 全UI要素を追跡(再構築時の重複防止)
+    if(!this._allSkillBtnObjs) this._allSkillBtnObjs = [];
+    const _track = (obj)=>{ this._allSkillBtnObjs.push(obj); return obj; };
+
     // ── レイアウト（960×540基準）──────────────────
     // 右下角: 大きな攻撃ボタン（⚔）  径50
     // 攻撃ボタン左: スキル3つ横並び  各60×50
@@ -10101,12 +10260,12 @@ class GameScene extends Phaser.Scene{
     const ATK_R = 44;
     const atkX = w - ATK_R - MARGIN;
     const atkY = h - ATK_R - MARGIN;
-    const btnAtk = this.add.circle(atkX,atkY,ATK_R,0xffd700,0.3)
+    const btnAtk = _track(this.add.circle(atkX,atkY,ATK_R,0xffd700,0.3)
       .setScrollFactor(0).setDepth(25)
       .setStrokeStyle(3,0xffd700,1.0)
-      .setInteractive({useHandCursor:true});
-    this.add.text(atkX,atkY-6,'⚔',{fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-    this.add.text(atkX,atkY+18,'攻撃',{fontSize:'13px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      .setInteractive({useHandCursor:true}));
+    _track(this.add.text(atkX,atkY-6,'⚔',{fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+    _track(this.add.text(atkX,atkY+18,'攻撃',{fontSize:'13px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
     btnAtk.on('pointerdown',()=>{
       btnAtk.setFillStyle(0xffd700,0.7);
       this.normalAttack();
@@ -10140,27 +10299,27 @@ class GameScene extends Phaser.Scene{
       const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+6);
       const by = h - SK_H/2 - MARGIN;
       // ボタン本体
-      const btn=this.add.rectangle(bx,by,SK_W,SK_H,c,alpha)
+      const btn=_track(this.add.rectangle(bx,by,SK_W,SK_H,c,alpha)
         .setScrollFactor(0).setDepth(25)
         .setStrokeStyle(hasSkill?2:1,c,hasSkill?1.0:0.4)
-        .setInteractive({useHandCursor:true});
+        .setInteractive({useHandCursor:true}));
       // スキルアイコン（sk4は専用アイコン）
       const iconStr=num===4?(sk4Icons[pd.cls]||'✨'):(icons[i]||'?');
-      this.add.text(bx,by-14,iconStr,{fontSize:'26px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      _track(this.add.text(bx,by-14,iconStr,{fontSize:'26px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
       // スキル名（黒文字・白縁取りで強調）
-      const nameTxt=this.add.text(bx,by+10,sk.name,{
+      const nameTxt=_track(this.add.text(bx,by+10,sk.name,{
         fontSize:'11px',fontFamily:'Arial',
         color:hasSkill?'#000000':'#667788',
         stroke:hasSkill?'#ffffff':'#223344',
         strokeThickness:hasSkill?3:1,
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
       // Lvテキスト（白・縁取り）
-      const lvTxt=this.add.text(bx,by+22,'Lv'+(pd['sk'+num]||0),{
+      const lvTxt=_track(this.add.text(bx,by+22,'Lv'+(pd['sk'+num]||0),{
         fontSize:'10px',fontFamily:'Arial',
         color:hasSkill?'#000000':'#445566',
         stroke:hasSkill?'#ffffff':'#223344',
         strokeThickness:hasSkill?2:1,
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
       btn.on('pointerdown',()=>{
         const has=this.playerData['sk'+num]>0;
         btn.setFillStyle(col,has?0.75:0.15);
@@ -10169,8 +10328,8 @@ class GameScene extends Phaser.Scene{
       btn.on('pointerup',  ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.4:0.12);});
       btn.on('pointerout', ()=>{const has=this.playerData['sk'+num]>0;btn.setFillStyle(col,has?0.4:0.12);});
       // CDオーバーレイ
-      const ov=this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27);
-      const ct=this.add.text(bx,by,'',{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28);
+      const ov=_track(this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27));
+      const ct=_track(this.add.text(bx,by,'',{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28));
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
       this.skillBtnRefs.push({btn,nameTxt,lvTxt,num,col});
     });
@@ -10179,24 +10338,24 @@ class GameScene extends Phaser.Scene{
     const POT_W=50, POT_H=44;
     const potBaseX=200;
     // HP
-    const btnF=this.add.rectangle(potBaseX,h-POT_H/2-MARGIN,POT_W,POT_H,0x2ecc71,0.28)
+    const btnF=_track(this.add.rectangle(potBaseX,h-POT_H/2-MARGIN,POT_W,POT_H,0x2ecc71,0.28)
       .setScrollFactor(0).setDepth(25).setStrokeStyle(2,0x2ecc71,1.0)
-      .setInteractive({useHandCursor:true});
-    this.add.text(potBaseX,h-POT_H/2-MARGIN-10,'💊',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-    this.potHPTxt=this.add.text(potBaseX,h-POT_H/2-MARGIN+10,'x'+(pd.potHP||0),{
+      .setInteractive({useHandCursor:true}));
+    _track(this.add.text(potBaseX,h-POT_H/2-MARGIN-10,'💊',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+    this.potHPTxt=_track(this.add.text(potBaseX,h-POT_H/2-MARGIN+10,'x'+(pd.potHP||0),{
       fontSize:'14px',fontFamily:'Arial',color:'#ffffff'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
     btnF.on('pointerdown',()=>{btnF.setFillStyle(0x2ecc71,0.7);this.usePotion('hp');});
     btnF.on('pointerup',  ()=>btnF.setFillStyle(0x2ecc71,0.28));
     btnF.on('pointerout', ()=>btnF.setFillStyle(0x2ecc71,0.28));
     // MP
-    const btnG=this.add.rectangle(potBaseX+58,h-POT_H/2-MARGIN,POT_W,POT_H,0x3498db,0.28)
+    const btnG=_track(this.add.rectangle(potBaseX+58,h-POT_H/2-MARGIN,POT_W,POT_H,0x3498db,0.28)
       .setScrollFactor(0).setDepth(25).setStrokeStyle(2,0x3498db,1.0)
-      .setInteractive({useHandCursor:true});
-    this.add.text(potBaseX+58,h-POT_H/2-MARGIN-10,'💧',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26);
-    this.potMPTxt=this.add.text(potBaseX+58,h-POT_H/2-MARGIN+10,'x'+(pd.potMP||0),{
+      .setInteractive({useHandCursor:true}));
+    _track(this.add.text(potBaseX+58,h-POT_H/2-MARGIN-10,'💧',{fontSize:'16px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+    this.potMPTxt=_track(this.add.text(potBaseX+58,h-POT_H/2-MARGIN+10,'x'+(pd.potMP||0),{
       fontSize:'14px',fontFamily:'Arial',color:'#ffffff'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(26);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
     btnG.on('pointerdown',()=>{btnG.setFillStyle(0x3498db,0.7);this.usePotion('mp');});
     btnG.on('pointerup',  ()=>btnG.setFillStyle(0x3498db,0.28));
     btnG.on('pointerout', ()=>btnG.setFillStyle(0x3498db,0.28));
@@ -10568,7 +10727,6 @@ class GameScene extends Phaser.Scene{
     SE('exp');
     // モンスター種別ごとの撃破SE
     SE(KILL_SE[ed.id]||'kill_grunt');
-    this.showFloat(ed.sprite.x,ed.sprite.y-40,'+'+ed.exp+'EXP','#f39c12');
     // ジョブEXP付与（通常EXPの60%）
     this.addJobExp(Math.floor(ed.exp*0.6));
     // ドロップ（ポーション）
@@ -10987,7 +11145,7 @@ class GameScene extends Phaser.Scene{
   // type: 'normal' | 'crit' | 'skill' | 'skillcrit' | 'info'
   // TOTAL ダメージ表示(Press Start 2P・黄色・赤縁)
   showTotalDamage(x, y, total){
-    const totalTxt = this.add.text(x, y - 60, 'TOTAL '+total, {
+    const totalTxt = this.add.text(x, y - 60, ''+total, {
       fontSize:'30px',
       fontFamily:'"Press Start 2P", "Arial Black", monospace',
       color:'#ffee00',
