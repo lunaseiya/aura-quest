@@ -5417,8 +5417,8 @@ class GameScene extends Phaser.Scene{
       }).setOrigin(0.5).setDepth(4);
       this.tweens.add({targets:portalTxt, alpha:0.5, duration:1000, yoyo:true, repeat:-1});
     }
-    // プレイヤー（mageは128x128スプライトシートなので少し大きく）
-    const pSize=pd.cls==='mage'?80:64;
+    // プレイヤー(全クラス統一サイズ)
+    const pSize=64;
     // fromPortal:'next'→右端近く, 'back'→左端近く, なし→デフォルト左端
     const fromPortal=this.fromPortal||null;
     let spawnX=fromPortal==='next'?(MW-160):200;
@@ -10188,19 +10188,24 @@ class GameScene extends Phaser.Scene{
     this._lastAwakLightningTime = 0;
     try{ SE('skill'); }catch(e){}
     // 覚醒中の専用スプライトに切り替え(侍・ヘヴィなど)
+    // setTexture すると displaySize がリセットされるので、サイズも明示的に保持
+    const pSize = this.player.displayWidth;  // 現在の表示サイズを記憶
     if(awakKey==='samurai' && this.textures.exists('player_samurai')){
       try{
         this.player.setTexture('player_samurai', 0);
+        this.player.setDisplaySize(pSize, pSize);
         this.player.play('samurai_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('samurai texture switch failed', e);}
     }else if(awakKey==='heavy' && this.textures.exists('player_heavy')){
       try{
         this.player.setTexture('player_heavy', 0);
+        this.player.setDisplaySize(pSize, pSize);
         this.player.play('heavy_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('heavy texture switch failed', e);}
     }else if(awakKey==='youma' && this.textures.exists('player_youma')){
       try{
         this.player.setTexture('player_youma', 0);
+        this.player.setDisplaySize(pSize, pSize);
         this.player.play('youma_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('youma texture switch failed', e);}
     }
@@ -10235,20 +10240,24 @@ class GameScene extends Phaser.Scene{
     pd.awakened = null;
     pd._awakElapsed = 0;
     pd._awakSkillsUsed = null;
-    // 元クラスのテクスチャに戻す
+    // 元クラスのテクスチャに戻す(displaySize も保持)
+    const restoreSize = this.player.displayWidth;
     if(wasKey==='samurai' && this.textures.exists('player_warrior')){
       try{
         this.player.setTexture('player_warrior', 0);
+        this.player.setDisplaySize(restoreSize, restoreSize);
         this.player.play('warrior_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('warrior texture restore failed', e);}
     }else if(wasKey==='heavy' && this.textures.exists('player_bomber')){
       try{
         this.player.setTexture('player_bomber', 0);
+        this.player.setDisplaySize(restoreSize, restoreSize);
         this.player.play('bomber_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('bomber texture restore failed', e);}
     }else if(wasKey==='youma' && this.textures.exists('player_mage')){
       try{
         this.player.setTexture('player_mage', 0);
+        this.player.setDisplaySize(restoreSize, restoreSize);
         this.player.play('mage_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('mage texture restore failed', e);}
     }
@@ -11323,8 +11332,8 @@ class GameScene extends Phaser.Scene{
         flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
         // 侍中は配置が違うので上書き(マジシャンと同じ右向き基準)
         if(prefix==='samurai') flip=vx<0;
-        // ヘヴィ中も右向き基準
-        if(prefix==='heavy') flip=vx<0;
+        // ヘヴィのスプライトは左向き基準なので、右に動くときに反転(flip=true)
+        if(prefix==='heavy') flip=vx>0;
         // 妖魔中も右向き基準(マジシャンと同じ配置)
         if(prefix==='youma') flip=vx<0;
       }
