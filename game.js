@@ -5488,6 +5488,30 @@ class GameScene extends Phaser.Scene{
         this.player.play('novice_front_idle');
       }
     }
+    // 覚醒中だった場合、シーン切替後も覚醒スプライトに戻す
+    if(pd.awakened){
+      const awakSpriteMap = {
+        samurai: 'player_samurai',
+        heavy:   'player_heavy',
+        youma:   'player_youma',
+      };
+      const awakAnimPrefix = {
+        samurai: 'samurai',
+        heavy:   'heavy',
+        youma:   'youma',
+      };
+      const tex = awakSpriteMap[pd.awakened];
+      const prefix = awakAnimPrefix[pd.awakened];
+      if(tex && this.textures.exists(tex)){
+        try{
+          this.player.setTexture(tex, 0);
+          this.player.setDisplaySize(pSize, pSize);
+          if(prefix && this.anims.exists(prefix+'_front_idle')){
+            this.player.play(prefix+'_front_idle');
+          }
+        }catch(e){console.warn('awakening sprite restore on scene change failed', e);}
+      }
+    }
     this.physics.add.collider(this.player,this.obstacles);
     this.cameras.main.startFollow(this.player,true,0.1,0.1);
     // 弾グループ
