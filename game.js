@@ -1064,6 +1064,10 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_novice', BASE+'players/novice_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // samurai はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
     this.load.spritesheet('player_samurai', BASE+'players/sprite_sheet_samurai.png', {frameWidth:128,frameHeight:128});
+    // heavy はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
+    this.load.spritesheet('player_heavy', BASE+'players/sprite_sheet_custum.png', {frameWidth:128,frameHeight:128});
+    // youma はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
+    this.load.spritesheet('player_youma', BASE+'players/sprite_sheet_dark.png', {frameWidth:128,frameHeight:128});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -1226,6 +1230,46 @@ class BootScene extends Phaser.Scene{
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_samurai',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // ヘヴィ アニメーション(ボマー覚醒時に使用)
+    const HA=[
+      {key:'heavy_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'heavy_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'heavy_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'heavy_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'heavy_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'heavy_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'heavy_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'heavy_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'heavy_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    HA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_heavy',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // 妖魔 アニメーション(マジシャン覚醒時に使用)
+    const YA=[
+      {key:'youma_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'youma_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'youma_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'youma_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'youma_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'youma_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'youma_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'youma_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'youma_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    YA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_youma',frame:f})),
         frameRate:a.rate, repeat:a.rep,
       });
     });
@@ -10145,12 +10189,22 @@ class GameScene extends Phaser.Scene{
     this._awakLightnings = [];
     this._lastAwakLightningTime = 0;
     try{ SE('skill'); }catch(e){}
-    // 覚醒中の専用スプライトに切り替え(侍など)
+    // 覚醒中の専用スプライトに切り替え(侍・ヘヴィなど)
     if(awakKey==='samurai' && this.textures.exists('player_samurai')){
       try{
         this.player.setTexture('player_samurai', 0);
         this.player.play('samurai_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('samurai texture switch failed', e);}
+    }else if(awakKey==='heavy' && this.textures.exists('player_heavy')){
+      try{
+        this.player.setTexture('player_heavy', 0);
+        this.player.play('heavy_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('heavy texture switch failed', e);}
+    }else if(awakKey==='youma' && this.textures.exists('player_youma')){
+      try{
+        this.player.setTexture('player_youma', 0);
+        this.player.play('youma_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('youma texture switch failed', e);}
     }
     // UIを更新
     this._updateAwakeningButton();
@@ -10182,12 +10236,21 @@ class GameScene extends Phaser.Scene{
         this.player.setTexture('player_warrior', 0);
         this.player.play('warrior_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('warrior texture restore failed', e);}
+    }else if(wasKey==='heavy' && this.textures.exists('player_bomber')){
+      try{
+        this.player.setTexture('player_bomber', 0);
+        this.player.play('bomber_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('bomber texture restore failed', e);}
+    }else if(wasKey==='youma' && this.textures.exists('player_mage')){
+      try{
+        this.player.setTexture('player_mage', 0);
+        this.player.play('mage_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('mage texture restore failed', e);}
     }
     // エルフ専用バフ解除
     pd._allCritUntil = 0;
     if(pd._allCritRing){try{pd._allCritRing.destroy();}catch(e){} pd._allCritRing=null;}
-    // ── 解除演出 ──
-    this.cameras.main.flash(400, 200, 200, 255);
+    // ── 解除演出(覚醒種別ごとに特色を出す)──
     if(this._awakAura){
       this.tweens.add({
         targets: this._awakAura,
@@ -10201,6 +10264,175 @@ class GameScene extends Phaser.Scene{
     if(this._awakLightnings){
       this._awakLightnings.forEach(l=>{ try{l.destroy();}catch(e){} });
       this._awakLightnings = [];
+    }
+
+    // 種類別の解除エフェクト
+    if(wasKey==='samurai'){
+      // 侍 解除: 赤いオーラが収束 → 散る + 太刀の納刀音風
+      this.cameras.main.flash(300, 255, 100, 100);
+      // 赤いリングが内側に集束
+      const ring1 = this.add.circle(p.x, p.y, 100, 0xff4466, 0).setStrokeStyle(4, 0xff4466, 0.85).setDepth(20);
+      this.tweens.add({
+        targets: ring1, scaleX: 0.1, scaleY: 0.1, alpha: 0,
+        duration: 500, ease: 'Cubic.easeIn',
+        onComplete: ()=>ring1.destroy(),
+      });
+      // 赤い火花が四散
+      for(let i=0;i<8;i++){
+        const a = (i/8) * Math.PI * 2;
+        const sp = this.add.text(p.x, p.y, '✦', {fontSize:'18px', color:'#ff6688'}).setOrigin(0.5).setDepth(21);
+        this.tweens.add({
+          targets: sp,
+          x: p.x + Math.cos(a)*80,
+          y: p.y + Math.sin(a)*80,
+          alpha: 0, scaleX: 0.3, scaleY: 0.3, rotation: Math.PI*2,
+          duration: 700,
+          onComplete: ()=>sp.destroy(),
+        });
+      }
+      // 中央の白フラッシュ(刀光)
+      const flash1 = this.add.image(p.x, p.y, 'fx_slash').setDisplaySize(120, 120).setRotation(Math.PI/4).setTint(0xffffff).setAlpha(1).setDepth(22);
+      this.tweens.add({
+        targets: flash1, alpha: 0, scaleX: 1.5, scaleY: 1.5,
+        duration: 400,
+        onComplete: ()=>flash1.destroy(),
+      });
+      try{SE('parry');}catch(e){}
+    }else if(wasKey==='spirit'){
+      // エルフ 解除: 葉っぱが上に舞い上がって消える + 緑の光
+      this.cameras.main.flash(400, 150, 255, 200);
+      // 緑のリング展開
+      const ring1 = this.add.circle(p.x, p.y, 30, 0x88ffaa, 0).setStrokeStyle(3, 0x66ee88, 0.85).setDepth(20);
+      this.tweens.add({
+        targets: ring1, scaleX: 4, scaleY: 4, alpha: 0,
+        duration: 800,
+        onComplete: ()=>ring1.destroy(),
+      });
+      // 葉っぱが上空へ舞い上がる(15枚)
+      for(let i=0;i<15;i++){
+        this.time.delayedCall(i*30, ()=>{
+          if(!this.player) return;
+          const sx = p.x + (Math.random()-0.5)*60;
+          const sy = p.y + (Math.random()-0.5)*40;
+          const leaf = this.add.text(sx, sy, '🍃', {fontSize:'18px'}).setOrigin(0.5).setDepth(20);
+          this.tweens.add({
+            targets: leaf,
+            x: sx + (Math.random()-0.5)*150,
+            y: sy - 200 - Math.random()*80,
+            rotation: (Math.random()-0.5) * Math.PI * 6,
+            alpha: 0,
+            duration: 1500 + Math.random()*500,
+            onComplete: ()=>leaf.destroy(),
+          });
+        });
+      }
+      // 中心に光
+      const flash1 = this.add.circle(p.x, p.y, 40, 0xaaffaa, 0.7).setDepth(21);
+      this.tweens.add({
+        targets: flash1, scaleX: 2.5, scaleY: 2.5, alpha: 0,
+        duration: 700,
+        onComplete: ()=>flash1.destroy(),
+      });
+      try{SE('vortex');}catch(e){}
+    }else if(wasKey==='heavy'){
+      // ヘヴィ 解除: 装備パージ・蒸気が四方に噴出 + 機械的な金属音
+      this.cameras.main.flash(300, 100, 200, 255);
+      // 4方向に蒸気が噴出
+      for(let dir=0; dir<4; dir++){
+        const ang = (dir/4) * Math.PI * 2;
+        for(let i=0;i<6;i++){
+          this.time.delayedCall(i*40, ()=>{
+            if(!this.player) return;
+            const dist = 30 + i*15;
+            const sx = p.x + Math.cos(ang) * dist + (Math.random()-0.5)*20;
+            const sy = p.y + Math.sin(ang) * dist + (Math.random()-0.5)*20;
+            const steam = this.add.circle(sx, sy, 6 + Math.random()*4, 0xcccccc, 0.85).setDepth(20);
+            this.tweens.add({
+              targets: steam,
+              scaleX: 2.5, scaleY: 2.5,
+              alpha: 0,
+              x: sx + Math.cos(ang)*30,
+              y: sy + Math.sin(ang)*30 - 10,
+              duration: 700,
+              onComplete: ()=>steam.destroy(),
+            });
+          });
+        }
+      }
+      // 青いリング展開
+      const ring1 = this.add.circle(p.x, p.y, 20, 0x4488ff, 0).setStrokeStyle(4, 0x66aaff, 0.85).setDepth(20);
+      this.tweens.add({
+        targets: ring1, scaleX: 5, scaleY: 5, alpha: 0,
+        duration: 600,
+        onComplete: ()=>ring1.destroy(),
+      });
+      // 装備パーツが飛び散る(青いブロック)
+      for(let i=0;i<8;i++){
+        const a = (i/8) * Math.PI * 2;
+        const part = this.add.rectangle(p.x, p.y, 8, 8, 0x88ccff, 0.95).setStrokeStyle(1, 0x4488cc).setDepth(21);
+        this.tweens.add({
+          targets: part,
+          x: p.x + Math.cos(a) * (60 + Math.random()*30),
+          y: p.y + Math.sin(a) * (60 + Math.random()*30) + 50,  // 重力風に下に
+          rotation: Math.PI*2*(Math.random()<0.5?1:-1),
+          alpha: 0,
+          duration: 800,
+          ease: 'Cubic.easeOut',
+          onComplete: ()=>part.destroy(),
+        });
+      }
+      try{SE('hit');}catch(e){}
+    }else if(wasKey==='youma'){
+      // 妖魔 解除: 紫の闇が霧散・小さなブラックホール
+      this.cameras.main.flash(400, 150, 100, 200);
+      // 中心の紫黒ホール(現れて急速に消える)
+      const bh = this.add.circle(p.x, p.y, 40, 0x000000, 0.85).setStrokeStyle(3, 0xaa44ff, 1).setDepth(20);
+      this.tweens.add({
+        targets: bh, scaleX: 0.1, scaleY: 0.1, alpha: 0,
+        duration: 600,
+        ease: 'Cubic.easeIn',
+        onComplete: ()=>bh.destroy(),
+      });
+      // 紫オーラリングが急速に拡散
+      for(let i=0;i<3;i++){
+        const ring = this.add.circle(p.x, p.y, 30, 0x9944ff, 0).setStrokeStyle(3+i, 0xaa44ff, 0.7-i*0.15).setDepth(19);
+        this.tweens.add({
+          targets: ring, scaleX: 4 + i, scaleY: 4 + i, alpha: 0,
+          duration: 700 + i*100,
+          delay: i*60,
+          onComplete: ()=>ring.destroy(),
+        });
+      }
+      // 紫の粒が四方に散って消える
+      for(let i=0;i<14;i++){
+        const a = (i/14) * Math.PI * 2;
+        const dot = this.add.circle(p.x, p.y, 5, 0xcc88ff, 0.9).setDepth(21);
+        this.tweens.add({
+          targets: dot,
+          x: p.x + Math.cos(a) * (80 + Math.random()*40),
+          y: p.y + Math.sin(a) * (80 + Math.random()*40),
+          alpha: 0, scaleX: 0.3, scaleY: 0.3,
+          duration: 700 + Math.random()*200,
+          ease: 'Cubic.easeOut',
+          onComplete: ()=>dot.destroy(),
+        });
+      }
+      // 短い紫の雷電が複数本
+      for(let k=0;k<3;k++){
+        this.time.delayedCall(k*80, ()=>{
+          if(!this.player) return;
+          const ang = Math.random()*Math.PI*2;
+          const len = 60;
+          const ex = p.x + Math.cos(ang)*len;
+          const ey = p.y + Math.sin(ang)*len;
+          const lit = this.add.line(0,0, p.x, p.y, ex, ey, 0xcc88ff, 1).setOrigin(0).setLineWidth(3).setDepth(22);
+          this.tweens.add({targets: lit, alpha: 0, duration: 200, onComplete: ()=>lit.destroy()});
+        });
+      }
+      try{SE('magic');}catch(e){}
+    }else{
+      // フォールバック(知らない覚醒): 白フラッシュ
+      this.cameras.main.flash(400, 200, 200, 255);
     }
     if(forced){
       this.showFloat(p.x, p.y-60, '体力切れ! 強制解除', '#ff8888');
@@ -11062,10 +11294,14 @@ class GameScene extends Phaser.Scene{
     // ノービスも自前のアニメを持つ
     const cls = clsRaw;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
-    // 覚醒中は専用prefix(侍など)
+    // 覚醒中は専用prefix(侍・ヘヴィなど)
     let prefix=cls;
     if(this.playerData.awakened==='samurai'){
       prefix='samurai';
+    }else if(this.playerData.awakened==='heavy'){
+      prefix='heavy';
+    }else if(this.playerData.awakened==='youma'){
+      prefix='youma';
     }
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
@@ -11082,6 +11318,10 @@ class GameScene extends Phaser.Scene{
         flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
         // 侍中は配置が違うので上書き(マジシャンと同じ右向き基準)
         if(prefix==='samurai') flip=vx<0;
+        // ヘヴィ中も右向き基準
+        if(prefix==='heavy') flip=vx<0;
+        // 妖魔中も右向き基準(マジシャンと同じ配置)
+        if(prefix==='youma') flip=vx<0;
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -11099,6 +11339,8 @@ class GameScene extends Phaser.Scene{
     // 覚醒中(侍)は専用アニメ
     let prefix=cls;
     if(this.playerData.awakened==='samurai') prefix='samurai';
+    else if(this.playerData.awakened==='heavy') prefix='heavy';
+    else if(this.playerData.awakened==='youma') prefix='youma';
     const key=prefix+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
