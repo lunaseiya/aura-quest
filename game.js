@@ -1,5 +1,5 @@
 // ============================================================
-//  AURA QUEST - Phaser 3  game.js
+//  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
 const BASE='https://lunaseiya.github.io/aura-quest/';
@@ -3967,42 +3967,154 @@ class TitleScene extends Phaser.Scene{
     }else{
       startBGM('title');
     }
-    this.add.rectangle(0,0,w,h,0x030818).setOrigin(0);
-    for(let i=0;i<60;i++){
-      const s=this.add.circle(Phaser.Math.Between(0,w),Phaser.Math.Between(0,h*0.75),Phaser.Math.FloatBetween(0.5,2),0xffffff,Phaser.Math.FloatBetween(0.3,1));
-      this.tweens.add({targets:s,alpha:0.1,duration:Phaser.Math.Between(800,2000),yoyo:true,repeat:-1,delay:Phaser.Math.Between(0,1000)});
+    // ── 背景: シネマティック・グラデーション ──
+    // 全体: 黒 → 紺(下部)
+    this.add.rectangle(0,0,w,h,0x000000).setOrigin(0);
+    // 下半分にうっすら紺グラデ
+    const bgGrad = this.add.graphics();
+    bgGrad.fillStyle(0x0a1a3a, 0.6);
+    bgGrad.fillRect(0, h*0.5, w, h*0.5);
+    bgGrad.fillStyle(0x1a0033, 0.4);
+    bgGrad.fillRect(0, h*0.7, w, h*0.3);
+
+    // 星(複数色・明滅)
+    for(let i=0;i<80;i++){
+      const sy = Phaser.Math.Between(0, h*0.85);
+      const colors = [0xffffff, 0xffffff, 0xffffff, 0xffaa66, 0xaaccff];
+      const col = colors[Phaser.Math.Between(0, colors.length-1)];
+      const s = this.add.circle(
+        Phaser.Math.Between(0, w),
+        sy,
+        Phaser.Math.FloatBetween(0.5, 2),
+        col,
+        Phaser.Math.FloatBetween(0.4, 1)
+      );
+      this.tweens.add({
+        targets: s,
+        alpha: 0.1,
+        duration: Phaser.Math.Between(800, 2200),
+        yoyo: true, repeat: -1,
+        delay: Phaser.Math.Between(0, 1500),
+      });
     }
-    const g=this.add.graphics();
-    g.fillStyle(0x0a1528,1);
-    g.fillTriangle(0,h*0.7,150,h*0.35,300,h*0.7);
-    g.fillTriangle(200,h*0.7,380,h*0.28,560,h*0.7);
-    g.fillTriangle(500,h*0.7,680,h*0.38,860,h*0.7);
-    g.fillTriangle(750,h*0.7,950,h*0.3,1150,h*0.7);
-    g.fillRect(0,h*0.7,w,h*0.3);
-    const title=this.add.text(w/2,h*0.28,'AURA QUEST',{fontSize:'52px',fontFamily:'Arial',color:'#ffd700',stroke:'#ff8c00',strokeThickness:5}).setOrigin(0.5);
-    this.tweens.add({targets:title,scaleX:1.03,scaleY:1.03,duration:1800,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-    this.add.text(w/2,h*0.42,'〜 光の勇者よ、旅立て 〜',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaff'}).setOrigin(0.5);
+
+    // 流れ星(ランダムタイミングで降る)
+    const spawnShootingStar = () => {
+      if(!this.scene.isActive('Title')) return;
+      const sx = Phaser.Math.Between(w*0.2, w*0.8);
+      const sy = Phaser.Math.Between(20, h*0.4);
+      const star = this.add.line(0, 0, sx, sy, sx, sy, 0xffffff, 1).setOrigin(0).setLineWidth(2).setDepth(2);
+      this.tweens.add({
+        targets: star,
+        duration: 700,
+        onUpdate: (tween) => {
+          const t = tween.progress;
+          const dx = 120 * t;
+          const dy = 80 * t;
+          star.setTo(sx, sy, sx + dx, sy + dy);
+          star.setAlpha(1 - t);
+        },
+        onComplete: () => star.destroy(),
+      });
+      // 次の流れ星を予約
+      this.time.delayedCall(Phaser.Math.Between(3000, 8000), spawnShootingStar);
+    };
+    this.time.delayedCall(Phaser.Math.Between(2000, 5000), spawnShootingStar);
+
+    // ── 月(右上に大きく) ──
+    const moonX = w*0.85, moonY = h*0.32;
+    const moonR = 50;
+    // 月のグロー
+    const moonGlow = this.add.circle(moonX, moonY, moonR*1.8, 0xffdd99, 0.18).setDepth(1);
+    this.tweens.add({targets: moonGlow, scaleX: 1.1, scaleY: 1.1, alpha: 0.25, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'});
+    // 月本体(クレーター付き)
+    const moonG = this.add.graphics().setDepth(2);
+    moonG.fillStyle(0xfff4d6, 1);
+    moonG.fillCircle(moonX, moonY, moonR);
+    moonG.fillStyle(0xddc394, 1);
+    moonG.fillCircle(moonX+5, moonY+5, moonR-3);  // 影
+    moonG.fillStyle(0xfff4d6, 1);
+    moonG.fillCircle(moonX-3, moonY-3, moonR-6);  // ハイライト
+    // クレーター
+    moonG.fillStyle(0x997a4a, 0.5);
+    moonG.fillCircle(moonX+10, moonY-10, 8);
+    moonG.fillCircle(moonX-15, moonY+12, 6);
+    moonG.fillCircle(moonX+5, moonY+18, 4);
+
+    // 地平線(オレンジの薄い光ライン)
+    const horizonY = h*0.72;
+    const horizon = this.add.graphics().setDepth(3);
+    horizon.fillStyle(0xffcc88, 0.4);
+    horizon.fillRect(0, horizonY-1, w, 2);
+    // 地平線のグラデーション(中央が一番明るい)
+    for(let gx=0; gx<w; gx+=20){
+      const dist = Math.abs(gx - w/2) / (w/2);
+      const a = (1-dist) * 0.5;
+      if(a > 0.05){
+        horizon.fillStyle(0xffaa66, a);
+        horizon.fillRect(gx, horizonY-1, 22, 2);
+      }
+    }
+
+    // ── タイトル: LUNA FRONTIER (英語・大) ──
+    const titleY = h*0.42;
+    // タイトル背後にグロー(輝き演出)
+    const titleGlow = this.add.text(w/2, titleY, 'LUNA FRONTIER', {
+      fontSize: '46px',
+      fontFamily: '"Orbitron", "Arial Black", sans-serif',
+      fontStyle: 'bold',
+      color: '#ffcc88',
+    }).setOrigin(0.5).setDepth(4).setAlpha(0.3);
+    this.tweens.add({targets: titleGlow, alpha: 0.5, scaleX: 1.02, scaleY: 1.02, duration: 2000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'});
+    // メインタイトル(白銀グラデ風)
+    const title = this.add.text(w/2, titleY, 'LUNA FRONTIER', {
+      fontSize: '44px',
+      fontFamily: '"Orbitron", "Arial Black", sans-serif',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#888888',
+      strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(5);
+    title.setShadow(0, 4, '#000000', 8, true, true);
+
+    // サブタイトル(英語・小)
+    const subEn = this.add.text(w/2, titleY + 32, 'ルナフロンティア', {
+      fontSize: '15px',
+      fontFamily: '"Cinzel", "Yu Mincho", serif',
+      color: '#ffcc88',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(5);
+    subEn.setLetterSpacing && subEn.setLetterSpacing(8);
+    subEn.setShadow(0, 2, '#000000', 6, true, true);
+
+    // 日本語サブタイトル
+    this.add.text(w/2, titleY + 54, '~ 月の開拓者たち ~', {
+      fontSize: '12px',
+      fontFamily: '"Yu Mincho", "MS Mincho", serif',
+      color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(5);
+
     // セーブデータ確認
     const hasSave=[1,2,3].some(s=>getSaveData(s)!==null);
 
     // ── 新規ゲームボタン ──
-    const newBtn=this.add.rectangle(w/2,h*0.55,240,48,0x0a1f3a,0.9).setStrokeStyle(2,0x44aaff).setInteractive({useHandCursor:true});
-    const newTxt=this.add.text(w/2,h*0.55,'⚔ 新規ゲーム',{fontSize:'18px',fontFamily:'Arial',color:'#44aaff',fontStyle:'bold'}).setOrigin(0.5);
-    newBtn.on('pointerover',()=>newBtn.setFillStyle(0x1a3a5a,0.95));
+    const newBtn=this.add.rectangle(w/2,h*0.65,240,48,0x0a1f3a,0.9).setStrokeStyle(2,0xffcc88).setInteractive({useHandCursor:true}).setDepth(10);
+    const newTxt=this.add.text(w/2,h*0.65,'⚔ 新規ゲーム',{fontSize:'18px',fontFamily:'Arial',color:'#ffcc88',fontStyle:'bold'}).setOrigin(0.5).setDepth(11);
+    newBtn.on('pointerover',()=>newBtn.setFillStyle(0x2a3a5a,0.95));
     newBtn.on('pointerout', ()=>newBtn.setFillStyle(0x0a1f3a,0.9));
     newBtn.on('pointerdown',()=>{getAC();this.scene.start('ClassSelect');});
 
     // ── 続きからボタン ──
-    const loadBtn=this.add.rectangle(w/2,h*0.66,240,48,hasSave?0x0a2a0a:0x111111,0.9).setStrokeStyle(2,hasSave?0x44ff88:0x333333).setInteractive({useHandCursor:hasSave});
-    const loadTxt=this.add.text(w/2,h*0.66,'📂 続きから',{fontSize:'18px',fontFamily:'Arial',color:hasSave?'#44ff88':'#333333',fontStyle:'bold'}).setOrigin(0.5);
+    const loadBtn=this.add.rectangle(w/2,h*0.78,240,48,hasSave?0x0a2a0a:0x111111,0.9).setStrokeStyle(2,hasSave?0x44ff88:0x333333).setInteractive({useHandCursor:hasSave}).setDepth(10);
+    const loadTxt=this.add.text(w/2,h*0.78,'📂 続きから',{fontSize:'18px',fontFamily:'Arial',color:hasSave?'#44ff88':'#333333',fontStyle:'bold'}).setOrigin(0.5).setDepth(11);
     if(hasSave){
       loadBtn.on('pointerover',()=>loadBtn.setFillStyle(0x1a4a1a,0.95));
       loadBtn.on('pointerout', ()=>loadBtn.setFillStyle(0x0a2a0a,0.9));
       loadBtn.on('pointerdown',()=>{getAC();this.scene.start('SaveSelect',{mode:'load'});});
     }
 
-    const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
-    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
+    const muteBtn=this.add.text(w-10,10,muted?'🔇':'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true}).setDepth(20);
+    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊');try{localStorage.setItem('aq_muted',muted?'1':'0');}catch(e){}});
   }
 }
 
@@ -4205,40 +4317,55 @@ class ClassSelectScene extends Phaser.Scene{
       startBGM('title');
     }
     this.add.rectangle(0,0,w,h,0x060010).setOrigin(0);
-    this.add.text(w/2,32,'✨ 新しい冒険の始まり ✨',{fontSize:'20px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
+    this.add.text(w/2,24,'✨ 新しい冒険の始まり ✨',{fontSize:'18px',fontFamily:'Arial',color:'#ffd700',stroke:'#cc8800',strokeThickness:2}).setOrigin(0.5);
 
-    // ── ノービス紹介カード(コンパクト) ──
-    const cx=w/2, cy=h/2-20;
-    const cardW=320, cardH=200;
+    // 横画面でも収まるよう、画面の高さに応じてレイアウトを調整
+    const isLandscape = w > h;
+    // ── ノービス紹介カード(よりコンパクトに) ──
+    const cx=w/2;
+    // 縦画面: 中央上、横画面: 上寄り
+    const cy = isLandscape ? h*0.32 : h/2-40;
+    const cardW = Math.min(300, w*0.55);
+    const cardH = isLandscape ? 110 : 180;
     this.add.rectangle(cx,cy,cardW,cardH,0x0a1a3a,0.92).setStrokeStyle(2,0x44aaff);
 
     // 上部: アイコン横並び
-    const topY = cy - cardH/2 + 32;
+    const topY = cy - cardH/2 + 24;
     // 左: スプライト
-    this.add.sprite(cx-cardW/2+38, topY+4, 'player_novice', 0).setDisplaySize(48,48);
+    this.add.sprite(cx-cardW/2+30, topY+2, 'player_novice', 0).setDisplaySize(40,40);
     // 右: クラス名+サブ説明
-    this.add.text(cx-50, topY-7, '⭐ ノービス', {
-      fontSize:'18px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2
+    this.add.text(cx-cardW/2+58, topY-7, '⭐ ノービス', {
+      fontSize:'15px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold',stroke:'#000',strokeThickness:2
     }).setOrigin(0,0.5);
-    this.add.text(cx-50, topY+12, '〜 駆け出しの冒険者 〜', {
-      fontSize:'10px',fontFamily:'Arial',color:'#aaccdd',fontStyle:'italic'
+    this.add.text(cx-cardW/2+58, topY+10, '〜 駆け出しの冒険者 〜', {
+      fontSize:'9px',fontFamily:'Arial',color:'#aaccdd',fontStyle:'italic'
     }).setOrigin(0,0.5);
 
     // 区切り線
-    this.add.rectangle(cx, cy-10, cardW-30, 1, 0x44aaff, 0.5);
+    this.add.rectangle(cx, cy-cardH/2+50, cardW-30, 1, 0x44aaff, 0.5);
 
     // 中央: 説明文(行間ゆったり)
-    const descY = cy + 18;
-    this.add.text(cx, descY, '全ステータスは控えめだが\n自由度の高い基本クラス', {
-      fontSize:'11px',fontFamily:'Arial',color:'#ffffff',align:'center',lineSpacing:4
-    }).setOrigin(0.5);
-    this.add.text(cx, descY + 42, 'ジョブLv5でブレイズフォージにて\n4つの職業に転職可能', {
-      fontSize:'10px',fontFamily:'Arial',color:'#aaccdd',align:'center',lineSpacing:4
-    }).setOrigin(0.5);
+    if(isLandscape){
+      // 横画面はコンパクトに1行にまとめる
+      this.add.text(cx, cy + cardH/2 - 30, '全ステータス控えめだが自由度の高い基本クラス', {
+        fontSize:'10px',fontFamily:'Arial',color:'#ffffff',align:'center'
+      }).setOrigin(0.5);
+      this.add.text(cx, cy + cardH/2 - 14, 'ジョブLv5でブレイズフォージにて4職に転職可能', {
+        fontSize:'9px',fontFamily:'Arial',color:'#aaccdd',align:'center'
+      }).setOrigin(0.5);
+    }else{
+      const descY = cy + 18;
+      this.add.text(cx, descY, '全ステータスは控えめだが\n自由度の高い基本クラス', {
+        fontSize:'11px',fontFamily:'Arial',color:'#ffffff',align:'center',lineSpacing:4
+      }).setOrigin(0.5);
+      this.add.text(cx, descY + 42, 'ジョブLv5でブレイズフォージにて\n4つの職業に転職可能', {
+        fontSize:'10px',fontFamily:'Arial',color:'#aaccdd',align:'center',lineSpacing:4
+      }).setOrigin(0.5);
+    }
 
     // 下部: 進化先プレビュー(カード下)
-    const evoY = cy + cardH/2 + 22;
-    this.add.text(cx, evoY-10, '▼ 転職先 ▼', {
+    const evoY = cy + cardH/2 + (isLandscape ? 22 : 28);
+    this.add.text(cx, evoY-12, '▼ 転職先 ▼', {
       fontSize:'10px',fontFamily:'Arial',color:'#888888'
     }).setOrigin(0.5);
     const evoTexts=[
@@ -4254,10 +4381,12 @@ class ClassSelectScene extends Phaser.Scene{
       }).setOrigin(0.5);
     });
 
-    // 「冒険を始める」ボタン(画面下)
-    const startY=h-60;
-    const startBtn=this.add.rectangle(cx, startY, 200, 44, 0x44aa44, 0.9).setStrokeStyle(2, 0x88ff88).setInteractive({useHandCursor:true});
-    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'16px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+    // 「冒険を始める」ボタン(画面下・進化先プレビューの下)
+    // 進化先プレビューと干渉しないようマージン確保
+    const minStartY = evoY + 60;
+    const startY = Math.max(minStartY, h-50);
+    const startBtn=this.add.rectangle(cx, startY, 180, 38, 0x44aa44, 0.9).setStrokeStyle(2, 0x88ff88).setInteractive({useHandCursor:true});
+    this.add.text(cx, startY, '✨ 冒険を始める', {fontSize:'15px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
     startBtn.on('pointerover',()=>startBtn.setFillStyle(0x66cc66,1));
     startBtn.on('pointerout', ()=>startBtn.setFillStyle(0x44aa44,0.9));
     startBtn.on('pointerdown',()=>{
@@ -4310,15 +4439,21 @@ class ClassSelectScene extends Phaser.Scene{
     const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
     muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
 
-    // テストモードトグル
-    const tmBg=this.add.rectangle(w/2,h-32,220,34,testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677).setInteractive({useHandCursor:true});
-    const tmTxt=this.add.text(w/2,h-32,testMode?'🧪 テストモード ON':'🧪 テストモード OFF',{fontSize:'14px',fontFamily:'Arial',color:testMode?'#44ff44':'#aaaaaa',fontStyle:'bold'}).setOrigin(0.5);
+    // テストモードトグル(画面右下にコンパクトに配置・干渉しないように)
+    const tmW = 130, tmH = 26;
+    const tmX = w - tmW/2 - 10;
+    const tmY = h - tmH/2 - 10;
+    const tmBg=this.add.rectangle(tmX,tmY,tmW,tmH,testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677).setInteractive({useHandCursor:true});
+    const tmTxt=this.add.text(tmX,tmY,testMode?'🧪 テスト ON':'🧪 テスト OFF',{fontSize:'11px',fontFamily:'Arial',color:testMode?'#44ff44':'#aaaaaa',fontStyle:'bold'}).setOrigin(0.5);
     tmBg.on('pointerdown',()=>{
       testMode=!testMode;
       tmBg.setFillStyle(testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677);
-      tmTxt.setText(testMode?'🧪 テストモード ON':'🧪 テストモード OFF').setColor(testMode?'#44ff44':'#aaaaaa');
+      tmTxt.setText(testMode?'🧪 テスト ON':'🧪 テスト OFF').setColor(testMode?'#44ff44':'#aaaaaa');
     });
-    this.add.text(w/2,h-56,'※テストモード：ステータスPT×100・スキルPT×200・Gold×99999',{fontSize:'9px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5);
+    // 説明テキストはテストモードボタンが ON の時だけ表示
+    if(testMode){
+      this.add.text(tmX, tmY-20, '※ステータスPT/スキルPT/Gold MAX',{fontSize:'8px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5);
+    }
   }
 }
 
@@ -5527,44 +5662,113 @@ class GameScene extends Phaser.Scene{
       else{this.hitEnemy(closest,res.dmg,res.isCrit,false,res.elemLabel);}
 
     }else if(cls==='warrior'){
-      // 近接：周囲72px最近傍
-      let closest=null,cd=72;
-      this.enemyDataList.forEach(ed=>{
-        if(ed.dead)return;
-        const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-        if(d<cd){cd=d;closest=ed;}
-      });
-      // スラッシュエフェクト（対象がいなくても必ず表示）
-      const ang=closest
-        ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
-        : (this._lastAngle||0);
-      const slashX=p.x+Math.cos(ang)*44, slashY=p.y+Math.sin(ang)*44;
-      const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(48,48).setDepth(20).setAlpha(0.9);
-      this.tweens.add({targets:slash,alpha:0,scaleX:1.5,scaleY:1.5,duration:200,onComplete:()=>slash.destroy()});
-      SE('hit');
-      const berserkMult=pd._berserkMult||1;
-      this.atkCooldown=this._calcAtkCD(0.7)/berserkMult;
-      this.playSpriteAtk();
-      if(!closest)return; // 対象なし→エフェクトだけ出して終了
-      // 剣士は無属性
-      const res=rollAttack(pd,closest.def,closest.eva||0,'none',closest.element||'none');
-      if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
-      else{this.hitEnemy(closest,res.dmg,res.isCrit,false,res.elemLabel);}
+      // 覚醒・侍中: 大きな赤い十字斬り・最大2体ヒット・前ダッシュ
+      if(pd.awakened==='samurai'){
+        const range = 90; // リーチ長め
+        // 範囲内の敵を取得(最大2体)
+        const inRange = [];
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d <= range) inRange.push({ed, d});
+        });
+        // 距離順ソートで近い2体を選ぶ
+        inRange.sort((a,b)=>a.d-b.d);
+        const targets = inRange.slice(0, 2);
+        // 攻撃方向(最寄り敵 or 直前の向き)
+        const ang = targets.length>0
+          ? Phaser.Math.Angle.Between(p.x,p.y,targets[0].ed.sprite.x,targets[0].ed.sprite.y)
+          : (this._lastAngle||0);
+        const slashX = p.x + Math.cos(ang)*50;
+        const slashY = p.y + Math.sin(ang)*50;
+        // 1段目: 横一文字の大きな赤い斬撃
+        const slash1 = this.add.image(slashX, slashY, 'fx_slash').setRotation(ang).setDisplaySize(72, 72).setDepth(20).setTint(0xff4466).setAlpha(0.95);
+        this.tweens.add({targets: slash1, alpha:0, scaleX:1.6, scaleY:1.6, duration:250, onComplete:()=>slash1.destroy()});
+        // 2段目(50ms後): 縦切り(90度回転した斬撃)
+        this.time.delayedCall(50, ()=>{
+          if(!this.player) return;
+          const sx2 = this.player.x + Math.cos(ang)*50;
+          const sy2 = this.player.y + Math.sin(ang)*50;
+          const slash2 = this.add.image(sx2, sy2, 'fx_slash').setRotation(ang + Math.PI/2).setDisplaySize(60, 60).setDepth(20).setTint(0xff8866).setAlpha(0.9);
+          this.tweens.add({targets: slash2, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash2.destroy()});
+        });
+        // 残像ライン(プレイヤー → 敵方向)
+        const trailLine = this.add.line(0,0, p.x, p.y, slashX, slashY, 0xff4466, 0.7).setOrigin(0).setLineWidth(3).setDepth(19);
+        this.tweens.add({targets: trailLine, alpha:0, duration:300, onComplete:()=>trailLine.destroy()});
+        // SE
+        SE('slash');
+        try{SE('crit');}catch(e){}
+        const berserkMult=pd._berserkMult||1;
+        // 早抜き(ディレイ短縮)
+        this.atkCooldown=this._calcAtkCD(0.6)/berserkMult;
+        this.playSpriteAtk();
+        if(targets.length===0) return;
+        // 各ターゲットにダメージ
+        targets.forEach(({ed})=>{
+          const res=rollAttack(pd, ed.def, ed.eva||0, 'none', ed.element||'none');
+          if(res.miss){
+            this.showFloat(ed.sprite.x, ed.sprite.y-40, 'Miss', '#888888', 'info');
+            SE('miss');
+          }else{
+            this.hitEnemy(ed, res.dmg, res.isCrit, false, res.elemLabel);
+          }
+        });
+      }else{
+        // 通常の剣士: 周囲72px最近傍1体
+        let closest=null,cd=72;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead)return;
+          const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<cd){cd=d;closest=ed;}
+        });
+        // スラッシュエフェクト（対象がいなくても必ず表示）
+        const ang=closest
+          ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
+          : (this._lastAngle||0);
+        const slashX=p.x+Math.cos(ang)*44, slashY=p.y+Math.sin(ang)*44;
+        const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(48,48).setDepth(20).setAlpha(0.9);
+        this.tweens.add({targets:slash,alpha:0,scaleX:1.5,scaleY:1.5,duration:200,onComplete:()=>slash.destroy()});
+        SE('hit');
+        const berserkMult=pd._berserkMult||1;
+        this.atkCooldown=this._calcAtkCD(0.7)/berserkMult;
+        this.playSpriteAtk();
+        if(!closest)return;
+        const res=rollAttack(pd,closest.def,closest.eva||0,'none',closest.element||'none');
+        if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
+        else{this.hitEnemy(closest,res.dmg,res.isCrit,false,res.elemLabel);}
+      }
 
     }else if(cls==='mage'){
-      // ファイアボール発射（SP3消費）・炎属性
-      if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
-      pd.sp-=3;
-      const ang=this.getFacingAngle();
-      this.fireBullet(p.x,p.y,ang,'proj_fireball',{
-        spd:320,maxDist:520,
-        dmg:Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag)),
-        isCrit:Math.random()*100<calcCrit(pd),
-        sz:20,
-        element:'fire',
-      });
-      SE('magic');this.updateHUD();
-      this.atkCooldown=this._calcAtkCD(0.7);
+      // 妖魔化覚醒中: 闇属性の回転球を発射
+      if(pd.awakened==='youma'){
+        if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
+        pd.sp-=3;
+        const ang=this.getFacingAngle();
+        // 闇の回転球(コードで描画・回転)
+        const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
+        const isCrit = Math.random()*100 < calcCrit(pd);
+        this._fireDarkOrb(p.x, p.y, ang, {
+          spd: 280, maxDist: 520,
+          dmg, isCrit,
+          element: 'dark',
+        });
+        SE('magic'); this.updateHUD();
+        this.atkCooldown = this._calcAtkCD(0.7);
+      }else{
+        // 通常マジシャン: ファイアボール
+        if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
+        pd.sp-=3;
+        const ang=this.getFacingAngle();
+        this.fireBullet(p.x,p.y,ang,'proj_fireball',{
+          spd:320,maxDist:520,
+          dmg:Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag)),
+          isCrit:Math.random()*100<calcCrit(pd),
+          sz:20,
+          element:'fire',
+        });
+        SE('magic');this.updateHUD();
+        this.atkCooldown=this._calcAtkCD(0.7);
+      }
 
     }else if(cls==='archer'){
       // ブーストアタック判定（パッシブ）
@@ -5619,23 +5823,313 @@ class GameScene extends Phaser.Scene{
       this.atkCooldown=this._calcAtkCD(0.5);
 
     }else if(cls==='bomber'){
-      // 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
-      const ang=this.getFacingAngle();
-      const dist=60;
-      const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
-      const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
-      const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
-      this.throwBomb(p.x,p.y,tx,ty,{
-        dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
-        isCrit:Math.random()*100<calcCrit(pd),
-        radius:55*bomberRadiusMult,
-        element:'fire',
-      });
-      SE('explode');
-      this.atkCooldown=this._calcAtkCD(1.0);
-      // 攻撃アニメ
-      this.playBomberAtk();
+      // ヘヴィカスタマイズ覚醒中: ホーミングミサイル
+      if(pd.awakened==='heavy'){
+        // 最寄り敵をターゲット(なければ向き方向に直進)
+        let target=null, td=600;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<td){td=d; target=ed;}
+        });
+        const initAng = target
+          ? Phaser.Math.Angle.Between(p.x,p.y,target.sprite.x,target.sprite.y)
+          : this.getFacingAngle();
+        const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
+        const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
+        const dmg=Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2)));
+        const isCrit=Math.random()*100<calcCrit(pd);
+        // ミサイル発射(ホーミング処理は this.update 内で対応)
+        this._fireHomingMissile(p.x, p.y, initAng, target, {
+          dmg, isCrit,
+          radius: 55*bomberRadiusMult,
+          element: 'fire',
+        });
+        SE('arrow'); // ミサイル発射音
+        this.atkCooldown=this._calcAtkCD(1.0);
+        // 攻撃アニメ
+        this.playBomberAtk();
+      }else{
+        // 通常: 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
+        const ang=this.getFacingAngle();
+        const dist=60;
+        const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
+        const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
+        const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
+        this.throwBomb(p.x,p.y,tx,ty,{
+          dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
+          isCrit:Math.random()*100<calcCrit(pd),
+          radius:55*bomberRadiusMult,
+          element:'fire',
+        });
+        SE('explode');
+        this.atkCooldown=this._calcAtkCD(1.0);
+        // 攻撃アニメ
+        this.playBomberAtk();
+      }
     }
+  }
+
+  // 妖魔化用: 闇属性の回転球
+  _fireDarkOrb(sx, sy, ang, opt){
+    const speed = opt.spd || 280;
+    const maxDist = opt.maxDist || 520;
+    // コンテナで複数の球を組み合わせ(回転表現)
+    const orb = this.add.container(sx, sy).setDepth(8);
+    // 外側の紫オーラ
+    const aura = this.add.circle(0, 0, 16, 0x6622aa, 0.5);
+    // 中心の黒い本体
+    const core = this.add.circle(0, 0, 11, 0x110022, 1).setStrokeStyle(2, 0x9944ff, 0.95);
+    // 周囲を回転する3つの紫の小球
+    const orbiters = [];
+    for(let i=0;i<3;i++){
+      const a = (i/3) * Math.PI * 2;
+      const sm = this.add.circle(Math.cos(a)*14, Math.sin(a)*14, 4, 0xcc88ff, 0.95);
+      orbiters.push({sm, baseAng: a});
+    }
+    // 中心の白い光点
+    const center = this.add.circle(0, 0, 4, 0xffffff, 0.7);
+    orb.add([aura, core, ...orbiters.map(o=>o.sm), center]);
+    // 移動データ
+    const vx = Math.cos(ang) * speed;
+    const vy = Math.sin(ang) * speed;
+    orb.setData('vx', vx);
+    orb.setData('vy', vy);
+    orb.setData('dmg', opt.dmg);
+    orb.setData('isCrit', opt.isCrit);
+    orb.setData('element', opt.element || 'dark');
+    orb.setData('born', this.time.now);
+    orb.setData('dist', 0);
+    orb.setData('hit', false);
+    // 紫オーラの脈動
+    this.tweens.add({
+      targets: aura,
+      scaleX: 1.3, scaleY: 1.3, alpha: 0.7,
+      duration: 250, yoyo: true, repeat: -1,
+    });
+    // 球本体の回転
+    this.tweens.add({
+      targets: orb,
+      rotation: Math.PI * 4,
+      duration: 1500,
+      repeat: -1,
+    });
+    // 周回小球が時間で回転する
+    const startTime = this.time.now;
+    // 飛行ループ
+    const flyLoop = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: ()=>{
+        if(!orb.scene || orb.getData('hit')){flyLoop.remove(); return;}
+        const dt = 16/1000;
+        orb.x += orb.getData('vx') * dt;
+        orb.y += orb.getData('vy') * dt;
+        const distAdd = Math.hypot(orb.getData('vx')*dt, orb.getData('vy')*dt);
+        const newDist = orb.getData('dist') + distAdd;
+        orb.setData('dist', newDist);
+        // 周回小球の角度更新(ローカル座標で)
+        const elapsed = this.time.now - startTime;
+        orbiters.forEach(o=>{
+          const a = o.baseAng + elapsed * 0.008;
+          o.sm.setPosition(Math.cos(a)*14, Math.sin(a)*14);
+        });
+        // 紫の軌跡
+        if(Math.random() < 0.5){
+          const trail = this.add.circle(orb.x, orb.y, 3, 0xaa44ff, 0.6).setDepth(7);
+          this.tweens.add({
+            targets: trail,
+            alpha: 0, scaleX: 0.3, scaleY: 0.3,
+            duration: 400,
+            onComplete: ()=>trail.destroy(),
+          });
+        }
+        // 寿命
+        if(newDist > maxDist){
+          this._destroyDarkOrb(orb);
+          flyLoop.remove();
+          return;
+        }
+        // 命中判定
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead || !ed.sprite || orb.getData('hit')) return;
+          if(Phaser.Math.Distance.Between(orb.x, orb.y, ed.sprite.x, ed.sprite.y) < 24){
+            orb.setData('hit', true);
+            // ダメージ計算
+            const dmg = orb.getData('dmg');
+            const isCrit = orb.getData('isCrit');
+            const em = getElementMult(orb.getData('element'), ed.element||'none');
+            const finalDmg = Math.max(1, Math.floor((isCrit?dmg*2:dmg) * em.mult));
+            this.hitEnemy(ed, finalDmg, isCrit, false, em.label);
+            // 着弾エフェクト
+            const burst = this.add.circle(orb.x, orb.y, 18, 0xaa44ff, 0.85).setDepth(20);
+            this.tweens.add({
+              targets: burst,
+              scaleX: 2.5, scaleY: 2.5, alpha: 0,
+              duration: 350,
+              onComplete: ()=>burst.destroy(),
+            });
+            // 紫の火花
+            for(let k=0;k<6;k++){
+              const sa = (k/6)*Math.PI*2;
+              const sp = this.add.circle(orb.x, orb.y, 3, 0xcc88ff, 0.9).setDepth(21);
+              this.tweens.add({
+                targets: sp,
+                x: orb.x + Math.cos(sa)*30,
+                y: orb.y + Math.sin(sa)*30,
+                alpha: 0,
+                duration: 400,
+                onComplete: ()=>sp.destroy(),
+              });
+            }
+            this._destroyDarkOrb(orb);
+            flyLoop.remove();
+          }
+        });
+      },
+    });
+  }
+
+  _destroyDarkOrb(orb){
+    try{orb.destroy();}catch(e){}
+  }
+
+  // ヘヴィ覚醒用: ホーミングミサイル
+  _fireHomingMissile(sx, sy, initAng, target, opt){
+    // ミサイル本体(暗いグレーの円+赤い先端)
+    const missile = this.add.container(sx, sy).setDepth(8);
+    const body = this.add.rectangle(0, 0, 18, 8, 0x666666, 1).setStrokeStyle(1, 0x222222);
+    const tip = this.add.triangle(11, 0, 0, -4, 0, 4, 6, 0, 0xff4422);
+    const fin = this.add.rectangle(-7, 0, 4, 12, 0x444444);
+    missile.add([fin, body, tip]);
+    missile.rotation = initAng;
+    // 移動データ
+    const speed = 320;
+    missile.setData('vx', Math.cos(initAng)*speed);
+    missile.setData('vy', Math.sin(initAng)*speed);
+    missile.setData('dmg', opt.dmg);
+    missile.setData('isCrit', opt.isCrit);
+    missile.setData('radius', opt.radius);
+    missile.setData('element', opt.element);
+    missile.setData('target', target);
+    missile.setData('born', this.time.now);
+    missile.setData('exploded', false);
+    // ホーミングループ
+    const lifeMs = 1800;
+    const turnRate = 4.5; // 旋回性能(rad/sec)
+    const trailLoop = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: ()=>{
+        if(!missile.scene || missile.getData('exploded')){trailLoop.remove(); return;}
+        const elapsed = this.time.now - missile.getData('born');
+        // 寿命切れで自爆
+        if(elapsed > lifeMs){
+          this._explodeMissile(missile);
+          trailLoop.remove();
+          return;
+        }
+        // ターゲット検証(死んでたら近場に再ターゲット)
+        let tgt = missile.getData('target');
+        if(!tgt || tgt.dead || !tgt.sprite){
+          let nearest=null, nd=400;
+          this.enemyDataList.forEach(ed=>{
+            if(ed.dead) return;
+            const d = Phaser.Math.Distance.Between(missile.x, missile.y, ed.sprite.x, ed.sprite.y);
+            if(d<nd){nd=d; nearest=ed;}
+          });
+          tgt = nearest;
+          missile.setData('target', tgt);
+        }
+        // ホーミング: ターゲット方向への角度差を少しずつ補正
+        if(tgt && tgt.sprite){
+          const desiredAng = Phaser.Math.Angle.Between(missile.x, missile.y, tgt.sprite.x, tgt.sprite.y);
+          let curAng = Math.atan2(missile.getData('vy'), missile.getData('vx'));
+          let diff = desiredAng - curAng;
+          while(diff > Math.PI) diff -= Math.PI*2;
+          while(diff < -Math.PI) diff += Math.PI*2;
+          const maxTurn = turnRate * (16/1000);
+          const turn = Phaser.Math.Clamp(diff, -maxTurn, maxTurn);
+          curAng += turn;
+          missile.setData('vx', Math.cos(curAng)*speed);
+          missile.setData('vy', Math.sin(curAng)*speed);
+          missile.rotation = curAng;
+        }
+        // 移動
+        missile.x += missile.getData('vx') * (16/1000);
+        missile.y += missile.getData('vy') * (16/1000);
+        // 煙・炎の軌跡
+        if(Math.random() < 0.7){
+          const trail = this.add.circle(missile.x - Math.cos(missile.rotation)*8, missile.y - Math.sin(missile.rotation)*8, 4 + Math.random()*3, 0xff8844, 0.7).setDepth(7);
+          this.tweens.add({
+            targets: trail,
+            scaleX: 0.3, scaleY: 0.3, alpha: 0,
+            duration: 400,
+            onComplete: ()=>trail.destroy(),
+          });
+        }
+        // 命中判定(近接の敵に当たれば爆発)
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead || !ed.sprite || missile.getData('exploded')) return;
+          if(Phaser.Math.Distance.Between(missile.x, missile.y, ed.sprite.x, ed.sprite.y) < 24){
+            this._explodeMissile(missile);
+            trailLoop.remove();
+          }
+        });
+      },
+    });
+  }
+
+  // ホーミングミサイル爆発処理
+  _explodeMissile(missile){
+    if(missile.getData('exploded')) return;
+    missile.setData('exploded', true);
+    const ex = missile.x, ey = missile.y;
+    const radius = missile.getData('radius') || 55;
+    const dmg = missile.getData('dmg') || 1;
+    const isCrit = missile.getData('isCrit') || false;
+    const element = missile.getData('element') || 'fire';
+    // 爆発エフェクト
+    const flame = this.add.circle(ex, ey, 20, 0xff8844, 0.85).setDepth(20);
+    this.tweens.add({
+      targets: flame,
+      scaleX: radius/20, scaleY: radius/20, alpha: 0,
+      duration: 400,
+      onComplete: ()=>flame.destroy(),
+    });
+    const core = this.add.circle(ex, ey, 12, 0xffffff, 1).setDepth(21);
+    this.tweens.add({
+      targets: core,
+      scaleX: 2.5, scaleY: 2.5, alpha: 0,
+      duration: 250,
+      onComplete: ()=>core.destroy(),
+    });
+    // 火の粉
+    for(let k=0;k<8;k++){
+      const sa = (k/8)*Math.PI*2;
+      const sp = this.add.circle(ex, ey, 3, k%2?0xffaa44:0xff6622, 0.9).setDepth(21);
+      this.tweens.add({
+        targets: sp,
+        x: ex + Math.cos(sa)*radius*0.8,
+        y: ey + Math.sin(sa)*radius*0.8,
+        alpha: 0,
+        duration: 500,
+        onComplete: ()=>sp.destroy(),
+      });
+    }
+    this.cameras.main.shake(150, 0.008);
+    SE('explode');
+    // 範囲内の敵にダメージ
+    this.enemyDataList.forEach(ed=>{
+      if(ed.dead || !ed.sprite) return;
+      if(Phaser.Math.Distance.Between(ex, ey, ed.sprite.x, ed.sprite.y) < radius){
+        const em = getElementMult(element, ed.element||'none');
+        const finalDmg = Math.max(1, Math.floor((isCrit?dmg*2:dmg) * em.mult));
+        this.hitEnemy(ed, finalDmg, isCrit, false, em.label);
+      }
+    });
+    // ミサイル本体を破棄
+    try{missile.destroy();}catch(e){}
   }
 
   getFacingAngle(){
