@@ -4902,11 +4902,8 @@ const AWAKENINGS = {
     requiresEquip: 'muramasa',      // 武器に装備されている必要あり
     manualDeactivate: false,        // 手動解除不可(自動解除のみ)
     statMul: {
-      atk: 1.6,    // ATK +60%
-      def: 0.5,    // DEF -50%
-      spd: 1.25,   // 速度 +25%
-      hit: 1.1,    // 命中 +10%
-      agi: 1.3,    // 回避 +30%
+      def: 0.5,    // DEF -50%(脆くなる・ネガ効果のみ維持)
+      // ATK・spd・hit・agi の正補正は無し
     },
     hpDrainRatio: 0.005,            // 毎秒mhpの0.5%減少
     forceDeactivateRatio: 0.10,     // HP10%以下で強制解除
@@ -4925,12 +4922,9 @@ const AWAKENINGS = {
     baseClass: 'bomber',
     requiresEquip: 'heavy_customize',
     statMul: {
-      atk: 1.3,
-      def: 1.5,    // DEF UP(装甲)
-      mag: 1.4,
-      spd: 0.5,    // 速度半減(超鈍重)
-      hit: 1.0,
-      agi: 0.6,
+      spd: 0.5,    // 速度半減(超鈍重・ネガ効果)
+      agi: 0.6,    // 回避ダウン(ネガ効果)
+      // atk/def/mag の正補正は無し
     },
     spDrainPerSec: 1.5,           // SP毎秒1.5消費
     forceDeactivateSp: true,      // SPが0になったら強制解除
@@ -4949,18 +4943,12 @@ const AWAKENINGS = {
     baseClass: 'archer',
     requiresEquip: 'spirit_bow',
     statMul: {
-      atk: 1.4,
-      def: 0.9,
-      mag: 1.5,
-      spd: 1.2,
-      hit: 1.2,
-      agi: 1.4,
+      def: 0.9,    // DEF わずかにダウン
+      // atk/mag/spd/hit/agi の正補正は無し
     },
     // 発動時にHPを1/4にする(ペナルティ)
     onActivateHpRatio: 0.25,
-    // 回復不可フラグ
-    blockHeal: true,
-    // SPを継続的に消費(ペナルティに置換)
+    // SPを継続的に消費
     spDrainPerSec: 1.2,
     // SP10%以下で強制解除
     forceDeactivateSpRatio: 0.10,
@@ -4979,12 +4967,8 @@ const AWAKENINGS = {
     baseClass: 'mage',
     requiresEquip: 'dark_illusion_staff',
     statMul: {
-      atk: 1.2,
-      def: 0.85,
-      mag: 1.7,    // MAG大幅UP
-      spd: 1.1,
-      hit: 1.0,
-      agi: 1.0,
+      def: 0.85,   // DEF -15%(身体的に脆くなる)
+      // atk/mag/spd の正補正は無し
     },
     // 発動時のコスト: HP30%消費
     onActivateHpCost: 0.3,
@@ -9279,6 +9263,12 @@ class GameScene extends Phaser.Scene{
       };
       updateAddTxt();
       const adj=(dir)=>{
+        // 覚醒中はステータス振り分け不可
+        if(pd.awakened){
+          this.showFloat(this.player.x, this.player.y-50, '覚醒中は振り分け不可', '#ff6666', 'info');
+          SE('miss');
+          return;
+        }
         const n=stmp[s.key]||0;
         const allocated=getAllocated(s);
         if(dir>0){
@@ -9432,6 +9422,12 @@ class GameScene extends Phaser.Scene{
         const sbm=skadd(this.add.rectangle(cR-btnW/2-2,cy+SK_CH*0.22,btnW,btnH/2-2,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
         skadd(this.add.text(cR-btnW/2-2,cy+SK_CH*0.22,'－',{fontSize:'16px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
         const adjSk=(dir)=>{
+          // 覚醒中はスキル振り分け不可
+          if(pd.awakened){
+            this.showFloat(this.player.x, this.player.y-50, '覚醒中は振り分け不可', '#ff6666', 'info');
+            SE('miss');
+            return;
+          }
           const n=sktmp[sk.id]||0;
           const newLv=curLv+n+dir;
           if(dir>0&&(tmpJp<=0||newLv>sk.maxLv))return;
@@ -9974,7 +9970,7 @@ class GameScene extends Phaser.Scene{
       sk1: pd.sk1, sk2: pd.sk2, sk3: pd.sk3, sk4: pd.sk4,
       cls: pd.cls,
     };
-    // ステータスにバフ適用
+    // ステータス補正(ネガ効果のみ)を適用
     if(A.statMul){
       Object.keys(A.statMul).forEach(k=>{
         if(pd[k] !== undefined){
@@ -9982,7 +9978,7 @@ class GameScene extends Phaser.Scene{
         }
       });
     }
-    // 覚醒スキルは強制Lv5
+    // 覚醒スキルは強制Lv5(覚醒スキル枠)
     pd.sk1=5; pd.sk2=5; pd.sk3=5; pd.sk4=0;
     // 状態フラグ設定
     pd.awakened = awakKey;
@@ -10219,12 +10215,19 @@ class GameScene extends Phaser.Scene{
     if(!pd.awakened) return;
     const p=this.player;
     const wasKey = pd.awakened;  // 解除前の覚醒種別
-    // ステータスを元に戻す
+    // ステータスとスキルLvを元に戻す
     if(pd._preAwakeStats){
       const s=pd._preAwakeStats;
-      pd.atk=s.atk; pd.def=s.def; pd.mag=s.mag;
-      pd.spd=s.spd; pd.hit=s.hit; pd.agi=s.agi;
-      pd.sk1=s.sk1; pd.sk2=s.sk2; pd.sk3=s.sk3; pd.sk4=s.sk4;
+      if(s.atk!==undefined) pd.atk=s.atk;
+      if(s.def!==undefined) pd.def=s.def;
+      if(s.mag!==undefined) pd.mag=s.mag;
+      if(s.spd!==undefined) pd.spd=s.spd;
+      if(s.hit!==undefined) pd.hit=s.hit;
+      if(s.agi!==undefined) pd.agi=s.agi;
+      if(s.sk1!==undefined) pd.sk1=s.sk1;
+      if(s.sk2!==undefined) pd.sk2=s.sk2;
+      if(s.sk3!==undefined) pd.sk3=s.sk3;
+      if(s.sk4!==undefined) pd.sk4=s.sk4;
       pd._preAwakeStats = null;
     }
     pd.awakened = null;
