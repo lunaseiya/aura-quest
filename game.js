@@ -26,6 +26,35 @@ function getSaveData(slot){
 function setSaveData(slot,data){
   try{localStorage.setItem(SAVE_KEY+slot,JSON.stringify(data));}catch(e){}
 }
+
+// playerData をセーブ用にクリーンアップ(Phaserオブジェクト・一時状態を除外)
+function sanitizePlayerData(pd){
+  // _ で始まる runtime 用フィールドは保存対象外
+  // ただしバフ・覚醒状態など保存したいものは個別に許可
+  const KEEP_UNDERSCORE = new Set([
+    '_hasBerserk','_hasMeteoorm','_hasBoostAtk','_hasBomberPower','_hasHardProtect',
+    '_hasGloriousShot','_hasBlazeBlade','_hasFreeze','_hasMultishot','_hasVulcan',
+    '_jobUnlocks',
+    // 注: _preAwakeStats, _awakAura, _awakLightnings, _samuraiCounterRing, _allCritRing 等は意図的に除外
+  ]);
+  const out = {};
+  Object.keys(pd).forEach(k=>{
+    const v = pd[k];
+    // _ から始まるキーで KEEP_UNDERSCORE にないものはスキップ
+    if(k.startsWith('_') && !KEEP_UNDERSCORE.has(k)) return;
+    // 関数・undefinedはスキップ
+    if(typeof v === 'function' || typeof v === 'undefined') return;
+    // Phaser オブジェクト判定(scene プロパティを持つ・displayList を持つ・destroy メソッドがある等)
+    if(v && typeof v === 'object'){
+      if(v.scene || v.displayList || typeof v.destroy === 'function'){
+        return; // Phaser オブジェクトは除外
+      }
+    }
+    // それ以外はそのまま保存
+    out[k] = v;
+  });
+  return out;
+}
 function deleteSaveData(slot){
   try{localStorage.removeItem(SAVE_KEY+slot);}catch(e){}
 }
@@ -4277,7 +4306,9 @@ class SaveSelectScene extends Phaser.Scene{
   _doSave(slot){
     const pd=this.playerData;
     const summary=makeSaveSummary(pd,this.stage);
-    setSaveData(slot,{playerData:pd,stage:this.stage,summary});
+    // Phaserオブジェクトや一時状態を除外したクリーンなコピーを保存
+    const cleanPd = sanitizePlayerData(pd);
+    setSaveData(slot,{playerData:cleanPd,stage:this.stage,summary});
     this._showMsg('💾 スロット'+slot+' にセーブしました！','#44ff88');
     this.time.delayedCall(1200,()=>{
       // Gameシーンを先に再開してから自分(SaveSelect)を止める
