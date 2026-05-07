@@ -5937,14 +5937,15 @@ class GameScene extends Phaser.Scene{
       }else{
         // 通常: 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
         const ang=this.getFacingAngle();
-        const dist=60;
+        // プレイヤー手前に着弾するように距離を調整(密着敵に当たる)
+        const dist=35;
         const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
         const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
         const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
         this.throwBomb(p.x,p.y,tx,ty,{
           dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
           isCrit:Math.random()*100<calcCrit(pd),
-          radius:55*bomberRadiusMult,
+          radius:70*bomberRadiusMult,  // 55→70 に拡大
           element:'fire',
         });
         SE('explode');
@@ -6796,7 +6797,7 @@ class GameScene extends Phaser.Scene{
             const ch = this.scale.height / cam.zoom;
             const screenLeft = cam.scrollX;
             const screenTop = cam.scrollY;
-            const dmgBase = Math.max(1, Math.floor(pd.atk * 5.5 + (pd.mag||0) * 2));
+            const dmgBase = Math.max(1, Math.floor(pd.atk * 9.0 + (pd.mag||0) * 3));
             // 1回あたりのダメージ(全3回で計 dmgBase 相当になるように分割)
             const perWave = Math.floor(dmgBase / 3);
             // 各敵ごとの累積ダメ追跡
@@ -6913,7 +6914,7 @@ class GameScene extends Phaser.Scene{
                   onComplete: ()=>{
                     bullet.destroy();
                     if(closest.dead) return;
-                    const baseDmg = Math.max(1, Math.floor(pd.atk * 0.5));
+                    const baseDmg = Math.max(1, Math.floor(pd.atk * 1.0));
                     const isCrit = Math.random()*100 < calcCrit(pd);
                     const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
                     this.hitEnemy(closest, dmg, isCrit, true, '');
@@ -7087,7 +7088,7 @@ class GameScene extends Phaser.Scene{
             return perp < beamWidth/2 + 15;
           });
           targets.forEach(ed=>{
-            const baseDmg = Math.max(1, Math.floor((pd.atk*1.5) + (pd.mag||0) * 3));
+            const baseDmg = Math.max(1, Math.floor((pd.atk*4.0) + (pd.mag||0) * 7.0));
             const isCrit = Math.random()*100 < calcCrit(pd);
             const em = getElementMult('ice', ed.element||'none');
             const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
@@ -7197,8 +7198,8 @@ class GameScene extends Phaser.Scene{
           return perp < width/2;
         });
         targets.forEach(ed=>{
-          // 一撃の威力UP(従来のATK×3.0 → ATK×4.5+MAG×2.5)
-          const baseDmg = Math.max(1, Math.floor(pd.atk * 4.5 + (pd.mag||0) * 2.5));
+          // 一撃の威力(ATK×7.0+MAG×4.0)
+          const baseDmg = Math.max(1, Math.floor(pd.atk * 7.0 + (pd.mag||0) * 4.0));
           const isCrit = Math.random()*100 < calcCrit(pd);
           const em = getElementMult('wind', ed.element||'none');
           const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
@@ -7421,7 +7422,7 @@ class GameScene extends Phaser.Scene{
           });
           // 即時ダメージ
           targets.forEach(ed=>{
-            const baseDmg = Math.max(1, Math.floor((pd.atk*0.5) + (pd.mag||0) * 4.0));
+            const baseDmg = Math.max(1, Math.floor((pd.atk*1.0) + (pd.mag||0) * 6.0));
             const isCrit = Math.random()*100 < calcCrit(pd);
             const em = getElementMult('dark', ed.element||'none');
             const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
@@ -7441,7 +7442,7 @@ class GameScene extends Phaser.Scene{
                 // 範囲内に居続けるかチェック
                 const d = Phaser.Math.Distance.Between(bhX, bhY, ed.sprite.x, ed.sprite.y);
                 if(d > radius) return;
-                const tickDmg = Math.max(1, Math.floor((pd.mag||0) * 1.5));
+                const tickDmg = Math.max(1, Math.floor((pd.mag||0) * 3.0));
                 this.hitEnemy(ed, tickDmg, false, true, '');
               });
             });
@@ -7567,7 +7568,7 @@ class GameScene extends Phaser.Scene{
                   const burst = this.add.circle(curAimX, curAimY, 16, 0xaa44ff, 0.85).setDepth(20);
                   this.tweens.add({targets: burst, scaleX:2.5, scaleY:2.5, alpha:0, duration:300, onComplete:()=>burst.destroy()});
                   // ダメージ計算(常に実行)
-                  const baseDmg = Math.max(1, Math.floor((pd.mag||0) * 1.8));
+                  const baseDmg = Math.max(1, Math.floor((pd.atk*2.0) + (pd.mag||0) * 6.0));
                   const isCrit = Math.random()*100 < calcCrit(pd);
                   const em = getElementMult('dark', (lockOn.ed && lockOn.ed.element)||'none');
                   const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
@@ -7674,7 +7675,7 @@ class GameScene extends Phaser.Scene{
                 const perp = Math.abs(dx*(-sinA) + dy*cosA);
                 if(perp >= beamWidth/2) return;
                 // ヒット
-                const baseDmg = Math.max(1, Math.floor((pd.atk*1.2) + (pd.mag||0) * 4.5));
+                const baseDmg = Math.max(1, Math.floor((pd.atk*3.0) + (pd.mag||0) * 8.0));
                 const isCrit = Math.random()*100 < calcCrit(pd);
                 const em = getElementMult('dark', ed.element||'none');
                 const dmg = Math.max(1, Math.floor((isCrit?baseDmg*2:baseDmg) * em.mult));
@@ -7730,8 +7731,8 @@ class GameScene extends Phaser.Scene{
         // 強力な斬撃エフェクト
         const slash=this.add.image(closest.sprite.x, closest.sprite.y, 'fx_slash').setRotation(ang+Math.PI).setDisplaySize(120,120).setDepth(20).setTint(0xff4466);
         this.tweens.add({targets:slash, alpha:0, scaleX:2, scaleY:2, duration:300, onComplete:()=>slash.destroy()});
-        // 大ダメージ: ATK × 3.5(Lv5固定)
-        const baseDmg = Math.max(1, Math.floor(pd.atk * 3.5));
+        // 大ダメージ: ATK × 6.0(Lv5固定・覚醒バフ)
+        const baseDmg = Math.max(1, Math.floor(pd.atk * 6.0));
         const isCrit = Math.random()*100 < calcCrit(pd);
         const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
         this.hitEnemy(closest, dmg, isCrit, true, '');
@@ -7778,13 +7779,13 @@ class GameScene extends Phaser.Scene{
           totalsByEnemy.set(ed, 0);
           lastPos.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
         });
-        // 5回連続ヒット(各回 ATK × 0.7)
+        // 5回連続ヒット(各回 ATK × 1.4 = 計 ATK × 7.0)
         const hits = 5;
         for(let i=0;i<hits;i++){
           this.time.delayedCall(i*120, ()=>{
             targets.forEach(ed=>{
               if(!ed.sprite) return;
-              const baseDmg = Math.max(1, Math.floor(pd.atk * 0.7));
+              const baseDmg = Math.max(1, Math.floor(pd.atk * 1.4));
               const isCrit = Math.random()*100 < calcCrit(pd);
               const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
               // 累積記録(死後でも続ける)
@@ -8348,21 +8349,21 @@ class GameScene extends Phaser.Scene{
     // 背景
     this.add.rectangle(0,0,BG_W,100,0x000000,0.78).setOrigin(0).setScrollFactor(0).setDepth(10);
     // HP
-    this.add.rectangle(BX,8,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(BX,8,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10).setStrokeStyle(1, 0xffffff, 0.6);
     this.hudHPBar=this.add.rectangle(BX,8,BW*(pd.hp/pd.mhp),BAR_H,0x2ecc71).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,8,'HP',{fontSize:'13px',fontFamily:FF,color:'#2ecc71',fontStyle:'bold'}).setScrollFactor(0).setDepth(12);
+    this.add.text(2,8,'HP',{fontSize:'13px',fontFamily:FF,color:'#2ecc71',fontStyle:'bold',stroke:'#000000',strokeThickness:3}).setScrollFactor(0).setDepth(12);
     // SP
-    this.add.rectangle(BX,8+GAP,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(BX,8+GAP,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10).setStrokeStyle(1, 0xffffff, 0.6);
     this.hudSPBar=this.add.rectangle(BX,8+GAP,BW*(pd.sp/pd.msp),BAR_H,0x3498db).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,8+GAP,'SP',{fontSize:'13px',fontFamily:FF,color:'#3498db',fontStyle:'bold'}).setScrollFactor(0).setDepth(12);
+    this.add.text(2,8+GAP,'SP',{fontSize:'13px',fontFamily:FF,color:'#3498db',fontStyle:'bold',stroke:'#000000',strokeThickness:3}).setScrollFactor(0).setDepth(12);
     // EXP
-    this.add.rectangle(BX,8+GAP*2,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(BX,8+GAP*2,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10).setStrokeStyle(1, 0xffffff, 0.6);
     this.hudEXPBar=this.add.rectangle(BX,8+GAP*2,0,BAR_H,0xf39c12).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,8+GAP*2,'EX',{fontSize:'13px',fontFamily:FF,color:'#f39c12',fontStyle:'bold'}).setScrollFactor(0).setDepth(12);
+    this.add.text(2,8+GAP*2,'EX',{fontSize:'13px',fontFamily:FF,color:'#f39c12',fontStyle:'bold',stroke:'#000000',strokeThickness:3}).setScrollFactor(0).setDepth(12);
     // JOB EXP
-    this.add.rectangle(BX,8+GAP*3,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10);
+    this.add.rectangle(BX,8+GAP*3,BW,BAR_H,0x1a1a1a).setOrigin(0).setScrollFactor(0).setDepth(10).setStrokeStyle(1, 0xffffff, 0.6);
     this.hudJEXPBar=this.add.rectangle(BX,8+GAP*3,0,BAR_H,0x00e5ff).setOrigin(0).setScrollFactor(0).setDepth(11);
-    this.add.text(2,8+GAP*3,'JB',{fontSize:'13px',fontFamily:FF,color:'#00e5ff',fontStyle:'bold'}).setScrollFactor(0).setDepth(12);
+    this.add.text(2,8+GAP*3,'JB',{fontSize:'13px',fontFamily:FF,color:'#00e5ff',fontStyle:'bold',stroke:'#000000',strokeThickness:3}).setScrollFactor(0).setDepth(12);
     // Lv・Gold表示
     this.hudLvTxt=this.add.text(2,8+GAP*4+2,'',{fontSize:'12px',fontFamily:FF,color:'#ffdd44',fontStyle:'bold',stroke:'#000000',strokeThickness:2}).setScrollFactor(0).setDepth(12);
     // ダミー変数（updateHUDで参照するため）
