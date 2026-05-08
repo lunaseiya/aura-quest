@@ -4731,14 +4731,11 @@ const STAGE_CONFIG={
       // 右下: 鍛冶屋(赤屋根・炉・金床)
       {x:780, y:680, w:380, h:300, label:'🔨 鍛冶屋',   type:'blacksmith'},
     ],
-    // 南ポータルへの通路(門・アーチがあって色判定で通れない場所を強制歩行可)
+    // 南ポータルへの通路(アーチ門・上の渡しブロックも含めて全部歩行可)
+    // X方向: アーチの両柱の内側だけでは狭いので幅広めに(両端の壁の暗い色も覆う)
+    // Y方向: アーチ上部(上の渡しブロック)も含めて Y=940〜1240 をカバー
     walkZones:[
-      {x:560, y:1050, w:130, h:200},  // 南ゲート〜ポータルまでの縦の通路
-    ],
-    // アーチ(石造の門)を疑似描画してプレイヤーが下を潜る演出
-    // 矩形位置: X=460〜800(幅340), Y=950〜1145(高さ195) = 南のアーチ門
-    archOverlays:[
-      {x:460, y:950, w:340, h:160, openW:100, archH:80, flags:true},
+      {x:520, y:940, w:210, h:300},  // 南ゲート全体 - アーチ天井・両柱の内側・通路下まで
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
@@ -4953,14 +4950,13 @@ const STAGE_CONFIG={
     portalTo:null, portalToLabel:'',
     // 西の橋から → south_st3(鉱山の街道) に戻る
     portalBack:24, portalBackLabel:'⛏ 鉱山の街道へ', portalBackKey:'portal_st1',
-    // 入口=西から(マップ画像の左端・橋の中央)
-    // 煙突に被らないように Y を上に(画面では上方向 = Y小さく)
-    spawnX:200, spawnY:380,
-    portalBackX:90, portalBackY:380,
-    spawnFromBackX:200, spawnFromBackY:380,
-    spawnFromNextX:200, spawnFromNextY:380,
+    // 入口=西の橋の中央付近(画像の左端の橋・煙突を避けてY=420)
+    spawnX:200, spawnY:420,
+    portalBackX:90, portalBackY:420,
+    spawnFromBackX:200, spawnFromBackY:420,
+    spawnFromNextX:200, spawnFromNextY:420,
     // south_st3から東のポータル経由で来た時もちゃんと離れた位置にスポーン
-    spawnFromEastX:200, spawnFromEastY:380,
+    spawnFromEastX:200, spawnFromEastY:420,
     // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
     // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
     // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
@@ -10613,16 +10609,16 @@ class GameScene extends Phaser.Scene{
   }
   updateHUD(){
     const pd=this.playerData;
-    const BW=160;
+    const BW=180, BAR_H=13;  // createHUD と必ず合わせる
     const hp=Math.max(0,pd.hp),sp=Math.max(0,pd.sp);
     const hpP=hp/pd.mhp,spP=sp/pd.msp;
     // HP（色変化あり）
-    if(this.hudHPBar&&this.hudHPBar.active)this.hudHPBar.setSize(BW*hpP,11).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
-    if(this.hudSPBar&&this.hudSPBar.active)this.hudSPBar.setSize(BW*spP,11);
+    if(this.hudHPBar&&this.hudHPBar.active)this.hudHPBar.setSize(BW*hpP,BAR_H).setFillStyle(hpP>0.5?0x2ecc71:hpP>0.25?0xf39c12:0xe74c3c);
+    if(this.hudSPBar&&this.hudSPBar.active)this.hudSPBar.setSize(BW*spP,BAR_H);
     const expP=Math.min(1,pd.exp/pd.expNext);
-    if(this.hudEXPBar&&this.hudEXPBar.active)this.hudEXPBar.setSize(BW*expP,8);
+    if(this.hudEXPBar&&this.hudEXPBar.active)this.hudEXPBar.setSize(BW*expP,BAR_H);
     const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
-    if(this.hudJEXPBar&&this.hudJEXPBar.active)this.hudJEXPBar.setSize(BW*jexpP,8);
+    if(this.hudJEXPBar&&this.hudJEXPBar.active)this.hudJEXPBar.setSize(BW*jexpP,BAR_H);
     if(this.hudLvTxt&&this.hudLvTxt.active)this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1)+'  💰'+pd.gold+'G');
     // スキルボタン更新は _updateSkillBtns() で行う（updateHUDからは呼ばない）
     this._updateSkillBtns();
