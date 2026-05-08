@@ -1099,6 +1099,8 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_heavy', BASE+'players/sprite_sheet_custum.png', {frameWidth:128,frameHeight:128});
     // youma はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
     this.load.spritesheet('player_youma', BASE+'players/sprite_sheet_dark.png', {frameWidth:128,frameHeight:128});
+    // elf_form はスプライトシート (128×128px, 5×3=15コマ・アーチャー覚醒時に使用)
+    this.load.spritesheet('player_elf', BASE+'players/sprite_sheet_elfe.png', {frameWidth:128,frameHeight:128});
     // archer はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_archer', BASE+'players/archer_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // mage はスプライトシート (128×128px, 5×3=15コマ)
@@ -1125,7 +1127,11 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/town1.png');
     this.load.image('map_town0', BASE+'maps/town0.png');
+    this.load.image('map_town2', BASE+'maps/town2.png');
     this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
+    this.load.image('map_south_st1', BASE+'maps/south_st1.png');
+    this.load.image('map_south_st2', BASE+'maps/south_st2.png');
+    this.load.image('map_south_st3', BASE+'maps/south_st3.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -1301,6 +1307,26 @@ class BootScene extends Phaser.Scene{
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_youma',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // エルフ アニメーション(アーチャー覚醒時に使用)
+    const EA=[
+      {key:'elf_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'elf_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'elf_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'elf_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'elf_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'elf_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'elf_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'elf_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'elf_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    EA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_elf',frame:f})),
         frameRate:a.rate, repeat:a.rep,
       });
     });
@@ -3241,6 +3267,52 @@ class BootScene extends Phaser.Scene{
       g.fillStyle(0x66ffcc,0.3);g.fillCircle(S*.28,S*.52,S*.05);g.fillCircle(S*.7,S*.55,S*.04);
     });
 
+    // サクラ(ピンクのスライム)
+    mk('enemy_sakura',96,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.68,S*.12);
+      g.fillStyle(0xff66aa,0.3);g.fillCircle(S*.5,S*.54,S*.44);
+      g.fillStyle(0xff77bb,0.65);g.fillEllipse(S*.5,S*.58,S*.7,S*.66);
+      g.fillStyle(0xff99cc,0.9);g.fillEllipse(S*.5,S*.61,S*.62,S*.58);
+      g.fillStyle(0xffccdd,0.4);g.fillEllipse(S*.38,S*.38,S*.22,S*.14);
+      g.fillStyle(0xffffff,0.25);g.fillEllipse(S*.36,S*.36,S*.12,S*.07);
+      g.fillStyle(0xcc4488,0.7);g.fillCircle(S*.5,S*.58,S*.14);
+      g.fillStyle(0xff66aa,0.5);g.fillCircle(S*.5,S*.56,S*.08);
+      g.fillStyle(0xffffff,1);g.fillEllipse(S*.37,S*.48,S*.18,S*.2);g.fillEllipse(S*.63,S*.48,S*.18,S*.2);
+      g.fillStyle(0x661133,1);g.fillEllipse(S*.37,S*.5,S*.11,S*.13);g.fillEllipse(S*.63,S*.5,S*.11,S*.13);
+      g.fillStyle(0x330011,1);g.fillCircle(S*.38,S*.51,S*.05);g.fillCircle(S*.64,S*.51,S*.05);
+      g.fillStyle(0xffffff,0.9);g.fillCircle(S*.35,S*.47,S*.03);g.fillCircle(S*.61,S*.47,S*.03);
+      g.lineStyle(3,0xaa3366,0.9);g.lineBetween(S*.41,S*.62,S*.45,S*.65);g.lineBetween(S*.45,S*.65,S*.55,S*.65);g.lineBetween(S*.55,S*.65,S*.59,S*.62);
+      // 桜の花びら(頭上)
+      g.fillStyle(0xffaadd,1);
+      g.fillCircle(S*.5,S*.18,S*.04);
+      g.fillCircle(S*.45,S*.21,S*.035);
+      g.fillCircle(S*.55,S*.21,S*.035);
+      g.fillStyle(0xffeef2,0.3);g.fillCircle(S*.28,S*.52,S*.05);g.fillCircle(S*.7,S*.55,S*.04);
+    });
+
+    // サイダー(水色のスライム・透明感)
+    mk('enemy_cider',96,(g,S)=>{
+      g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.68,S*.12);
+      g.fillStyle(0x66ccff,0.3);g.fillCircle(S*.5,S*.54,S*.44);
+      g.fillStyle(0x77ddff,0.65);g.fillEllipse(S*.5,S*.58,S*.7,S*.66);
+      g.fillStyle(0xaaeeff,0.9);g.fillEllipse(S*.5,S*.61,S*.62,S*.58);
+      g.fillStyle(0xddf5ff,0.4);g.fillEllipse(S*.38,S*.38,S*.22,S*.14);
+      g.fillStyle(0xffffff,0.25);g.fillEllipse(S*.36,S*.36,S*.12,S*.07);
+      g.fillStyle(0x3388cc,0.7);g.fillCircle(S*.5,S*.58,S*.14);
+      g.fillStyle(0x66bbee,0.5);g.fillCircle(S*.5,S*.56,S*.08);
+      g.fillStyle(0xffffff,1);g.fillEllipse(S*.37,S*.48,S*.18,S*.2);g.fillEllipse(S*.63,S*.48,S*.18,S*.2);
+      g.fillStyle(0x113355,1);g.fillEllipse(S*.37,S*.5,S*.11,S*.13);g.fillEllipse(S*.63,S*.5,S*.11,S*.13);
+      g.fillStyle(0x001122,1);g.fillCircle(S*.38,S*.51,S*.05);g.fillCircle(S*.64,S*.51,S*.05);
+      g.fillStyle(0xffffff,0.9);g.fillCircle(S*.35,S*.47,S*.03);g.fillCircle(S*.61,S*.47,S*.03);
+      g.lineStyle(3,0x336699,0.9);g.lineBetween(S*.41,S*.62,S*.45,S*.65);g.lineBetween(S*.45,S*.65,S*.55,S*.65);g.lineBetween(S*.55,S*.65,S*.59,S*.62);
+      // 泡(炭酸風)
+      g.fillStyle(0xffffff,0.7);
+      g.fillCircle(S*.42,S*.36,S*.025);
+      g.fillCircle(S*.58,S*.39,S*.022);
+      g.fillCircle(S*.50,S*.30,S*.02);
+      g.fillStyle(0xeef9ff,0.5);g.fillCircle(S*.28,S*.52,S*.05);g.fillCircle(S*.7,S*.55,S*.04);
+    });
+
     // コウモリ
     mk('enemy_bat',80,(g,S)=>{
       g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.58,S*.1);
@@ -3934,6 +4006,8 @@ const ITEM_DEFS={
 // ボス：演出上の重要素材なので例外として高確率を維持。
 const DROP_TABLE={
   slime:    [{id:'jelly',       rate:0.40, min:1, max:2}],
+  sakura:   [{id:'jelly',       rate:0.45, min:1, max:2}, {id:'flower_petal', rate:0.20, min:1, max:1}],
+  cider:    [{id:'jelly',       rate:0.45, min:1, max:2}, {id:'water_drop', rate:0.20, min:1, max:1}],
   bat:      [{id:'bat_wing',    rate:0.35, min:1, max:1}],
   goblin:   [{id:'goblin_ear',  rate:0.40, min:1, max:1}],
   troll:    [{id:'troll_hide',  rate:0.30, min:1, max:1}],
@@ -3991,7 +4065,7 @@ const MAX_ITEM_STACK=99; // 1種類あたりの最大所持数
 
 // モンスター種別ごとの撃破SE
 const KILL_SE={
-  slime:'kill_pop',
+  slime:'kill_pop', sakura:'kill_pop', cider:'kill_pop',
   bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
   goblin:'kill_grunt',
   goblin_archer:'kill_grunt', goblin_axe:'kill_grunt', goblin_leader:'kill_boss',
@@ -4639,6 +4713,10 @@ const STAGE_CONFIG={
     spawnX:625, spawnY:700,           // 中央広場(噴水の少し下)
     portalNextX:1200, portalNextY:610, // 右側のゲート(ST1へ)
     spawnFromNextX:1130, spawnFromNextY:610,
+    // 南へ行くポータル(セントラル南のゲート → south_st1へ)
+    portalSouth:22, portalSouthLabel:'🌳 南の街道へ', portalSouthKey:'portal_south_st1',
+    portalSouthX:625, portalSouthY:1200,  // 南端中央
+    spawnFromSouthX:625, spawnFromSouthY:1080,
     // 5つの建物 (画像の建物位置に合わせる)
     buildings:[
       // 左上: ポータル屋(紫屋根・水晶・転送魔法陣)
@@ -4723,13 +4801,13 @@ const STAGE_CONFIG={
     bossThreshold:15,
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
-    // 入口=左下の通路、出口=右下の通路
+    // 入口=左下の三又の中央、出口=右下の三又の中央
     // ポータル判定は半径70pxなので、spawnから100px以上離す
-    spawnX:300, spawnY:1500,                  // 初回入場(左下の道の内側)
-    portalBackX:100, portalBackY:1700,         // 戻る(ST1へ): 左下の道の端 (距離≈283px)
-    portalNextX:1400, portalNextY:1700,        // 進む(ST3へ): 右下の道の端
-    spawnFromBackX:300, spawnFromBackY:1500,   // ST1から戻ってきたら左下内側
-    spawnFromNextX:1200, spawnFromNextY:1500,  // ST3から戻ってきたら右下内側 (出口から距離≈283px)
+    spawnX:300, spawnY:1500,                  // 初回入場(左下の三又中央)
+    portalBackX:300, portalBackY:1500,         // 戻る(ST1へ): 左下の三又の中央
+    portalNextX:1230, portalNextY:1500,        // 進む(ST3へ): 右下の三又の中央
+    spawnFromBackX:480, spawnFromBackY:1500,   // ST1から戻ってきたら三又から少し東(180px)
+    spawnFromNextX:1050, spawnFromNextY:1500,  // ST3から戻ってきたら三又から少し西(180px)
   },
   3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -4846,15 +4924,15 @@ const STAGE_CONFIG={
     // ボスは中央の焚き火脇(中央 627,627 は壁・焚き火跡)
     boss:{id:'goblin_leader', x:750, y:627},
     bossThreshold:8,
-    // 戻る = ST5(砂漠の集落跡)へ、進む = ST21 ブレイズフォージへ
-    portalTo:21, portalToLabel:'🔥 ブレイズフォージへ', portalToKey:'portal_st4',
+    // 戻る = ST5(砂漠の集落跡)へ、進む(東) = town2 砂漠の街へ
+    portalTo:25, portalToLabel:'🏛 砂漠の街へ', portalToKey:'portal_st5',
     portalBack:5, portalBackLabel:'🏛 ST.5へ', portalBackKey:'portal_st5',
     // 入口=西の道、出口=東の道
-    spawnX:150, spawnY:627,
+    spawnX:200, spawnY:627,
     portalBackX:80, portalBackY:627,
     portalNextX:1180, portalNextY:627,
-    spawnFromBackX:150, spawnFromBackY:627,
-    spawnFromNextX:1100, spawnFromNextY:627,
+    spawnFromBackX:200, spawnFromBackY:627,
+    spawnFromNextX:1060, spawnFromNextY:627,
   },
   // ── ST.21 ブレイズフォージ(火薬都市・ボマー進化の聖地) ──
   21:{name:'🔥 ブレイズフォージ', bgmKey:'st1', mapImage:'map_blaze',
@@ -4863,12 +4941,13 @@ const STAGE_CONFIG={
     enemies:[], // 町なので敵なし
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
-    portalBack:20, portalBackLabel:'🪓 ゴブリンの集落へ', portalBackKey:'portal_st4',
+    // 西の橋から → south_st3(鉱山の街道) に戻る
+    portalBack:24, portalBackLabel:'⛏ 鉱山の街道へ', portalBackKey:'portal_st1',
     // 入口=西から(マップ画像の左端・橋の中央)
-    spawnX:160, spawnY:580,
+    spawnX:200, spawnY:580,
     portalBackX:90, portalBackY:580,
-    spawnFromBackX:160, spawnFromBackY:580,
-    spawnFromNextX:160, spawnFromNextY:580,
+    spawnFromBackX:200, spawnFromBackY:580,
+    spawnFromNextX:200, spawnFromNextY:580,
     // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
     // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
     // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
@@ -4883,6 +4962,120 @@ const STAGE_CONFIG={
       {x:780, y:520, w:330, h:240, label:'🏪 ショップ', type:'shop'},
       // 下中央: 転職場(寺院・4つの旗・金の炎エンブレム)
       {x:430, y:790, w:380, h:340, label:'✨ 転職場',   type:'jobchange'},
+    ],
+  },
+  // ── 南の街道(セントラルの南から行ける) ──
+  22:{name:'🌳 南の街道', bgmKey:'st1', mapImage:'map_south_st1',
+    mapType:'south_st1', mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // スライム・サクラ・サイダーがちらほら配置
+      ['slime',  300, 350],['slime',  900, 350],
+      ['sakura', 250, 700],['sakura', 950, 600],['sakura', 600, 750],
+      ['cider',  400, 950],['cider',  850, 1000],
+      ['slime',  600, 900],['sakura', 200, 500],['cider', 1000, 500],
+      ['slime',  500, 280],['sakura', 750, 850],['cider', 350, 850],
+    ],
+    boss:null, bossThreshold:9999, // ボスなし
+    // セントラルへ戻る(北のアーチ)
+    portalTo:null, portalToLabel:'',
+    portalBack:0, portalBackLabel:'🏘 セントラルへ戻る', portalBackKey:'portal_town',
+    // 入口=北のゲートから入ってくる
+    spawnX:625, spawnY:200,
+    portalBackX:625, portalBackY:80,
+    spawnFromBackX:625, spawnFromBackY:200,
+    spawnFromNextX:625, spawnFromNextY:200,
+    // 南方向ポータル → 街道2(south_st2)
+    portalSouth:23, portalSouthLabel:'🌲 さらに南へ', portalSouthKey:'portal_st1',
+    portalSouthX:625, portalSouthY:1180,
+    spawnFromSouthX:625, spawnFromSouthY:1060,
+  },
+  // ── 南の街道2(south_st1からさらに南) ──
+  23:{name:'🌲 南の街道(続)', bgmKey:'st1', mapImage:'map_south_st2',
+    mapType:'south_st2', mapW:941, mapH:1672,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // スライム・サクラ・サイダー(south_st1と同様)
+      ['slime',  280, 250],['slime',  650, 350],
+      ['sakura', 200, 600],['sakura', 700, 700],['sakura', 470, 950],
+      ['cider',  300, 1100],['cider',  650, 1200],
+      ['slime',  470, 1350],['sakura', 250, 1450],['cider', 700, 1500],
+      // 追加: ゴブリン少数(やや強敵)
+      ['goblin', 470, 500],['goblin', 350, 850],['goblin', 600, 1300],
+    ],
+    boss:null, bossThreshold:9999,
+    // 北へ戻る = south_st1
+    portalTo:null, portalToLabel:'',
+    portalBack:22, portalBackLabel:'🌳 街道へ戻る', portalBackKey:'portal_st1',
+    returnFromSouth:true,  // 戻り先(south_st1)の南端にスポーン
+    // 入口=北の道から入ってくる
+    spawnX:470, spawnY:200,
+    portalBackX:470, portalBackY:80,
+    spawnFromBackX:470, spawnFromBackY:200,
+    spawnFromNextX:470, spawnFromNextY:200,
+    spawnFromSouthX:470, spawnFromSouthY:200,
+    // 東方向ポータル(右上の橋付近) → south_st3
+    portalEast:24, portalEastLabel:'⛏ 鉱山の街道へ', portalEastKey:'portal_st1',
+    portalEastX:870, portalEastY:480,  // 右の橋付近
+    spawnFromWestX:780, spawnFromWestY:480,  // south_st3 から戻ってきた時のスポーン
+  },
+  // ── 南の街道3(south_st2の右の橋から東へ) ──
+  24:{name:'⛏ 鉱山の街道', bgmKey:'st1', mapImage:'map_south_st3',
+    mapType:'south_st3', mapW:1491, mapH:1055,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // サクラ・サイダー(草原エリア=西側)
+      ['sakura', 200, 300],['sakura', 350, 600],['sakura', 280, 850],
+      ['cider',  450, 400],['cider',  300, 950],['cider',  500, 750],
+      // ゴブリン(中央広場〜東側)
+      ['goblin',       700, 350],['goblin',       650, 750],
+      // ゴブリンアーチャー(東の鉱山入口前=遠距離)
+      ['goblin_archer',1100, 200],['goblin_archer',1050, 700],
+      // ゴブリンアックス(東の鉱山入口=強敵)
+      ['goblin_axe',   1280, 400],['goblin_axe',   1200, 850],
+    ],
+    boss:null, bossThreshold:9999,
+    // 西へ戻る = south_st2
+    portalTo:null, portalToLabel:'',
+    portalBack:23, portalBackLabel:'🌲 街道へ戻る', portalBackKey:'portal_st1',
+    // 入口=西側の道から(south_st2 の橋から)
+    spawnX:200, spawnY:520,
+    portalBackX:60, portalBackY:520,
+    spawnFromBackX:200, spawnFromBackY:520,
+    // town1(ブレイズフォージ)から戻ってきた時 = 東側ポータル付近にスポーン
+    spawnFromNextX:1300, spawnFromNextY:520,
+    spawnFromEastX:200, spawnFromEastY:520,  // 東(town1)から戻ってきた時のスポーン位置
+    // 東方向ポータル(右端の鉱山ゲート付近) → town1(ブレイズフォージ)
+    portalEast:21, portalEastLabel:'🔥 ブレイズフォージへ', portalEastKey:'portal_st1',
+    portalEastX:1430, portalEastY:520,  // 右端
+    spawnFromWestX:1300, spawnFromWestY:520,  // ブレイズフォージから戻ってきた時
+  },
+  // ── 砂漠の街 town2 (ゴブリン集落の東) ──
+  25:{name:'🏛 砂漠の街', bgmKey:'town', mapImage:'map_town2',
+    mapType:'town2', mapW:1254, mapH:1254,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[], // 町なので敵なし
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    // 西へ戻る = ゴブリン集落
+    portalBack:20, portalBackLabel:'🪓 ゴブリンの集落へ', portalBackKey:'portal_st4',
+    // 入口=西から(マップ画像の左端)
+    spawnX:200, spawnY:627,
+    portalBackX:80, portalBackY:627,
+    spawnFromBackX:200, spawnFromBackY:627,
+    spawnFromNextX:200, spawnFromNextY:627,
+    // ── 5つの建物 (画像のアイコンに合わせて配置) ──
+    buildings:[
+      // 上左: アイテム屋(赤茶ドーム・ポーション瓶看板)
+      {x:300, y:130, w:280, h:280, label:'🏪 アイテム屋', type:'shop'},
+      // 上中央: ポータル屋(青ドーム・宝石看板=テレポ)
+      {x:530, y:80,  w:300, h:330, label:'✨ ポータル屋', type:'guild'},
+      // 上右: ショップ(紫ドーム・宝石看板=雑貨)
+      {x:830, y:130, w:280, h:280, label:'📖 スキル屋', type:'magic'},
+      // 左中: スキル屋(紫ドーム単独・本)
+      {x:240, y:560, w:240, h:280, label:'🪄 魔法書屋', type:'magic'},
+      // 右中: 鍛冶屋(石造の家・煙突・炉)
+      {x:830, y:540, w:300, h:300, label:'🔨 鍛冶屋', type:'blacksmith'},
     ],
   },
   // ── DUN.2 1F 炭鉱の入口 ──
@@ -5019,7 +5212,7 @@ const AWAKENINGS = {
 
 // 敵の日本語名(ラベル表示用)
 const ENEMY_NAMES={
-  slime:'スライム', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
+  slime:'スライム', sakura:'サクラ', cider:'サイダー', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
   wolf:'ウルフ', skeleton:'スケルトン', dragon:'ドラゴン',
   crab:'カニ', seal:'シール', sandworm:'サンドワーム', scorpion:'スコーピオン',
   sandman:'サンドマン', mummy:'ミイラ', bone_dragon:'ボーンドラゴン',
@@ -5041,6 +5234,8 @@ const ENEMY_NAMES={
 const ENEMY_DEFS={
   // passive:true=受動  eva=回避率%  element=属性(無/炎/氷/雷/水/土/風/光/闇)
   slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 ,element:'water'},
+  sakura:  {hp:32, atk:5, def:0, spd:65, exp:14,gold:4,  sz:52,rng:50,acd:1.2, passive:true,  eva:5 ,element:'none'},
+  cider:   {hp:30, atk:4, def:0, spd:70, exp:13,gold:4,  sz:52,rng:50,acd:1.2, passive:true,  eva:5 ,element:'water'},
   bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15,element:'dark'},
   goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 ,element:'none'},
   troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 ,element:'earth'},
@@ -5402,6 +5597,29 @@ class GameScene extends Phaser.Scene{
       this.portalNextTxt=this.add.text(pnX,pnY+44,cfg.portalToLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#00e5ff',align:'center'}).setOrigin(0.5);
       this.portalNext={x:pnX,y:pnY,to:cfg.portalTo,open:true};
     }
+    // 南方向ポータル(town0 → south_st1 用)
+    this.portalSouth=null;
+    if(cfg.portalSouth!==null&&cfg.portalSouth!==undefined){
+      const psX=cfg.portalSouthX!==undefined?cfg.portalSouthX:(MW/2);
+      const psY=cfg.portalSouthY!==undefined?cfg.portalSouthY:(MH-80);
+      // 既存のポータル画像が無ければ portal_st1 を流用
+      const psKey = this.textures.exists(cfg.portalSouthKey) ? cfg.portalSouthKey : 'portal_st1';
+      this.add.image(psX,psY,psKey).setDisplaySize(80,64).setAlpha(0.95);
+      const psTxt=this.add.text(psX,psY+44,cfg.portalSouthLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#aaffaa',align:'center',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+      this.tweens.add({targets:psTxt, alpha:0.55, duration:1100, yoyo:true, repeat:-1});
+      this.portalSouth={x:psX,y:psY,to:cfg.portalSouth,open:true};
+    }
+    // 東方向ポータル(south_st2 → south_st3 用)
+    this.portalEast=null;
+    if(cfg.portalEast!==null&&cfg.portalEast!==undefined){
+      const peX=cfg.portalEastX!==undefined?cfg.portalEastX:(MW-80);
+      const peY=cfg.portalEastY!==undefined?cfg.portalEastY:(MH/2);
+      const peKey = this.textures.exists(cfg.portalEastKey) ? cfg.portalEastKey : 'portal_st1';
+      this.add.image(peX,peY,peKey).setDisplaySize(80,64).setAlpha(0.95);
+      const peTxt=this.add.text(peX,peY+44,cfg.portalEastLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#ffcc88',align:'center',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
+      this.tweens.add({targets:peTxt, alpha:0.55, duration:1100, yoyo:true, repeat:-1});
+      this.portalEast={x:peX,y:peY,to:cfg.portalEast,open:true};
+    }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
       const sp=cfg.sidePortal;
@@ -5478,6 +5696,27 @@ class GameScene extends Phaser.Scene{
         }else if(cfg.portalBackX!==undefined){
           spawnX=cfg.portalBackX+120; spawnY=cfg.spawnY;
         }
+      }else if(fromPortal==='south'){
+        // 南から戻ってきた = 南ポータル付近にスポーン
+        if(cfg.spawnFromSouthX!==undefined&&cfg.spawnFromSouthY!==undefined){
+          spawnX=cfg.spawnFromSouthX; spawnY=cfg.spawnFromSouthY;
+        }else if(cfg.portalSouthX!==undefined){
+          spawnX=cfg.portalSouthX; spawnY=cfg.portalSouthY-120;
+        }
+      }else if(fromPortal==='east'){
+        // 東から入ってきた = 西側からの入口にスポーン
+        if(cfg.spawnFromEastX!==undefined&&cfg.spawnFromEastY!==undefined){
+          spawnX=cfg.spawnFromEastX; spawnY=cfg.spawnFromEastY;
+        }else{
+          spawnX=140; spawnY=cfg.spawnY||(MH/2);
+        }
+      }else if(fromPortal==='west'){
+        // 西から戻ってきた = 東ポータル付近にスポーン
+        if(cfg.spawnFromWestX!==undefined&&cfg.spawnFromWestY!==undefined){
+          spawnX=cfg.spawnFromWestX; spawnY=cfg.spawnFromWestY;
+        }else if(cfg.portalEastX!==undefined){
+          spawnX=cfg.portalEastX-120; spawnY=cfg.portalEastY;
+        }
       }else{
         spawnX=cfg.spawnX; spawnY=cfg.spawnY;
       }
@@ -5525,11 +5764,13 @@ class GameScene extends Phaser.Scene{
         samurai: 'player_samurai',
         heavy:   'player_heavy',
         youma:   'player_youma',
+        spirit:  'player_elf',
       };
       const awakAnimPrefix = {
         samurai: 'samurai',
         heavy:   'heavy',
         youma:   'youma',
+        spirit:  'elf',
       };
       const tex = awakSpriteMap[pd.awakened];
       const prefix = awakAnimPrefix[pd.awakened];
@@ -10264,6 +10505,12 @@ class GameScene extends Phaser.Scene{
         this.player.setDisplaySize(pSize, pSize);
         this.player.play('youma_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('youma texture switch failed', e);}
+    }else if(awakKey==='spirit' && this.textures.exists('player_elf')){
+      try{
+        this.player.setTexture('player_elf', 0);
+        this.player.setDisplaySize(pSize, pSize);
+        this.player.play('elf_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('elf texture switch failed', e);}
     }
     // UIを更新
     this._updateAwakeningButton();
@@ -10316,6 +10563,12 @@ class GameScene extends Phaser.Scene{
         this.player.setDisplaySize(restoreSize, restoreSize);
         this.player.play('mage_'+(this._facing||'front')+'_idle', true);
       }catch(e){console.warn('mage texture restore failed', e);}
+    }else if(wasKey==='spirit' && this.textures.exists('player_archer')){
+      try{
+        this.player.setTexture('player_archer', 0);
+        this.player.setDisplaySize(restoreSize, restoreSize);
+        this.player.play('archer_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('archer texture restore failed', e);}
     }
     // エルフ専用バフ解除
     pd._allCritUntil = 0;
@@ -11372,6 +11625,8 @@ class GameScene extends Phaser.Scene{
       prefix='heavy';
     }else if(this.playerData.awakened==='youma'){
       prefix='youma';
+    }else if(this.playerData.awakened==='spirit'){
+      prefix='elf';
     }
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
@@ -11392,6 +11647,8 @@ class GameScene extends Phaser.Scene{
         if(prefix==='heavy') flip=vx>0;
         // 妖魔中も右向き基準(マジシャンと同じ配置)
         if(prefix==='youma') flip=vx<0;
+        // エルフはアーチャー同様マジシャン系右向き基準扱い(画像が右向きベース)
+        if(prefix==='elf') flip=vx<0;
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -11411,6 +11668,7 @@ class GameScene extends Phaser.Scene{
     if(this.playerData.awakened==='samurai') prefix='samurai';
     else if(this.playerData.awakened==='heavy') prefix='heavy';
     else if(this.playerData.awakened==='youma') prefix='youma';
+    else if(this.playerData.awakened==='spirit') prefix='elf';
     const key=prefix+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
@@ -13132,7 +13390,9 @@ class GameScene extends Phaser.Scene{
         if(Phaser.Math.Distance.Between(p.x,p.y,pbX,pbY)<70){
           this._transitioning=true;
           // portalBackSpawnXY で戻り先のスポーン位置を明示(例: DUN1→ST6骨の位置)
-          const dt={playerData:pd,stage:this.cfg.portalBack,fromPortal:'next'};
+          // returnFromSouth=true のステージは、戻り先の南端にスポーン
+          const fromKey = this.cfg.returnFromSouth ? 'south' : 'next';
+          const dt={playerData:pd,stage:this.cfg.portalBack,fromPortal:fromKey};
           if(this.cfg.portalBackSpawnX!==undefined && this.cfg.portalBackSpawnY!==undefined){
             dt.fromPortal='magic'; // magic経路なら magicReturnX/Y で着地
             dt.magicReturnX=this.cfg.portalBackSpawnX;
@@ -13149,6 +13409,21 @@ class GameScene extends Phaser.Scene{
         const nextScene=(!this.cfg.portalTo)?'GameClear':'Game';
         const nextData=(!this.cfg.portalTo)?{playerData:pd}:{playerData:pd,stage:this.portalNext.to,fromPortal:'back'};
         this._doTransition(nextScene,nextData);
+        return;
+      }
+      // 南方向ポータル(town0 → south_st1 用)
+      if(this.portalSouth&&this.portalSouth.open&&
+         Phaser.Math.Distance.Between(p.x,p.y,this.portalSouth.x,this.portalSouth.y)<70){
+        this._transitioning=true;
+        this._doTransition('Game',{playerData:pd,stage:this.portalSouth.to,fromPortal:'back'});
+        return;
+      }
+      // 東方向ポータル(south_st2 → south_st3 用)
+      if(this.portalEast&&this.portalEast.open&&
+         Phaser.Math.Distance.Between(p.x,p.y,this.portalEast.x,this.portalEast.y)<70){
+        this._transitioning=true;
+        // 東から入った先(south_st3)では「西側にスポーン」したいので 'east' フラグ
+        this._doTransition('Game',{playerData:pd,stage:this.portalEast.to,fromPortal:'east'});
         return;
       }
       // ダンジョンゲート（ボス撃破後に出現・近づくとダイアログ表示）
