@@ -9119,6 +9119,9 @@ class GameScene extends Phaser.Scene{
     // ステージバッジ（ミニマップ左）
     this.add.rectangle(w-124,0,80,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
     this.add.text(w-132,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
+    // 現在座標表示(プレイヤーのワールド座標)
+    this.add.rectangle(w-124,24,80,18,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
+    this.hudCoordTxt=this.add.text(w-132,26,'X:0 Y:0',{fontSize:'11px',fontFamily:'Arial',color:'#88ddff'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
     // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
@@ -10620,6 +10623,10 @@ class GameScene extends Phaser.Scene{
     const jexpP=Math.min(1,(pd.jobExp||0)/(pd.jobExpNext||80));
     if(this.hudJEXPBar&&this.hudJEXPBar.active)this.hudJEXPBar.setSize(BW*jexpP,BAR_H);
     if(this.hudLvTxt&&this.hudLvTxt.active)this.hudLvTxt.setText('Lv'+pd.lv+'  JLv'+(pd.jobLv||1)+'  💰'+pd.gold+'G');
+    // 現在座標表示
+    if(this.hudCoordTxt&&this.hudCoordTxt.active && this.player){
+      this.hudCoordTxt.setText('X:'+Math.floor(this.player.x)+' Y:'+Math.floor(this.player.y));
+    }
     // スキルボタン更新は _updateSkillBtns() で行う（updateHUDからは呼ばない）
     this._updateSkillBtns();
   }
@@ -13704,6 +13711,10 @@ class GameScene extends Phaser.Scene{
       return;
     }
     this.updateJoystick();
+    // 現在座標を毎フレーム更新(HUD右上)
+    if(this.hudCoordTxt&&this.hudCoordTxt.active && p){
+      this.hudCoordTxt.setText('X:'+Math.floor(p.x)+' Y:'+Math.floor(p.y));
+    }
     // プレイヤーHPバーの追従と更新
     if(this._playerHpBar && p){
       const psize = p.displayHeight;
