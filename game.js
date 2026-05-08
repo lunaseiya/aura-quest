@@ -949,6 +949,7 @@ function SE(type){
     vortex:   [[440,'sine',0.14,0.08],[660,'sine',0.14,0.10],[880,'sine',0.12,0.12],[1320,'sine',0.10,0.16]], // 渦巻き：ヒュルル
     multishot:[[1100,'sine',0.12,0.05],[990,'sine',0.10,0.05],[880,'sine',0.10,0.06],[770,'sine',0.10,0.06],[660,'sine',0.10,0.06]], // 多方向：シュシュッ
     boost:    [[440,'sine',0.16,0.10],[660,'sine',0.16,0.12],[880,'sine',0.18,0.20]],             // バフ：キーン
+    bell:     [[523,'sine',0.30,0.40],[1047,'sine',0.20,0.50],[1568,'sine',0.10,0.60],[2093,'sine',0.06,0.80]], // 鐘：カーン
     // ── プレイヤー被弾 ──
     hurt:     [[180,'sawtooth',0.22,0.10],[120,'square',0.18,0.12]],                              // ガッ
     dodge:    [[1760,'sine',0.12,0.06],[1320,'sine',0.10,0.06]],                                  // 回避：シュッ
@@ -4730,6 +4731,15 @@ const STAGE_CONFIG={
       // 右下: 鍛冶屋(赤屋根・炉・金床)
       {x:780, y:680, w:380, h:300, label:'🔨 鍛冶屋',   type:'blacksmith'},
     ],
+    // 南ポータルへの通路(門・アーチがあって色判定で通れない場所を強制歩行可)
+    walkZones:[
+      {x:560, y:1050, w:130, h:200},  // 南ゲート〜ポータルまでの縦の通路
+    ],
+    // アーチ(石造の門)を疑似描画してプレイヤーが下を潜る演出
+    // 矩形位置: X=460〜800(幅340), Y=950〜1145(高さ195) = 南のアーチ門
+    archOverlays:[
+      {x:460, y:950, w:340, h:160, openW:100, archH:80, flags:true},
+    ],
   },
   1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
     tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],
@@ -4944,10 +4954,13 @@ const STAGE_CONFIG={
     // 西の橋から → south_st3(鉱山の街道) に戻る
     portalBack:24, portalBackLabel:'⛏ 鉱山の街道へ', portalBackKey:'portal_st1',
     // 入口=西から(マップ画像の左端・橋の中央)
-    spawnX:200, spawnY:580,
-    portalBackX:90, portalBackY:580,
-    spawnFromBackX:200, spawnFromBackY:580,
-    spawnFromNextX:200, spawnFromNextY:580,
+    // 煙突に被らないように Y を上に(画面では上方向 = Y小さく)
+    spawnX:200, spawnY:380,
+    portalBackX:90, portalBackY:380,
+    spawnFromBackX:200, spawnFromBackY:380,
+    spawnFromNextX:200, spawnFromNextY:380,
+    // south_st3から東のポータル経由で来た時もちゃんと離れた位置にスポーン
+    spawnFromEastX:200, spawnFromEastY:380,
     // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
     // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
     // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
@@ -4980,6 +4993,7 @@ const STAGE_CONFIG={
     // セントラルへ戻る(北のアーチ)
     portalTo:null, portalToLabel:'',
     portalBack:0, portalBackLabel:'🏘 セントラルへ戻る', portalBackKey:'portal_town',
+    returnFromSouth:true,  // 戻り先(セントラル)の南端にスポーン
     // 入口=北のゲートから入ってくる
     spawnX:625, spawnY:200,
     portalBackX:625, portalBackY:80,
@@ -5018,6 +5032,10 @@ const STAGE_CONFIG={
     portalEast:24, portalEastLabel:'⛏ 鉱山の街道へ', portalEastKey:'portal_st1',
     portalEastX:870, portalEastY:480,  // 右の橋付近
     spawnFromWestX:780, spawnFromWestY:480,  // south_st3 から戻ってきた時のスポーン
+    // 橋エリアは強制歩行可(色判定で岩や水と誤判定されないように)
+    walkZones:[
+      {x:760, y:430, w:180, h:140},  // 右上の橋 + 周囲の通路を覆う矩形
+    ],
   },
   // ── 南の街道3(south_st2の右の橋から東へ) ──
   24:{name:'⛏ 鉱山の街道', bgmKey:'st1', mapImage:'map_south_st3',
@@ -5038,6 +5056,7 @@ const STAGE_CONFIG={
     // 西へ戻る = south_st2
     portalTo:null, portalToLabel:'',
     portalBack:23, portalBackLabel:'🌲 街道へ戻る', portalBackKey:'portal_st1',
+    returnFromWest:true,  // 戻り先(south_st2)の橋付近(東)にスポーン
     // 入口=西側の道から(south_st2 の橋から)
     spawnX:200, spawnY:520,
     portalBackX:60, portalBackY:520,
@@ -5578,6 +5597,105 @@ class GameScene extends Phaser.Scene{
         this.tweens.add({targets:enterTxt, alpha:0.5, duration:1000, yoyo:true, repeat:-1});
       });
     }
+    // ── アーチオーバーレイ(プレイヤーが下を潜る石造アーチを擬似描画) ──
+    // cfg.archOverlays に矩形を指定すると、その位置にアーチの天井(石造)を
+    // プレイヤー(depth=5)より上(depth=15)に描画して「下を潜る」演出
+    if(cfg.archOverlays){
+      cfg.archOverlays.forEach(a=>{
+        const g=this.add.graphics().setDepth(15);
+        const ax=a.x, ay=a.y, aw=a.w, ah=a.h;  // 矩形位置・サイズ
+
+        // ── 1. アーチ上部の影(下端の影で立体感) ──
+        g.fillStyle(0x000000, 0.35);
+        g.fillRect(ax, ay+ah-4, aw, 4);
+
+        // ── 2. アーチ本体(石造の暗いグレー)のグラデーション ──
+        // 上部から下部へ徐々に暗く(立体感)
+        const steps = 8;
+        for(let i=0;i<steps;i++){
+          const t = i/steps;
+          const ty = ay + (ah * t);
+          const th = Math.ceil(ah/steps)+1;
+          // 石の色: 上(明るめ #8a8478)→ 下(暗め #4a4438)
+          const r = Math.floor(0x8a - (0x8a-0x4a)*t);
+          const grn = Math.floor(0x84 - (0x84-0x44)*t);
+          const b = Math.floor(0x78 - (0x78-0x38)*t);
+          const col = (r<<16)|(grn<<8)|b;
+          g.fillStyle(col, 0.85);
+          g.fillRect(ax, ty, aw, th);
+        }
+
+        // ── 3. 石ブロックの線(グリッド模様で石壁感) ──
+        g.lineStyle(1, 0x2a2418, 0.5);
+        // 横線(石の段)
+        for(let i=1;i<3;i++){
+          const ly = ay + (ah * i / 3);
+          g.lineBetween(ax, ly, ax+aw, ly);
+        }
+        // 縦線(石のブロック区切り) ランダム位置
+        const blockOffsets = [0.18, 0.42, 0.65, 0.85];
+        blockOffsets.forEach((offset,idx)=>{
+          const lx = ax + aw*offset + ((idx%2)*8);
+          const yStart = ay + (ah * (idx%3) / 3);
+          const yEnd = ay + (ah * ((idx%3)+1) / 3);
+          g.lineBetween(lx, yStart, lx, yEnd);
+        });
+
+        // ── 4. アーチの開口部(下中央)を切り抜き ──
+        // archの中央下部を「開口部」として再度道色で塗る
+        // 開口部の幅(w)・高さ(arch_height)
+        const openW = a.openW || (aw * 0.30);
+        const openX = ax + (aw - openW)/2;
+        const archH = a.archH || (ah * 0.5);
+        const openY = ay + ah - archH;
+
+        // 道の色(明るい砂)で塗りつぶして「奥の道が見える」感
+        g.fillStyle(0xd4b889, 1);  // 砂色
+        g.fillRect(openX, openY+archH*0.2, openW, archH*0.8);
+
+        // アーチ上部の弧(半円形)を石色で描画
+        // アーチの開口部の上を弧で覆う
+        g.fillStyle(0x5a5448, 0.95);
+        const archCx = openX + openW/2;
+        const archCy = openY + archH*0.2;
+        // 弧の代わりに台形を重ねて疑似アーチ
+        g.beginPath();
+        g.moveTo(openX, openY);
+        g.lineTo(openX+openW, openY);
+        g.lineTo(openX+openW, archCy);
+        // アーチの内側カーブ(右から左へ)
+        const arcSteps = 16;
+        for(let i=0;i<=arcSteps;i++){
+          const t = i/arcSteps;
+          const ang = Math.PI * (1-t);  // 0 → PI
+          const px = archCx + Math.cos(ang) * (openW/2);
+          const py = archCy - Math.sin(ang) * (archH*0.2);
+          g.lineTo(px, py);
+        }
+        g.lineTo(openX, archCy);
+        g.closePath();
+        g.fillPath();
+
+        // ── 5. アーチ内側の影(暗いグラデーション) ──
+        g.fillStyle(0x000000, 0.4);
+        g.fillRect(openX+2, openY+archH*0.2, openW-4, 8);
+
+        // ── 6. 上部に旗(青)装飾(オプション)──
+        if(a.flags){
+          // 左の青旗
+          g.fillStyle(0x2a4880, 0.95);
+          g.fillRect(ax+aw*0.10, ay+ah*0.55, aw*0.08, ah*0.35);
+          // 旗の紋章(金色)
+          g.fillStyle(0xc8a040, 0.9);
+          g.fillCircle(ax+aw*0.14, ay+ah*0.72, 4);
+          // 右の青旗
+          g.fillStyle(0x2a4880, 0.95);
+          g.fillRect(ax+aw*0.82, ay+ah*0.55, aw*0.08, ah*0.35);
+          g.fillStyle(0xc8a040, 0.9);
+          g.fillCircle(ax+aw*0.86, ay+ah*0.72, 4);
+        }
+      });
+    }
     // ポータル（戻る）
     if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
       // ST7(旧ST5)は螺旋入口が左下なのでポータルを左下に配置
@@ -6081,19 +6199,19 @@ class GameScene extends Phaser.Scene{
         SE('magic'); this.updateHUD();
         this.atkCooldown = this._calcAtkCD(0.7);
       }else{
-        // 通常マジシャン: ファイアボール
+        // 通常マジシャン: 炎の回転球(火属性のかっこいいオーブ)
         if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
         pd.sp-=3;
         const ang=this.getFacingAngle();
-        this.fireBullet(p.x,p.y,ang,'proj_fireball',{
-          spd:320,maxDist:520,
-          dmg:Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag)),
-          isCrit:Math.random()*100<calcCrit(pd),
-          sz:20,
-          element:'fire',
+        const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
+        const isCrit = Math.random()*100 < calcCrit(pd);
+        this._fireFlameOrb(p.x, p.y, ang, {
+          spd: 320, maxDist: 540,
+          dmg, isCrit,
+          element: 'fire',
         });
-        SE('magic');this.updateHUD();
-        this.atkCooldown=this._calcAtkCD(0.7);
+        SE('magic'); this.updateHUD();
+        this.atkCooldown = this._calcAtkCD(0.7);
       }
 
     }else if(cls==='archer'){
@@ -6319,6 +6437,139 @@ class GameScene extends Phaser.Scene{
 
   _destroyDarkOrb(orb){
     try{orb.destroy();}catch(e){}
+  }
+
+  // マジシャン用: 炎属性の回転球(妖魔の闇球を炎アレンジ)
+  _fireFlameOrb(sx, sy, ang, opt){
+    const speed = opt.spd || 320;
+    const maxDist = opt.maxDist || 540;
+    // コンテナで複数の球を組み合わせ(回転表現)
+    const orb = this.add.container(sx, sy).setDepth(8);
+    // 外側の赤いオーラ(熱気)
+    const aura = this.add.circle(0, 0, 17, 0xff5522, 0.45);
+    // 中心の炎本体(濃いオレンジ→黄色グラデ風)
+    const core = this.add.circle(0, 0, 11, 0xffaa22, 1).setStrokeStyle(2, 0xffee44, 0.95);
+    // 周囲を回転する3つの炎の小球(オレンジ・黄色)
+    const orbiters = [];
+    const orbiterColors = [0xff8822, 0xffcc22, 0xff6611];
+    for(let i=0;i<3;i++){
+      const a = (i/3) * Math.PI * 2;
+      const sm = this.add.circle(Math.cos(a)*14, Math.sin(a)*14, 4, orbiterColors[i], 0.95);
+      orbiters.push({sm, baseAng: a});
+    }
+    // 中心の白い熱光点
+    const center = this.add.circle(0, 0, 4, 0xffffee, 0.85);
+    orb.add([aura, core, ...orbiters.map(o=>o.sm), center]);
+    // 移動データ
+    const vx = Math.cos(ang) * speed;
+    const vy = Math.sin(ang) * speed;
+    orb.setData('vx', vx);
+    orb.setData('vy', vy);
+    orb.setData('dmg', opt.dmg);
+    orb.setData('isCrit', opt.isCrit);
+    orb.setData('element', opt.element || 'fire');
+    orb.setData('born', this.time.now);
+    orb.setData('dist', 0);
+    orb.setData('hit', false);
+    // 赤オーラの脈動(炎が燃えてる感)
+    this.tweens.add({
+      targets: aura,
+      scaleX: 1.4, scaleY: 1.4, alpha: 0.7,
+      duration: 200, yoyo: true, repeat: -1,
+    });
+    // 球本体の回転
+    this.tweens.add({
+      targets: orb,
+      rotation: Math.PI * 4,
+      duration: 1200,
+      repeat: -1,
+    });
+    // 周回小球が時間で回転する
+    const startTime = this.time.now;
+    // 飛行ループ
+    const flyLoop = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: ()=>{
+        if(!orb.scene || orb.getData('hit')){flyLoop.remove(); return;}
+        const dt = 16/1000;
+        orb.x += orb.getData('vx') * dt;
+        orb.y += orb.getData('vy') * dt;
+        const distAdd = Math.hypot(orb.getData('vx')*dt, orb.getData('vy')*dt);
+        const newDist = orb.getData('dist') + distAdd;
+        orb.setData('dist', newDist);
+        // 周回小球の角度更新(ローカル座標で)
+        const elapsed = this.time.now - startTime;
+        orbiters.forEach(o=>{
+          const a = o.baseAng + elapsed * 0.010;
+          o.sm.setPosition(Math.cos(a)*14, Math.sin(a)*14);
+        });
+        // 炎の軌跡(オレンジ・赤の煙)
+        if(Math.random() < 0.7){
+          const trailColors = [0xff7722, 0xffaa44, 0xff4400];
+          const trailColor = trailColors[Phaser.Math.Between(0, 2)];
+          const trail = this.add.circle(orb.x + (Math.random()-0.5)*4, orb.y + (Math.random()-0.5)*4, 4, trailColor, 0.7).setDepth(7);
+          this.tweens.add({
+            targets: trail,
+            alpha: 0, scaleX: 0.2, scaleY: 0.2,
+            y: trail.y - 12, // 煙が上に上がる
+            duration: 450,
+            onComplete: ()=>trail.destroy(),
+          });
+        }
+        // 寿命
+        if(newDist > maxDist){
+          this._destroyDarkOrb(orb);
+          flyLoop.remove();
+          return;
+        }
+        // 命中判定
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead || !ed.sprite || orb.getData('hit')) return;
+          if(Phaser.Math.Distance.Between(orb.x, orb.y, ed.sprite.x, ed.sprite.y) < 26){
+            orb.setData('hit', true);
+            // ダメージ計算
+            const dmg = orb.getData('dmg');
+            const isCrit = orb.getData('isCrit');
+            const em = getElementMult(orb.getData('element'), ed.element||'none');
+            const finalDmg = Math.max(1, Math.floor((isCrit?dmg*2:dmg) * em.mult));
+            this.hitEnemy(ed, finalDmg, isCrit, false, em.label);
+            // 着弾爆発エフェクト(オレンジ→白)
+            const burst1 = this.add.circle(orb.x, orb.y, 22, 0xff8822, 0.9).setDepth(20);
+            this.tweens.add({
+              targets: burst1,
+              scaleX: 2.8, scaleY: 2.8, alpha: 0,
+              duration: 380,
+              onComplete: ()=>burst1.destroy(),
+            });
+            const burst2 = this.add.circle(orb.x, orb.y, 14, 0xffffee, 1).setDepth(21);
+            this.tweens.add({
+              targets: burst2,
+              scaleX: 1.8, scaleY: 1.8, alpha: 0,
+              duration: 220,
+              onComplete: ()=>burst2.destroy(),
+            });
+            // 火花(8方向に散る・赤・オレンジ・黄色のミックス)
+            const sparkColors = [0xff4422, 0xff8822, 0xffcc44, 0xffee66];
+            for(let k=0;k<8;k++){
+              const sa = (k/8)*Math.PI*2;
+              const sc = sparkColors[k % sparkColors.length];
+              const sp = this.add.circle(orb.x, orb.y, 3, sc, 0.95).setDepth(21);
+              this.tweens.add({
+                targets: sp,
+                x: orb.x + Math.cos(sa)*36,
+                y: orb.y + Math.sin(sa)*36,
+                alpha: 0,
+                duration: 450,
+                onComplete: ()=>sp.destroy(),
+              });
+            }
+            this._destroyDarkOrb(orb);
+            flyLoop.remove();
+          }
+        });
+      },
+    });
   }
 
   // ヘヴィ覚醒用: ホーミングミサイル
@@ -8135,6 +8386,33 @@ class GameScene extends Phaser.Scene{
       if(num===1){ // 烈風斬
         SE('slash');
         const range=140*(1+(pd.sk1-1)*0.1);
+        // ── 範囲を示す円エフェクト(攻撃範囲が一目でわかる) ──
+        // 1. 中心フラッシュ(白い閃光)
+        const flash=this.add.circle(p.x,p.y,range*0.25,0xffffff,0.7).setDepth(24);
+        this.tweens.add({targets:flash,alpha:0,scaleX:0.1,scaleY:0.1,duration:180,onComplete:()=>flash.destroy()});
+        // 2. メインリング(赤い円が一気に拡大して攻撃範囲を表現)
+        const ring1=this.add.circle(p.x,p.y,8,0xe74c3c,0).setStrokeStyle(7,0xe74c3c,1.0).setDepth(23);
+        this.tweens.add({targets:ring1,scaleX:range/8,scaleY:range/8,alpha:0,duration:280,ease:'Cubic.easeOut',onComplete:()=>ring1.destroy()});
+        // 3. 内側リング(オレンジで内側を補強)
+        const ring2=this.add.circle(p.x,p.y,8,0xff8844,0).setStrokeStyle(4,0xff8844,0.85).setDepth(23);
+        this.tweens.add({targets:ring2,scaleX:range*0.7/8,scaleY:range*0.7/8,alpha:0,duration:220,ease:'Cubic.easeOut',delay:30,onComplete:()=>ring2.destroy()});
+        // 4. 外側リング(黄色で広範囲をフィニッシュ)
+        const ring3=this.add.circle(p.x,p.y,8,0xffcc44,0).setStrokeStyle(3,0xffcc44,0.6).setDepth(22);
+        this.tweens.add({targets:ring3,scaleX:range*1.05/8,scaleY:range*1.05/8,alpha:0,duration:340,ease:'Cubic.easeOut',delay:60,onComplete:()=>ring3.destroy()});
+        // 5. 風斬りパーティクル(8方向に飛ぶ風の刃)
+        for(let i=0;i<8;i++){
+          const ang=(i/8)*Math.PI*2;
+          const slash=this.add.rectangle(p.x,p.y,18,3,0xffffff,0.95).setRotation(ang+Math.PI/2).setDepth(24);
+          this.tweens.add({
+            targets:slash,
+            x:p.x+Math.cos(ang)*range*0.85,
+            y:p.y+Math.sin(ang)*range*0.85,
+            alpha:0, scaleX:0.3,
+            duration:280, ease:'Cubic.easeOut',
+            onComplete:()=>slash.destroy()
+          });
+        }
+        // ダメージ判定
         this.enemyDataList.forEach(ed=>{if(!ed.dead&&Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y)<range){const dmg=Math.max(1,Math.floor(pd.atk*(4+pd.sk1*0.3)));this.hitEnemy(ed,dmg,Math.random()*100<calcCrit(pd),true);}});
         this.showFloat(p.x,p.y-60,'⚔ 烈風斬！','#e74c3c');this.cameras.main.shake(200,0.01);
       }else if(num===2){ // ハードガード
@@ -8144,11 +8422,121 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x,p.y-60,'🛡 ハードガード！','#3498db');
         const flash=this.add.rectangle(p.x,p.y,60,80,0x3498db,0.3).setDepth(20);
         this.tweens.add({targets:flash,alpha:0,duration:dur,onComplete:()=>{flash.destroy();pd.def=this._guardDef;}});
+        // ── キャラクターの上に盾エフェクト ──
+        // 1. 盾の絵文字(キャラクターの上に浮遊)
+        const shield=this.add.text(p.x, p.y, '🛡', {fontSize:'48px'}).setOrigin(0.5).setDepth(8).setAlpha(0.95);
+        // 2. 盾の周りに青い光のリング
+        const shieldRing=this.add.circle(p.x, p.y, 30, 0x3498db, 0).setStrokeStyle(3, 0x66ccff, 0.7).setDepth(7);
+        // 3. 盾の登場演出(上から降りてくる + 拡大)
+        shield.setScale(0.1).setAlpha(0).setY(p.y-80);
+        this.tweens.add({targets:shield, y:p.y, alpha:1, scaleX:1, scaleY:1, duration:300, ease:'Back.easeOut'});
+        // 4. 盾と光の追従(プレイヤーに付いて回る)
+        const shieldEffect=this.time.addEvent({
+          delay:50, repeat:dur/50,
+          callback:()=>{
+            if(shield.active){
+              const t = (this.time.now / 400);
+              const bobY = Math.sin(t)*3; // 軽い浮遊
+              shield.setPosition(p.x, p.y + bobY);
+              shieldRing.setPosition(p.x, p.y + bobY);
+            }
+          }
+        });
+        // 5. 盾の点滅(神々しく)
+        this.tweens.add({
+          targets:shield, alpha:0.7,
+          duration:600, yoyo:true, repeat:-1, ease:'Sine.easeInOut'
+        });
+        // 6. 光のリングのパルス
+        this.tweens.add({
+          targets:shieldRing,
+          scaleX:1.3, scaleY:1.3, alpha:0.3,
+          duration:800, yoyo:true, repeat:-1, ease:'Sine.easeInOut'
+        });
+        // 7. 終了時にフェードアウトして消える
+        this.time.delayedCall(dur-400,()=>{
+          this.tweens.add({
+            targets:[shield, shieldRing],
+            alpha:0, scaleX:0.3, scaleY:0.3,
+            duration:400,
+            onComplete:()=>{
+              shield.destroy();
+              shieldRing.destroy();
+              if(shieldEffect) shieldEffect.remove();
+            }
+          });
+        });
         this.showBuffTimer('🛡 ハードガード','#3498db',dur);
       }else if(num===3){ // パリィ
         SE('parry');
         pd._parry=true;
         this.showFloat(p.x,p.y-60,'🛡 パリィ！','#ffd700');
+        // ── 剣と剣がぶつかるエフェクト ──
+        // 1. 2本の剣が左右から打ち合う(キャラクターの上)
+        const swordL=this.add.text(p.x-80, p.y-30, '🗡', {fontSize:'40px'}).setOrigin(0.5).setDepth(20).setRotation(-Math.PI/4);
+        const swordR=this.add.text(p.x+80, p.y-30, '⚔', {fontSize:'40px'}).setOrigin(0.5).setDepth(20).setRotation(Math.PI/4);
+        // 2. 中央に集まる(打ち合う動作)
+        this.tweens.add({
+          targets:swordL, x:p.x-12, rotation:0,
+          duration:140, ease:'Cubic.easeIn',
+          onComplete:()=>{
+            // 衝突点で激しいフラッシュ
+            const clashFlash=this.add.circle(p.x, p.y-30, 25, 0xffffff, 1).setDepth(22);
+            this.tweens.add({targets:clashFlash, scaleX:2, scaleY:2, alpha:0, duration:250, onComplete:()=>clashFlash.destroy()});
+            // 衝突点に金色の星マーク
+            const starBurst=this.add.text(p.x, p.y-30, '✨', {fontSize:'56px'}).setOrigin(0.5).setDepth(23).setAlpha(0).setScale(0.3);
+            this.tweens.add({targets:starBurst, alpha:1, scaleX:1.4, scaleY:1.4, duration:200, ease:'Back.easeOut',
+              onComplete:()=>{
+                this.tweens.add({targets:starBurst, alpha:0, duration:300, onComplete:()=>starBurst.destroy()});
+              }
+            });
+            // 衝突の火花(8方向に散る)
+            for(let i=0;i<8;i++){
+              const ang=(i/8)*Math.PI*2;
+              const spark=this.add.circle(p.x, p.y-30, 4, 0xffeebb, 1).setDepth(22);
+              this.tweens.add({
+                targets:spark,
+                x:p.x+Math.cos(ang)*55,
+                y:p.y-30+Math.sin(ang)*55,
+                alpha:0, scaleX:0.3, scaleY:0.3,
+                duration:400, ease:'Cubic.easeOut',
+                onComplete:()=>spark.destroy()
+              });
+            }
+            // 軽い画面揺れ(衝撃)
+            this.cameras.main.shake(120, 0.005);
+          }
+        });
+        this.tweens.add({
+          targets:swordR, x:p.x+12, rotation:0,
+          duration:140, ease:'Cubic.easeIn'
+        });
+        // 3. 剣の余韻(打ち合った後、徐々にフェード)
+        this.time.delayedCall(180,()=>{
+          this.tweens.add({
+            targets:[swordL, swordR],
+            alpha:0, y:p.y-80,
+            duration:400,
+            onComplete:()=>{ swordL.destroy(); swordR.destroy(); }
+          });
+        });
+        // 4. パリィ持続中はキャラクターの周りに薄い金色のオーラ
+        const auraRing=this.add.circle(p.x, p.y, 40, 0xffd700, 0).setStrokeStyle(2, 0xffd700, 0.5).setDepth(6);
+        const auraEffect=this.time.addEvent({
+          delay:50, repeat:20000/50,
+          callback:()=>{
+            if(auraRing.active) auraRing.setPosition(p.x, p.y);
+          }
+        });
+        this.tweens.add({
+          targets:auraRing,
+          scaleX:1.15, scaleY:1.15, alpha:0.3,
+          duration:1000, yoyo:true, repeat:-1, ease:'Sine.easeInOut'
+        });
+        this.time.delayedCall(20000,()=>{
+          if(auraRing.active) auraRing.destroy();
+          if(auraEffect) auraEffect.remove();
+        });
         this.time.delayedCall(20000,()=>{pd._parry=false;});
         this.showBuffTimer('✨ パリィ','#ffd700',20000);
       }else if(num===4){ // バーサクパワー
@@ -8404,6 +8792,26 @@ class GameScene extends Phaser.Scene{
     else if(pd.cls==='archer'){
       if(num===1){ // 5方向射撃
         const ang=this.getFacingAngle();
+        // ── 緑の弧の軌跡(放たれる方向を可視化) ──
+        // 1. プレイヤー前方に薄い緑の扇形(矢の通り道)
+        const arcG=this.add.graphics().setDepth(22);
+        arcG.fillStyle(0x44ff88, 0.25);
+        arcG.slice(p.x, p.y, 600, ang-0.55, ang+0.55, false);
+        arcG.fillPath();
+        this.tweens.add({targets:arcG, alpha:0, duration:400, ease:'Cubic.easeOut', onComplete:()=>arcG.destroy()});
+        // 2. 5本の矢の軌道線(光の弧線)を即座に表示
+        for(let i=-2;i<=2;i++){
+          const a=ang+i*0.22;
+          // 弧線(線で軌跡を表現)
+          const trailG=this.add.graphics().setDepth(23);
+          trailG.lineStyle(3, 0x66ffaa, 0.85);
+          trailG.lineBetween(p.x, p.y, p.x+Math.cos(a)*250, p.y+Math.sin(a)*250);
+          this.tweens.add({targets:trailG, alpha:0, duration:280, onComplete:()=>trailG.destroy()});
+        }
+        // 3. プレイヤー位置に発射の閃光(緑のリング)
+        const flash=this.add.circle(p.x, p.y, 25, 0x88ffaa, 0.7).setDepth(24);
+        this.tweens.add({targets:flash, scaleX:1.6, scaleY:1.6, alpha:0, duration:300, onComplete:()=>flash.destroy()});
+        // 4. 発射音と矢の生成
         for(let i=-2;i<=2;i++){
           const a=ang+i*0.22;
           const res=rollAttack(pd,0,this._nearestEnemyEva());
@@ -8417,16 +8825,82 @@ class GameScene extends Phaser.Scene{
         if(pd._gloryActive){
           pd.luk=pd._gloryBaseLuk;
           if(this._gloryTimer){this._gloryTimer.remove();this._gloryTimer=null;}
+          if(this._gloryEffect){this._gloryEffect.remove();this._gloryEffect=null;}
+          if(this._gloryAura){this._gloryAura.destroy();this._gloryAura=null;}
+          if(this._gloryRing){this._gloryRing.destroy();this._gloryRing=null;}
         }
-        pd._gloryBaseLuk=pd.luk; // 元のlukを保存
+        pd._gloryBaseLuk=pd.luk;
         pd._gloryActive=true;
         pd.luk=Math.floor(pd.luk*5);
         this.showFloat(p.x,p.y-60,'✨ グロリアスショット！','#ffd700');
         SE('boost');
+        // ── 鐘の音 ──
+        SE('bell');
+        // 鐘の音を時差で重ねて余韻(残響)
+        this.time.delayedCall(180, ()=>{ try{ SE('bell'); }catch(e){} });
+        this.time.delayedCall(420, ()=>{ try{ SE('bell'); }catch(e){} });
+
+        // ── 金色のオーラ演出 ──
+        // 1. 発動時の金色フラッシュ(画面中心)
+        this.cameras.main.flash(250, 255, 215, 100);
+        // 2. プレイヤーから外側に拡がる金色のリング(2層)
+        const burst1=this.add.circle(p.x, p.y, 10, 0xffd700, 0).setStrokeStyle(6, 0xffd700, 1).setDepth(24);
+        this.tweens.add({targets:burst1, scaleX:14, scaleY:14, alpha:0, duration:500, ease:'Cubic.easeOut', onComplete:()=>burst1.destroy()});
+        const burst2=this.add.circle(p.x, p.y, 10, 0xfff088, 0).setStrokeStyle(3, 0xfff088, 0.8).setDepth(24);
+        this.tweens.add({targets:burst2, scaleX:18, scaleY:18, alpha:0, duration:700, delay:80, ease:'Cubic.easeOut', onComplete:()=>burst2.destroy()});
+
+        // 3. 持続的な金色オーラ円(プレイヤー周りで点滅)
+        const aura=this.add.circle(p.x, p.y, 50, 0xffd700, 0.18).setDepth(6);
+        this.tweens.add({targets:aura, scaleX:1.25, scaleY:1.25, alpha:0.32, duration:900, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+
+        // 4. 持続的な金色のリング(外側でゆるやかにパルス)
+        const ring=this.add.circle(p.x, p.y, 45, 0xffd700, 0).setStrokeStyle(2, 0xffd700, 0.6).setDepth(7);
+        this.tweens.add({targets:ring, scaleX:1.4, scaleY:1.4, alpha:0.2, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+
+        // 5. 金色の星パーティクル(周囲を回る)
+        const stars=[];
+        for(let i=0;i<6;i++){
+          const star=this.add.text(p.x, p.y, '✦', {fontSize:'18px', color:'#ffd700', stroke:'#aa6600', strokeThickness:2}).setOrigin(0.5).setDepth(7).setAlpha(0.85);
+          stars.push({obj:star, phase:(i/6)*Math.PI*2});
+        }
+
+        // 6. プレイヤー追従処理 + 星の周回
+        this._gloryAura=aura;
+        this._gloryRing=ring;
+        this._gloryEffect=this.time.addEvent({
+          delay:50, repeat:dur/50,
+          callback:()=>{
+            const t = this.time.now / 600;
+            if(aura.active) aura.setPosition(p.x, p.y);
+            if(ring.active) ring.setPosition(p.x, p.y);
+            // 6つの星が円周を等速で回る
+            stars.forEach(s=>{
+              if(s.obj.active){
+                const ang = t + s.phase;
+                s.obj.setPosition(p.x + Math.cos(ang)*55, p.y + Math.sin(ang)*55);
+              }
+            });
+          }
+        });
+
+        // 7. 終了時にクリーンアップ + フェード
+        this.time.delayedCall(dur-500, ()=>{
+          this.tweens.add({
+            targets:[aura, ring, ...stars.map(s=>s.obj)],
+            alpha:0, duration:500,
+            onComplete:()=>{
+              if(aura.active) aura.destroy();
+              if(ring.active) ring.destroy();
+              stars.forEach(s=>{ if(s.obj.active) s.obj.destroy(); });
+            }
+          });
+        });
+
         this._gloryTimer=this.time.delayedCall(dur,()=>{
-          pd.luk=pd._gloryBaseLuk; // 確実に元の値に戻す
+          pd.luk=pd._gloryBaseLuk;
           pd._gloryActive=false;
           this._gloryTimer=null;
+          if(this._gloryEffect){this._gloryEffect.remove(); this._gloryEffect=null;}
         });
         this.showBuffTimer('⭐ グロリアスショット','#ffd700',dur);
       }else if(num===3){ // バルカンショット（連射・TOTAL対応）
@@ -8447,6 +8921,36 @@ class GameScene extends Phaser.Scene{
             if(b){
               b.setData('vulcanAcc', accumulator);
               b.setData('vulcanIdx', i);
+            }
+            // ── 各弾発射時のマズルフラッシュ ──
+            // 1. プレイヤー前方に黄色のフラッシュ円
+            const muzzleX = p.x + Math.cos(ang)*30;
+            const muzzleY = p.y + Math.sin(ang)*30;
+            const flash = this.add.circle(muzzleX, muzzleY, 12, 0xffee66, 0.95).setDepth(25);
+            this.tweens.add({targets:flash, scaleX:2.0, scaleY:2.0, alpha:0, duration:140, onComplete:()=>flash.destroy()});
+            // 2. 弓を引き直すライン(緑の弦の閃光)
+            const stringG = this.add.graphics().setDepth(24);
+            stringG.lineStyle(2, 0x88ffaa, 0.9);
+            // プレイヤーから矢の方向に短い線(弦が引かれる感覚)
+            stringG.lineBetween(
+              p.x + Math.cos(ang+Math.PI/2)*8,
+              p.y + Math.sin(ang+Math.PI/2)*8,
+              p.x + Math.cos(ang-Math.PI/2)*8,
+              p.y + Math.sin(ang-Math.PI/2)*8
+            );
+            this.tweens.add({targets:stringG, alpha:0, duration:120, onComplete:()=>stringG.destroy()});
+            // 3. 火花パーティクル(マズル位置から3方向)
+            for(let k=0;k<3;k++){
+              const sang = ang + (Math.random()-0.5)*0.6;
+              const spark = this.add.circle(muzzleX, muzzleY, 2, 0xfff088, 1).setDepth(25);
+              this.tweens.add({
+                targets:spark,
+                x:muzzleX + Math.cos(sang)*18,
+                y:muzzleY + Math.sin(sang)*18,
+                alpha:0,
+                duration:200,
+                onComplete:()=>spark.destroy()
+              });
             }
           });
         }
@@ -9837,6 +10341,8 @@ class GameScene extends Phaser.Scene{
         removeBtn.on('pointerdown',()=>{
           pd.equip[slot.id]=null;
           SE('click');
+          // 装備変更直後に覚醒ボタンの表示状態を更新
+          if(this._updateAwakeningButton) this._updateAwakeningButton();
           this._skipCloseSE=true;
           this._skipOpenSE=true;
           this._closeMenu();
@@ -9930,6 +10436,8 @@ class GameScene extends Phaser.Scene{
                 }
               }
               SE('click');
+              // 装備変更直後に覚醒ボタンの表示状態を更新
+              if(this._updateAwakeningButton) this._updateAwakeningButton();
               this._skipCloseSE=true;
               this._skipOpenSE=true;
               this._closeMenu();
@@ -10083,6 +10591,8 @@ class GameScene extends Phaser.Scene{
     this.physics.resume();
     this.updateHUD();
     this._updateMenuBadge();
+    // メニュー閉じる時も覚醒ボタン状態を更新(装備変更等への保険)
+    if(this._updateAwakeningButton) this._updateAwakeningButton();
   }
   _updateMenuBadge(){
     const pd=this.playerData;
@@ -12688,6 +13198,30 @@ class GameScene extends Phaser.Scene{
       return true;
     }
 
+    // ── south_st1 / south_st2 (草原+砂道+花畑+少数の木) ──
+    // 道(明るい砂)・草原(明るい緑)・花畑(やや明るい)は歩ける
+    // 木(濃い緑〜暗緑)・木の影だけ壁
+    if(cfg.mapType==='south_st1' || cfg.mapType==='south_st2'){
+      // 真っ暗な部分(濃い木・木の幹・影)だけ壁
+      if(sum < 130) return false;
+      return true;
+    }
+
+    // ── south_st3 (草原+砂道+鉱山岩石エリア) ──
+    // 草原と道は歩ける。鉱山(暗いグレー岩)は歩ける部分も多い
+    if(cfg.mapType==='south_st3'){
+      // 真っ黒(完全に黒い岩や深い影)だけ壁
+      if(sum < 100) return false;
+      return true;
+    }
+
+    // ── town2 砂漠の街(石畳の広場・建物・砂・植物) ──
+    if(cfg.mapType==='town2'){
+      // 暗い部分(建物・壁・濃い影)を壁
+      if(sum < 180) return false;
+      return true;
+    }
+
     // ── フィールドマップ用色判定(緩めにして歩行範囲を広く) ──
     // ST1〜6など mapType 指定なしのフィールドマップ用
     // 1) 真っ暗な部分(深い森・濃い影・木の幹)は壁
@@ -13391,7 +13925,10 @@ class GameScene extends Phaser.Scene{
           this._transitioning=true;
           // portalBackSpawnXY で戻り先のスポーン位置を明示(例: DUN1→ST6骨の位置)
           // returnFromSouth=true のステージは、戻り先の南端にスポーン
-          const fromKey = this.cfg.returnFromSouth ? 'south' : 'next';
+          // returnFromWest=true のステージは、戻り先の東(橋など)にスポーン
+          let fromKey = 'next';
+          if(this.cfg.returnFromSouth) fromKey = 'south';
+          else if(this.cfg.returnFromWest) fromKey = 'west';
           const dt={playerData:pd,stage:this.cfg.portalBack,fromPortal:fromKey};
           if(this.cfg.portalBackSpawnX!==undefined && this.cfg.portalBackSpawnY!==undefined){
             dt.fromPortal='magic'; // magic経路なら magicReturnX/Y で着地
