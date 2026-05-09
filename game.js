@@ -840,7 +840,7 @@ function startBGM(key){
     try{
       const audio=new Audio(file);
       audio.loop=true;
-      audio.volume=0.5;
+      audio.volume=0.18;
       audio.preload='auto';
       // ループ失敗時の保険(端末によってはlooping=trueが効かない場合あり)
       audio.addEventListener('ended', ()=>{
@@ -915,7 +915,7 @@ function setMute(val){
     else if(_bgmKey){
       const k=_bgmKey; _bgmKey=null; startBGM(k);
     }
-    if(_seMasterGain)_seMasterGain.gain.value=0.4;
+    if(_seMasterGain)_seMasterGain.gain.value=0.7;
   }
   try{localStorage.setItem('aq_muted',val?'1':'0');}catch(e){}
 }
@@ -926,7 +926,7 @@ function getSEMaster(){
   const ac=getAC();if(!ac)return null;
   if(!_seMasterGain){
     _seMasterGain=ac.createGain();
-    _seMasterGain.gain.value=0.4; // SE全体の音量上限
+    _seMasterGain.gain.value=0.7; // SE全体の音量上限
     _seMasterGain.connect(ac.destination);
   }
   return _seMasterGain;
