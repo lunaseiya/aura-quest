@@ -91,7 +91,24 @@ let _bgmLoopTimer=null; // 合成BGMのループタイマー
 
 // MP3ファイルのマッピング（存在するもののみ）
 const BGM_FILES={
-  st1: BASE+'bgm/rpg_bgm_brass.mp3',
+  // タイトル・町
+  title:       BASE+'bgm/bgm_title.mp3',
+  central:     BASE+'bgm/bgm_central.mp3',
+  blaze_forge: BASE+'bgm/bgm_blaze_forge.mp3',
+  desert_town: BASE+'bgm/bgm_desert.mp3',
+  // 草原・森系(東エリア)
+  east:        BASE+'bgm/bgm_east.mp3',
+  // 南エリア(街道・ゴブリン集落)
+  south:       BASE+'bgm/bgm_south.mp3',
+  // 海・砂漠
+  desert:      BASE+'bgm/bgm_desert.mp3',
+  // 天空
+  sky:         BASE+'bgm/bgm_sky.mp3',
+  // ダンジョン
+  dungeon1:    BASE+'bgm/bgm_dungeon1.mp3',
+  mine:        BASE+'bgm/bgm_mine.mp3',
+  // ボス戦
+  boss:        BASE+'bgm/bgm_boss.mp3',
 };
 
 // ── 音楽理論定数 ──────────────────────────
@@ -4701,7 +4718,7 @@ class GameClearScene extends Phaser.Scene{
 //  ステージ設定
 // ============================================================
 const STAGE_CONFIG={
-  0:{name:'🏘 セントラル', bgmKey:'town',
+  0:{name:'🏘 セントラル', bgmKey:'central',
     mapImage:'map_town0', mapType:'town0',
     mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],
@@ -4738,7 +4755,7 @@ const STAGE_CONFIG={
       {x:520, y:940, w:210, h:300},  // 南ゲート全体 - アーチ天井・両柱の内側・通路下まで
     ],
   },
-  1:{name:'ST.1 草原',bgmKey:'st1',mapImage:'map_st1',mapW:1254,mapH:1254,
+  1:{name:'ST.1 草原',bgmKey:'east',mapImage:'map_st1',mapW:1254,mapH:1254,
     tiles:['tile_grass','tile_flower','tile_dark_forest'],tileWeights:[81,5,14],
     objects:[],objPos:[],
     enemies:[
@@ -4766,7 +4783,7 @@ const STAGE_CONFIG={
     spawnFromBackX:150, spawnFromBackY:627,  // 町から戻ってきたら左から
     spawnFromNextX:1100, spawnFromNextY:627, // ST2から戻ってきたら右から
   },
-  2:{name:'ST.2 流れる森',bgmKey:'st2_forest',mapImage:'map_st2',
+  2:{name:'ST.2 流れる森',bgmKey:'east',mapImage:'map_st2',
     mapW:1537,mapH:1907, mapType:'st2', // 専用色判定
     tiles:[],tileWeights:[],
     // 継ぎ目(y=940〜1030)に岩と木をまばらに配置(通りやすく)
@@ -4816,14 +4833,14 @@ const STAGE_CONFIG={
     spawnFromBackX:480, spawnFromBackY:1500,   // ST1から戻ってきたら三又から少し東(180px)
     spawnFromNextX:1050, spawnFromNextY:1500,  // ST3から戻ってきたら三又から少し西(180px)
   },
-  3:{name:'ST.3 海岸',bgmKey:'st3_beach',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  4:{name:'ST.4 海と砂漠の境',bgmKey:'st4',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
-  5:{name:'ST.5 砂漠の集落跡',bgmKey:'st5_desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900,
+  3:{name:'ST.3 海岸',bgmKey:'east',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  4:{name:'ST.4 海と砂漠の境',bgmKey:'desert',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
+  5:{name:'ST.5 砂漠の集落跡',bgmKey:'desert',mapImage:'map_st5',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['scorpion',300,300],['scorpion',500,700],['scorpion',800,800],['sandworm',200,800],['sandworm',280,280],['sandworm',1200,700],['mummy',400,200],['mummy',600,900],['mummy',1100,300],['mummy',780,480],['bat',700,250],['bat',1000,900],['sandman',200,500],['sandman',1100,700],['sandman',900,290]],boss:{id:'scorpion_king',x:1000,y:500},bossThreshold:14,portalTo:6,portalToLabel:'💀 ST.6へ',portalToKey:'portal_st4',portalBack:4,portalBackLabel:'🏖 ST.4へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:650,portalNextY:1030,portalBackX:60,portalBackY:540,spawnFromNextX:650,spawnFromNextY:900,
     // 東側にゴブリン集落への分岐ポータル(踏むとダイアログなしで即遷移)
     sidePortal:{x:1400, y:540, to:20, returnX:200, returnY:540},
   },
-  6:{name:'ST.6 砂漠の果て',bgmKey:'st5_desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',400,300],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',600,200],['bone_dragon',1000,600]],boss:{id:'tomb_guardian',x:290,y:420},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:650,spawnY:200,portalNextX:650,portalNextY:1000,portalBackX:650,portalBackY:50,spawnFromBackX:650,spawnFromBackY:200,spawnFromNextX:650,spawnFromNextY:860,dungeonGate:{x:251,y:400,to:10,label:'DUN.1 忘れられし地下迷宮'}},
-  7:{name:'ST.7 天空への路',bgmKey:'st5',
+  6:{name:'ST.6 砂漠の果て',bgmKey:'desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',400,300],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',600,200],['bone_dragon',1000,600]],boss:{id:'tomb_guardian',x:290,y:420},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:650,spawnY:200,portalNextX:650,portalNextY:1000,portalBackX:650,portalBackY:50,spawnFromBackX:650,spawnFromBackY:200,spawnFromNextX:650,spawnFromNextY:860,dungeonGate:{x:251,y:400,to:10,label:'DUN.1 忘れられし地下迷宮'}},
+  7:{name:'ST.7 天空への路',bgmKey:'sky',
     mapImage:'map_st7', mapType:'sky', mapW:949, mapH:1658,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 入口=上の木製鳥居(ST6から来る) / 出口=下の青魔法門(ST8へ)
@@ -4854,7 +4871,7 @@ const STAGE_CONFIG={
     spawnFromBackX:474, spawnFromBackY:280,  // ST6から戻ってきたら上から
     spawnFromNextX:474, spawnFromNextY:1280, // 天空から戻ってきたら下(青ゲートより十分上)
   },
-  8:{name:'ST.8 天空の島々',bgmKey:'st6',
+  8:{name:'ST.8 天空の島々',bgmKey:'sky',
     mapImage:'map_st8', mapType:'sky', mapW:1536, mapH:1024,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 入口は画面中央下(前マップST7の上鳥居から繋がる青ポータル)
@@ -4886,7 +4903,7 @@ const STAGE_CONFIG={
     spawnFromBackX:768,spawnFromBackY:750,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
-  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dun1',mapImage:'map_dun1',mapType:'dungeon',mapW:948,mapH:1659,
+  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:948,mapH:1659,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
       // ゾンビ(タンク・毒攻撃) 4体 - 中央通路
@@ -4910,7 +4927,7 @@ const STAGE_CONFIG={
     spawnFromBackX:474,spawnFromBackY:230,
   },
   // ── ST.20 ゴブリンの集落 (ST5から東に行くと到着) ──
-  20:{name:'ST.20 ゴブリンの集落', bgmKey:'st1', mapImage:'map_st20',
+  20:{name:'ST.20 ゴブリンの集落', bgmKey:'south', mapImage:'map_st20',
     mapType:'goblin_village', mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
@@ -4942,7 +4959,7 @@ const STAGE_CONFIG={
     spawnFromNextX:1060, spawnFromNextY:627,
   },
   // ── ST.21 ブレイズフォージ(火薬都市・ボマー進化の聖地) ──
-  21:{name:'🔥 ブレイズフォージ', bgmKey:'st1', mapImage:'map_blaze',
+  21:{name:'🔥 ブレイズフォージ', bgmKey:'blaze_forge', mapImage:'map_blaze',
     mapType:'blaze', mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[], // 町なので敵なし
@@ -4974,7 +4991,7 @@ const STAGE_CONFIG={
     ],
   },
   // ── 南の街道(セントラルの南から行ける) ──
-  22:{name:'🌳 南の街道', bgmKey:'st1', mapImage:'map_south_st1',
+  22:{name:'🌳 南の街道', bgmKey:'south', mapImage:'map_south_st1',
     mapType:'south_st1', mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
@@ -5001,7 +5018,7 @@ const STAGE_CONFIG={
     spawnFromSouthX:625, spawnFromSouthY:1060,
   },
   // ── 南の街道2(south_st1からさらに南) ──
-  23:{name:'🌲 南の街道(続)', bgmKey:'st1', mapImage:'map_south_st2',
+  23:{name:'🌲 南の街道(続)', bgmKey:'south', mapImage:'map_south_st2',
     mapType:'south_st2', mapW:941, mapH:1672,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
@@ -5034,7 +5051,7 @@ const STAGE_CONFIG={
     ],
   },
   // ── 南の街道3(south_st2の右の橋から東へ) ──
-  24:{name:'⛏ 鉱山の街道', bgmKey:'st1', mapImage:'map_south_st3',
+  24:{name:'⛏ 鉱山の街道', bgmKey:'south', mapImage:'map_south_st3',
     mapType:'south_st3', mapW:1491, mapH:1055,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
@@ -5066,7 +5083,7 @@ const STAGE_CONFIG={
     spawnFromWestX:1300, spawnFromWestY:520,  // ブレイズフォージから戻ってきた時
   },
   // ── 砂漠の街 town2 (ゴブリン集落の東) ──
-  25:{name:'🏛 砂漠の街', bgmKey:'town', mapImage:'map_town2',
+  25:{name:'🏛 砂漠の街', bgmKey:'desert_town', mapImage:'map_town2',
     mapType:'town2', mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[], // 町なので敵なし
@@ -5095,7 +5112,7 @@ const STAGE_CONFIG={
   },
   // ── DUN.2 1F 炭鉱の入口 ──
   // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
-  11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'dun1', mapImage:'map_dun2_1',
+  11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'mine', mapImage:'map_dun2_1',
     mapType:'mine', mapW:1254, mapH:1254,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
