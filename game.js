@@ -816,8 +816,21 @@ function _playCliffBGM(){
 }
 
 function startBGM(key){
-  // 同じキーで既に鳴ってれば何もしない
-  if(_bgmKey===key && (_bgmAudio || _bgmNodes.length>0)) return;
+  // 同じキーで再生指示が来た場合の処理
+  if(_bgmKey===key){
+    // 既に MP3 が再生中なら何もしない(継続)
+    if(_bgmAudio && !_bgmAudio.paused) return;
+    // MP3 が一時停止状態なら再開を試みる
+    if(_bgmAudio && _bgmAudio.paused && !muted){
+      try{
+        const p=_bgmAudio.play();
+        if(p && p.catch) p.catch(()=>{});
+        return;
+      }catch(e){}
+    }
+    // 合成BGMが鳴っていれば継続
+    if(_bgmNodes.length>0) return;
+  }
   // 既存BGM停止(必ずクリーンアップ)
   if(_bgmAudio){
     try{_bgmAudio.pause();_bgmAudio.currentTime=0;}catch(e){}
@@ -840,7 +853,7 @@ function startBGM(key){
     try{
       const audio=new Audio(file);
       audio.loop=true;
-      audio.volume=0.18;
+      audio.volume=0.10;
       audio.preload='auto';
       // ループ失敗時の保険(端末によってはlooping=trueが効かない場合あり)
       audio.addEventListener('ended', ()=>{
@@ -915,7 +928,7 @@ function setMute(val){
     else if(_bgmKey){
       const k=_bgmKey; _bgmKey=null; startBGM(k);
     }
-    if(_seMasterGain)_seMasterGain.gain.value=0.7;
+    if(_seMasterGain)_seMasterGain.gain.value=1.0;
   }
   try{localStorage.setItem('aq_muted',val?'1':'0');}catch(e){}
 }
@@ -926,7 +939,7 @@ function getSEMaster(){
   const ac=getAC();if(!ac)return null;
   if(!_seMasterGain){
     _seMasterGain=ac.createGain();
-    _seMasterGain.gain.value=0.7; // SE全体の音量上限
+    _seMasterGain.gain.value=1.0; // SE全体の音量上限(MAX)
     _seMasterGain.connect(ac.destination);
   }
   return _seMasterGain;
@@ -4825,13 +4838,13 @@ const STAGE_CONFIG={
     bossThreshold:15,
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
-    // 入口=左下の三又の中央、出口=右下の三又の中央
+    // 入口=左下のWP(X=112,Y=1383)、出口=右下のWP(X=1471,Y=1371)
     // ポータル判定は半径70pxなので、spawnから100px以上離す
-    spawnX:300, spawnY:1500,                  // 初回入場(左下の三又中央)
-    portalBackX:300, portalBackY:1500,         // 戻る(ST1へ): 左下の三又の中央
-    portalNextX:1230, portalNextY:1500,        // 進む(ST3へ): 右下の三又の中央
-    spawnFromBackX:480, spawnFromBackY:1500,   // ST1から戻ってきたら三又から少し東(180px)
-    spawnFromNextX:1050, spawnFromNextY:1500,  // ST3から戻ってきたら三又から少し西(180px)
+    spawnX:300, spawnY:1383,                   // 初回入場(左下WP付近・ループ防止のため右に200px)
+    portalBackX:112, portalBackY:1383,         // 戻る(ST1へ): 左下WP
+    portalNextX:1471, portalNextY:1371,        // 進む(ST3へ): 右下WP
+    spawnFromBackX:300, spawnFromBackY:1383,   // ST1から戻ってきたらspawnと同じ
+    spawnFromNextX:1271, spawnFromNextY:1371,  // ST3から戻ってきたら出口WPから西200px
   },
   3:{name:'ST.3 海岸',bgmKey:'east',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'desert',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -4967,13 +4980,13 @@ const STAGE_CONFIG={
     portalTo:null, portalToLabel:'',
     // 西の橋から → south_st3(鉱山の街道) に戻る
     portalBack:24, portalBackLabel:'⛏ 鉱山の街道へ', portalBackKey:'portal_st1',
-    // 入口=西の橋の中央付近(画像の左端の橋・煙突を避けてY=420)
-    spawnX:200, spawnY:420,
-    portalBackX:90, portalBackY:420,
-    spawnFromBackX:200, spawnFromBackY:420,
-    spawnFromNextX:200, spawnFromNextY:420,
+    // 入口=西の橋(画像から正確な位置 X=107, Y=528)
+    spawnX:220, spawnY:528,
+    portalBackX:107, portalBackY:528,
+    spawnFromBackX:220, spawnFromBackY:528,
+    spawnFromNextX:220, spawnFromNextY:528,
     // south_st3から東のポータル経由で来た時もちゃんと離れた位置にスポーン
-    spawnFromEastX:200, spawnFromEastY:420,
+    spawnFromEastX:220, spawnFromEastY:528,
     // ── 5つの建物 (ChatGPTで生成された画像の建物位置に合わせる) ──
     // 建物の type 別動作: inn/shop/blacksmith/guild/jobchange
     // x,y は左上座標, w,h はサイズ. 入口判定はsetSizeで建物下半分(歩行可能エリア)
@@ -5368,8 +5381,7 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData;
     // HP/SP/毒などの状態はステージを跨いで持ち越す(仕様)
 
-    // BGM: シーン開始時に強制リセット → 新規再生(重複・残留防止)
-    stopBGM();
+    // BGM: シーン開始時に再生(同じキーなら startBGM 内で継続される)
     startBGM(cfg.bgmKey);
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
