@@ -4810,54 +4810,38 @@ const STAGE_CONFIG={
     spawnFromNextX:1100, spawnFromNextY:627, // ST2から戻ってきたら右から
   },
   2:{name:'ST.2 流れる森',bgmKey:'east',mapImage:'map_st2',
-    mapW:1537,mapH:1907, mapType:'st2', // 専用色判定
+    mapW:2048,mapH:2048, mapType:'st2', // 専用色判定
     tiles:[],tileWeights:[],
-    // 継ぎ目(y=940〜1030)に岩と木をまばらに配置(通りやすく)
-    objects:['obj_tree','obj_rock'],
-    objPos:[
-      // ── 左の草原: 継ぎ目に岩&木をまばらに散らす ──
-      ['obj_tree', 200, 970],
-      ['obj_rock', 420, 990],
-      ['obj_tree', 600, 960],
-      // ── 右の草原: 同様にまばら ──
-      ['obj_tree', 1000, 970],
-      ['obj_rock', 1200, 990],
-      ['obj_tree', 1400, 960],
-    ],
-    // 橋: 川を南北に渡れるゾーン(色判定を無視して歩行可)
-    // 橋の周辺を広めに取って、橋へのアプローチも確保
+    objects:[],objPos:[],
+    // 橋を強制歩行可(色判定で岩や水と誤判定されないように)
     walkZones:[
-      {x:680, y:1180, w:200, h:200},   // 中央の木製橋(縦長で南北アクセス確保)
-      {x:660, y:1290, w:240, h:60},    // 橋の上(東西方向の本体)
+      {x:680, y:1230, w:680, h:240},  // 中央の石橋全体(無条件で通れる)
     ],
     enemies:[
-      // 入口側(左下) - 草原
-      ['goblin', 350, 1550],['goblin', 250, 1500],
-      ['wolf',   400, 1550],['wolf',   450, 1650],
-      ['skeleton',300, 1500],
-      ['troll',  250, 1600],
-      // 川を渡った先(右下) - メインの戦闘エリア
-      ['goblin', 1100, 1550],['goblin', 1300, 1500],
-      ['wolf',   1250, 1550],['wolf',   1200, 1650],
-      ['skeleton',1300, 1600],
-      ['troll',  1350, 1500],
-      // 中段 〜 上段(オプションエリア)
-      ['wolf',   300, 1000],['wolf',   1230, 1000],
-      ['skeleton',200, 700],['skeleton',1330, 700],
-      ['troll',  200, 400],['troll',  1330, 400],
+      // 上部エリア(Y=300〜700)
+      ['slime',  500, 400],['slime',  1500, 400],
+      ['bat',    700, 600],['bat',    1300, 600],
+      ['slime',  1024, 500],
+      // 中央エリア(Y=700〜1100)
+      ['goblin', 450, 850],['goblin', 1600, 850],
+      ['wolf',   900, 1000],['wolf',   1100, 1000],
+      ['skeleton', 1024, 900],
+      // 下部エリア(Y=1500〜1900)
+      ['skeleton',  500, 1700],['skeleton',  1500, 1700],
+      ['troll',  800, 1800],['troll',  1200, 1800],
+      ['wolf',  1024, 1900],
     ],
-    // ボスは橋を渡った先(右下の広場・出口手前)
-    boss:{id:'boss2', x:1100, y:1500},
+    // ボスは中央
+    boss:{id:'boss2', x:1024, y:1024},
     bossThreshold:15,
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
-    // 入口=左下のWP(X=112,Y=1383)、出口=右下のWP(X=1471,Y=1371)
-    // ポータル判定は半径70pxなので、spawnから100px以上離す
-    spawnX:300, spawnY:1383,                   // 初回入場(左下WP付近・ループ防止のため右に200px)
-    portalBackX:112, portalBackY:1383,         // 戻る(ST1へ): 左下WP
-    portalNextX:1471, portalNextY:1371,        // 進む(ST3へ): 右下WP
-    spawnFromBackX:300, spawnFromBackY:1383,   // ST1から戻ってきたらspawnと同じ
-    spawnFromNextX:1271, spawnFromNextY:1371,  // ST3から戻ってきたら出口WPから西200px
+    // 入口=左の道(中央高さY=1050)、出口=右の道
+    spawnX:200, spawnY:1050,                    // 初回入場(左の道から200px内側)
+    portalBackX:50, portalBackY:1050,           // 左端の道(ST.1へ)
+    portalNextX:2000, portalNextY:1050,         // 右端の道(ST.3へ)
+    spawnFromBackX:200, spawnFromBackY:1050,    // ST.1から戻ってきたらspawnと同じ
+    spawnFromNextX:1850, spawnFromNextY:1050,   // ST.3から戻ってきたら右端から200px内側
   },
   3:{name:'ST.3 海岸',bgmKey:'east',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'desert',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
