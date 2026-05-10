@@ -815,16 +815,21 @@ function _playCliffBGM(){
   },(totalDur-0.1)*1000);
 }
 
+// シーン切替などで連続呼び出された場合のチャタリング防止用
+let _bgmStartId = 0;
+
 function startBGM(key){
   // 同じキーで再生指示が来た場合の処理
   if(_bgmKey===key){
     // 既に MP3 が再生中なら何もしない(継続)
-    if(_bgmAudio && !_bgmAudio.paused) return;
+    if(_bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended) return;
     // MP3 が一時停止状態なら再開を試みる
-    if(_bgmAudio && _bgmAudio.paused && !muted){
+    if(_bgmAudio && (_bgmAudio.paused || _bgmAudio.ended) && !muted){
       try{
+        if(_bgmAudio.ended) _bgmAudio.currentTime=0;
         const p=_bgmAudio.play();
-        if(p && p.catch) p.catch(()=>{});
+        if(p && p.catch) p.catch(()=>{ /* 失敗時は次の処理へ */ });
+        // play()は非同期だが、楽観的に return
         return;
       }catch(e){}
     }
@@ -833,7 +838,12 @@ function startBGM(key){
   }
   // 既存BGM停止(必ずクリーンアップ)
   if(_bgmAudio){
-    try{_bgmAudio.pause();_bgmAudio.currentTime=0;}catch(e){}
+    try{
+      _bgmAudio.pause();
+      _bgmAudio.currentTime=0;
+      _bgmAudio.src='';   // 完全に解放
+      _bgmAudio.load();
+    }catch(e){}
     _bgmAudio=null;
   }
   _stopSynthBGM();
@@ -847,6 +857,8 @@ function startBGM(key){
       ac.resume().catch(()=>{});
     }
   }catch(e){}
+  // この呼び出し固有のID(後発のstartBGMで上書きされたら以下の非同期処理を中断)
+  const myId = ++_bgmStartId;
   // MP3があればMP3を優先
   const file=BGM_FILES[key];
   if(file){
@@ -866,7 +878,7 @@ function startBGM(key){
         if(_bgmAudio===audio){
           console.warn('[BGM] MP3 error event, falling back to synth', key);
           _bgmAudio=null;
-          _fallbackSynth(key);
+          if(myId === _bgmStartId) _fallbackSynth(key);
         }
       });
       // 再生失敗時は合成BGMにフォールバック
@@ -876,14 +888,15 @@ function startBGM(key){
           console.warn('[BGM] MP3 play failed, falling back to synth', key, err);
           if(_bgmAudio===audio){
             _bgmAudio=null;
-            _fallbackSynth(key);
+            // 後発の startBGM が走っていたらフォールバックを抑制(競合防止)
+            if(myId === _bgmStartId) _fallbackSynth(key);
           }
         });
       }
       _bgmAudio=audio;
     }catch(e){
       console.warn('[BGM] MP3 load failed, fallback', key, e);
-      _fallbackSynth(key);
+      if(myId === _bgmStartId) _fallbackSynth(key);
     }
     return;
   }
@@ -4916,28 +4929,39 @@ const STAGE_CONFIG={
     spawnFromBackX:768,spawnFromBackY:750,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
-  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:948,mapH:1659,
+  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:2048,mapH:2048,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
-      // ゾンビ(タンク・毒攻撃) 4体 - 中央通路
-      ['zombie',474,380],['zombie',474,620],['zombie',474,900],['zombie',474,1150],
-      // リッチ(魔法) 2体 - 中間エリア
-      ['lich',474,500],['lich',474,1050],
-      // ダークエルフ(遠距離弓) 3体
-      ['dark_elf',370,310],['dark_elf',380,780],['dark_elf',570,800],
-      // 追加雑魚(広間にもう1体ずつ)
-      ['zombie',474,760],['lich',550,500],['dark_elf',474,1000],
+      // ── 上部広間(入口直下、Y=300〜600) ──
+      // ゾンビ(タンク)
+      ['zombie',1024,400],['zombie',700,500],['zombie',1340,500],
+      // リッチ(魔法)
+      ['lich',850,350],['lich',1200,350],
+      // ダークエルフ(遠距離)
+      ['dark_elf',500,400],['dark_elf',1540,400],
+      // ── 中段エリア(階段ホール、Y=700〜1100) ──
+      ['zombie',1024,800],['zombie',750,950],['zombie',1300,950],
+      ['lich',600,1000],['lich',1450,1000],
+      ['dark_elf',1024,900],
+      // ── 下段エリア(中央祭壇〜髑髏祭壇手前、Y=1300〜1600) ──
+      ['zombie',1024,1400],['zombie',850,1550],['zombie',1200,1550],
+      ['lich',1024,1300],
+      ['dark_elf',700,1500],['dark_elf',1340,1500],
     ],
-    boss:{id:'dark_illusion',x:474,y:1280},
-    bossThreshold:12,
+    boss:{id:'dark_illusion',x:1024,y:1750},  // 髑髏祭壇付近
+    bossThreshold:18,
     portalTo:null,portalToLabel:'',portalToKey:'portal_st4',
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
     // DUN1 から ST6 に戻る時: ST6の骨(290,420)の近くにスポーン
     portalBackSpawnX:290, portalBackSpawnY:460,
-    // 入口は画面上中央
-    spawnX:474,spawnY:200,
-    portalBackX:474,portalBackY:100,
-    spawnFromBackX:474,spawnFromBackY:230,
+    // 入口=上部中央のアーチ門
+    spawnX:1024, spawnY:280,
+    portalBackX:1024, portalBackY:130,
+    spawnFromBackX:1024, spawnFromBackY:280,
+    // アーチ門の通路を強制歩行可
+    walkZones:[
+      {x:990, y:100, w:80, h:200},  // 入口アーチ門の通路
+    ],
   },
   // ── ST.20 ゴブリンの集落 (ST5から東に行くと到着) ──
   20:{name:'ST.20 ゴブリンの集落', bgmKey:'south', mapImage:'map_st20',
@@ -5382,7 +5406,10 @@ class GameScene extends Phaser.Scene{
     // HP/SP/毒などの状態はステージを跨いで持ち越す(仕様)
 
     // BGM: シーン開始時に再生(同じキーなら startBGM 内で継続される)
-    startBGM(cfg.bgmKey);
+    // シーン作成完了直後に呼ぶことで、Phaser内部の破棄処理との競合を防ぐ
+    this.time.delayedCall(60, ()=>{
+      try{ startBGM(cfg.bgmKey); }catch(e){ console.warn('[BGM] start failed', e); }
+    });
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
 
