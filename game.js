@@ -4882,35 +4882,37 @@ const STAGE_CONFIG={
     spawnFromNextX:474, spawnFromNextY:1280, // 天空から戻ってきたら下(青ゲートより十分上)
   },
   8:{name:'ST.8 天空の島々',bgmKey:'sky',
-    mapImage:'map_st8', mapType:'sky', mapW:1536, mapH:1024,
+    mapImage:'map_st8', mapType:'sky', mapW:2048, mapH:2048,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 入口は画面中央下(前マップST7の上鳥居から繋がる青ポータル)
     // ボス(雷神)は右上の神殿エリア
     enemies:[
-      // 中央大広場(紋章周辺) ─────
-      ['cloud_monkey',600,500],['cloud_monkey',900,500],['cloud_monkey',768,440],
-      ['treant',700,550],['treant',830,550],
-      // 左上エリア(噴水・魔法陣)
-      ['cloud_monkey',280,200],['cloud_monkey',400,200],
-      ['giant',350,280],['rock_golem',250,300],
-      // 左下島
-      ['treant',280,750],['cloud_monkey',200,650],['rock_golem',300,800],
+      // 中央大広場(コンパス模様周辺・Y=900〜1200) ─────
+      ['cloud_monkey',800,1100],['cloud_monkey',1200,1100],['cloud_monkey',1024,1000],
+      ['treant',900,1150],['treant',1100,1150],
+      // 左上エリア(噴水)
+      ['cloud_monkey',400,400],['cloud_monkey',550,400],
+      ['giant',450,500],['rock_golem',350,550],
+      // 左中段(魔法陣エリア)
+      ['treant',400,1300],['cloud_monkey',300,1250],['rock_golem',450,1400],
       // 右下島
-      ['giant',1260,700],['rock_golem',1280,780],['cloud_monkey',1200,650],
-      // 中央下(ポータル手前)
-      ['cloud_monkey',768,750],['giant',700,800],
-      // 神殿前(ボス手前の守り)
-      ['rock_golem',1300,250],['giant',1350,300],['treant',1250,200],
+      ['giant',1500,1300],['rock_golem',1600,1400],['cloud_monkey',1450,1250],
+      // 中央下(ポータル手前・ボスへの道) ※入口から少し離す
+      ['cloud_monkey',1024,1500],['giant',900,1500],
+      // 右上 神殿前(ボス手前の守り)
+      ['rock_golem',1600,400],['giant',1700,500],['treant',1500,350],
+      // 上端中央(アーチ門周辺)
+      ['cloud_monkey',1024,500],['treant',1100,600],
     ],
-    boss:{id:'thunder_god',x:1320,y:180},
+    boss:{id:'thunder_god',x:1700,y:300},  // 右上の神殿付近
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
-    // 下の青魔法門はダイアログ式: ST7に戻る
-    magicGate:{x:768, y:900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
-    // スポーン(ST7から青ゲートを抜けてきた時) ポータルから十分上方
-    spawnX:768,spawnY:750,
-    spawnFromBackX:768,spawnFromBackY:750,
+    // 下端の青魔法門(ダイアログ式) → ST.7 に戻る
+    magicGate:{x:1024, y:1900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
+    // スポーン(ST.7 から青ゲートを抜けてきた時) 入口ポータルから十分内側
+    spawnX:1024, spawnY:1720,
+    spawnFromBackX:1024, spawnFromBackY:1720,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:2048,mapH:2048,
