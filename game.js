@@ -1216,6 +1216,8 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_south_st1', BASE+'maps/south_st1.png');
     this.load.image('map_south_st2', BASE+'maps/south_st2.png');
     this.load.image('map_south_st3', BASE+'maps/south_st3.png');
+    this.load.image('map_south_st4', BASE+'maps/south_st4.png');
+    this.load.image('map_town_minato', BASE+'maps/town_minato.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -3397,6 +3399,76 @@ class BootScene extends Phaser.Scene{
       g.fillStyle(0xeef9ff,0.5);g.fillCircle(S*.28,S*.52,S*.05);g.fillCircle(S*.7,S*.55,S*.04);
     });
 
+    // ビーチクラブ(海岸のカニ)
+    mk('enemy_beach_crab',88,(g,S)=>{
+      // 影
+      g.fillStyle(0x000000,0.25);g.fillEllipse(S*.5,S*.92,S*.75,S*.12);
+      // 体本体(オレンジ赤の甲羅)
+      g.fillStyle(0xcc4422,1);g.fillEllipse(S*.5,S*.6,S*.7,S*.45);
+      g.fillStyle(0xee6644,1);g.fillEllipse(S*.5,S*.58,S*.6,S*.38);
+      // 甲羅の模様(濃い線)
+      g.lineStyle(2,0x882211,0.7);
+      g.lineBetween(S*.3,S*.5,S*.4,S*.45);
+      g.lineBetween(S*.7,S*.5,S*.6,S*.45);
+      g.lineBetween(S*.4,S*.65,S*.6,S*.65);
+      // 左右の大きなハサミ(両側に飛び出す)
+      g.fillStyle(0xcc4422,1);
+      // 左ハサミ
+      g.fillEllipse(S*.15,S*.55,S*.18,S*.22);
+      g.fillTriangle(S*.06,S*.5,S*.18,S*.45,S*.12,S*.62);
+      g.fillTriangle(S*.06,S*.6,S*.18,S*.65,S*.12,S*.5);
+      // 右ハサミ
+      g.fillEllipse(S*.85,S*.55,S*.18,S*.22);
+      g.fillTriangle(S*.94,S*.5,S*.82,S*.45,S*.88,S*.62);
+      g.fillTriangle(S*.94,S*.6,S*.82,S*.65,S*.88,S*.5);
+      // ハサミのハイライト
+      g.fillStyle(0xee8866,0.5);g.fillEllipse(S*.14,S*.53,S*.08,S*.1);g.fillEllipse(S*.86,S*.53,S*.08,S*.1);
+      // 足(下に6本)
+      g.lineStyle(3,0x882211,1);
+      g.lineBetween(S*.32,S*.72,S*.22,S*.85);
+      g.lineBetween(S*.4,S*.78,S*.32,S*.92);
+      g.lineBetween(S*.48,S*.78,S*.45,S*.92);
+      g.lineBetween(S*.52,S*.78,S*.55,S*.92);
+      g.lineBetween(S*.6,S*.78,S*.68,S*.92);
+      g.lineBetween(S*.68,S*.72,S*.78,S*.85);
+      // 目(2つの黒い点・突起)
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.42,S*.42,S*.06);g.fillCircle(S*.58,S*.42,S*.06);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.42,S*.42,S*.035);g.fillCircle(S*.58,S*.42,S*.035);
+      // 目の柄
+      g.lineStyle(2,0x882211,1);
+      g.lineBetween(S*.42,S*.48,S*.42,S*.55);
+      g.lineBetween(S*.58,S*.48,S*.58,S*.55);
+    });
+
+    // ウィスプ(浮遊光の精霊・青白く光る)
+    mk('enemy_wisp',80,(g,S)=>{
+      // 外側のグロー(青白い光)
+      g.fillStyle(0x88ccff,0.2);g.fillCircle(S*.5,S*.5,S*.45);
+      g.fillStyle(0xaaddff,0.35);g.fillCircle(S*.5,S*.5,S*.36);
+      g.fillStyle(0xccecff,0.55);g.fillCircle(S*.5,S*.5,S*.28);
+      // コア
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.5,S*.5,S*.18);
+      g.fillStyle(0xffffff,0.95);g.fillCircle(S*.5,S*.48,S*.12);
+      // 中心の光点
+      g.fillStyle(0xffffff,1);g.fillCircle(S*.5,S*.46,S*.06);
+      // 飛び散る粒子(周囲)
+      g.fillStyle(0xccecff,0.7);
+      g.fillCircle(S*.25,S*.3,S*.04);
+      g.fillCircle(S*.78,S*.32,S*.035);
+      g.fillCircle(S*.3,S*.7,S*.04);
+      g.fillCircle(S*.72,S*.72,S*.045);
+      g.fillCircle(S*.5,S*.18,S*.03);
+      g.fillCircle(S*.5,S*.82,S*.03);
+      // 内側の青いスパーク
+      g.fillStyle(0x66ccff,0.6);
+      g.fillCircle(S*.4,S*.42,S*.025);
+      g.fillCircle(S*.6,S*.55,S*.025);
+      // 揺らぎの線(エネルギー)
+      g.lineStyle(1,0xaaddff,0.5);
+      g.lineBetween(S*.32,S*.5,S*.42,S*.5);
+      g.lineBetween(S*.58,S*.5,S*.68,S*.5);
+    });
+
     // コウモリ
     mk('enemy_bat',80,(g,S)=>{
       g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.58,S*.1);
@@ -4092,6 +4164,8 @@ const DROP_TABLE={
   slime:    [{id:'jelly',       rate:0.40, min:1, max:2}],
   sakura:   [{id:'jelly',       rate:0.45, min:1, max:2}, {id:'flower_petal', rate:0.20, min:1, max:1}],
   cider:    [{id:'jelly',       rate:0.45, min:1, max:2}, {id:'water_drop', rate:0.20, min:1, max:1}],
+  beach_crab:[{id:'wolf_fang',   rate:0.35, min:1, max:1}, {id:'water_drop', rate:0.25, min:1, max:2}],
+  wisp:     [{id:'mana_crystal',rate:0.40, min:1, max:1}, {id:'water_drop', rate:0.30, min:1, max:1}],
   bat:      [{id:'bat_wing',    rate:0.35, min:1, max:1}],
   goblin:   [{id:'goblin_ear',  rate:0.40, min:1, max:1}],
   troll:    [{id:'troll_hide',  rate:0.30, min:1, max:1}],
@@ -4149,7 +4223,7 @@ const MAX_ITEM_STACK=99; // 1種類あたりの最大所持数
 
 // モンスター種別ごとの撃破SE
 const KILL_SE={
-  slime:'kill_pop', sakura:'kill_pop', cider:'kill_pop',
+  slime:'kill_pop', sakura:'kill_pop', cider:'kill_pop', beach_crab:'kill_grunt', wisp:'kill_pop',
   bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
   goblin:'kill_grunt',
   goblin_archer:'kill_grunt', goblin_axe:'kill_grunt', goblin_leader:'kill_boss',
@@ -4948,9 +5022,9 @@ const STAGE_CONFIG={
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
-    // 下端の青魔法門(ダイアログ式) → ST.7 に戻る
-    magicGate:{x:1024, y:1900, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
-    // スポーン(ST.7 から青ゲートを抜けてきた時) 入口ポータルから十分内側
+    // 中央付近の青魔法門(ダイアログ式) → ST.7 に戻る
+    magicGate:{x:1011, y:1509, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
+    // スポーン(ST.7 から青ゲートを抜けてきた時) ポータルから十分離す
     spawnX:1024, spawnY:1720,
     spawnFromBackX:1024, spawnFromBackY:1720,
   },
@@ -5108,6 +5182,10 @@ const STAGE_CONFIG={
     portalEast:24, portalEastLabel:'⛏ 鉱山の街道へ', portalEastKey:'portal_st1',
     portalEastX:870, portalEastY:480,  // 右の橋付近
     spawnFromWestX:780, spawnFromWestY:480,  // south_st3 から戻ってきた時のスポーン
+    // 南方向ポータル(下端の道) → south_st4(海岸エリア)
+    portalSouth:26, portalSouthLabel:'🏖 海岸の街道へ', portalSouthKey:'portal_st1',
+    portalSouthX:470, portalSouthY:1600,  // 下端の道
+    spawnFromSouth2X:470, spawnFromSouth2Y:1480,  // south_st4 から戻ってきた時
     // 橋エリアは強制歩行可(色判定で岩や水と誤判定されないように)
     walkZones:[
       {x:760, y:430, w:180, h:140},  // 右上の橋 + 周囲の通路を覆う矩形
@@ -5173,7 +5251,66 @@ const STAGE_CONFIG={
       {x:830, y:540, w:300, h:300, label:'🔨 鍛冶屋', type:'blacksmith'},
     ],
   },
-  // ── DUN.2 1F 炭鉱の入口 ──
+  // ── 南の街道4 (south_st2の南から繋がる海岸エリア) ──
+  26:{name:'🏖 海岸の街道', bgmKey:'south', mapImage:'map_south_st4',
+    mapType:'south_st4', mapW:2048, mapH:2048,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // ── 上部エリア(入口アーチ周辺・Y=300〜700) ──
+      ['sakura', 700, 400],['sakura', 1100, 500],
+      ['wisp',   600, 600],['wisp',   1200, 500],
+      ['slime',  900, 350],
+      // ── 中段エリア(中央広場・道標周辺・Y=700〜1300) ──
+      ['cider',  500, 900],['cider',  1500, 1000],
+      ['wisp',   1000, 800],
+      ['sakura', 1300, 1100],['sakura', 700, 1200],
+      ['goblin', 1500, 700],['goblin', 800, 1150],
+      // ── 海岸エリア(左下・ビーチ周辺・Y=1100〜1700) ──
+      ['beach_crab', 250, 1300],['beach_crab', 350, 1500],
+      ['beach_crab', 200, 1700],['beach_crab', 450, 1600],
+      ['cider',  500, 1500],['cider',  600, 1700],
+      // ── 右下エリア(円形祭壇周辺・Y=1200〜1600) ──
+      ['wisp',   1400, 1400],['wisp',   1700, 1300],
+      ['goblin', 1600, 1500],
+    ],
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    // 北へ戻る = south_st2 (上端のアーチ門から)
+    portalBack:23, portalBackLabel:'🌲 南の街道(続)へ戻る', portalBackKey:'portal_st1',
+    // 入口=上端のアーチ門(画像分析: X≈400, Y≈100付近の青い炎付きアーチ)
+    spawnX:420, spawnY:280,                  // 入口アーチ通り抜けた直後
+    portalBackX:420, portalBackY:140,        // 上端のアーチ門(戻り)
+    spawnFromBackX:420, spawnFromBackY:280,  // south_st2 から来た時
+    // 南方向ポータル(下端中央の橋) → town_minato 港町
+    portalSouth:27, portalSouthLabel:'⛵ 港町へ', portalSouthKey:'portal_st1',
+    portalSouthX:1024, portalSouthY:1900,      // 下端中央の橋への道
+    spawnFromSouth2X:1024, spawnFromSouth2Y:1740, // town_minatoから戻ってきた時
+    // walkZones: アーチ門の通路を強制歩行可
+    walkZones:[
+      {x:370, y:100, w:120, h:220},  // 入口アーチ通路
+    ],
+  },
+  // ── 港町ミナト (south_st4 の南橋から繋がる和風港町) ──
+  27:{name:'⛵ 港町ミナト', bgmKey:'central', mapImage:'map_town_minato',
+    mapType:'town_minato', mapW:2048, mapH:2048,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[], // 町なので敵なし
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    // 北へ戻る = south_st4(海岸の街道)
+    portalBack:26, portalBackLabel:'🏖 海岸の街道へ戻る', portalBackKey:'portal_st1',
+    returnFromSouth:true,  // south_st4の南端(spawnFromSouth2)に着地
+    // 入口=上部中央の和風門(画像のY≈200付近)
+    spawnX:1024, spawnY:380,                 // 門通り抜けた直後
+    portalBackX:1024, portalBackY:240,       // 上部中央の和風門(戻り)
+    spawnFromBackX:1024, spawnFromBackY:380, // south_st4 から来た時
+    spawnFromNextX:1024, spawnFromNextY:380,
+    spawnFromSouthX:1024, spawnFromSouthY:380,
+    // walkZones: 入口門の通路を強制歩行可
+    walkZones:[
+      {x:960, y:200, w:130, h:220},  // 上部の入口門通路
+    ],
+  },
   // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
   11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'mine', mapImage:'map_dun2_1',
     mapType:'mine', mapW:1254, mapH:1254,
@@ -5307,7 +5444,7 @@ const AWAKENINGS = {
 
 // 敵の日本語名(ラベル表示用)
 const ENEMY_NAMES={
-  slime:'スライム', sakura:'サクラ', cider:'サイダー', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
+  slime:'スライム', sakura:'サクラ', cider:'サイダー', beach_crab:'ビーチクラブ', wisp:'ウィスプ', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
   wolf:'ウルフ', skeleton:'スケルトン', dragon:'ドラゴン',
   crab:'カニ', seal:'シール', sandworm:'サンドワーム', scorpion:'スコーピオン',
   sandman:'サンドマン', mummy:'ミイラ', bone_dragon:'ボーンドラゴン',
@@ -5331,6 +5468,8 @@ const ENEMY_DEFS={
   slime:   {hp:28, atk:4, def:0, spd:60, exp:12,gold:3,  sz:52,rng:50,acd:1.2, passive:true,  eva:0 ,element:'water'},
   sakura:  {hp:32, atk:5, def:0, spd:65, exp:14,gold:4,  sz:52,rng:50,acd:1.2, passive:true,  eva:5 ,element:'none'},
   cider:   {hp:30, atk:4, def:0, spd:70, exp:13,gold:4,  sz:52,rng:50,acd:1.2, passive:true,  eva:5 ,element:'water'},
+  beach_crab:{hp:45, atk:8, def:2, spd:60, exp:22,gold:7,  sz:56,rng:54,acd:1.2, passive:true,  eva:5 ,element:'water'},
+  wisp:    {hp:38, atk:10, def:0, spd:95, exp:24,gold:8,  sz:48,rng:60,acd:1.0, passive:false, eva:25,element:'water'},
   bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15,element:'dark'},
   goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 ,element:'none'},
   troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 ,element:'earth'},
@@ -7885,8 +8024,8 @@ class GameScene extends Phaser.Scene{
             // 発射時の精霊が一瞬光る
             const flash = this.add.circle(sp.x, sp.y, 14, 0xaaffaa, 0.8).setDepth(18);
             this.tweens.add({targets:flash, alpha:0, scaleX:2, scaleY:2, duration:200, onComplete:()=>flash.destroy()});
-            // ダメージ計算(死後でも記録)
-            const baseDmg = Math.max(1, Math.floor(pd.atk * 0.8));
+            // ダメージ計算(死後でも記録) - ATK×2.5 + MAG×3.5 にアップグレード
+            const baseDmg = Math.max(1, Math.floor(pd.atk * 2.5 + (pd.mag||0) * 3.5));
             const isCrit = Math.random()*100 < calcCrit(pd);
             const dmg = isCrit ? Math.floor(baseDmg*2) : baseDmg;
             totalDmg += dmg;
@@ -7919,7 +8058,7 @@ class GameScene extends Phaser.Scene{
         try{SE('magic');SE('multishot');}catch(e){}
         this[cdKey]=sk.cd;
       }else if(num===3){ // オールクリティカル: 一定時間100%CRIT
-        const dur = 8000; // 8秒
+        const dur = 20000; // 20秒(8秒から大幅延長)
         pd._allCritUntil = Date.now() + dur;
         this.showBuffTimer('オールCRIT','#ffaa44', dur);
         // 黄金のオーラを足元に追加
@@ -13302,6 +13441,26 @@ class GameScene extends Phaser.Scene{
     if(cfg.mapType==='south_st1' || cfg.mapType==='south_st2'){
       // 真っ暗な部分(濃い木・木の幹・影)だけ壁
       if(sum < 130) return false;
+      return true;
+    }
+
+    // ── south_st4 (海岸+森+砂浜+草原) ──
+    // 海・川は青色、深い森・岩壁を壁として、それ以外(草・砂・道)は歩ける
+    if(cfg.mapType==='south_st4'){
+      // 暗すぎる部分(深い森・岩・影)
+      if(sum < 130) return false;
+      // 水・川(青が支配的: B>=R*1.4以上)を壁
+      if(b > r*1.4 && b > g*1.2 && b > 110) return false;
+      return true;
+    }
+
+    // ── town_minato 港町(石畳・建物・海・船・桟橋) ──
+    if(cfg.mapType==='town_minato'){
+      // 暗いエリア(建物・屋根・影・岩壁) → 壁
+      if(sum < 200) return false;
+      // 海(青が支配的) → 壁
+      if(b > r*1.3 && b > g*1.1 && b > 100) return false;
+      // それ以外(石畳・砂道・広場) は歩ける
       return true;
     }
 
