@@ -1218,6 +1218,10 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_south_st3', BASE+'maps/south_st3.png');
     this.load.image('map_south_st4', BASE+'maps/south_st4.png');
     this.load.image('map_town_minato', BASE+'maps/town_minato.png');
+    this.load.image('map_sakura_gate', BASE+'maps/sakura_gate.png');
+    this.load.image('map_sakura_dun1', BASE+'maps/sakura_dun1.png');
+    // NPC スプライト
+    this.load.image('npc_sakura5', BASE+'npcs/sakura-5.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -4984,11 +4988,11 @@ const STAGE_CONFIG={
     ],
     boss:{id:'mistress',x:474,y:780},
     bossThreshold:13,
-    portalTo:8,portalToLabel:'☁ ST.8へ',portalToKey:'portal_st6',
+    portalTo:null, portalToLabel:'',
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
-    // 下の青魔法門はダイアログ式(magicGate)
+    // 下の青魔法門はダイアログ式(magicGate)で ST.8 へ
     // magicGate: {x, y, to, label, returnX, returnY} 行き先ステージの到着位置も指定
-    magicGate:{x:474, y:1380, to:8, label:'☁ 天空の島々へ', returnX:768, returnY:750},
+    magicGate:{x:474, y:1380, to:8, label:'☁ 天空の島々へ', returnX:856, returnY:1545},
     // 入口=上の鳥居(portalBack)、出口=下の青魔法門(magicGate)
     spawnX:474,spawnY:280,           // 初回入場は上の鳥居すぐ下から
     portalBackX:474, portalBackY:150, // 上部の木製鳥居(ST6へ戻る)
@@ -5024,9 +5028,9 @@ const STAGE_CONFIG={
     portalBack:null,portalBackLabel:'',
     // 中央付近の青魔法門(ダイアログ式) → ST.7 に戻る
     magicGate:{x:1011, y:1509, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
-    // スポーン(ST.7 から青ゲートを抜けてきた時) ポータルから十分離す
-    spawnX:1024, spawnY:1720,
-    spawnFromBackX:1024, spawnFromBackY:1720,
+    // スポーン(ST.7 から青ゲートを抜けてきた時)
+    spawnX:856, spawnY:1545,
+    spawnFromBackX:856, spawnFromBackY:1545,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:2048,mapH:2048,
@@ -5301,14 +5305,78 @@ const STAGE_CONFIG={
     portalBack:26, portalBackLabel:'🏖 海岸の街道へ戻る', portalBackKey:'portal_st1',
     returnFromSouth:true,  // south_st4の南端(spawnFromSouth2)に着地
     // 入口=上部中央の和風門(画像のY≈200付近)
-    spawnX:1024, spawnY:380,                 // 門通り抜けた直後
-    portalBackX:1024, portalBackY:240,       // 上部中央の和風門(戻り)
-    spawnFromBackX:1024, spawnFromBackY:380, // south_st4 から来た時
-    spawnFromNextX:1024, spawnFromNextY:380,
-    spawnFromSouthX:1024, spawnFromSouthY:380,
+    spawnX:1269, spawnY:421,                  // south_st4から船で来た着地点
+    portalBackX:1266, portalBackY:311,        // 上部の和風門(戻り)
+    spawnFromBackX:1269, spawnFromBackY:421,  // south_st4 から来た時
+    spawnFromNextX:1269, spawnFromNextY:421,
+    spawnFromSouthX:1269, spawnFromSouthY:421,
     // walkZones: 入口門の通路を強制歩行可
     walkZones:[
-      {x:960, y:200, w:130, h:220},  // 上部の入口門通路
+      {x:1200, y:240, w:140, h:220},  // 上部の入口門通路
+    ],
+    // NPC配置
+    npcs:[
+      {
+        id:'sailor',
+        x:430, y:952,
+        sprite:'npc_sakura5',
+        name:'船頭',
+        type:'ferry',          // 船で別マップに連れて行くNPC
+        price:500,             // 船賃 500G
+        destStage:28,          // 移動先 = sakura_gate (桜の里)
+        destLabel:'桜の里',    // ダイアログに表示
+        dialog:[
+          'おっ、旅の人かい?',
+          'よぉ来たな、この港町へ。',
+          'ワシは船頭をしとる。',
+          '船賃 {price}G で「桜の里」まで連れて行くぞ。',
+          '桜咲く美しい山里じゃ。どうじゃ、乗っていくかい?'
+        ],
+      },
+    ],
+  },
+  // ── 桜の里(sakura_gate) - 港町ミナトの船で行ける和風の隠れ里 ──
+  28:{name:'🌸 桜の里', bgmKey:'central', mapImage:'map_sakura_gate',
+    mapType:'sakura_gate', mapW:941, mapH:1672,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[], // 平和な里なので敵なし
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    // 戻り = 港町ミナト
+    portalBack:27, portalBackLabel:'⛵ 港町ミナトへ戻る', portalBackKey:'portal_st1',
+    // 入口=下端中央の橋(船で到着する場所)
+    spawnX:470, spawnY:1500,                  // 橋を上がった直後
+    portalBackX:470, portalBackY:1620,        // 下端中央の橋(戻り)
+    spawnFromBackX:470, spawnFromBackY:1500,  // 港町から来た時
+    spawnFromNextX:470, spawnFromNextY:340,   // sakura_dun1 から戻った時(上端の門前)
+    spawnFromSouthX:470, spawnFromSouthY:1500,
+    // 上端の門 → sakura_dun1(桜の城) へのポータル
+    portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
+    portalToX:470, portalToY:200,             // 上端の門
+    // walkZones: 下端の橋 + 上端の門通路を強制歩行可
+    walkZones:[
+      {x:410, y:1520, w:120, h:152},  // 下端の橋
+      {x:410, y:140,  w:120, h:200},  // 上端の門通路
+    ],
+  },
+  // ── 桜の城(sakura_dun1) - 桜の里の上の門から繋がる和風の城 ──
+  29:{name:'🏯 桜の城', bgmKey:'central', mapImage:'map_sakura_dun1',
+    mapType:'sakura_dun1', mapW:4000, mapH:4000,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[], // まだ城内なので敵なし
+    boss:null, bossThreshold:9999,
+    portalTo:null, portalToLabel:'',
+    // 戻り = 桜の里(sakura_gate)
+    portalBack:28, portalBackLabel:'🌸 桜の里へ戻る', portalBackKey:'portal_st1',
+    // 入口=中央の大きな桜の下(画像分析: 中央の桜大樹 X≈2000, Y≈2700)
+    spawnX:2000, spawnY:2700,                  // 中央の桜の下に着地
+    portalBackX:2000, portalBackY:3400,        // 下側の門の少し上(門前)
+    spawnFromBackX:2000, spawnFromBackY:2700,  // 桜の里から来た時
+    spawnFromNextX:2000, spawnFromNextY:2700,
+    spawnFromSouthX:2000, spawnFromSouthY:2700,
+    // walkZones: 下側の門通路を強制歩行可
+    walkZones:[
+      {x:1900, y:3360, w:200, h:200},  // 下側の門通路
     ],
   },
   // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
@@ -5954,6 +6022,43 @@ class GameScene extends Phaser.Scene{
       const peTxt=this.add.text(peX,peY+44,cfg.portalEastLabel+'\n[近づいて移動]',{fontSize:'9px',fontFamily:'Arial',color:'#ffcc88',align:'center',stroke:'#000',strokeThickness:2}).setOrigin(0.5);
       this.tweens.add({targets:peTxt, alpha:0.55, duration:1100, yoyo:true, repeat:-1});
       this.portalEast={x:peX,y:peY,to:cfg.portalEast,open:true};
+    }
+    // NPC配置
+    this.npcs=[];
+    if(cfg.npcs && Array.isArray(cfg.npcs)){
+      cfg.npcs.forEach(npcDef=>{
+        const sprite = this.add.sprite(npcDef.x, npcDef.y, npcDef.sprite).setDepth(5);
+        // スプライトサイズ調整(64px程度)
+        sprite.setDisplaySize(72, 72);
+        // 名前表示(上部)
+        const nameTag = this.add.text(npcDef.x, npcDef.y-50, npcDef.name, {
+          fontSize:'12px', fontFamily:'Arial', color:'#ffeebb',
+          stroke:'#000', strokeThickness:3
+        }).setOrigin(0.5).setDepth(6);
+        // 話しかけプロンプト(下部・近づくと表示)
+        const promptTxt = this.add.text(npcDef.x, npcDef.y+50, '💬 タップで話す', {
+          fontSize:'11px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
+          stroke:'#000', strokeThickness:3
+        }).setOrigin(0.5).setDepth(6).setVisible(false);
+        this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
+        // インタラクト用エリア
+        sprite.setInteractive({useHandCursor:true});
+        sprite.on('pointerdown', ()=>{
+          // 距離チェック - 近くにいる時のみ会話開始
+          const dist = Phaser.Math.Distance.Between(
+            this.player.x, this.player.y, npcDef.x, npcDef.y
+          );
+          if(dist < 120){
+            this._openNpcDialog(npcDef);
+          }
+        });
+        this.npcs.push({
+          def: npcDef,
+          sprite: sprite,
+          nameTag: nameTag,
+          promptTxt: promptTxt,
+        });
+      });
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -10814,6 +10919,136 @@ class GameScene extends Phaser.Scene{
     // メニュー閉じる時も覚醒ボタン状態を更新(装備変更等への保険)
     if(this._updateAwakeningButton) this._updateAwakeningButton();
   }
+  // ── NPC会話ダイアログ ──
+  _openNpcDialog(npcDef){
+    if(this._npcDialogOpen) return;
+    this._npcDialogOpen = true;
+    SE('open');
+    // プレイヤー停止
+    if(this.player && this.player.body) this.player.body.setVelocity(0,0);
+    const w = this.scale.width, h = this.scale.height;
+    // 半透明オーバーレイ
+    const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.5).setScrollFactor(0).setDepth(100);
+    overlay.setInteractive();
+    // ダイアログボックス本体
+    const boxW = Math.min(w * 0.85, 540);
+    const boxH = 220;
+    const boxX = w/2, boxY = h - boxH/2 - 30;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1a2e, 0.95)
+      .setScrollFactor(0).setDepth(101)
+      .setStrokeStyle(3, 0xffd700, 1);
+    // NPC名表示
+    const nameLabel = this.add.text(boxX - boxW/2 + 20, boxY - boxH/2 + 12,
+      '👤 ' + npcDef.name,
+      {fontSize:'15px', fontFamily:'Arial', color:'#ffd700', fontStyle:'bold'}
+    ).setOrigin(0, 0).setScrollFactor(0).setDepth(102);
+    // 会話テキスト(ページ管理)
+    const dialogList = npcDef.dialog.map(line=>
+      line.replace('{price}', npcDef.price||0)
+    );
+    let pageIdx = 0;
+    const dialogTxt = this.add.text(boxX, boxY - 10,
+      dialogList[pageIdx],
+      {fontSize:'14px', fontFamily:'Arial', color:'#ffffff',
+       wordWrap:{width: boxW - 40}, align:'center'}
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    // 「タップして続行」アイコン
+    const nextHint = this.add.text(boxX, boxY + boxH/2 - 20,
+      '▼ タップで続く',
+      {fontSize:'11px', fontFamily:'Arial', color:'#88ccff'}
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(102);
+    this.tweens.add({targets:nextHint, alpha:0.4, duration:600, yoyo:true, repeat:-1});
+    // 選択肢ボタン用(最後のページで表示)
+    let yesBtn = null, noBtn = null;
+    const showChoiceButtons = ()=>{
+      if(yesBtn) return;
+      nextHint.setVisible(false);
+      const cy = boxY + boxH/2 - 28;
+      // YESボタン
+      yesBtn = this.add.rectangle(boxX - 90, cy, 140, 36, 0x2ecc71, 0.95)
+        .setScrollFactor(0).setDepth(103).setStrokeStyle(2, 0xffffff, 0.8)
+        .setInteractive({useHandCursor:true});
+      const yesTxt = this.add.text(boxX - 90, cy, '⛵ 乗る (' + (npcDef.price||0) + 'G)',
+        {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'}
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(104);
+      // NOボタン
+      noBtn = this.add.rectangle(boxX + 90, cy, 140, 36, 0xe74c3c, 0.95)
+        .setScrollFactor(0).setDepth(103).setStrokeStyle(2, 0xffffff, 0.8)
+        .setInteractive({useHandCursor:true});
+      const noTxt = this.add.text(boxX + 90, cy, '❌ やめる',
+        {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'}
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(104);
+      // YES押下: 船賃支払って移動
+      yesBtn.on('pointerdown', ()=>{
+        SE('click');
+        const pd = this.playerData;
+        const price = npcDef.price || 0;
+        if(pd.gold < price){
+          // 所持金不足
+          dialogTxt.setText('お金が足りないようじゃな...\n('+price+'G必要)');
+          yesBtn.destroy(); yesTxt.destroy();
+          noBtn.destroy(); noTxt.destroy();
+          yesBtn = null;
+          // 1.5秒後にダイアログを閉じる
+          this.time.delayedCall(1800, ()=>{
+            this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint]);
+          });
+          return;
+        }
+        if(!npcDef.destStage){
+          // 移動先未設定
+          dialogTxt.setText('まだ船を出せる場所がないようじゃ...\n(行き先未定)');
+          yesBtn.destroy(); yesTxt.destroy();
+          noBtn.destroy(); noTxt.destroy();
+          yesBtn = null;
+          this.time.delayedCall(1800, ()=>{
+            this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint]);
+          });
+          return;
+        }
+        // 支払い + 移動
+        pd.gold -= price;
+        this.updateHUD();
+        SE('coin');
+        dialogTxt.setText('よっしゃ!出航じゃ!⛵\n('+npcDef.destLabel+'へ向かう)');
+        yesBtn.destroy(); yesTxt.destroy();
+        noBtn.destroy(); noTxt.destroy();
+        // 1.5秒後にダイアログを閉じて遷移
+        this.time.delayedCall(1500, ()=>{
+          this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint]);
+          // ステージ遷移
+          this._doTransition('Game',{playerData:pd, stage:npcDef.destStage, fromPortal:'back'});
+        });
+      });
+      // NO押下: ダイアログを閉じる
+      noBtn.on('pointerdown', ()=>{
+        SE('click');
+        this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint, yesBtn, yesTxt, noBtn, noTxt]);
+      });
+    };
+    // タップ進行ハンドラ(オーバーレイ全体)
+    overlay.on('pointerdown', ()=>{
+      if(yesBtn) return;  // 選択肢中はタップ無効
+      pageIdx++;
+      if(pageIdx < dialogList.length){
+        dialogTxt.setText(dialogList[pageIdx]);
+        SE('click');
+        // 最後のページなら選択肢を表示
+        if(pageIdx === dialogList.length - 1){
+          this.time.delayedCall(300, showChoiceButtons);
+        }
+      }
+    });
+    // 1ページ目から1行しかない場合、すぐ選択肢
+    if(dialogList.length === 1){
+      this.time.delayedCall(500, showChoiceButtons);
+    }
+  }
+  _closeNpcDialog(items){
+    items.forEach(it=>{ try{ it.destroy(); }catch(e){} });
+    this._npcDialogOpen = false;
+    SE('close');
+  }
   _updateMenuBadge(){
     const pd=this.playerData;
     const pts=(pd.statPts||0)+(pd.jobPts||0);
@@ -13464,6 +13699,30 @@ class GameScene extends Phaser.Scene{
       return true;
     }
 
+    // ── sakura_gate 桜の里(中央参道・家屋・桜並木・海) ──
+    if(cfg.mapType==='sakura_gate'){
+      // 暗いエリア(建物・屋根・影・岩壁) → 壁
+      if(sum < 200) return false;
+      // 海(青が支配的) → 壁
+      if(b > r*1.3 && b > g*1.1 && b > 100) return false;
+      // 桜(濃いピンク R高&B高&G低)→ 壁(歩けない)
+      if(r > 200 && b > 150 && g < r*0.75) return false;
+      // それ以外(石畳の参道・砂道) は歩ける
+      return true;
+    }
+
+    // ── sakura_dun1 桜の城(中央広場・城・桜大樹・池・建物群) ──
+    if(cfg.mapType==='sakura_dun1'){
+      // 暗いエリア(建物・屋根・影・壁) → 壁
+      if(sum < 200) return false;
+      // 池(青が支配的) → 壁
+      if(b > r*1.2 && b > g*1.1 && b > 100) return false;
+      // 桜(濃いピンク R高&B高&G低)→ 壁
+      if(r > 200 && b > 150 && g < r*0.75) return false;
+      // それ以外(石畳・砂道・草地) は歩ける
+      return true;
+    }
+
     // ── south_st3 (草原+砂道+鉱山岩石エリア) ──
     // 草原と道は歩ける。鉱山(暗いグレー岩)は歩ける部分も多い
     if(cfg.mapType==='south_st3'){
@@ -13955,7 +14214,7 @@ class GameScene extends Phaser.Scene{
   update(time,delta){
     const dt=delta/1000,pd=this.playerData,p=this.player;
     // ゲームオーバー中・メニュー表示中は全処理停止
-    if(this._gameOver||this._menuOpen){
+    if(this._gameOver||this._menuOpen||this._npcDialogOpen){
       p.setVelocity(0,0);
       return;
     }
@@ -13968,6 +14227,15 @@ class GameScene extends Phaser.Scene{
     // 現在座標を毎フレーム更新(HUD右上)
     if(this.hudCoordTxt&&this.hudCoordTxt.active && p){
       this.hudCoordTxt.setText('X:'+Math.floor(p.x)+' Y:'+Math.floor(p.y));
+    }
+    // NPC接触判定(プレイヤー近くにいる時にプロンプト表示)
+    if(this.npcs && this.npcs.length > 0){
+      this.npcs.forEach(npc=>{
+        const dist = Phaser.Math.Distance.Between(p.x, p.y, npc.def.x, npc.def.y);
+        if(npc.promptTxt && npc.promptTxt.active){
+          npc.promptTxt.setVisible(dist < 120);
+        }
+      });
     }
     // プレイヤーHPバーの追従と更新
     if(this._playerHpBar && p){
