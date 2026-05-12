@@ -881,19 +881,34 @@ function startBGM(key){
           if(myId === _bgmStartId) _fallbackSynth(key);
         }
       });
-      // 再生失敗時は合成BGMにフォールバック
-      const playPromise=audio.play();
-      if(playPromise && playPromise.catch){
-        playPromise.catch((err)=>{
-          console.warn('[BGM] MP3 play failed, falling back to synth', key, err);
-          if(_bgmAudio===audio){
-            _bgmAudio=null;
-            // 後発の startBGM が走っていたらフォールバックを抑制(競合防止)
-            if(myId === _bgmStartId) _fallbackSynth(key);
-          }
-        });
-      }
+      // 再生失敗時はリトライ → それでも失敗なら合成BGMにフォールバック
+      const tryPlay = (retriesLeft)=>{
+        const playPromise=audio.play();
+        if(playPromise && playPromise.catch){
+          playPromise.catch((err)=>{
+            if(retriesLeft > 0 && _bgmAudio===audio && myId === _bgmStartId){
+              // 200ms 後にもう一度トライ(AudioContext 復帰待ち)
+              setTimeout(()=>{
+                if(_bgmAudio===audio && myId === _bgmStartId){
+                  try{
+                    const ac=getAC();
+                    if(ac && ac.state==='suspended') ac.resume();
+                  }catch(e){}
+                  tryPlay(retriesLeft - 1);
+                }
+              }, 200);
+              return;
+            }
+            console.warn('[BGM] MP3 play failed after retries, falling back to synth', key, err);
+            if(_bgmAudio===audio){
+              _bgmAudio=null;
+              if(myId === _bgmStartId) _fallbackSynth(key);
+            }
+          });
+        }
+      };
       _bgmAudio=audio;
+      tryPlay(2);  // 最大2回リトライ(計3回試行)
     }catch(e){
       console.warn('[BGM] MP3 load failed, fallback', key, e);
       if(myId === _bgmStartId) _fallbackSynth(key);
@@ -958,9 +973,28 @@ function getSEMaster(){
   return _seMasterGain;
 }
 
+// SE のスロットレート制限(同時発音数とレート制御)
+let _seActiveCount = 0;
+const _seMaxActive = 6;  // 同時発音上限(iOS Safariの制限内)
+let _seLastByType = {};  // 同じSEの最小間隔制限用
+
 function SE(type){
   if(muted)return;
   const ac=getAC();if(!ac)return;
+  // AudioContext がサスペンドされてたら強制復帰
+  if(ac.state==='suspended'){
+    try{ ac.resume(); }catch(e){}
+  }
+  // 同時発音上限を超えたら破棄(古いSEを優先)
+  if(_seActiveCount >= _seMaxActive) return;
+  // 同じSEを短時間に連発しすぎないように
+  const nowMs = (typeof performance!=='undefined' ? performance.now() : Date.now());
+  const lastMs = _seLastByType[type] || 0;
+  // 攻撃系SE は最小30ms間隔(秒間最大30発)
+  // UI系は最小80ms
+  const minInterval = (type==='click'||type==='tab'||type==='open'||type==='close') ? 80 : 30;
+  if(nowMs - lastMs < minInterval) return;
+  _seLastByType[type] = nowMs;
   const mg=getSEMaster();if(!mg)return;
   const now=ac.currentTime;
   const C={
@@ -1022,7 +1056,13 @@ function SE(type){
     g.gain.setValueAtTime(0,t);
     g.gain.linearRampToValueAtTime(v,t+0.008);
     g.gain.exponentialRampToValueAtTime(0.001,t+d);
+    _seActiveCount++;
     o.start(t);o.stop(t+d+0.05);
+    // 再生終了時にカウンタを減らす
+    o.onended = ()=>{
+      _seActiveCount = Math.max(0, _seActiveCount-1);
+      try{ o.disconnect(); g.disconnect(); }catch(e){}
+    };
   }catch(e){}});
 }
 
