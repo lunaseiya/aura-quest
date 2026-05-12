@@ -12281,10 +12281,19 @@ class GameScene extends Phaser.Scene{
     if(this.bossSpawned)return;
     this.bossSpawned=true;
     this.spawnEnemy(this.cfg.boss.id,this.cfg.boss.x,this.cfg.boss.y);
-    SE('boss');startBGM('boss');
-    this.cameras.main.shake(500,0.02);this.cameras.main.flash(400,200,0,0);
+    // SE は即座に鳴らす(警告音)
+    SE('boss');
+    // 画面演出
+    this.cameras.main.shake(500,0.02);
+    this.cameras.main.flash(400,200,0,0);
     const ann=this.add.text(this.scale.width/2,this.scale.height/2-20,'⚠ BOSS 出現 ⚠',{fontSize:'36px',fontFamily:'Arial',color:'#e74c3c',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setScrollFactor(0).setDepth(50);
     this.tweens.add({targets:ann,alpha:0,duration:2000,delay:1000,onComplete:()=>ann.destroy()});
+    // BGM切替は SE と画面演出が落ち着いた後(500ms 待機)
+    // - AudioContext の競合回避
+    // - 画面シェイク後にレンダリング負荷が下がってから音楽切替
+    this.time.delayedCall(500, ()=>{
+      try{ startBGM('boss'); }catch(e){ console.warn('[BGM] boss BGM failed:', e); }
+    });
   }
 
   // ── ヒット処理（③命中/クリティカル対応）─────────
@@ -12401,7 +12410,11 @@ class GameScene extends Phaser.Scene{
     }});
     if(this.target===ed)this.target=null;
     if(ed.isBoss){
-      this.bossData=null;this.updateBossHP(null);startBGM(this.cfg.bgmKey);
+      this.bossData=null;this.updateBossHP(null);
+      // BGM 切り替えはフラッシュ後に少し遅らせる(レース防止)
+      this.time.delayedCall(400, ()=>{
+        try{ startBGM(this.cfg.bgmKey); }catch(e){ console.warn('[BGM] post-boss BGM failed:', e); }
+      });
       this.openNextPortal();
       this.cameras.main.flash(600,255,215,0);
       const ann=this.add.text(this.scale.width/2,this.scale.height/2-40,'🏆 BOSS DEFEATED!',{fontSize:'32px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setScrollFactor(0).setDepth(50);
