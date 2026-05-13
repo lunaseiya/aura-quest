@@ -5287,8 +5287,8 @@ const STAGE_CONFIG={
     spawnFromBackX:420, spawnFromBackY:280,  // south_st2 から来た時
     // 南方向ポータル(下端中央の橋) → town_minato 港町
     portalSouth:27, portalSouthLabel:'⛵ 港町へ', portalSouthKey:'portal_st1',
-    portalSouthX:1024, portalSouthY:1900,      // 下端中央の橋への道
-    spawnFromSouth2X:1024, spawnFromSouth2Y:1740, // town_minatoから戻ってきた時
+    portalSouthX:1240, portalSouthY:1857,      // 下端中央の橋への道
+    spawnFromSouth2X:1240, spawnFromSouth2Y:1700, // town_minatoから戻ってきた時
     // walkZones: アーチ門の通路を強制歩行可
     walkZones:[
       {x:370, y:100, w:120, h:220},  // 入口アーチ通路
@@ -5348,15 +5348,15 @@ const STAGE_CONFIG={
     spawnX:470, spawnY:1500,                  // 橋を上がった直後
     portalBackX:470, portalBackY:1620,        // 下端中央の橋(戻り)
     spawnFromBackX:470, spawnFromBackY:1500,  // 港町から来た時
-    spawnFromNextX:470, spawnFromNextY:340,   // sakura_dun1 から戻った時(上端の門前)
+    spawnFromNextX:462, spawnFromNextY:497,   // sakura_dun1 から戻った時(上端の門前)
     spawnFromSouthX:470, spawnFromSouthY:1500,
     // 上端の門 → sakura_dun1(桜の城) へのポータル
     portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
-    portalToX:470, portalToY:200,             // 上端の門
-    // walkZones: 下端の橋 + 上端の門通路を強制歩行可
+    portalToX:462, portalToY:357,             // 上端の門
+    // walkZones: 下端の橋 + 上端の階段/門通路を強制歩行可(歩きにくいので広めに)
     walkZones:[
-      {x:410, y:1520, w:120, h:152},  // 下端の橋
-      {x:410, y:140,  w:120, h:200},  // 上端の門通路
+      {x:380, y:1380, w:180, h:292},  // 下端の橋(広めに拡張)
+      {x:380, y:300,  w:180, h:300},  // 上端の階段+門通路(広めに拡張)
     ],
   },
   // ── 桜の城(sakura_dun1) - 桜の里の上の門から繋がる和風の城 ──
@@ -6027,17 +6027,28 @@ class GameScene extends Phaser.Scene{
     this.npcs=[];
     if(cfg.npcs && Array.isArray(cfg.npcs)){
       cfg.npcs.forEach(npcDef=>{
-        const sprite = this.add.sprite(npcDef.x, npcDef.y, npcDef.sprite).setDepth(5);
-        // スプライトサイズ調整(64px程度)
-        sprite.setDisplaySize(72, 72);
+        let sprite;
+        // テクスチャが存在する場合のみsprite作成、なければプレースホルダー
+        if(this.textures.exists(npcDef.sprite)){
+          sprite = this.add.sprite(npcDef.x, npcDef.y, npcDef.sprite).setDepth(5);
+          sprite.setDisplaySize(96, 96);
+        }else{
+          // フォールバック: 黄色い円 + ?マーク(テクスチャが見つからない時)
+          console.warn('[NPC] Texture not found:', npcDef.sprite);
+          sprite = this.add.circle(npcDef.x, npcDef.y, 40, 0xffaa44, 0.85).setDepth(5).setStrokeStyle(3, 0x884400, 1);
+          const qmark = this.add.text(npcDef.x, npcDef.y, '?', {
+            fontSize:'32px', color:'#ffffff', fontStyle:'bold', stroke:'#000', strokeThickness:3
+          }).setOrigin(0.5).setDepth(6);
+          sprite._fallbackQmark = qmark;
+        }
         // 名前表示(上部)
-        const nameTag = this.add.text(npcDef.x, npcDef.y-50, npcDef.name, {
-          fontSize:'12px', fontFamily:'Arial', color:'#ffeebb',
+        const nameTag = this.add.text(npcDef.x, npcDef.y-60, npcDef.name, {
+          fontSize:'13px', fontFamily:'Arial', color:'#ffeebb', fontStyle:'bold',
           stroke:'#000', strokeThickness:3
         }).setOrigin(0.5).setDepth(6);
         // 話しかけプロンプト(下部・近づくと表示)
-        const promptTxt = this.add.text(npcDef.x, npcDef.y+50, '💬 タップで話す', {
-          fontSize:'11px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
+        const promptTxt = this.add.text(npcDef.x, npcDef.y+60, '💬 タップで話す', {
+          fontSize:'12px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
           stroke:'#000', strokeThickness:3
         }).setOrigin(0.5).setDepth(6).setVisible(false);
         this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
