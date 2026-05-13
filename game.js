@@ -107,6 +107,9 @@ const BGM_FILES={
   // ダンジョン
   dungeon1:    BASE+'bgm/bgm_dungeon1.mp3',
   mine:        BASE+'bgm/bgm_mine.mp3',
+  // 桜エリア
+  sakura_load: BASE+'bgm/bgm_sakuraload.mp3',  // 桜の里
+  sakura_dun:  BASE+'bgm/bgm_sakuradun.mp3',   // 桜の城
   // ボス戦
   boss:        BASE+'bgm/bgm_boss.mp3',
 };
@@ -3473,6 +3476,167 @@ class BootScene extends Phaser.Scene{
       g.lineBetween(S*.58,S*.5,S*.68,S*.5);
     });
 
+    // ガマ忍者(緑のカエル+忍者装束)
+    mk('enemy_gama_ninja',96,(g,S)=>{
+      // 影
+      g.fillStyle(0x000000,0.25);g.fillEllipse(S*.5,S*.93,S*.65,S*.08);
+      // 体本体(緑のカエル体型・楕円)
+      g.fillStyle(0x3a6a2a,1);g.fillEllipse(S*.5,S*.6,S*.62,S*.55);
+      // 腹部(クリーム色)
+      g.fillStyle(0xddc888,0.9);g.fillEllipse(S*.5,S*.66,S*.45,S*.35);
+      // 忍者装束(紺色の上半身覆い)
+      g.fillStyle(0x1a2244,1);g.fillRect(S*.22, S*.42, S*.56, S*.16);
+      g.fillStyle(0x1a2244,1);g.fillTriangle(S*.22, S*.58, S*.78, S*.58, S*.5, S*.7);
+      // 忍者装束の襟・帯
+      g.fillStyle(0xaa2222,1);g.fillRect(S*.3, S*.52, S*.4, S*.04);
+      // 頭部(緑・幅広)
+      g.fillStyle(0x3a6a2a,1);g.fillEllipse(S*.5,S*.32,S*.5,S*.32);
+      // 頭部の濃い斑点
+      g.fillStyle(0x2a4a1a,0.7);g.fillCircle(S*.36, S*.28, S*.04);
+      g.fillCircle(S*.64, S*.28, S*.04);
+      g.fillCircle(S*.5, S*.4, S*.03);
+      // 大きな目(2つ・カエルらしく上に飛び出す)
+      g.fillStyle(0x224422,1);g.fillCircle(S*.36, S*.22, S*.1);
+      g.fillCircle(S*.64, S*.22, S*.1);
+      g.fillStyle(0xffff00,1);g.fillCircle(S*.36, S*.22, S*.08);
+      g.fillCircle(S*.64, S*.22, S*.08);
+      g.fillStyle(0x000000,1);g.fillEllipse(S*.36, S*.22, S*.03, S*.06);
+      g.fillEllipse(S*.64, S*.22, S*.03, S*.06);
+      // 額の鉢巻(赤)
+      g.fillStyle(0xcc2222,1);g.fillRect(S*.25, S*.18, S*.5, S*.05);
+      // 口
+      g.lineStyle(2,0x1a2210,1);g.beginPath();g.moveTo(S*.4, S*.42);g.lineTo(S*.5, S*.45);g.lineTo(S*.6, S*.42);g.strokePath();
+      // 手(手裏剣構える)
+      g.fillStyle(0x3a6a2a,1);g.fillCircle(S*.22, S*.62, S*.07);
+      g.fillCircle(S*.78, S*.62, S*.07);
+      // 手裏剣(右手)
+      g.fillStyle(0x666666,1);
+      g.fillTriangle(S*.78-S*.04, S*.62, S*.78+S*.06, S*.6, S*.78, S*.7);
+      g.fillTriangle(S*.78+S*.04, S*.62, S*.78-S*.06, S*.64, S*.78, S*.54);
+      g.fillCircle(S*.78, S*.62, S*.02);
+      // 足
+      g.fillStyle(0x3a6a2a,1);g.fillEllipse(S*.36, S*.86, S*.16, S*.08);
+      g.fillEllipse(S*.64, S*.86, S*.16, S*.08);
+    });
+
+    // 赤鬼(でっかい赤い鬼・トゲ棍棒持ち)
+    mk('enemy_red_oni',120,(g,S)=>{
+      // 影
+      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.94,S*.75,S*.08);
+      // 体本体(赤い肌)
+      g.fillStyle(0xaa2222,1);g.fillEllipse(S*.5,S*.62,S*.75,S*.55);
+      // 腹筋ハイライト
+      g.fillStyle(0xcc3333,0.5);g.fillEllipse(S*.5,S*.6,S*.5,S*.4);
+      // 腰布(虎柄・黄色+黒)
+      g.fillStyle(0xddaa00,1);g.fillRect(S*.25, S*.7, S*.5, S*.18);
+      g.lineStyle(2,0x000000,1);
+      g.lineBetween(S*.3, S*.72, S*.3, S*.86);
+      g.lineBetween(S*.4, S*.72, S*.4, S*.86);
+      g.lineBetween(S*.5, S*.72, S*.5, S*.86);
+      g.lineBetween(S*.6, S*.72, S*.6, S*.86);
+      g.lineBetween(S*.7, S*.72, S*.7, S*.86);
+      // 頭部(でっかい)
+      g.fillStyle(0xaa2222,1);g.fillCircle(S*.5,S*.3,S*.22);
+      // 髪(黒・モジャモジャ)
+      g.fillStyle(0x221111,1);
+      g.fillTriangle(S*.32, S*.18, S*.42, S*.06, S*.5, S*.2);
+      g.fillTriangle(S*.5, S*.2, S*.58, S*.06, S*.68, S*.18);
+      g.fillTriangle(S*.3, S*.22, S*.32, S*.1, S*.4, S*.2);
+      g.fillTriangle(S*.6, S*.2, S*.68, S*.1, S*.7, S*.22);
+      // 角(2本・白)
+      g.fillStyle(0xeeddaa,1);
+      g.fillTriangle(S*.35, S*.18, S*.32, S*.04, S*.4, S*.16);
+      g.fillTriangle(S*.65, S*.18, S*.68, S*.04, S*.6, S*.16);
+      // 目(怒り・黄色)
+      g.fillStyle(0xffff00,1);g.fillCircle(S*.42, S*.3, S*.04);
+      g.fillCircle(S*.58, S*.3, S*.04);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.42, S*.3, S*.02);
+      g.fillCircle(S*.58, S*.3, S*.02);
+      // 眉毛(怒り)
+      g.lineStyle(3,0x111111,1);
+      g.lineBetween(S*.36, S*.24, S*.46, S*.28);
+      g.lineBetween(S*.64, S*.24, S*.54, S*.28);
+      // 口(牙)
+      g.fillStyle(0x111111,1);g.fillRect(S*.42, S*.38, S*.16, S*.05);
+      g.fillStyle(0xffffff,1);
+      g.fillTriangle(S*.44, S*.38, S*.46, S*.45, S*.48, S*.38);
+      g.fillTriangle(S*.52, S*.38, S*.54, S*.45, S*.56, S*.38);
+      // 棍棒(右側・ギザギザ)
+      g.fillStyle(0x553311,1);g.fillRect(S*.78, S*.4, S*.06, S*.36);
+      g.fillStyle(0x884422,1);g.fillEllipse(S*.81, S*.36, S*.16, S*.16);
+      // 棍棒のトゲ
+      g.fillStyle(0xeeddaa,1);
+      g.fillTriangle(S*.78, S*.32, S*.74, S*.28, S*.78, S*.36);
+      g.fillTriangle(S*.84, S*.32, S*.88, S*.28, S*.84, S*.36);
+      g.fillTriangle(S*.81, S*.28, S*.78, S*.22, S*.84, S*.22);
+      g.fillTriangle(S*.74, S*.42, S*.7, S*.44, S*.78, S*.44);
+      g.fillTriangle(S*.88, S*.42, S*.92, S*.44, S*.84, S*.44);
+      // 腕
+      g.fillStyle(0xaa2222,1);g.fillEllipse(S*.18, S*.55, S*.12, S*.25);
+      g.fillEllipse(S*.82, S*.55, S*.12, S*.25);
+    });
+
+    // 青鬼(青い鬼・大きな棍棒持ち)
+    mk('enemy_blue_oni',118,(g,S)=>{
+      // 影
+      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.94,S*.7,S*.08);
+      // 体本体(青い肌)
+      g.fillStyle(0x2244aa,1);g.fillEllipse(S*.5,S*.62,S*.7,S*.52);
+      // 腹筋ハイライト
+      g.fillStyle(0x4466cc,0.5);g.fillEllipse(S*.5,S*.6,S*.48,S*.38);
+      // 腰布(虎柄)
+      g.fillStyle(0xddaa00,1);g.fillRect(S*.27, S*.7, S*.46, S*.16);
+      g.lineStyle(2,0x000000,1);
+      g.lineBetween(S*.32, S*.72, S*.32, S*.84);
+      g.lineBetween(S*.42, S*.72, S*.42, S*.84);
+      g.lineBetween(S*.52, S*.72, S*.52, S*.84);
+      g.lineBetween(S*.62, S*.72, S*.62, S*.84);
+      // 頭部
+      g.fillStyle(0x2244aa,1);g.fillCircle(S*.5,S*.32,S*.2);
+      // 髪(黒)
+      g.fillStyle(0x111122,1);
+      g.fillTriangle(S*.34, S*.2, S*.42, S*.08, S*.5, S*.22);
+      g.fillTriangle(S*.5, S*.22, S*.58, S*.08, S*.66, S*.2);
+      g.fillTriangle(S*.32, S*.24, S*.34, S*.12, S*.4, S*.22);
+      g.fillTriangle(S*.6, S*.22, S*.66, S*.12, S*.68, S*.24);
+      // 角(1本・中央)
+      g.fillStyle(0xeeddaa,1);
+      g.fillTriangle(S*.46, S*.18, S*.5, S*.04, S*.54, S*.18);
+      // 目(青い瞳)
+      g.fillStyle(0x88ccff,1);g.fillCircle(S*.43, S*.32, S*.04);
+      g.fillCircle(S*.57, S*.32, S*.04);
+      g.fillStyle(0x000000,1);g.fillCircle(S*.43, S*.32, S*.02);
+      g.fillCircle(S*.57, S*.32, S*.02);
+      // 眉毛
+      g.lineStyle(3,0x000022,1);
+      g.lineBetween(S*.37, S*.26, S*.47, S*.3);
+      g.lineBetween(S*.63, S*.26, S*.53, S*.3);
+      // 口(牙)
+      g.fillStyle(0x111111,1);g.fillRect(S*.43, S*.4, S*.14, S*.05);
+      g.fillStyle(0xffffff,1);
+      g.fillTriangle(S*.45, S*.4, S*.47, S*.46, S*.49, S*.4);
+      g.fillTriangle(S*.51, S*.4, S*.53, S*.46, S*.55, S*.4);
+      // 棍棒(右側・シンプル)
+      g.fillStyle(0x553311,1);g.fillRect(S*.78, S*.42, S*.05, S*.34);
+      g.fillStyle(0x884422,1);g.fillEllipse(S*.805, S*.38, S*.14, S*.18);
+      // 腕
+      g.fillStyle(0x2244aa,1);g.fillEllipse(S*.2, S*.55, S*.1, S*.22);
+      g.fillEllipse(S*.8, S*.55, S*.1, S*.22);
+    });
+
+    // 手裏剣(プロジェクタイル)
+    mk('proj_shuriken',24,(g,S)=>{
+      // 4方向の刃
+      g.fillStyle(0x444444,1);
+      g.fillTriangle(S*.5, S*.05, S*.4, S*.45, S*.6, S*.45);  // 上
+      g.fillTriangle(S*.95, S*.5, S*.55, S*.4, S*.55, S*.6);  // 右
+      g.fillTriangle(S*.5, S*.95, S*.4, S*.55, S*.6, S*.55);  // 下
+      g.fillTriangle(S*.05, S*.5, S*.45, S*.4, S*.45, S*.6);  // 左
+      // 中心
+      g.fillStyle(0x222222,1);g.fillCircle(S*.5, S*.5, S*.1);
+      g.fillStyle(0xeeeeee,1);g.fillCircle(S*.5, S*.5, S*.04);
+    });
+
     // コウモリ
     mk('enemy_bat',80,(g,S)=>{
       g.fillStyle(0x000000,0.2);g.fillEllipse(S*.5,S*.93,S*.58,S*.1);
@@ -4170,6 +4334,9 @@ const DROP_TABLE={
   cider:    [{id:'jelly',       rate:0.45, min:1, max:2}, {id:'water_drop', rate:0.20, min:1, max:1}],
   beach_crab:[{id:'wolf_fang',   rate:0.35, min:1, max:1}, {id:'water_drop', rate:0.25, min:1, max:2}],
   wisp:     [{id:'mana_crystal',rate:0.40, min:1, max:1}, {id:'water_drop', rate:0.30, min:1, max:1}],
+  gama_ninja:[{id:'wolf_fang', rate:0.40, min:1, max:2}, {id:'mana_crystal',rate:0.20, min:1, max:1}],
+  red_oni:  [{id:'wolf_fang', rate:0.55, min:1, max:3}, {id:'mana_crystal',rate:0.30, min:1, max:1}],
+  blue_oni: [{id:'wolf_fang', rate:0.55, min:1, max:3}, {id:'water_drop', rate:0.35, min:1, max:2}],
   bat:      [{id:'bat_wing',    rate:0.35, min:1, max:1}],
   goblin:   [{id:'goblin_ear',  rate:0.40, min:1, max:1}],
   troll:    [{id:'troll_hide',  rate:0.30, min:1, max:1}],
@@ -4227,7 +4394,7 @@ const MAX_ITEM_STACK=99; // 1種類あたりの最大所持数
 
 // モンスター種別ごとの撃破SE
 const KILL_SE={
-  slime:'kill_pop', sakura:'kill_pop', cider:'kill_pop', beach_crab:'kill_grunt', wisp:'kill_pop',
+  slime:'kill_pop', sakura:'kill_pop', cider:'kill_pop', beach_crab:'kill_grunt', wisp:'kill_pop', gama_ninja:'kill_grunt', red_oni:'kill_roar', blue_oni:'kill_roar',
   bat:'kill_squeak', hornet:'kill_squeak', beetle:'kill_squeak',
   goblin:'kill_grunt',
   goblin_archer:'kill_grunt', goblin_axe:'kill_grunt', goblin_leader:'kill_boss',
@@ -5336,7 +5503,7 @@ const STAGE_CONFIG={
     ],
   },
   // ── 桜の里(sakura_gate) - 港町ミナトの船で行ける和風の隠れ里 ──
-  28:{name:'🌸 桜の里', bgmKey:'central', mapImage:'map_sakura_gate',
+  28:{name:'🌸 桜の里', bgmKey:'sakura_load', mapImage:'map_sakura_gate',
     mapType:'sakura_gate', mapW:941, mapH:1672,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[], // 平和な里なので敵なし
@@ -5348,11 +5515,11 @@ const STAGE_CONFIG={
     spawnX:470, spawnY:1500,                  // 橋を上がった直後
     portalBackX:470, portalBackY:1620,        // 下端中央の橋(戻り)
     spawnFromBackX:470, spawnFromBackY:1500,  // 港町から来た時
-    spawnFromNextX:462, spawnFromNextY:497,   // sakura_dun1 から戻った時(上端の門前)
+    spawnFromNextX:478, spawnFromNextY:420,   // sakura_dun1 から戻った時(門前)
     spawnFromSouthX:470, spawnFromSouthY:1500,
     // 上端の門 → sakura_dun1(桜の城) へのポータル
     portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
-    portalToX:462, portalToY:357,             // 上端の門
+    portalToX:478, portalToY:284,             // 上端の門
     // walkZones: 下端の橋 + 上端の階段/門通路を強制歩行可(歩きにくいので広めに)
     walkZones:[
       {x:380, y:1380, w:180, h:292},  // 下端の橋(広めに拡張)
@@ -5360,10 +5527,29 @@ const STAGE_CONFIG={
     ],
   },
   // ── 桜の城(sakura_dun1) - 桜の里の上の門から繋がる和風の城 ──
-  29:{name:'🏯 桜の城', bgmKey:'central', mapImage:'map_sakura_dun1',
+  29:{name:'🏯 桜の城', bgmKey:'sakura_dun', mapImage:'map_sakura_dun1',
     mapType:'sakura_dun1', mapW:4000, mapH:4000,
     tiles:[],tileWeights:[],objects:[],objPos:[],
-    enemies:[], // まだ城内なので敵なし
+    enemies:[
+      // ── 入口エリア(下端の門周辺・Y=3000〜3700) ──
+      ['sakura',     1500, 3200],['sakura',     2500, 3200],
+      ['gama_ninja', 1400, 3000],['gama_ninja', 2600, 3000],
+      // ── 桜の大樹周辺(Y=2400〜3000) ──
+      ['sakura',     1200, 2700],['sakura',     2800, 2700],
+      ['gama_ninja', 1600, 2900],['gama_ninja', 2400, 2900],
+      ['blue_oni',   1500, 2500],['blue_oni',   2500, 2500],
+      // ── 中央広場(Y=1800〜2400) ──
+      ['gama_ninja', 1300, 2100],['gama_ninja', 2700, 2100],
+      ['blue_oni',   2000, 2000],
+      ['red_oni',    1500, 1900],['red_oni',    2500, 1900],
+      // ── 城前エリア(Y=1200〜1800) ──
+      ['gama_ninja', 1700, 1500],['gama_ninja', 2300, 1500],
+      ['red_oni',    2000, 1300],
+      ['blue_oni',   1600, 1700],['blue_oni',   2400, 1700],
+      // ── 城の左右(Y=700〜1200) ──
+      ['red_oni',    1300, 900],['red_oni',    2700, 900],
+      ['gama_ninja', 1000, 1100],['gama_ninja', 3000, 1100],
+    ],
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
     // 戻り = 桜の里(sakura_gate)
@@ -5512,7 +5698,7 @@ const AWAKENINGS = {
 
 // 敵の日本語名(ラベル表示用)
 const ENEMY_NAMES={
-  slime:'スライム', sakura:'サクラ', cider:'サイダー', beach_crab:'ビーチクラブ', wisp:'ウィスプ', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
+  slime:'スライム', sakura:'サクラ', cider:'サイダー', beach_crab:'ビーチクラブ', wisp:'ウィスプ', gama_ninja:'ガマ忍者', red_oni:'赤鬼', blue_oni:'青鬼', bat:'コウモリ', goblin:'ゴブリン', troll:'トロール',
   wolf:'ウルフ', skeleton:'スケルトン', dragon:'ドラゴン',
   crab:'カニ', seal:'シール', sandworm:'サンドワーム', scorpion:'スコーピオン',
   sandman:'サンドマン', mummy:'ミイラ', bone_dragon:'ボーンドラゴン',
@@ -5538,6 +5724,10 @@ const ENEMY_DEFS={
   cider:   {hp:30, atk:4, def:0, spd:70, exp:13,gold:4,  sz:52,rng:50,acd:1.2, passive:true,  eva:5 ,element:'water'},
   beach_crab:{hp:45, atk:8, def:2, spd:60, exp:22,gold:7,  sz:56,rng:54,acd:1.2, passive:true,  eva:5 ,element:'water'},
   wisp:    {hp:38, atk:10, def:0, spd:95, exp:24,gold:8,  sz:48,rng:60,acd:1.0, passive:false, eva:25,element:'water'},
+  // 桜の城のモンスター
+  gama_ninja:{hp:55, atk:18, def:3, spd:130, exp:38,gold:14, sz:60,rng:70,acd:1.0, passive:false,eva:15,element:'none', ranged:true, projType:'shuriken', paralyze:0.10},
+  red_oni:  {hp:160,atk:32, def:6, spd:50,  exp:62,gold:24, sz:90,rng:75,acd:1.4, passive:false,eva:0 ,element:'fire'},
+  blue_oni: {hp:140,atk:22, def:5, spd:78,  exp:55,gold:22, sz:88,rng:72,acd:1.3, passive:false,eva:0 ,element:'water', knockback:0.10},
   bat:     {hp:20, atk:6, def:0, spd:110,exp:18,gold:4,  sz:44,rng:46,acd:0.9, passive:true,  eva:15,element:'dark'},
   goblin:  {hp:52, atk:8, def:1, spd:80, exp:30,gold:7,  sz:56,rng:54,acd:1.0, passive:true,  eva:5 ,element:'none'},
   troll:   {hp:120,atk:12,def:2, spd:45, exp:60,gold:15, sz:72,rng:64,acd:1.8, passive:true,  eva:0 ,element:'earth'},
@@ -13828,6 +14018,39 @@ class GameScene extends Phaser.Scene{
     }
 
     sp.setVelocity(finalVx, finalVy);
+
+    // ── ボブ動作(歩行時に上下に弾む) ──
+    // 移動してるかどうかを判定
+    const isMoving = (Math.abs(finalVx) + Math.abs(finalVy)) > 5;
+    if(isMoving){
+      // ボブのフェーズを進行(速度に応じて速くなる)
+      if(ed.bobPhase === undefined) ed.bobPhase = 0;
+      // 速度に応じて周波数を変える(速い敵は素早く弾む)
+      const bobSpeed = 8 + Math.min(6, ed.spd / 25);
+      ed.bobPhase += dt * bobSpeed;
+      // ボブ量: 速度に応じてやや増減
+      const bobAmount = 0.08 + Math.min(0.05, ed.spd / 1500);
+      // Y方向のスケールを軽く上下させる(つぶれて伸びる感覚)
+      const bobY = Math.sin(ed.bobPhase) * bobAmount;
+      // 元のスケールを保持(初回のみ)
+      if(ed._baseScaleY === undefined){
+        ed._baseScaleY = sp.scaleY;
+        ed._baseScaleX = sp.scaleX;
+      }
+      // Y軸を縮める時はX軸を少し広げる(ぷにぷに感)
+      sp.setScale(
+        ed._baseScaleX * (1 - bobY * 0.5),
+        ed._baseScaleY * (1 + bobY)
+      );
+    }else if(ed._baseScaleY !== undefined){
+      // 止まったら基本スケールに戻す(なめらかに)
+      const curSx = sp.scaleX;
+      const curSy = sp.scaleY;
+      sp.setScale(
+        curSx + (ed._baseScaleX - curSx) * 0.2,
+        curSy + (ed._baseScaleY - curSy) * 0.2
+      );
+    }
   }
 
   // ── 視線チェック: 2点間に壁がないか(Bresenhamの線で一定間隔をチェック) ──
@@ -13961,6 +14184,82 @@ class GameScene extends Phaser.Scene{
     }
   }
 
+  // ── 麻痺システム ──────────────────────────
+  // プレイヤーに麻痺を付与(5秒間何もできない)
+  applyParalyze(durationSec){
+    const pd=this.playerData, p=this.player;
+    if(pd._paralyzed){
+      pd._paralyzeTimer=Math.max(pd._paralyzeTimer||0, durationSec);
+      return;
+    }
+    pd._paralyzed=true;
+    pd._paralyzeTimer=durationSec;
+    this.showFloat(p.x,p.y-60,'⚡ 麻痺!','#ffff44','info');
+    SE('hurt');
+    // 黄色tintを適用
+    if(p && p.setTint) p.setTint(0xffff66);
+    this._showParalyzeHUD();
+  }
+
+  // 麻痺解除
+  clearParalyze(){
+    const pd=this.playerData, p=this.player;
+    pd._paralyzed=false;
+    pd._paralyzeTimer=0;
+    // 毒中だったら毒tintを戻す
+    if(p && p.clearTint) p.clearTint();
+    if(pd._poisoned && p && p.setTint) p.setTint(0xcc88ff);
+    if(this._paralyzeHudBg){
+      this._paralyzeHudBg.destroy(); this._paralyzeHudBg=null;
+      this._paralyzeHudIcon.destroy(); this._paralyzeHudIcon=null;
+      this._paralyzeHudTxt.destroy(); this._paralyzeHudTxt=null;
+    }
+    if(this._paralyzeParticleTimer){this._paralyzeParticleTimer.remove();this._paralyzeParticleTimer=null;}
+  }
+
+  // 麻痺HUD表示
+  _showParalyzeHUD(){
+    if(this._paralyzeHudBg)return;
+    const x=92, y=124; // 毒HUDの下
+    this._paralyzeHudBg=this.add.rectangle(x,y,80,20,0x554400,0.85).setStrokeStyle(1,0xffff44).setScrollFactor(0).setDepth(30);
+    this._paralyzeHudIcon=this.add.text(x-28,y,'⚡',{fontSize:'14px'}).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    this._paralyzeHudTxt=this.add.text(x+8,y,'麻痺 0s',{fontSize:'11px',fontFamily:'Arial',color:'#ffff66',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    // 電気パーティクル(黄色のスパーク)
+    this._paralyzeParticleTimer=this.time.addEvent({
+      delay:120, loop:true,
+      callback:()=>{
+        const p=this.player;
+        if(p && p.active){
+          for(let i=0;i<2;i++){
+            const ox=(Math.random()-0.5)*40, oy=(Math.random()-0.5)*40;
+            const c=this.add.rectangle(p.x+ox, p.y+oy, 3, 8, 0xffff44, 0.95).setRotation(Math.random()*Math.PI).setDepth(6);
+            this.tweens.add({
+              targets:c, alpha:0, scaleX:0.3, scaleY:0.3,
+              duration:280,
+              onComplete:()=>c.destroy(),
+            });
+          }
+        }
+      }
+    });
+  }
+
+  // 麻痺の毎フレーム処理
+  _tickParalyze(dt){
+    const pd=this.playerData, p=this.player;
+    if(!pd._paralyzed) return;
+    pd._paralyzeTimer-=dt;
+    // 麻痺HUDタイマー更新
+    if(this._paralyzeHudTxt && this._paralyzeHudTxt.active){
+      this._paralyzeHudTxt.setText('麻痺 '+Math.ceil(pd._paralyzeTimer)+'s');
+    }
+    // 麻痺時間切れで解除
+    if(pd._paralyzeTimer<=0){
+      this.showFloat(p.x,p.y-60,'✨ 麻痺解除','#88ff88','info');
+      this.clearParalyze();
+    }
+  }
+
   // ── 敵の近接攻撃 ──
   _enemyMelee(ed, pd, p){
     if(pd._parry){
@@ -14001,6 +14300,20 @@ class GameScene extends Phaser.Scene{
     const poisonChance={scorpion:0.10, scorpion_queen:0.20, scorpion_king:0.30, zombie:0.10, ghost:0.25};
     if(poisonChance[ed.id] && !pd._poisoned && Math.random()<poisonChance[ed.id]){
       this.applyPoison(15);
+    }
+    // ノックバック攻撃(青鬼など knockback プロパティを持つ敵)
+    if(ed.knockback && Math.random() < ed.knockback){
+      const angBack = Phaser.Math.Angle.Between(ed.sprite.x, ed.sprite.y, p.x, p.y);
+      const kbDist = 180;
+      const tx = p.x + Math.cos(angBack) * kbDist;
+      const ty = p.y + Math.sin(angBack) * kbDist;
+      this.tweens.add({targets:p, x:tx, y:ty, duration:280, ease:'Cubic.easeOut'});
+      this.showFloat(p.x, p.y-60, '💢 ノックバック!', '#4488ff', 'info');
+      SE('hurt');
+    }
+    // 麻痺付与(近接攻撃でも稀に発動・ガマ忍者など)
+    if(ed.paralyze && Math.random() < ed.paralyze && !pd._paralyzed){
+      this.applyParalyze(5);
     }
   }
 
@@ -14069,6 +14382,28 @@ class GameScene extends Phaser.Scene{
       color=0x88ffaa; size=7;
     } else if(ed.id==='treant'){
       color=0x66aa44; size=9;
+    } else if(ed.id==='gama_ninja'){
+      // ガマ忍者: 手裏剣を発射(専用スプライト・回転)
+      SE('shoot');
+      const speed2=380;
+      const angle2 = Phaser.Math.Angle.Between(sp.x, sp.y, p.x, p.y);
+      const b2 = this.add.sprite(sp.x, sp.y, 'proj_shuriken').setDepth(5);
+      b2.setDisplaySize(28, 28);
+      this.physics.add.existing(b2);
+      b2.body.setVelocity(Math.cos(angle2)*speed2, Math.sin(angle2)*speed2);
+      b2.body.setCircle(12);
+      this.enemyBullets.add(b2);
+      b2.setData('dmg', Math.floor(ed.atk*0.6));  // 通常攻撃の60%
+      b2.setData('maxDist', ed.rng+150);
+      b2.setData('startX', sp.x);
+      b2.setData('startY', sp.y);
+      b2.setData('vx', Math.cos(angle2)*speed2);
+      b2.setData('vy', Math.sin(angle2)*speed2);
+      b2.setData('magic', false);
+      b2.setData('paralyze', 0.10);  // 10%で麻痺付与
+      // 手裏剣の回転アニメ
+      this.tweens.add({targets:b2, rotation:Math.PI*8, duration:1500, repeat:-1});
+      return;
     }
     SE('shoot');
     const b=this.add.circle(sp.x, sp.y, size, color, 1.0).setDepth(5);
@@ -14213,6 +14548,11 @@ class GameScene extends Phaser.Scene{
           this.updateHUD();
           SE('hurt');
           if(pd.hp<=0){this.gameOver();}
+          // 手裏剣などの麻痺付与判定(弾に paralyze プロパティがある場合)
+          const paralyzeChance = b.getData('paralyze') || 0;
+          if(paralyzeChance > 0 && !pd._paralyzed && Math.random() < paralyzeChance){
+            this.applyParalyze(5);
+          }
         }
         if(halo && halo.active) halo.destroy();
         const core2=b.getData('core');
@@ -14232,9 +14572,17 @@ class GameScene extends Phaser.Scene{
     // 詠唱中はプレイヤー停止（敵AIは動く）
     if(this._casting){
       p.setVelocity(0,0);
-      return;
+      // returnせず処理を継続(敵AI・被弾・DoT処理が動くように)
+      // _atkHeldフラグだけ落として通常攻撃が走らないようにする
     }
-    this.updateJoystick();
+    // 麻痺中はプレイヤー操作不可(敵AIは動く)
+    if(pd._paralyzed){
+      p.setVelocity(0,0);
+    }
+    // 詠唱中はジョイスティック操作スキップ(移動できない)
+    if(!this._casting && !pd._paralyzed){
+      this.updateJoystick();
+    }
     // 現在座標を毎フレーム更新(HUD右上)
     if(this.hudCoordTxt&&this.hudCoordTxt.active && p){
       this.hudCoordTxt.setText('X:'+Math.floor(p.x)+' Y:'+Math.floor(p.y));
@@ -14261,12 +14609,14 @@ class GameScene extends Phaser.Scene{
     }
     // 毒状態処理(毎フレーム)
     this._tickPoison(dt);
+    // 麻痺状態処理(毎フレーム)
+    this._tickParalyze(dt);
     // 覚醒モード処理(HP減少・追従・雷電エフェクト)
     this._updateAwakening(dt);
     // 敵弾のライフサイクル管理
     this._updateEnemyBullets(dt);
     // スペースキーで通常攻撃(押しっぱで連射対応・atkCooldownで自動的にクール調整)
-    if(this.spaceKey.isDown)this.normalAttack();
+    if(this.spaceKey.isDown && !pd._paralyzed && !this._casting)this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
     // HP/SP 自動回復（VIT/INTステータスに依存）
     if(!this._regenTimer)this._regenTimer=0;
@@ -14557,7 +14907,7 @@ class GameScene extends Phaser.Scene{
       });
     }
     // 攻撃ボタン押しっぱなし
-    if(this._atkHeld&&!this._menuOpen&&!this._gameOver&&!this._casting){
+    if(this._atkHeld&&!this._menuOpen&&!this._gameOver&&!this._casting&&!pd._paralyzed){
       this.normalAttack();
     }
     // 建物ドア前接近チェック（ドア座標から60px以内）
