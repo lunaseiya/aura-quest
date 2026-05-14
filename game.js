@@ -1225,6 +1225,11 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_sakura_dun1', BASE+'maps/sakura_dun1.png');
     // NPC スプライト
     this.load.image('npc_sakura5', BASE+'npcs/sakura-5.png');
+
+    // 桜の城モンスター画像（PNG優先・存在しなければコード描画にフォールバック）
+    this.load.image('enemy_gama_ninja', BASE+'enemies/sakura_gama.png');
+    this.load.image('enemy_red_oni',    BASE+'enemies/sakura_aka.png');
+    this.load.image('enemy_blue_oni',   BASE+'enemies/sakura_ao.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -2034,7 +2039,7 @@ class BootScene extends Phaser.Scene{
       g.generateTexture('proj_arrow',W,H);
       g.destroy();
     }
-    const mk=(key,S,fn)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
+    const mk=(key,S,fn)=>{if(this.textures&&this.textures.exists(key))return;const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
 
     // ── ボス4（砂漠の魔神・100×100px）────────────────────────
     mk('enemy_boss4',148,(g,S)=>{
@@ -3860,59 +3865,242 @@ class BootScene extends Phaser.Scene{
       g.fillCircle(S*.65,S*.80,S*.018);
     });
 
-    // ボス2（溶岩の覇者）
+    // ボス2（ウルフキング・狼の王・四足獣・銀灰色の毛並み・金の王冠）
     mk('enemy_boss2',140,(g,S)=>{
-      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.96,S*.88,S*.13);
-      g.fillStyle(0xff4400,0.08);g.fillCircle(S*.5,S*.5,S*.52);
-      g.fillStyle(0x883300,1);g.fillEllipse(S*.82,S*.76,S*.18,S*.1);g.fillEllipse(S*.9,S*.64,S*.14,S*.09);g.fillEllipse(S*.96,S*.52,S*.1,S*.07);
-      g.fillStyle(0xff6600,1);g.fillTriangle(S*.97,S*.44,S*.93,S*.54,S*1.0,S*.51);
-      g.fillStyle(0x661100,0.9);g.fillTriangle(S*.5,S*.38,S*.02,S*.06,S*.28,S*.54);g.fillTriangle(S*.5,S*.38,S*.98,S*.06,S*.72,S*.54);
-      g.lineStyle(2,0xff6600,0.6);g.lineBetween(S*.5,S*.38,S*.02,S*.06);g.lineBetween(S*.5,S*.38,S*.98,S*.06);g.lineBetween(S*.5,S*.38,S*.28,S*.54);g.lineBetween(S*.5,S*.38,S*.72,S*.54);g.lineBetween(S*.5,S*.38,S*.18,S*.24);g.lineBetween(S*.5,S*.38,S*.82,S*.24);
-      g.fillStyle(0xff8800,0.25);g.fillTriangle(S*.5,S*.38,S*.06,S*.1,S*.3,S*.52);g.fillTriangle(S*.5,S*.38,S*.94,S*.1,S*.7,S*.52);
-      g.fillStyle(0x883300,1);g.fillEllipse(S*.5,S*.62,S*.56,S*.54);
-      g.fillStyle(0xff6600,0.4);g.fillRect(S*.38,S*.5,S*.04,S*.2);g.fillRect(S*.56,S*.52,S*.04,S*.18);
-      g.fillStyle(0xffaa00,0.2);g.fillEllipse(S*.5,S*.6,S*.3,S*.2);
-      g.fillStyle(0xff6600,0.3);g.fillEllipse(S*.5,S*.66,S*.26,S*.32);
-      g.fillStyle(0x772200,1);g.fillEllipse(S*.3,S*.82,S*.22,S*.3);g.fillEllipse(S*.7,S*.82,S*.22,S*.3);
-      g.fillStyle(0x222211,1);[[.22,.94],[.28,.96],[.36,.94],[.64,.94],[.72,.96],[.78,.94]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.04),S*(y+.06),S*(x+.04),S*y);});
-      g.fillStyle(0x883300,1);g.fillEllipse(S*.5,S*.4,S*.34,S*.26);
-      g.fillStyle(0x994400,1);g.fillEllipse(S*.5,S*.26,S*.46,S*.36);
-      g.fillStyle(0xcc4400,1);g.fillTriangle(S*.34,S*.18,S*.26,S*.0,S*.42,S*.2);g.fillTriangle(S*.66,S*.18,S*.58,S*.2,S*.74,S*.0);g.fillTriangle(S*.44,S*.14,S*.38,S*.0,S*.5,S*.16);g.fillTriangle(S*.56,S*.14,S*.5,S*.16,S*.62,S*.0);
-      g.fillStyle(0xff6600,0.4);g.fillTriangle(S*.34,S*.18,S*.28,S*.04,S*.4,S*.2);
-      g.fillStyle(0xff4400,1);g.fillEllipse(S*.36,S*.24,S*.16,S*.12);g.fillEllipse(S*.64,S*.24,S*.16,S*.12);
-      g.fillStyle(0xffaa00,0.8);g.fillEllipse(S*.36,S*.24,S*.1,S*.08);g.fillEllipse(S*.64,S*.24,S*.1,S*.08);
-      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.22,S*.03);g.fillCircle(S*.61,S*.22,S*.03);
-      g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.34,S*.28,S*.1);g.fillStyle(0xff6600,0.7);g.fillEllipse(S*.5,S*.33,S*.16,S*.06);
-      g.fillStyle(0xffffff,1);for(let i=0;i<5;i++)g.fillTriangle(S*(0.37+i*0.065),S*.31,S*(0.35+i*0.065),S*.37,S*(0.39+i*0.065),S*.31);
+      // 影
+      g.fillStyle(0x000000,0.40);g.fillEllipse(S*.5,S*.96,S*.86,S*.12);
+      // 風のオーラ(boss属性wind)
+      g.fillStyle(0xaaccff,0.06);g.fillCircle(S*.5,S*.55,S*.52);
+      g.fillStyle(0xddeeff,0.04);g.fillCircle(S*.5,S*.55,S*.42);
+
+      // ── 後脚(下層) ──
+      g.fillStyle(0x3a3a40,1);g.fillEllipse(S*.22,S*.78,S*.16,S*.20);g.fillEllipse(S*.78,S*.78,S*.16,S*.20);
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.22,S*.85,S*.13,S*.13);g.fillEllipse(S*.78,S*.85,S*.13,S*.13);
+      // 後脚の爪
+      g.fillStyle(0x222222,1);
+      [[.18,.93],[.22,.95],[.26,.93]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.018),S*(y+.05),S*(x+.018),S*y);});
+      [[.74,.93],[.78,.95],[.82,.93]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.018),S*(y+.05),S*(x+.018),S*y);});
+
+      // ── 尻尾(ふさふさ・3層) ──
+      g.fillStyle(0x3a3a40,1);g.fillEllipse(S*.94,S*.62,S*.12,S*.22);
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.95,S*.55,S*.08,S*.14);
+      g.fillStyle(0xddddd5,0.8);g.fillEllipse(S*.96,S*.5,S*.05,S*.08); // 先端の白
+
+      // ── 胴体(中央・大きい) ──
+      g.fillStyle(0x3a3a40,1);g.fillEllipse(S*.5,S*.66,S*.62,S*.40);
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.5,S*.62,S*.54,S*.32);
+      // 胸毛(明るい灰白)
+      g.fillStyle(0xc8c8c0,1);g.fillEllipse(S*.5,S*.70,S*.30,S*.20);
+      g.fillStyle(0xe0e0d8,0.8);g.fillEllipse(S*.5,S*.72,S*.20,S*.14);
+
+      // ── 前脚(前面) ──
+      g.fillStyle(0x3a3a40,1);g.fillEllipse(S*.34,S*.82,S*.14,S*.22);g.fillEllipse(S*.66,S*.82,S*.14,S*.22);
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.34,S*.89,S*.12,S*.12);g.fillEllipse(S*.66,S*.89,S*.12,S*.12);
+      // 前脚の爪
+      g.fillStyle(0x222222,1);
+      [[.30,.95],[.34,.97],[.38,.95]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.02),S*(y+.05),S*(x+.02),S*y);});
+      [[.62,.95],[.66,.97],[.70,.95]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.02),S*(y+.05),S*(x+.02),S*y);});
+
+      // ── マント(王の証・赤紫) ──
+      g.fillStyle(0x661133,1);g.fillTriangle(S*.20,S*.40,S*.80,S*.40,S*.5,S*.86);
+      g.fillStyle(0x882244,1);g.fillTriangle(S*.24,S*.42,S*.76,S*.42,S*.5,S*.82);
+      // マントの縁(金)
+      g.fillStyle(0xffcc44,1);g.fillRect(S*.24,S*.40,S*.52,S*.025);
+      g.fillStyle(0xffe888,1);g.fillRect(S*.25,S*.405,S*.50,S*.012);
+
+      // ── 首〜頭 ──
+      // 首(太い)
+      g.fillStyle(0x44444a,1);g.fillEllipse(S*.5,S*.42,S*.32,S*.20);
+      // 頭(大型)
+      g.fillStyle(0x3a3a40,1);g.fillEllipse(S*.5,S*.28,S*.46,S*.34);
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.5,S*.27,S*.40,S*.28);
+
+      // 額の白いライン(王者の証)
+      g.fillStyle(0xe0e0d8,0.8);g.fillTriangle(S*.5,S*.10,S*.46,S*.22,S*.54,S*.22);
+
+      // ── 耳(立ち耳・大) ──
+      g.fillStyle(0x3a3a40,1);g.fillTriangle(S*.26,S*.20,S*.18,S*.02,S*.36,S*.10);
+      g.fillTriangle(S*.74,S*.20,S*.82,S*.02,S*.64,S*.10);
+      g.fillStyle(0x884433,0.85);g.fillTriangle(S*.27,S*.18,S*.22,S*.06,S*.33,S*.13);
+      g.fillTriangle(S*.73,S*.18,S*.78,S*.06,S*.67,S*.13);
+
+      // ── マズル(口元) ──
+      g.fillStyle(0x55555a,1);g.fillEllipse(S*.5,S*.40,S*.26,S*.18);
+      g.fillStyle(0xc8c8c0,1);g.fillEllipse(S*.5,S*.42,S*.20,S*.13);
+      // 鼻
+      g.fillStyle(0x111111,1);g.fillEllipse(S*.5,S*.34,S*.08,S*.05);
+      g.fillStyle(0x333333,1);g.fillEllipse(S*.5,S*.335,S*.05,S*.025);
+      // 口(開けて牙を見せる)
+      g.fillStyle(0x220000,1);g.fillEllipse(S*.5,S*.45,S*.16,S*.06);
+      g.fillStyle(0x880022,0.7);g.fillEllipse(S*.5,S*.46,S*.10,S*.03); // 舌
+      // 牙(白く鋭い・上下)
+      g.fillStyle(0xffffff,1);
+      g.fillTriangle(S*.43,S*.43,S*.41,S*.49,S*.45,S*.43);
+      g.fillTriangle(S*.57,S*.43,S*.55,S*.43,S*.59,S*.49);
+      g.fillTriangle(S*.46,S*.47,S*.44,S*.43,S*.48,S*.43);
+      g.fillTriangle(S*.54,S*.47,S*.52,S*.43,S*.56,S*.43);
+
+      // ── 目(赤く鋭い) ──
+      g.fillStyle(0xff2200,1);g.fillEllipse(S*.38,S*.26,S*.10,S*.08);g.fillEllipse(S*.62,S*.26,S*.10,S*.08);
+      g.fillStyle(0xff8800,0.7);g.fillEllipse(S*.38,S*.26,S*.06,S*.05);g.fillEllipse(S*.62,S*.26,S*.06,S*.05);
+      // 黒目(縦長の瞳孔)
+      g.fillStyle(0x000000,1);g.fillRect(S*.375,S*.235,S*.012,S*.05);g.fillRect(S*.613,S*.235,S*.012,S*.05);
+      // 目のハイライト
+      g.fillStyle(0xffffff,0.9);g.fillCircle(S*.37,S*.24,S*.018);g.fillCircle(S*.61,S*.24,S*.018);
+
+      // ── 王冠(金) ──
+      // 王冠の輪
+      g.fillStyle(0xffcc00,1);g.fillRect(S*.30,S*.06,S*.40,S*.07);
+      g.fillStyle(0xffe888,1);g.fillRect(S*.30,S*.06,S*.40,S*.02);
+      g.fillStyle(0xcc9900,1);g.fillRect(S*.30,S*.115,S*.40,S*.015);
+      // 王冠の尖り(中央・両側)
+      g.fillStyle(0xffcc00,1);
+      g.fillTriangle(S*.50,S*.06,S*.45,S*.0,S*.55,S*.0);  // 中央
+      g.fillTriangle(S*.35,S*.06,S*.31,S*.01,S*.39,S*.01);
+      g.fillTriangle(S*.65,S*.06,S*.61,S*.01,S*.69,S*.01);
+      // 宝石(赤・青)
+      g.fillStyle(0xff2200,1);g.fillCircle(S*.5,S*.04,S*.025);
+      g.fillStyle(0xffaa88,0.8);g.fillCircle(S*.5,S*.035,S*.012);
+      g.fillStyle(0x0088ff,1);g.fillCircle(S*.40,S*.09,S*.02);g.fillCircle(S*.60,S*.09,S*.02);
+      g.fillStyle(0x88ccff,0.8);g.fillCircle(S*.40,S*.085,S*.01);g.fillCircle(S*.60,S*.085,S*.01);
     });
 
-    // ボス3（古龍・海岸の守護者）
+    // ボス3（サハギン・魚人・三叉槍持ち・緑青の鱗・海の戦士）
     mk('enemy_boss3',148,(g,S)=>{
-      g.fillStyle(0x000000,0.35);g.fillEllipse(S*.5,S*.96,S*.92,S*.13);
-      g.fillStyle(0x0044aa,0.08);g.fillCircle(S*.5,S*.5,S*.54);
-      g.fillStyle(0x004488,1);g.fillEllipse(S*.84,S*.74,S*.2,S*.12);g.fillEllipse(S*.92,S*.62,S*.16,S*.1);g.fillEllipse(S*.97,S*.5,S*.1,S*.08);
-      g.fillStyle(0x00ccff,1);g.fillTriangle(S*.98,S*.42,S*.94,S*.54,S*1.0,S*.5);
-      g.fillStyle(0x003366,0.9);g.fillTriangle(S*.5,S*.36,S*.02,S*.04,S*.28,S*.54);g.fillTriangle(S*.5,S*.36,S*.98,S*.04,S*.72,S*.54);
-      g.fillStyle(0x0055aa,0.35);g.fillTriangle(S*.5,S*.36,S*.06,S*.08,S*.3,S*.52);g.fillTriangle(S*.5,S*.36,S*.94,S*.08,S*.7,S*.52);
-      g.lineStyle(2,0x00aaff,0.6);g.lineBetween(S*.5,S*.36,S*.02,S*.04);g.lineBetween(S*.5,S*.36,S*.98,S*.04);g.lineBetween(S*.5,S*.36,S*.28,S*.54);g.lineBetween(S*.5,S*.36,S*.72,S*.54);g.lineBetween(S*.5,S*.36,S*.18,S*.22);g.lineBetween(S*.5,S*.36,S*.82,S*.22);
-      g.fillStyle(0x004488,1);g.fillEllipse(S*.5,S*.62,S*.58,S*.54);
-      g.fillStyle(0x0066aa,0.4);g.fillEllipse(S*.5,S*.56,S*.38,S*.3);
-      g.fillStyle(0x00aaff,0.15);for(let r=0;r<3;r++)for(let c=0;c<5;c++)g.fillEllipse(S*(0.3+c*0.1),S*(0.54+r*0.07),S*.07,S*.04);
-      g.fillStyle(0x0088cc,0.4);g.fillEllipse(S*.5,S*.66,S*.28,S*.36);
-      g.fillStyle(0x003366,1);g.fillEllipse(S*.3,S*.82,S*.22,S*.3);g.fillEllipse(S*.7,S*.82,S*.22,S*.3);
-      g.fillStyle(0x222211,1);[[.22,.94],[.28,.96],[.36,.94],[.64,.94],[.72,.96],[.78,.94]].forEach(([x,y])=>{g.fillTriangle(S*x,S*y,S*(x-.04),S*(y+.06),S*(x+.04),S*y);});
-      g.fillStyle(0x004488,1);g.fillEllipse(S*.5,S*.4,S*.34,S*.26);
-      g.fillStyle(0x005599,1);g.fillEllipse(S*.5,S*.26,S*.46,S*.36);
-      g.fillStyle(0x0066bb,0.3);g.fillEllipse(S*.46,S*.2,S*.26,S*.18);
-      g.fillStyle(0x00aaff,1);g.fillTriangle(S*.34,S*.18,S*.26,S*.0,S*.42,S*.2);g.fillTriangle(S*.66,S*.18,S*.58,S*.2,S*.74,S*.0);g.fillTriangle(S*.44,S*.14,S*.38,S*.0,S*.5,S*.16);g.fillTriangle(S*.56,S*.14,S*.5,S*.16,S*.62,S*.0);
-      g.fillStyle(0x0088ff,0.5);g.fillTriangle(S*.34,S*.18,S*.28,S*.04,S*.4,S*.2);
-      g.fillStyle(0xffdd00,1);g.fillEllipse(S*.36,S*.24,S*.16,S*.12);g.fillEllipse(S*.64,S*.24,S*.16,S*.12);
-      g.fillStyle(0xff6600,0.8);g.fillEllipse(S*.36,S*.24,S*.1,S*.08);g.fillEllipse(S*.64,S*.24,S*.1,S*.08);
-      g.fillStyle(0x000000,1);g.fillRect(S*.37,S*.21,S*.02,S*.09);g.fillRect(S*.63,S*.21,S*.02,S*.09);
-      g.fillStyle(0xffffff,0.5);g.fillCircle(S*.35,S*.22,S*.02);g.fillCircle(S*.61,S*.22,S*.02);
-      g.fillStyle(0xff4400,1);g.fillCircle(S*.44,S*.32,S*.04);g.fillCircle(S*.56,S*.32,S*.04);
-      g.fillStyle(0x110000,1);g.fillEllipse(S*.5,S*.38,S*.28,S*.1);g.fillStyle(0xff4400,0.7);g.fillEllipse(S*.5,S*.36,S*.16,S*.06);
-      g.fillStyle(0xffffff,1);for(let i=0;i<4;i++)g.fillTriangle(S*(0.38+i*0.08),S*.35,S*(0.35+i*0.08),S*.42,S*(0.41+i*0.08),S*.35);
+      // 影
+      g.fillStyle(0x000000,0.40);g.fillEllipse(S*.5,S*.96,S*.78,S*.12);
+      // 水のオーラ
+      g.fillStyle(0x0088cc,0.08);g.fillCircle(S*.5,S*.55,S*.54);
+      g.fillStyle(0x00aaff,0.05);g.fillCircle(S*.5,S*.55,S*.44);
+      // 水しぶき粒
+      g.fillStyle(0x66ddff,0.6);
+      [[.18,.30],[.85,.35],[.12,.55],[.92,.6],[.20,.78],[.84,.78]].forEach(([x,y])=>{g.fillCircle(S*x,S*y,S*.018);});
+
+      // ── 三叉槍(トライデント) 右手で構える ──
+      // 柄(後ろから前へ斜めに)
+      g.fillStyle(0x664422,1);g.fillRect(S*.78,S*.18,S*.04,S*.65);
+      g.fillStyle(0x886633,1);g.fillRect(S*.78,S*.18,S*.018,S*.65);
+      // 巻きヒモ
+      g.fillStyle(0x331100,1);g.fillRect(S*.77,S*.42,S*.06,S*.025);g.fillRect(S*.77,S*.5,S*.06,S*.025);
+      // 三叉槍の刃(銀)
+      g.fillStyle(0xccddee,1);
+      // 中央の刃(長い)
+      g.fillTriangle(S*.80,S*.18,S*.78,S*.04,S*.82,S*.04);
+      g.fillRect(S*.795,S*.04,S*.01,S*.14);
+      // 左の刃
+      g.fillTriangle(S*.72,S*.18,S*.70,S*.07,S*.74,S*.10);
+      // 右の刃
+      g.fillTriangle(S*.88,S*.18,S*.86,S*.10,S*.90,S*.07);
+      // 刃の連結部(基部)
+      g.fillStyle(0xaabbcc,1);g.fillRect(S*.70,S*.18,S*.20,S*.025);
+      g.fillStyle(0xffffff,0.6);g.fillRect(S*.70,S*.18,S*.20,S*.008);
+      // 刃のハイライト
+      g.fillStyle(0xffffff,0.8);g.fillRect(S*.798,S*.06,S*.004,S*.10);
+
+      // ── 足ヒレ(下層) ──
+      g.fillStyle(0x004466,1);g.fillTriangle(S*.30,S*.85,S*.20,S*.98,S*.40,S*.98);
+      g.fillTriangle(S*.60,S*.85,S*.50,S*.98,S*.70,S*.98);
+      // ヒレの筋
+      g.lineStyle(2,0x00aaff,0.7);
+      g.lineBetween(S*.30,S*.85,S*.22,S*.97);g.lineBetween(S*.30,S*.85,S*.30,S*.98);g.lineBetween(S*.30,S*.85,S*.38,S*.97);
+      g.lineBetween(S*.60,S*.85,S*.52,S*.97);g.lineBetween(S*.60,S*.85,S*.60,S*.98);g.lineBetween(S*.60,S*.85,S*.68,S*.97);
+
+      // ── 脚(緑鱗) ──
+      g.fillStyle(0x2a6644,1);g.fillEllipse(S*.36,S*.78,S*.13,S*.20);g.fillEllipse(S*.60,S*.78,S*.13,S*.20);
+      g.fillStyle(0x44aa66,1);g.fillEllipse(S*.36,S*.72,S*.11,S*.12);g.fillEllipse(S*.60,S*.72,S*.11,S*.12);
+      // 脚の鱗模様
+      g.fillStyle(0x88ddaa,0.4);
+      for(let i=0;i<3;i++){g.fillCircle(S*(.33+i*.03),S*(.75+i*.04),S*.012);g.fillCircle(S*(.57+i*.03),S*(.75+i*.04),S*.012);}
+
+      // ── 胴体(緑〜青のグラデ・鱗付き) ──
+      g.fillStyle(0x2a5566,1);g.fillEllipse(S*.5,S*.58,S*.46,S*.34);
+      g.fillStyle(0x336677,1);g.fillEllipse(S*.5,S*.56,S*.40,S*.28);
+      // 腹(明るい黄緑)
+      g.fillStyle(0xaaccaa,1);g.fillEllipse(S*.5,S*.62,S*.26,S*.22);
+      g.fillStyle(0xccddbb,0.7);g.fillEllipse(S*.5,S*.62,S*.18,S*.16);
+      // 鱗模様(胴体)
+      g.fillStyle(0x55aa88,0.5);
+      for(let r=0;r<4;r++)for(let c=0;c<5;c++){
+        const xx=.34+c*.075+(r%2)*.03, yy=.48+r*.06;
+        g.fillEllipse(S*xx,S*yy,S*.025,S*.018);
+      }
+
+      // ── 背びれ(背中から伸びる) ──
+      g.fillStyle(0x00667a,1);g.fillTriangle(S*.30,S*.50,S*.18,S*.42,S*.32,S*.62);
+      g.fillTriangle(S*.70,S*.50,S*.82,S*.42,S*.68,S*.62);
+      // 背びれの筋
+      g.lineStyle(1.5,0x00ccff,0.7);
+      g.lineBetween(S*.20,S*.45,S*.30,S*.55);g.lineBetween(S*.24,S*.42,S*.30,S*.58);
+      g.lineBetween(S*.80,S*.45,S*.70,S*.55);g.lineBetween(S*.76,S*.42,S*.70,S*.58);
+
+      // ── 左腕(前面・閉じてる) ──
+      g.fillStyle(0x2a6644,1);g.fillEllipse(S*.28,S*.60,S*.10,S*.24);
+      g.fillStyle(0x44aa66,1);g.fillEllipse(S*.27,S*.74,S*.08,S*.10);
+      // 手(指3本・水かき)
+      g.fillStyle(0x44aa66,1);g.fillEllipse(S*.26,S*.80,S*.07,S*.06);
+      g.fillStyle(0x004466,1);
+      g.fillTriangle(S*.22,S*.78,S*.18,S*.86,S*.24,S*.84);
+      g.fillTriangle(S*.27,S*.79,S*.27,S*.88,S*.30,S*.86);
+      // 爪
+      g.fillStyle(0x222222,1);
+      g.fillTriangle(S*.19,S*.86,S*.18,S*.92,S*.21,S*.88);
+      g.fillTriangle(S*.27,S*.88,S*.27,S*.93,S*.30,S*.90);
+
+      // ── 右腕(三叉槍を握っている) ──
+      g.fillStyle(0x2a6644,1);g.fillEllipse(S*.72,S*.55,S*.10,S*.20);
+      g.fillStyle(0x44aa66,1);g.fillEllipse(S*.76,S*.50,S*.08,S*.12);
+      // 手(握っている部分)
+      g.fillStyle(0x44aa66,1);g.fillEllipse(S*.78,S*.44,S*.07,S*.07);
+
+      // ── 首 ──
+      g.fillStyle(0x336677,1);g.fillEllipse(S*.5,S*.38,S*.24,S*.10);
+
+      // ── 頭(魚人らしく・前後に長い) ──
+      g.fillStyle(0x2a5566,1);g.fillEllipse(S*.5,S*.28,S*.42,S*.32);
+      g.fillStyle(0x336677,1);g.fillEllipse(S*.5,S*.27,S*.36,S*.26);
+      // 頭の鱗
+      g.fillStyle(0x55aa88,0.4);
+      for(let c=0;c<4;c++){g.fillEllipse(S*(.38+c*.08),S*.20,S*.028,S*.02);}
+
+      // ── 頭のヒレ(両耳位置に大きい) ──
+      g.fillStyle(0x00667a,1);
+      g.fillTriangle(S*.25,S*.26,S*.05,S*.16,S*.10,S*.36);
+      g.fillTriangle(S*.75,S*.26,S*.95,S*.16,S*.90,S*.36);
+      // 頭ヒレの筋
+      g.lineStyle(1.5,0x00ccff,0.7);
+      g.lineBetween(S*.08,S*.18,S*.25,S*.26);g.lineBetween(S*.10,S*.32,S*.25,S*.26);
+      g.lineBetween(S*.92,S*.18,S*.75,S*.26);g.lineBetween(S*.90,S*.32,S*.75,S*.26);
+
+      // ── 頭頂部の冠ヒレ(中央) ──
+      g.fillStyle(0x004466,1);g.fillTriangle(S*.5,S*.04,S*.40,S*.18,S*.60,S*.18);
+      g.fillStyle(0x0088aa,0.7);g.fillTriangle(S*.5,S*.08,S*.43,S*.18,S*.57,S*.18);
+      g.lineStyle(1.5,0x00ccff,0.7);
+      g.lineBetween(S*.5,S*.05,S*.5,S*.20);g.lineBetween(S*.45,S*.10,S*.46,S*.18);g.lineBetween(S*.55,S*.10,S*.54,S*.18);
+
+      // ── 目(大きく黄色・爬虫類風) ──
+      g.fillStyle(0xffee00,1);g.fillEllipse(S*.40,S*.27,S*.10,S*.10);g.fillEllipse(S*.60,S*.27,S*.10,S*.10);
+      g.fillStyle(0xffaa00,0.7);g.fillEllipse(S*.40,S*.27,S*.07,S*.07);g.fillEllipse(S*.60,S*.27,S*.07,S*.07);
+      // 縦の瞳孔
+      g.fillStyle(0x000000,1);g.fillRect(S*.394,S*.24,S*.012,S*.06);g.fillRect(S*.594,S*.24,S*.012,S*.06);
+      // ハイライト
+      g.fillStyle(0xffffff,0.9);g.fillCircle(S*.39,S*.25,S*.018);g.fillCircle(S*.59,S*.25,S*.018);
+      // 目の上の隆起(獰猛さ)
+      g.fillStyle(0x224455,1);g.fillEllipse(S*.40,S*.20,S*.12,S*.04);g.fillEllipse(S*.60,S*.20,S*.12,S*.04);
+
+      // ── 口(横長・牙が並ぶ) ──
+      g.fillStyle(0x110011,1);g.fillEllipse(S*.5,S*.38,S*.22,S*.07);
+      g.fillStyle(0x440022,0.7);g.fillEllipse(S*.5,S*.39,S*.15,S*.035);
+      // 牙(上下にギザギザ)
+      g.fillStyle(0xffffff,1);
+      for(let i=0;i<6;i++){
+        g.fillTriangle(S*(.40+i*.04),S*.35,S*(.39+i*.04),S*.40,S*(.42+i*.04),S*.35);
+        g.fillTriangle(S*(.41+i*.04),S*.42,S*(.40+i*.04),S*.36,S*(.43+i*.04),S*.36);
+      }
+
+      // ── エラ(首の両側) ──
+      g.fillStyle(0xff4466,0.8);
+      g.fillEllipse(S*.36,S*.36,S*.03,S*.06);g.fillEllipse(S*.32,S*.36,S*.03,S*.06);
+      g.fillEllipse(S*.64,S*.36,S*.03,S*.06);g.fillEllipse(S*.68,S*.36,S*.03,S*.06);
     });
 
     // ── ゴブリンアーチャー(細身・茶のローブ・弓持ち) ──
@@ -5707,7 +5895,7 @@ const ENEMY_NAMES={
   cloud_drake:'クラウドドレイク', mistress:'幻惑の女王', sky_serpent:'スカイサーペント',
   thunder_god:'雷神',
   // ボス
-  boss1:'キングスライム', boss2:'溶岩の覇者', boss3:'海の支配者', boss4:'砂嵐の暴君',
+  boss1:'キングスライム', boss2:'ウルフキング', boss3:'サハギン', boss4:'砂嵐の暴君',
   scorpion_queen:'蠍の女王', scorpion_king:'蠍王',
   tomb_guardian:'墓守の王', dark_illusion:'ダークイリュージョン',
   // ゴブリン集落
@@ -5737,7 +5925,7 @@ const ENEMY_DEFS={
   sandworm:{hp:280,atk:22,def:6, spd:55, exp:120,gold:35,sz:76,rng:66,acd:2.0, passive:false, eva:5 ,element:'earth'},
   scorpion:{hp:130,atk:28,def:3, spd:100,exp:90,gold:28, sz:52,rng:50,acd:0.7, passive:false, eva:25,element:'earth'},
   boss1:   {hp:600,atk:18,def:5, spd:50, exp:500,gold:200,sz:100,rng:80,acd:1.2, passive:false, eva:10,isBoss:true,element:'none'},
-  boss2:   {hp:900,atk:25,def:8, spd:60, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true,element:'wind'},
+  boss2:   {hp:900,atk:25,def:8, spd:60, exp:800,gold:350,sz:112,rng:88,acd:1.0, passive:false, eva:20,isBoss:true,element:'none'},
   boss3:   {hp:1400,atk:35,def:10,spd:70,exp:1500,gold:600,sz:120,rng:96,acd:0.9,passive:false,eva:30,isBoss:true,element:'water'},
   boss4:   {hp:2200,atk:50,def:15,spd:110,exp:3000,gold:1000,sz:130,rng:100,acd:0.7,passive:false,eva:35,isBoss:true,element:'fire'},
   // ST5 新モンスター
@@ -9967,19 +10155,27 @@ class GameScene extends Phaser.Scene{
       guild:[
         // ── 各ステージへ無料テレポート(ポータルサービス) ──
         // 注: action内ではこのscene(=Game)が必要。close()してから _doTransition で飛ぶ
-        {label:'🏘 セントラル(町)',  price:0, icon:'🏠', action:()=>{ close(); this._doGuildWarp(0);  }},
-        {label:'🌳 ST.1 草原',       price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(1);  }},
-        {label:'🌋 ST.2 溶岩',       price:0, icon:'🌋', action:()=>{ close(); this._doGuildWarp(2);  }},
-        {label:'🏖 ST.3 海岸',       price:0, icon:'🏖', action:()=>{ close(); this._doGuildWarp(3);  }},
-        {label:'🏜 ST.4 砂漠',       price:0, icon:'🏜', action:()=>{ close(); this._doGuildWarp(4);  }},
-        {label:'🏛 ST.5 砂漠の集落跡',price:0, icon:'🏛', action:()=>{ close(); this._doGuildWarp(5);  }},
-        {label:'💀 ST.6 砂漠の果て', price:0, icon:'💀', action:()=>{ close(); this._doGuildWarp(6);  }},
-        {label:'⛰ ST.7 天空への路',  price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
-        {label:'☁ ST.8 天空の島々', price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
-        {label:'⚔ DUN.1 地下迷宮',  price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
-        {label:'⛏ DUN.2 炭鉱1F',    price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(11); }},
-        {label:'🪓 ゴブリンの集落', price:0, icon:'🪓', action:()=>{ close(); this._doGuildWarp(20); }},
-        {label:'🔥 ブレイズフォージ(町)',price:0, icon:'🔥', action:()=>{ close(); this._doGuildWarp(21); }},
+        {label:'🏘 セントラル(町)',     price:0, icon:'🏠', action:()=>{ close(); this._doGuildWarp(0);  }},
+        {label:'🌳 ST.1 草原',          price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(1);  }},
+        {label:'🌋 ST.2 溶岩',          price:0, icon:'🌋', action:()=>{ close(); this._doGuildWarp(2);  }},
+        {label:'🏖 ST.3 海岸',          price:0, icon:'🏖', action:()=>{ close(); this._doGuildWarp(3);  }},
+        {label:'🏜 ST.4 砂漠',          price:0, icon:'🏜', action:()=>{ close(); this._doGuildWarp(4);  }},
+        {label:'🏛 ST.5 砂漠の集落跡',  price:0, icon:'🏛', action:()=>{ close(); this._doGuildWarp(5);  }},
+        {label:'💀 ST.6 砂漠の果て',    price:0, icon:'💀', action:()=>{ close(); this._doGuildWarp(6);  }},
+        {label:'⛰ ST.7 天空への路',     price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
+        {label:'☁ ST.8 天空の島々',    price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
+        {label:'⚔ DUN.1 地下迷宮',     price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
+        {label:'⛏ DUN.2 炭鉱1F',       price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(11); }},
+        {label:'🪓 ゴブリンの集落',     price:0, icon:'🪓', action:()=>{ close(); this._doGuildWarp(20); }},
+        {label:'🔥 ブレイズフォージ(町)',price:0,icon:'🔥', action:()=>{ close(); this._doGuildWarp(21); }},
+        {label:'🌳 南の街道',           price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(22); }},
+        {label:'🌲 南の街道(続)',       price:0, icon:'🌲', action:()=>{ close(); this._doGuildWarp(23); }},
+        {label:'⛏ 鉱山の街道',         price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(24); }},
+        {label:'🏛 砂漠の街',           price:0, icon:'🏛', action:()=>{ close(); this._doGuildWarp(25); }},
+        {label:'🏖 海岸の街道',         price:0, icon:'🏖', action:()=>{ close(); this._doGuildWarp(26); }},
+        {label:'⛵ 港町ミナト',         price:0, icon:'⛵', action:()=>{ close(); this._doGuildWarp(27); }},
+        {label:'🌸 桜の里',             price:0, icon:'🌸', action:()=>{ close(); this._doGuildWarp(28); }},
+        {label:'🏯 桜の城',             price:0, icon:'🏯', action:()=>{ close(); this._doGuildWarp(29); }},
       ],
       jobchange:[
         // ── 転職屋: ノービス専用、ジョブLv5以上で4職に転職可 ──
@@ -12588,34 +12784,74 @@ class GameScene extends Phaser.Scene{
     this.mmStageLabel=this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
     this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
     this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
+    // 動的マーカー(updateMinimap毎に再生成: 敵・ボス)以外を保持
+    this.mmStaticObjs=[];
 
-    // ポータルをミニマップに表示
+    // 座標変換ヘルパ(ワールド座標 → ミニマップ座標)
     const px2mm=(wx,wy)=>({
       x:mx+wx/this.MW*mw,
       y:my+wy/this.MH*mh
     });
-    // 戻るポータル（水色）
+    // 共通: 静的マーカー登録ヘルパ
+    const addMarker=(wx,wy,color,sym,symColor,r)=>{
+      const pp=px2mm(wx,wy);
+      const dot=this.add.circle(pp.x,pp.y,r||4,color,0.9).setScrollFactor(0).setDepth(22);
+      this.mmStaticObjs.push(dot);
+      if(sym){
+        const t=this.add.text(pp.x,pp.y-7,sym,{fontSize:'8px',fontFamily:'Arial',color:symColor||'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+        this.mmStaticObjs.push(t);
+      }
+    };
+
+    // ── 戻るポータル(水色 ◀) ──
     if(cfg.portalBack!==null&&cfg.portalBack!==undefined){
       const pbX2=cfg.portalBackX!==undefined?cfg.portalBackX:80;
       const pbY2=cfg.portalBackY!==undefined?cfg.portalBackY:this.MH/2;
-      const pp=px2mm(pbX2,pbY2);
-      const dot=this.add.circle(pp.x,pp.y,4,0x00e5ff,0.9).setScrollFactor(0).setDepth(22);
-      this.add.text(pp.x,pp.y-6,'◀',{fontSize:'7px',fontFamily:'Arial',color:'#00e5ff'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+      addMarker(pbX2,pbY2,0x00e5ff,'◀','#00e5ff');
     }
-    // 進むポータル（緑）※ボスを倒して開放後
+    // ── 進むポータル(緑 ▶) ※ボス撃破後に開放 ──
     if(cfg.portalTo!==null&&cfg.portalTo!==undefined){
       const pnX2=cfg.portalNextX!==undefined?cfg.portalNextX:this.MW-80;
       const pnY2=cfg.portalNextY!==undefined?cfg.portalNextY:this.MH/2;
-      const pp=px2mm(pnX2,pnY2);
-      this.add.circle(pp.x,pp.y,4,0x44ff88,0.9).setScrollFactor(0).setDepth(22);
-      this.add.text(pp.x,pp.y-6,'▶',{fontSize:'7px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+      addMarker(pnX2,pnY2,0x44ff88,'▶','#44ff88');
     }
-    // 別ルートポータル（portalAlt・オレンジ）
+    // ── 別ルートポータル(オレンジ ★) ──
     if(cfg.portalAlt){
-      const pa=cfg.portalAlt;
-      const pp=px2mm(pa.x,pa.y);
-      this.add.circle(pp.x,pp.y,4,0xf39c12,0.9).setScrollFactor(0).setDepth(22);
-      this.add.text(pp.x,pp.y-6,'★',{fontSize:'7px',fontFamily:'Arial',color:'#f39c12'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+      addMarker(cfg.portalAlt.x,cfg.portalAlt.y,0xf39c12,'★','#f39c12');
+    }
+    // ── マジックポータル(青魔法門・紫 ✦) ──
+    if(cfg.magicGate){
+      addMarker(cfg.magicGate.x,cfg.magicGate.y,0xaa66ff,'✦','#cc99ff');
+    }
+    // ── ダンジョンゲート(暗赤 ⛬) ──
+    if(cfg.dungeonGate){
+      addMarker(cfg.dungeonGate.x,cfg.dungeonGate.y,0x884422,'⛬','#ddaa66');
+    }
+    // ── 町の建物(イベント発火位置) ──
+    // 建物中心にショップタイプ別アイコン
+    if(cfg.buildings && Array.isArray(cfg.buildings)){
+      const bIcon={
+        guild:     {col:0xaa66ff, sym:'✨'}, // ポータル屋
+        inn:       {col:0xff9966, sym:'🏨'}, // 宿屋
+        shop:      {col:0x66ccff, sym:'🏪'}, // アイテム屋
+        blacksmith:{col:0xff6644, sym:'🔨'}, // 鍛冶屋
+        magic:     {col:0xcc88ff, sym:'📖'}, // スキル屋
+        jobchange: {col:0xffd700, sym:'🔄'}, // 転職屋
+      };
+      cfg.buildings.forEach(b=>{
+        const cx=b.x+(b.w||0)/2, cy=b.y+(b.h||0)/2;
+        const info=bIcon[b.type]||{col:0xcccccc, sym:'■'};
+        const pp=px2mm(cx,cy);
+        // 建物は四角マーカーで区別
+        const dot=this.add.rectangle(pp.x,pp.y,5,5,info.col,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0x000000,0.6);
+        this.mmStaticObjs.push(dot);
+      });
+    }
+    // ── NPC(💬青緑) ──
+    if(cfg.npcs && Array.isArray(cfg.npcs)){
+      cfg.npcs.forEach(n=>{
+        addMarker(n.x,n.y,0x44ddaa,'💬','#88ffcc',3);
+      });
     }
   }
   updateMinimap(){
@@ -12624,8 +12860,18 @@ class GameScene extends Phaser.Scene{
     this.mmEnemyDots.forEach(d=>d.destroy());this.mmEnemyDots=[];
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
-      const dot=this.add.circle(this.mmX+ed.sprite.x/this.MW*this.mmW,this.mmY+ed.sprite.y/this.MH*this.mmH,ed.isBoss?4:2,ed.isBoss?0xff0000:0xff6363).setScrollFactor(0).setDepth(22);
-      this.mmEnemyDots.push(dot);
+      const mx2=this.mmX+ed.sprite.x/this.MW*this.mmW;
+      const my2=this.mmY+ed.sprite.y/this.MH*this.mmH;
+      if(ed.isBoss){
+        // ボス: ポップなドクロ(赤い円 + 💀記号)
+        const bg=this.add.circle(mx2,my2,5,0xff2222,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0xffffff,0.9);
+        const sk=this.add.text(mx2,my2,'💀',{fontSize:'9px',fontFamily:'Arial'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+        this.mmEnemyDots.push(bg);
+        this.mmEnemyDots.push(sk);
+      } else {
+        const dot=this.add.circle(mx2,my2,2,0xff6363).setScrollFactor(0).setDepth(22);
+        this.mmEnemyDots.push(dot);
+      }
     });
   }
 
