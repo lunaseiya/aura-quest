@@ -824,21 +824,15 @@ let _bgmStartId = 0;
 
 function startBGM(key){
   // 同じキーで再生指示が来た場合の処理
-  if(_bgmKey===key){
-    // 既に MP3 が再生中なら何もしない(継続)
-    if(_bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended) return;
-    // MP3 が一時停止状態なら再開を試みる
-    if(_bgmAudio && (_bgmAudio.paused || _bgmAudio.ended) && !muted){
-      try{
-        if(_bgmAudio.ended) _bgmAudio.currentTime=0;
-        const p=_bgmAudio.play();
-        if(p && p.catch) p.catch(()=>{ /* 失敗時は次の処理へ */ });
-        // play()は非同期だが、楽観的に return
-        return;
-      }catch(e){}
+  // 実際に「現在鳴っているか」を厳密にチェック
+  if(_bgmKey===key && !muted){
+    // 既に MP3 が正常再生中なら継続(何もしない)
+    if(_bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended && _bgmAudio.readyState >= 2){
+      return;
     }
     // 合成BGMが鳴っていれば継続
     if(_bgmNodes.length>0) return;
+    // ↓ どちらでもなければ、_bgmKey は同じでも実体が消えているので作り直す(fallthrough)
   }
   // 既存BGM停止(必ずクリーンアップ)
   if(_bgmAudio){
@@ -944,9 +938,19 @@ function updateBGM(){
 }
 
 function stopBGM(){
-  if(_bgmAudio){_bgmAudio.pause();_bgmAudio.currentTime=0;_bgmAudio=null;}
+  if(_bgmAudio){
+    try{
+      _bgmAudio.pause();
+      _bgmAudio.currentTime=0;
+      _bgmAudio.src='';
+      _bgmAudio.load();
+    }catch(e){}
+    _bgmAudio=null;
+  }
   _stopSynthBGM();
   _bgmKey=null;
+  // 後発の非同期処理を全部キャンセル
+  _bgmStartId++;
 }
 
 function setMute(val){
@@ -5780,14 +5784,13 @@ const STAGE_CONFIG={
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[], // 平和な里なので敵なし
     boss:null, bossThreshold:9999,
-    portalTo:null, portalToLabel:'',
     // 戻り = 港町ミナト
     portalBack:27, portalBackLabel:'⛵ 港町ミナトへ戻る', portalBackKey:'portal_st1',
     // 入口=下端中央の橋(船で到着する場所)
     spawnX:470, spawnY:1500,                  // 橋を上がった直後
     portalBackX:470, portalBackY:1620,        // 下端中央の橋(戻り)
     spawnFromBackX:470, spawnFromBackY:1500,  // 港町から来た時
-    spawnFromNextX:466, spawnFromNextY:360,   // sakura_dun1 から戻った時(門前)
+    spawnFromNextX:466, spawnFromNextY:430,   // sakura_dun1 から戻った時(門の少し下・ポータルと重ならない位置)
     spawnFromSouthX:470, spawnFromSouthY:1500,
     // 上端の門 → sakura_dun1(桜の城) へのポータル
     portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
