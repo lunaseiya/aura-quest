@@ -66,6 +66,7 @@ function makeSaveSummary(pd,stage){
     7:'⛰ ST.7 天空への路', 8:'☁ ST.8 天空の島々',
     10:'⚔ DUN.1 地下迷宮',
     11:'⛏ DUN.2 炭鉱1F',
+    12:'⛏ DUN.2 炭鉱2F',
     20:'🪓 ゴブリンの集落',
     21:'🔥 ブレイズフォージ',
   };
@@ -1233,6 +1234,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_town0', BASE+'maps/town0.png');
     this.load.image('map_town2', BASE+'maps/town2.png');
     this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
+    this.load.image('map_dun2_2', BASE+'maps/dun2-2.png');
     this.load.image('map_south_st1', BASE+'maps/south_st1.png');
     this.load.image('map_south_st2', BASE+'maps/south_st2.png');
     this.load.image('map_south_st3', BASE+'maps/south_st3.png');
@@ -5565,6 +5567,8 @@ const STAGE_CONFIG={
       // 下中央: 転職場(寺院・4つの旗・金の炎エンブレム)
       {x:430, y:790, w:380, h:340, label:'✨ 転職場',   type:'jobchange'},
     ],
+    // 洞窟入口 → DUN.2 炭鉱1F (画面中央付近の空きスペースに配置)
+    dungeonGate:{x:620, y:430, to:11, label:'⛏ DUN.2 炭鉱へ'},
   },
   // ── 南の街道(セントラルの南から行ける) ──
   22:{name:'🌳 南の街道', bgmKey:'south', mapImage:'map_south_st1',
@@ -5787,7 +5791,7 @@ const STAGE_CONFIG={
     spawnFromSouthX:470, spawnFromSouthY:1500,
     // 上端の門 → sakura_dun1(桜の城) へのポータル
     portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
-    portalToX:466, portalToY:302,             // 上端の門(調整済み)
+    portalNextX:466, portalNextY:302,             // 上端の門(調整済み)
     // 帰路用の船頭NPC(下端の橋付近)
     npcs:[
       {
@@ -5853,42 +5857,113 @@ const STAGE_CONFIG={
       {x:1190, y:2100, w:120, h:130},  // 下側の門通路
     ],
   },
-  // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
+  // ── DUN.2 炭鉱1F: ブレイズフォージの洞窟入口から入る ──
   11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'mine', mapImage:'map_dun2_1',
-    mapType:'mine', mapW:1254, mapH:1254,
+    mapType:'mine', mapW:2508, mapH:2508,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
-      // ── 各エリアにバランスよく配置 ──
-      // 左上の小部屋
-      ['bone_walker', 250, 350],['ghost', 350, 280],
+      // ── 上層エリア(左右の小部屋・Y=300〜700) ──
+      // 左上の小部屋(ランプ・木箱)
+      ['bone_walker', 400, 400],['ghost', 550, 350],
+      ['wisp',        300, 550],
       // 右上の小部屋
-      ['ghost', 950, 350],['treasure_hunt', 1050, 350],
-      // 中央通路上
-      ['bone_walker', 625, 400],
-      // 左中
-      ['ghost', 250, 600],['bone_walker', 350, 600],
+      ['ghost',         1950, 400],['treasure_hunt', 2100, 450],
+      ['wisp',          2200, 600],
+      // 中央通路(上)
+      ['bat', 1254, 450],['bat', 1100, 600],['bat', 1400, 600],
+      // ── 中層エリア(トロッコ・木箱・採掘場・Y=800〜1400) ──
+      // 左中(トロッコのレール)
+      ['bone_walker', 350, 1000],['treasure_hunt', 500, 1100],
+      ['wisp',        250, 1200],
+      // 中央通路(中)
+      ['ghost', 1100, 1050],['ghost', 1400, 1050],
+      ['bone_walker', 1254, 1200],
       // 右中
-      ['treasure_hunt', 1000, 600],
-      // 中央
-      ['ghost', 625, 700],['bone_walker', 470, 700],
-      // 左下の小部屋
-      ['bone_walker', 200, 850],['treasure_hunt', 280, 920],
-      // 右下の小部屋
-      ['ghost', 1000, 850],['bone_walker', 1050, 920],
+      ['treasure_hunt', 2050, 1000],['bone_walker', 2200, 1100],
+      ['wisp',          2300, 1200],
+      // ── 下層エリア(大広間・Y=1500〜2100) ──
+      // 左下
+      ['bone_walker', 400, 1700],['ghost', 550, 1850],
+      ['wisp',        350, 1950],
       // 中央広間(出口前)
-      ['ghost', 500, 1000],['treasure_hunt', 800, 1000],
-      ['bone_walker', 625, 1000],
+      ['ghost',         1100, 1800],['treasure_hunt', 1400, 1800],
+      ['bone_walker',   1254, 1900],
+      ['bat',           1254, 2000],['bat', 1100, 2000],
+      // 右下
+      ['ghost',         2000, 1700],['bone_walker', 2150, 1850],
+      ['treasure_hunt', 2250, 1950],
     ],
     boss:null, bossThreshold:9999, // ボスなし(2Fにいる)
-    // 出口=下の階段(2Fへ)、戻り=上の梯子(ブレイズフォージへ)
+    // 出口=下端の階段(2Fへ)、戻り=上端の梯子(ブレイズフォージへ)
     portalTo:12, portalToLabel:'⛏ 炭鉱2F へ', portalToKey:'portal_st4',
     portalBack:21, portalBackLabel:'🔥 ブレイズフォージへ', portalBackKey:'portal_st4',
-    // 入口=上の梯子(画像トップ中央)
-    spawnX:625, spawnY:230,
-    portalBackX:625, portalBackY:130,    // 上の梯子(戻り)
-    portalNextX:625, portalNextY:1140,   // 下の階段(2Fへ)
-    spawnFromBackX:625, spawnFromBackY:230,
-    spawnFromNextX:625, spawnFromNextY:1050,
+    // 入口=上の梯子(画像上端中央)
+    spawnX:1254, spawnY:200,
+    portalBackX:1254, portalBackY:80,    // 上の梯子(戻り)
+    portalNextX:1254, portalNextY:2400,  // 下の階段(2Fへ)
+    spawnFromBackX:1254, spawnFromBackY:200,
+    spawnFromNextX:1254, spawnFromNextY:2280,  // 2Fから戻ってきた時(下端の階段の少し上)
+    // DUN.2 1F から ブレイズフォージに戻る時の着地位置(洞窟入口の少し下)
+    portalBackSpawnX:620, portalBackSpawnY:500,
+    // walkZones: 上下の梯子/階段通路を強制歩行可
+    walkZones:[
+      {x:1200, y:60,   w:110, h:200},   // 上端の梯子通路
+      {x:1200, y:2300, w:110, h:200},   // 下端の階段通路
+    ],
+  },
+  // ── DUN.2 炭鉱2F: 1Fの下端階段から入る・最下層・クリスタル鉱脈 ──
+  12:{name:'⛏ DUN.2 炭鉱2F', bgmKey:'mine', mapImage:'map_dun2_2',
+    mapType:'mine', mapW:2508, mapH:2508,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[
+      // ── 上層エリア(キャンプ・Y=200〜700) ──
+      // 左上の鉱山キャンプ(テント・焚き火)
+      ['bone_walker', 400, 350],['treasure_hunt', 550, 400],
+      ['lich',        300, 550],
+      // 中央通路(梯子下)
+      ['bat',  1254, 350],['bat',  1100, 500],['bat', 1400, 500],
+      ['ghost', 1254, 600],
+      // 右上
+      ['ghost',         2050, 400],['bone_walker', 2200, 500],
+      ['wisp',          2300, 600],
+      // ── 中層エリア(クリスタル鉱脈・川と橋・Y=700〜1400) ──
+      // 左中: クリスタル鉱脈(紫・青の宝石)
+      ['lich',        350, 900],['lich', 500, 1100],
+      ['treasure_hunt', 250, 1200],
+      ['wisp', 400, 1300],['wisp', 550, 950],
+      // 中央通路(中)
+      ['ghost',  1100, 1000],['ghost', 1400, 1000],
+      ['bone_walker', 1254, 1150],
+      // 右中(川・橋)
+      ['wisp',  2000, 950],['wisp', 2200, 1100],
+      ['bat',   2100, 1250],
+      // ── 下層エリア(大広間・赤旗の祭壇・Y=1500〜2200) ──
+      // 左下(壁・骸骨の山)
+      ['bone_walker', 350, 1700],['ghost', 500, 1850],
+      ['treasure_hunt', 300, 2000],
+      // 中央広間(ボス手前の守り)
+      ['lich',          1100, 1700],['lich', 1400, 1700],
+      ['bone_walker',   1254, 1850],
+      ['ghost',         1100, 2000],['ghost', 1400, 2000],
+      // 右下
+      ['bone_walker', 2050, 1700],['treasure_hunt', 2200, 1850],
+      ['lich',        2150, 2000],
+    ],
+    // ボス: 蜘蛛女王ミストレス(中央広間の祭壇に配置)
+    boss:{id:'mistress', x:1254, y:1900},
+    bossThreshold:20,
+    portalTo:null, portalToLabel:'',
+    // 戻り=上端の梯子(DUN.2 1Fへ戻る)
+    portalBack:11, portalBackLabel:'⛏ 炭鉱1F へ戻る', portalBackKey:'portal_st4',
+    // 入口=上端の梯子から降りてきた位置
+    spawnX:1254, spawnY:200,
+    portalBackX:1254, portalBackY:80,        // 上端の梯子(戻り)
+    spawnFromBackX:1254, spawnFromBackY:200, // 1Fから来た時
+    spawnFromNextX:1254, spawnFromNextY:200,
+    // walkZones: 上端の梯子通路
+    walkZones:[
+      {x:1200, y:60, w:110, h:200},
+    ],
   },
 };
 // ══════════════════════════════════════
@@ -10271,6 +10346,7 @@ class GameScene extends Phaser.Scene{
         {label:'☁ ST.8 天空の島々',    price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
         {label:'⚔ DUN.1 地下迷宮',     price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
         {label:'⛏ DUN.2 炭鉱1F',       price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(11); }},
+        {label:'⛏ DUN.2 炭鉱2F',       price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(12); }},
         {label:'🪓 ゴブリンの集落',     price:0, icon:'🪓', action:()=>{ close(); this._doGuildWarp(20); }},
         {label:'🔥 ブレイズフォージ(町)',price:0,icon:'🔥', action:()=>{ close(); this._doGuildWarp(21); }},
         {label:'🌳 南の街道',           price:0, icon:'🌳', action:()=>{ close(); this._doGuildWarp(22); }},
@@ -14224,6 +14300,9 @@ class GameScene extends Phaser.Scene{
     if(cfg.mapType==='mine'){
       // ほぼ完全な黒だけ壁(画像が全体的に暗いため緩めに)
       if(sum < 60) return false;
+      // 青が支配的(川・水) → 壁(DUN.2 2Fのみ該当)
+      // ただし暗めの青(濃紺=床の影)は許可するため、Bが100以上で青優位の時のみ壁
+      if(b > 100 && b > r*1.4 && b > g*1.2) return false;
       return true;
     }
 
