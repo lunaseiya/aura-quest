@@ -951,12 +951,29 @@ function stopBGM(){
 function setMute(val){
   muted=val;
   if(muted){
-    if(_bgmAudio){_bgmAudio.pause();}
+    if(_bgmAudio){try{_bgmAudio.pause();}catch(e){}}
     _stopSynthBGM();
     if(_seMasterGain)_seMasterGain.gain.value=0;
   }else{
-    if(_bgmAudio){_bgmAudio.play().catch(()=>{});}
-    else if(_bgmKey){
+    // ミュート解除: AudioContext を起こす
+    try{
+      const ac=getAC();
+      if(ac && ac.state==='suspended') ac.resume().catch(()=>{});
+    }catch(e){}
+    // 既存のオーディオオブジェクトがあれば再生再開を試行
+    let resumed=false;
+    if(_bgmAudio){
+      try{
+        const p=_bgmAudio.play();
+        if(p && p.catch) p.catch(()=>{
+          // 失敗したら強制リスタート
+          if(_bgmKey){const k=_bgmKey; _bgmKey=null; startBGM(k);}
+        });
+        resumed=true;
+      }catch(e){}
+    }
+    // 既存オーディオが無いor失敗時: 強制リスタート(同キー素通り回避)
+    if(!resumed && _bgmKey){
       const k=_bgmKey; _bgmKey=null; startBGM(k);
     }
     if(_seMasterGain)_seMasterGain.gain.value=1.0;
@@ -1227,9 +1244,18 @@ class BootScene extends Phaser.Scene{
     this.load.image('npc_sakura5', BASE+'npcs/sakura-5.png');
 
     // 桜の城モンスター画像（PNG優先・存在しなければコード描画にフォールバック）
-    this.load.image('enemy_gama_ninja', BASE+'enemies/sakura_gama.png');
-    this.load.image('enemy_red_oni',    BASE+'enemies/sakura_aka.png');
-    this.load.image('enemy_blue_oni',   BASE+'enemies/sakura_ao.png');
+    // ── 全モンスターのPNG画像ロード(idle + 攻撃モーション) ──
+    // 画像が存在する場合はPNG優先、存在しない場合はloaderrorでコード描画にフォールバック
+    [
+      'bat','bear','beetle','blue_oni','bone_dragon','bone_walker','cider','cloud_monkey',
+      'crab','dark_elf','dragon','gama_ninja','ghost','giant','goblin','goblin_archer',
+      'goblin_axe','hornet','lich','mummy','orc_archer','orc_high','orc_lady','orc_warrior',
+      'red_oni','rock_golem','sakura','sandman','sandworm','scorpion','seal','skeleton',
+      'slime','treant','treasure_hunt','troll','wisp','wolf','zombie'
+    ].forEach(k=>{
+      this.load.image('enemy_'+k,       BASE+'enemies/'+k+'.png');
+      this.load.image('enemy_'+k+'_atk',BASE+'enemies/'+k+'_atk.png');
+    });
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -4618,6 +4644,25 @@ class TitleScene extends Phaser.Scene{
     try{_savedMute=localStorage.getItem('aq_muted');}catch(e){}
     if(_savedMute==='1'){muted=true;}
     else if(_savedMute==='0'){muted=false;}
+
+    // ── タイトルBGMを確実に鳴らすためのキックスタート機構 ──
+    // ブラウザ自動再生制限により、最初のタップまで再生できない端末がある
+    // → タイトル画面のどこかをタップしたら必ず再生(またはAudioContextを起こす)
+    const _kickBGM=()=>{
+      if(muted) return;
+      try{
+        const ac=getAC();
+        if(ac && ac.state==='suspended'){ ac.resume().catch(()=>{}); }
+      }catch(e){}
+      // 既に正常に鳴っていれば何もしない
+      if(_bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended) return;
+      // 強制リスタート(同じキーチェックを回避するため一旦キーをクリア)
+      _bgmKey=null;
+      startBGM('title');
+    };
+    // 一度成功するまでpointerdownで毎回試みる(イベント自体は残しておく)
+    this.input.on('pointerdown', _kickBGM);
+
     // BGM確認ダイアログは初回のみ（aq_mutedが未設定の場合のみ表示）
     if(_savedMute===null){
       const overlay=this.add.rectangle(w/2,h/2,w,h,0x000000,0.92).setOrigin(0.5).setDepth(100);
@@ -4627,10 +4672,12 @@ class TitleScene extends Phaser.Scene{
       this.add.text(w/2-80,h/2+30,'🔊 BGMあり',{fontSize:'15px',fontFamily:'Arial',color:'#2ecc71'}).setOrigin(0.5).setDepth(102);
       const btnN=this.add.rectangle(w/2+80,h/2+30,160,40,0xe74c3c,0.3).setStrokeStyle(2,0xe74c3c).setDepth(101).setInteractive({useHandCursor:true});
       this.add.text(w/2+80,h/2+30,'🔇 BGMなし',{fontSize:'15px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5).setDepth(102);
-      const dismiss=()=>{overlay.destroy();title.destroy();sub.destroy();btnY.destroy();btnN.destroy();startBGM('title');};
+      const dismiss=()=>{overlay.destroy();title.destroy();sub.destroy();btnY.destroy();btnN.destroy();_bgmKey=null;startBGM('title');};
       btnY.on('pointerdown',()=>{setMute(false);dismiss();});
       btnN.on('pointerdown',()=>{setMute(true);[overlay,title,sub,btnY,btnN].forEach(o=>o.destroy());});
     }else{
+      // 既設定の場合: 一旦 startBGM するが、自動再生が失敗してもタップ時に_kickBGMで復活する
+      _bgmKey=null;
       startBGM('title');
     }
     // ── 背景: シネマティック・グラデーション ──
@@ -4780,7 +4827,7 @@ class TitleScene extends Phaser.Scene{
     }
 
     const muteBtn=this.add.text(w-10,10,muted?'🔇':'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true}).setDepth(20);
-    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊');try{localStorage.setItem('aq_muted',muted?'1':'0');}catch(e){}});
+    muteBtn.on('pointerdown',()=>{setMute(!muted);muteBtn.setText(muted?'🔇':'🔊');});
   }
 }
 
@@ -5104,8 +5151,8 @@ class ClassSelectScene extends Phaser.Scene{
         this.scene.start('Game',{playerData:pd,stage:0});
       });
     });
-    const muteBtn=this.add.text(w-10,10,'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
-    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
+    const muteBtn=this.add.text(w-10,10,muted?'🔇':'🔊',{fontSize:'20px'}).setOrigin(1,0).setInteractive({useHandCursor:true});
+    muteBtn.on('pointerdown',()=>{setMute(!muted);muteBtn.setText(muted?'🔇':'🔊')});
 
     // テストモードトグル(画面右下にコンパクトに配置・干渉しないように)
     const tmW = 130, tmH = 26;
@@ -5283,38 +5330,44 @@ const STAGE_CONFIG={
     spawnFromNextX:1100, spawnFromNextY:627, // ST2から戻ってきたら右から
   },
   2:{name:'ST.2 流れる森',bgmKey:'east',mapImage:'map_st2',
-    mapW:2048,mapH:2048, mapType:'st2', // 専用色判定
+    mapW:3072,mapH:2048, mapType:'st2', // 専用色判定
     tiles:[],tileWeights:[],
     objects:[],objPos:[],
     // 橋を強制歩行可(色判定で岩や水と誤判定されないように)
+    // 新マップでは石橋が中央下にあり、横方向に長い
     walkZones:[
-      {x:680, y:1230, w:680, h:240},  // 中央の石橋全体(無条件で通れる)
+      {x:1100, y:1380, w:900, h:200},  // 中央下の石橋全体(無条件で通れる)
     ],
     enemies:[
-      // 上部エリア(Y=300〜700)
-      ['slime',  500, 400],['slime',  1500, 400],
-      ['bat',    700, 600],['bat',    1300, 600],
-      ['slime',  1024, 500],
-      // 中央エリア(Y=700〜1100)
-      ['goblin', 450, 850],['goblin', 1600, 850],
-      ['wolf',   900, 1000],['wolf',   1100, 1000],
-      ['skeleton', 1024, 900],
-      // 下部エリア(Y=1500〜1900)
-      ['skeleton',  500, 1700],['skeleton',  1500, 1700],
-      ['troll',  800, 1800],['troll',  1200, 1800],
-      ['wolf',  1024, 1900],
+      // ── 上部エリア(Y=200〜600) ──
+      ['slime',  600, 350],['slime',  2400, 350],
+      ['bat',    900, 500],['bat',    2100, 500],
+      ['slime',  1500, 400],
+      // ── 左中エリア(廃墟の柱付近・X=300〜800, Y=600〜1100) ──
+      ['goblin', 450, 800],['goblin', 600, 1000],
+      ['wolf',   350, 900],
+      // ── 右中エリア(廃墟の柱付近・X=2200〜2700, Y=600〜1100) ──
+      ['goblin', 2500, 800],['goblin', 2400, 1000],
+      ['wolf',   2700, 900],
+      // ── 中央エリア(川の両岸・Y=800〜1200) ──
+      ['wolf',   1300, 1000],['wolf',   1700, 1000],
+      ['skeleton', 1500, 1100],
+      // ── 橋の手前(下中央・Y=1500〜1800) ──
+      ['skeleton',  900, 1700],['skeleton', 2100, 1700],
+      ['troll',  1200, 1800],['troll',  1800, 1800],
+      ['wolf',   1500, 1900],
     ],
-    // ボスは中央
-    boss:{id:'boss2', x:1024, y:1024},
+    // ボスは中央(石橋の少し上の広場)
+    boss:{id:'boss2', x:1500, y:1000},
     bossThreshold:15,
     portalTo:3,portalToLabel:'🏖 ST.3へ',portalToKey:'portal_st3',
     portalBack:1,portalBackLabel:'🌿 ST.1へ',portalBackKey:'portal_st1',
-    // 入口=左の道(中央高さY=1050)、出口=右の道
-    spawnX:200, spawnY:1050,                    // 初回入場(左の道から200px内側)
-    portalBackX:50, portalBackY:1050,           // 左端の道(ST.1へ)
-    portalNextX:2000, portalNextY:1050,         // 右端の道(ST.3へ)
-    spawnFromBackX:200, spawnFromBackY:1050,    // ST.1から戻ってきたらspawnと同じ
-    spawnFromNextX:1850, spawnFromNextY:1050,   // ST.3から戻ってきたら右端から200px内側
+    // 入口=左の道、出口=右の道(横長マップに合わせて両端へ)
+    spawnX:200, spawnY:1024,                    // 初回入場(左端から200px内側)
+    portalBackX:50, portalBackY:1024,           // 左端の道(ST.1へ)
+    portalNextX:3020, portalNextY:1024,         // 右端の道(ST.3へ)
+    spawnFromBackX:200, spawnFromBackY:1024,    // ST.1から戻ってきたら左から
+    spawnFromNextX:2870, spawnFromNextY:1024,   // ST.3から戻ってきたら右端から200px内側
   },
   3:{name:'ST.3 海岸',bgmKey:'east',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'desert',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -5347,7 +5400,7 @@ const STAGE_CONFIG={
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
     // 下の青魔法門はダイアログ式(magicGate)で ST.8 へ
     // magicGate: {x, y, to, label, returnX, returnY} 行き先ステージの到着位置も指定
-    magicGate:{x:474, y:1380, to:8, label:'☁ 天空の島々へ', returnX:856, returnY:1545},
+    magicGate:{x:474, y:1380, to:8, label:'☁ 天空の島々へ', returnX:1500, returnY:1800},
     // 入口=上の鳥居(portalBack)、出口=下の青魔法門(magicGate)
     spawnX:474,spawnY:280,           // 初回入場は上の鳥居すぐ下から
     portalBackX:474, portalBackY:150, // 上部の木製鳥居(ST6へ戻る)
@@ -5355,71 +5408,98 @@ const STAGE_CONFIG={
     spawnFromNextX:474, spawnFromNextY:1280, // 天空から戻ってきたら下(青ゲートより十分上)
   },
   8:{name:'ST.8 天空の島々',bgmKey:'sky',
-    mapImage:'map_st8', mapType:'sky', mapW:2048, mapH:2048,
+    mapImage:'map_st8', mapType:'sky', mapW:3072, mapH:2048,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 入口は画面中央下(前マップST7の上鳥居から繋がる青ポータル)
-    // ボス(雷神)は右上の神殿エリア
+    // ボス(雷神)は右上の青ドーム神殿エリア
     enemies:[
-      // 中央大広場(コンパス模様周辺・Y=900〜1200) ─────
-      ['cloud_monkey',800,1100],['cloud_monkey',1200,1100],['cloud_monkey',1024,1000],
-      ['treant',900,1150],['treant',1100,1150],
-      // 左上エリア(噴水)
-      ['cloud_monkey',400,400],['cloud_monkey',550,400],
-      ['giant',450,500],['rock_golem',350,550],
-      // 左中段(魔法陣エリア)
-      ['treant',400,1300],['cloud_monkey',300,1250],['rock_golem',450,1400],
-      // 右下島
-      ['giant',1500,1300],['rock_golem',1600,1400],['cloud_monkey',1450,1250],
-      // 中央下(ポータル手前・ボスへの道) ※入口から少し離す
-      ['cloud_monkey',1024,1500],['giant',900,1500],
-      // 右上 神殿前(ボス手前の守り)
-      ['rock_golem',1600,400],['giant',1700,500],['treant',1500,350],
-      // 上端中央(アーチ門周辺)
-      ['cloud_monkey',1024,500],['treant',1100,600],
+      // ── 中央大広場(コンパス模様周辺・X=1400〜1700, Y=700〜900) ──
+      ['cloud_monkey',1300,800],['cloud_monkey',1700,800],['cloud_monkey',1500,650],
+      ['treant',1350,900],['treant',1650,900],
+      // ── 左上エリア(噴水・X=350〜700, Y=200〜400) ──
+      ['cloud_monkey',450,300],['cloud_monkey',650,300],
+      ['giant',550,400],['rock_golem',400,450],
+      // ── 上端アーチ門周辺(X=800〜1100, Y=100〜300) ──
+      ['cloud_monkey',900,250],['treant',1050,350],
+      // ── 左中(魔法陣エリア・X=200〜500, Y=900〜1300) ──
+      ['treant',350,1100],['cloud_monkey',250,1000],['rock_golem',450,1250],
+      // ── 中段左の島(X=600〜900, Y=1100〜1400) ──
+      ['cloud_monkey',700,1200],['giant',800,1350],
+      // ── 中段右の島(X=2100〜2400, Y=1100〜1400) ──
+      ['giant',2200,1200],['rock_golem',2350,1350],['cloud_monkey',2100,1300],
+      // ── 右中の泉(X=2700〜2900, Y=400〜650) ──
+      ['cloud_monkey',2750,500],['treant',2850,600],
+      // ── 右上 青ドーム神殿前(ボス手前の守り・X=2400〜2700, Y=200〜400) ──
+      ['rock_golem',2500,250],['giant',2600,400],['treant',2400,200],
+      // ── 入口手前(下中央・X=1300〜1700, Y=1500〜1700) ──
+      ['cloud_monkey',1400,1500],['giant',1600,1550],
     ],
-    boss:{id:'thunder_god',x:1700,y:300},  // 右上の神殿付近
+    boss:{id:'thunder_god',x:2700,y:200},  // 右上の青ドーム神殿
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
-    // 中央付近の青魔法門(ダイアログ式) → ST.7 に戻る
-    magicGate:{x:1011, y:1509, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
-    // スポーン(ST.7 から青ゲートを抜けてきた時)
-    spawnX:856, spawnY:1545,
-    spawnFromBackX:856, spawnFromBackY:1545,
+    // 下中央の青魔法門(ダイアログ式) → ST.7 に戻る
+    magicGate:{x:1500, y:1750, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
+    // スポーン(ST.7 から青ゲートを抜けてきた時) = 下中央の青魔法門の少し上(門前)
+    spawnX:1500, spawnY:1800,
+    spawnFromBackX:1500, spawnFromBackY:1800,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
-  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:2048,mapH:2048,
+  10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:1896,mapH:3318,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
-      // ── 上部広間(入口直下、Y=300〜600) ──
-      // ゾンビ(タンク)
-      ['zombie',1024,400],['zombie',700,500],['zombie',1340,500],
-      // リッチ(魔法)
-      ['lich',850,350],['lich',1200,350],
-      // ダークエルフ(遠距離)
-      ['dark_elf',500,400],['dark_elf',1540,400],
-      // ── 中段エリア(階段ホール、Y=700〜1100) ──
-      ['zombie',1024,800],['zombie',750,950],['zombie',1300,950],
-      ['lich',600,1000],['lich',1450,1000],
-      ['dark_elf',1024,900],
-      // ── 下段エリア(中央祭壇〜髑髏祭壇手前、Y=1300〜1600) ──
-      ['zombie',1024,1400],['zombie',850,1550],['zombie',1200,1550],
-      ['lich',1024,1300],
-      ['dark_elf',700,1500],['dark_elf',1340,1500],
+      // ── 上部広間: 左右の円形ホール(Y=300〜700) ──
+      // 左ホール
+      ['zombie',   500, 400],['zombie',   400, 600],
+      ['lich',     350, 500],
+      ['dark_elf', 600, 350],['dark_elf', 550, 700],
+      // 右ホール
+      ['zombie',   1400, 400],['zombie',   1500, 600],
+      ['lich',     1550, 500],
+      ['dark_elf', 1300, 350],['dark_elf', 1350, 700],
+      // ── 中央縦通路: 上部(Y=300〜900) ──
+      ['zombie',   950, 500],['lich',     950, 800],
+      // ── 中段の左右部屋(Y=900〜1500) ──
+      // 左
+      ['zombie',   400, 1100],['zombie',   500, 1400],
+      ['lich',     350, 1300],
+      ['dark_elf', 600, 1200],
+      // 右
+      ['zombie',   1500, 1100],['zombie',   1400, 1400],
+      ['lich',     1550, 1300],
+      ['dark_elf', 1300, 1200],
+      // ── 中央広間(Y=1100〜1600) ──
+      ['zombie',   950, 1200],['zombie',   850, 1450],['zombie',   1050, 1450],
+      ['dark_elf', 950, 1350],
+      // ── 中央祭壇(八角形・Y=1700〜2100) ──
+      ['lich',     950, 1900],
+      ['zombie',   800, 2000],['zombie',   1100, 2000],
+      ['dark_elf', 700, 1850],['dark_elf', 1200, 1850],
+      // ── 下段左右の小部屋(Y=2100〜2500) ──
+      // 左
+      ['zombie',   400, 2300],['lich',     500, 2200],
+      ['dark_elf', 350, 2400],
+      // 右
+      ['zombie',   1500, 2300],['lich',     1400, 2200],
+      ['dark_elf', 1550, 2400],
+      // ── 髑髏祭壇手前(赤十字通路・Y=2500〜2800) ──
+      ['zombie',   700, 2600],['zombie',   1200, 2600],
+      ['lich',     950, 2550],
+      ['dark_elf', 800, 2750],['dark_elf', 1100, 2750],
     ],
-    boss:{id:'dark_illusion',x:1024,y:1750},  // 髑髏祭壇付近
+    boss:{id:'dark_illusion',x:950,y:2900},  // 髑髏祭壇付近
     bossThreshold:18,
     portalTo:null,portalToLabel:'',portalToKey:'portal_st4',
     portalBack:6,portalBackLabel:'💀 ST.6へ',portalBackKey:'portal_st4',
     // DUN1 から ST6 に戻る時: ST6の骨(290,420)の近くにスポーン
     portalBackSpawnX:290, portalBackSpawnY:460,
     // 入口=上部中央のアーチ門
-    spawnX:1024, spawnY:280,
-    portalBackX:1024, portalBackY:130,
-    spawnFromBackX:1024, spawnFromBackY:280,
+    spawnX:950, spawnY:250,
+    portalBackX:950, portalBackY:120,
+    spawnFromBackX:950, spawnFromBackY:250,
     // アーチ門の通路を強制歩行可
     walkZones:[
-      {x:990, y:100, w:80, h:200},  // 入口アーチ門の通路
+      {x:910, y:80, w:80, h:200},  // 上部入口アーチ門の通路
     ],
   },
   // ── ST.20 ゴブリンの集落 (ST5から東に行くと到着) ──
@@ -5544,7 +5624,7 @@ const STAGE_CONFIG={
     // 南方向ポータル(下端の道) → south_st4(海岸エリア)
     portalSouth:26, portalSouthLabel:'🏖 海岸の街道へ', portalSouthKey:'portal_st1',
     portalSouthX:470, portalSouthY:1600,  // 下端の道
-    spawnFromSouth2X:470, spawnFromSouth2Y:1480,  // south_st4 から戻ってきた時
+    spawnFromSouth2X:464, spawnFromSouth2Y:1496,  // south_st4(ST.26) から戻ってきた時(指定座標)
     // 橋エリアは強制歩行可(色判定で岩や水と誤判定されないように)
     walkZones:[
       {x:760, y:430, w:180, h:140},  // 右上の橋 + 周囲の通路を覆う矩形
@@ -5634,19 +5714,19 @@ const STAGE_CONFIG={
     ],
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
-    // 北へ戻る = south_st2 (上端のアーチ門から)
+    // 北へ戻る = south_st2 (上端のアーチ門から) ※ ST.23のことだが内部はsouth_st2と呼んでいる
     portalBack:23, portalBackLabel:'🌲 南の街道(続)へ戻る', portalBackKey:'portal_st1',
-    // 入口=上端のアーチ門(画像分析: X≈400, Y≈100付近の青い炎付きアーチ)
-    spawnX:420, spawnY:280,                  // 入口アーチ通り抜けた直後
-    portalBackX:420, portalBackY:140,        // 上端のアーチ門(戻り)
-    spawnFromBackX:420, spawnFromBackY:280,  // south_st2 から来た時
+    // 入口=上端のアーチ門 (新座標)
+    spawnX:852, spawnY:180,                  // 入口アーチ通り抜けた直後(ポータルの少し下)
+    portalBackX:852, portalBackY:53,         // 上端のアーチ門(戻り・新座標)
+    spawnFromBackX:852, spawnFromBackY:180,  // south_st2 から来た時
     // 南方向ポータル(下端中央の橋) → town_minato 港町
     portalSouth:27, portalSouthLabel:'⛵ 港町へ', portalSouthKey:'portal_st1',
     portalSouthX:1240, portalSouthY:1857,      // 下端中央の橋への道
     spawnFromSouth2X:1240, spawnFromSouth2Y:1700, // town_minatoから戻ってきた時
-    // walkZones: アーチ門の通路を強制歩行可
+    // walkZones: アーチ門の通路を強制歩行可(新ポータル位置に合わせ移動)
     walkZones:[
-      {x:370, y:100, w:120, h:220},  // 入口アーチ通路
+      {x:802, y:30, w:100, h:220},  // 上端アーチ通路(X:852中心の縦長エリア)
     ],
   },
   // ── 港町ミナト (south_st4 の南橋から繋がる和風港町) ──
@@ -5703,54 +5783,74 @@ const STAGE_CONFIG={
     spawnX:470, spawnY:1500,                  // 橋を上がった直後
     portalBackX:470, portalBackY:1620,        // 下端中央の橋(戻り)
     spawnFromBackX:470, spawnFromBackY:1500,  // 港町から来た時
-    spawnFromNextX:478, spawnFromNextY:420,   // sakura_dun1 から戻った時(門前)
+    spawnFromNextX:466, spawnFromNextY:360,   // sakura_dun1 から戻った時(門前)
     spawnFromSouthX:470, spawnFromSouthY:1500,
     // 上端の門 → sakura_dun1(桜の城) へのポータル
     portalTo:29, portalToLabel:'🏯 桜の城へ', portalToKey:'portal_st1',
-    portalToX:478, portalToY:284,             // 上端の門
+    portalToX:466, portalToY:302,             // 上端の門(調整済み)
+    // 帰路用の船頭NPC(下端の橋付近)
+    npcs:[
+      {
+        id:'sailor_return',
+        x:470, y:1450,
+        sprite:'npc_sakura5',
+        name:'船頭',
+        type:'ferry',          // 船で別マップに連れて行くNPC
+        price:0,               // 帰りは無料
+        destStage:27,          // 港町ミナト
+        destLabel:'港町ミナト',
+        destX:400, destY:1038, // 港町ミナトの到着位置
+        dialog:[
+          'おお、戻りかい?',
+          '港町まで送るぞ。',
+          '帰りは無料じゃ、安心せい。',
+          '乗っていくかい?'
+        ],
+      },
+    ],
     // walkZones: 下端の橋 + 上端の階段/門通路を強制歩行可(歩きにくいので広めに)
     walkZones:[
       {x:380, y:1380, w:180, h:292},  // 下端の橋(広めに拡張)
-      {x:380, y:300,  w:180, h:300},  // 上端の階段+門通路(広めに拡張)
+      {x:380, y:280,  w:180, h:120},  // 上端の階段+門通路(新ポータル位置に合わせ調整)
     ],
   },
   // ── 桜の城(sakura_dun1) - 桜の里の上の門から繋がる和風の城 ──
   29:{name:'🏯 桜の城', bgmKey:'sakura_dun', mapImage:'map_sakura_dun1',
-    mapType:'sakura_dun1', mapW:4000, mapH:4000,
+    mapType:'sakura_dun1', mapW:2500, mapH:2500,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
-      // ── 入口エリア(下端の門周辺・Y=3000〜3700) ──
-      ['sakura',     1500, 3200],['sakura',     2500, 3200],
-      ['gama_ninja', 1400, 3000],['gama_ninja', 2600, 3000],
-      // ── 桜の大樹周辺(Y=2400〜3000) ──
-      ['sakura',     1200, 2700],['sakura',     2800, 2700],
-      ['gama_ninja', 1600, 2900],['gama_ninja', 2400, 2900],
-      ['blue_oni',   1500, 2500],['blue_oni',   2500, 2500],
-      // ── 中央広場(Y=1800〜2400) ──
-      ['gama_ninja', 1300, 2100],['gama_ninja', 2700, 2100],
-      ['blue_oni',   2000, 2000],
-      ['red_oni',    1500, 1900],['red_oni',    2500, 1900],
-      // ── 城前エリア(Y=1200〜1800) ──
-      ['gama_ninja', 1700, 1500],['gama_ninja', 2300, 1500],
-      ['red_oni',    2000, 1300],
-      ['blue_oni',   1600, 1700],['blue_oni',   2400, 1700],
-      // ── 城の左右(Y=700〜1200) ──
-      ['red_oni',    1300, 900],['red_oni',    2700, 900],
-      ['gama_ninja', 1000, 1100],['gama_ninja', 3000, 1100],
+      // ── 入口エリア(下端の門周辺・Y=1875〜2300) ──
+      ['sakura',     940, 2000],['sakura',     1560, 2000],
+      ['gama_ninja', 875, 1875],['gama_ninja', 1625, 1875],
+      // ── 桜の大樹周辺(Y=1500〜1875) ──
+      ['sakura',     750, 1690],['sakura',     1750, 1690],
+      ['gama_ninja', 1000, 1815],['gama_ninja', 1500, 1815],
+      ['blue_oni',   940, 1565],['blue_oni',   1560, 1565],
+      // ── 中央広場(Y=1125〜1500) ──
+      ['gama_ninja', 815, 1315],['gama_ninja', 1685, 1315],
+      ['blue_oni',   1250, 1250],
+      ['red_oni',    940, 1190],['red_oni',    1560, 1190],
+      // ── 城前エリア(Y=750〜1125) ──
+      ['gama_ninja', 1065, 940],['gama_ninja', 1435, 940],
+      ['red_oni',    1250, 815],
+      ['blue_oni',   1000, 1065],['blue_oni',   1500, 1065],
+      // ── 城の左右(Y=440〜750) ──
+      ['red_oni',    815, 565],['red_oni',    1685, 565],
+      ['gama_ninja', 625, 690],['gama_ninja', 1875, 690],
     ],
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
     // 戻り = 桜の里(sakura_gate)
     portalBack:28, portalBackLabel:'🌸 桜の里へ戻る', portalBackKey:'portal_st1',
-    // 入口=中央の大きな桜の下(画像分析: 中央の桜大樹 X≈2000, Y≈2700)
-    spawnX:2000, spawnY:2700,                  // 中央の桜の下に着地
-    portalBackX:2000, portalBackY:3400,        // 下側の門の少し上(門前)
-    spawnFromBackX:2000, spawnFromBackY:2700,  // 桜の里から来た時
-    spawnFromNextX:2000, spawnFromNextY:2700,
-    spawnFromSouthX:2000, spawnFromSouthY:2700,
+    // 入口=下端の門の少し内側
+    spawnX:1250, spawnY:2050,                  // 下端の門前(歩ける位置)に着地
+    portalBackX:1250, portalBackY:2125,        // 下側の門の少し上(門前)
+    spawnFromBackX:1250, spawnFromBackY:2050,  // 桜の里から来た時
+    spawnFromNextX:1250, spawnFromNextY:2050,
+    spawnFromSouthX:1250, spawnFromSouthY:2050,
     // walkZones: 下側の門通路を強制歩行可
     walkZones:[
-      {x:1900, y:3360, w:200, h:200},  // 下側の門通路
+      {x:1190, y:2100, w:120, h:130},  // 下側の門通路
     ],
   },
   // 入口はブレイズフォージの上(炭鉱入口のシンボル)から
@@ -6000,6 +6100,8 @@ class GameScene extends Phaser.Scene{
     this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
     this.magicReturnX=data.magicReturnX; // 青魔法ゲート経由の到着位置
     this.magicReturnY=data.magicReturnY;
+    this.customSpawnX=data.customSpawnX; // NPC(船頭等)指定のカスタムスポーン位置
+    this.customSpawnY=data.customSpawnY;
     this.killCount=0;
     this.bossSpawned=false;
     this._dungeonGate=null;
@@ -6505,8 +6607,11 @@ class GameScene extends Phaser.Scene{
     if(cfg.spawnX!==undefined&&cfg.spawnY!==undefined){
       // ポータル経由の場合はそれぞれのポータル付近にスポーン
       // ※ ポータル判定半径(70px)より十分離さないと即座に逆戻りトリガする
-      // 優先順位: spawnFromNext/Back で明示指定 > 既定の左右オフセット
-      if(fromPortal==='magic'){
+      // 優先順位: customSpawn(NPC指定) > spawnFromNext/Back で明示指定 > 既定の左右オフセット
+      if(this.customSpawnX!==undefined && this.customSpawnY!==undefined){
+        // NPC(船頭等)指定のカスタムスポーン位置を最優先
+        spawnX=this.customSpawnX; spawnY=this.customSpawnY;
+      }else if(fromPortal==='magic'){
         // 青魔法ゲート経由: 渡された returnX/Y で着地
         if(this.magicReturnX!==undefined&&this.magicReturnY!==undefined){
           spawnX=this.magicReturnX; spawnY=this.magicReturnY;
@@ -6784,8 +6889,8 @@ class GameScene extends Phaser.Scene{
     }
     const ann=this.add.text(this.scale.width/2,80,cfg.name,{fontSize:'28px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.tweens.add({targets:ann,alpha:0,duration:2000,delay:1500,onComplete:()=>ann.destroy()});
-    const muteBtn=this.add.text(this.scale.width-4,4,'🔊',{fontSize:'16px'}).setOrigin(1,0).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
-    muteBtn.on('pointerdown',()=>{muted=!muted;muteBtn.setText(muted?'🔇':'🔊')});
+    const muteBtn=this.add.text(this.scale.width-4,4,muted?'🔇':'🔊',{fontSize:'16px'}).setOrigin(1,0).setScrollFactor(0).setDepth(15).setInteractive({useHandCursor:true});
+    muteBtn.on('pointerdown',()=>{setMute(!muted);muteBtn.setText(muted?'🔇':'🔊')});
   }
 
   // ── 職業別通常攻撃 ② ───────────────────────────
@@ -11413,8 +11518,13 @@ class GameScene extends Phaser.Scene{
         // 1.5秒後にダイアログを閉じて遷移
         this.time.delayedCall(1500, ()=>{
           this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint]);
-          // ステージ遷移
-          this._doTransition('Game',{playerData:pd, stage:npcDef.destStage, fromPortal:'back'});
+          // ステージ遷移 (destX/destY が指定されていればカスタムスポーン位置として渡す)
+          const transData={playerData:pd, stage:npcDef.destStage, fromPortal:'back'};
+          if(npcDef.destX!==undefined && npcDef.destY!==undefined){
+            transData.customSpawnX=npcDef.destX;
+            transData.customSpawnY=npcDef.destY;
+          }
+          this._doTransition('Game',transData);
         });
       });
       // NO押下: ダイアログを閉じる
@@ -14507,7 +14617,33 @@ class GameScene extends Phaser.Scene{
   }
 
   // ── 敵の近接攻撃 ──
+  // ── 攻撃モーション: enemy_<id>_atk テクスチャに切替→300ms後に戻す ──
+  _playEnemyAttackAnim(ed){
+    if(!ed || !ed.sprite || !ed.sprite.active || ed.dead) return;
+    const sp=ed.sprite;
+    const baseKey='enemy_'+ed.id;
+    const atkKey=baseKey+'_atk';
+    // attack画像が無い場合は何もしない(コード描画版・atk未用意の敵)
+    if(!this.textures.exists(atkKey)) return;
+    // 既にattack表示中なら無視(連打防止)
+    if(sp._inAtkAnim) return;
+    sp._inAtkAnim=true;
+    // テクスチャ切替(displaySizeは保持される)
+    sp.setTexture(atkKey);
+    // 300ms後にidleに戻す
+    this.time.delayedCall(300, ()=>{
+      if(!sp || !sp.active) return;
+      // edが死んでいる/シーンが変わっている場合は戻さない
+      if(this.textures.exists(baseKey)){
+        sp.setTexture(baseKey);
+      }
+      sp._inAtkAnim=false;
+    });
+  }
+
   _enemyMelee(ed, pd, p){
+    // 攻撃モーション再生
+    this._playEnemyAttackAnim(ed);
     if(pd._parry){
       this.showFloat(p.x,p.y-40,'PARRY!','#ffd700','info');
       pd._parry=false;
@@ -14566,6 +14702,8 @@ class GameScene extends Phaser.Scene{
   // ── 敵の遠距離攻撃(投射物を発射) ──
   _enemyShoot(ed, p){
     if(!this.enemyBullets) return;
+    // 攻撃モーション再生
+    this._playEnemyAttackAnim(ed);
     const sp=ed.sprite;
     // ── リッチ専用: 詠唱演出+遅延発射(必中ホーミング魔法) ──
     if(ed.id==='lich'){
