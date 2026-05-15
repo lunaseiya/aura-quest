@@ -5826,24 +5826,25 @@ const STAGE_CONFIG={
     mapType:'sakura_dun1', mapW:2500, mapH:2500,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     enemies:[
-      // ── 入口エリア(下端の門周辺・Y=1875〜2300) ──
+      // ── 入口エリア(下端の門周辺・Y=1900〜2200・石畳) ──
       ['sakura',     940, 2000],['sakura',     1560, 2000],
-      ['gama_ninja', 875, 1875],['gama_ninja', 1625, 1875],
-      // ── 桜の大樹周辺(Y=1500〜1875) ──
-      ['sakura',     750, 1690],['sakura',     1750, 1690],
-      ['gama_ninja', 1000, 1815],['gama_ninja', 1500, 1815],
-      ['blue_oni',   940, 1565],['blue_oni',   1560, 1565],
-      // ── 中央広場(Y=1125〜1500) ──
-      ['gama_ninja', 815, 1315],['gama_ninja', 1685, 1315],
-      ['blue_oni',   1250, 1250],
-      ['red_oni',    940, 1190],['red_oni',    1560, 1190],
-      // ── 城前エリア(Y=750〜1125) ──
-      ['gama_ninja', 1065, 940],['gama_ninja', 1435, 940],
-      ['red_oni',    1250, 815],
-      ['blue_oni',   1000, 1065],['blue_oni',   1500, 1065],
-      // ── 城の左右(Y=440〜750) ──
-      ['red_oni',    815, 565],['red_oni',    1685, 565],
-      ['gama_ninja', 625, 690],['gama_ninja', 1875, 690],
+      ['gama_ninja', 875, 1900],['gama_ninja', 1625, 1900],
+      // ── 桜の大樹の左右(Y=1500〜1850・大樹を避けて左右) ──
+      ['sakura',     750, 1690],['sakura',     1800, 1690],
+      ['gama_ninja', 850, 1815],['gama_ninja', 1650, 1815],
+      ['blue_oni',   600, 1750],['blue_oni',   1900, 1750],
+      // ── 中央広場(桜の大樹の上・Y=1200〜1450) ──
+      // 中央付近の石畳広場(城の階段下〜大樹の上)
+      ['gama_ninja', 750, 1350],['gama_ninja', 1750, 1350],
+      ['blue_oni',   600, 1300],['blue_oni',   1900, 1300],
+      ['red_oni',    900, 1400],['red_oni',    1600, 1400],
+      // ── 城前左右の通路(Y=600〜1100) ──
+      // 城は X:800〜1700 にあるので左右の通路に配置
+      ['gama_ninja', 500, 900],['gama_ninja', 2000, 900],
+      ['blue_oni',   400, 1100],['blue_oni',   2100, 1100],
+      ['red_oni',    600, 600],['red_oni',    1900, 600],
+      // ── 上部エリア(Y=200〜500・上部の道) ──
+      ['gama_ninja', 700, 400],['gama_ninja', 1800, 400],
     ],
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
@@ -5855,9 +5856,13 @@ const STAGE_CONFIG={
     spawnFromBackX:1250, spawnFromBackY:2050,  // 桜の里から来た時
     spawnFromNextX:1250, spawnFromNextY:2050,
     spawnFromSouthX:1250, spawnFromSouthY:2050,
-    // walkZones: 下側の門通路を強制歩行可
+    // walkZones: 下側の門通路 + 中央の城前階段 を強制歩行可
     walkZones:[
-      {x:1190, y:2100, w:120, h:130},  // 下側の門通路
+      {x:1190, y:2100, w:120, h:130},   // 下側の門通路
+      {x:1180, y:1050, w:140, h:200},   // 中央の城前階段(暗くて壁判定されるため強制歩行可)
+      {x:1180, y:1200, w:140, h:80},    // 城の階段下〜中央道の繋ぎ
+    ],
+  },
     ],
   },
   // ── DUN.2 炭鉱1F: ブレイズフォージの洞窟入口から入る ──
@@ -10019,7 +10024,7 @@ class GameScene extends Phaser.Scene{
     this.add.text(w-132,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
     // 現在座標表示(プレイヤーのワールド座標)
     this.add.rectangle(w-124,24,80,18,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
-    this.hudCoordTxt=this.add.text(w-132,26,'X:0 Y:0',{fontSize:'11px',fontFamily:'Arial',color:'#88ddff'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
+    this.hudCoordTxt=this.add.text(w-182,26,'X:0 Y:0',{fontSize:'11px',fontFamily:'Arial',color:'#88ddff'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
     // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
@@ -12756,13 +12761,13 @@ class GameScene extends Phaser.Scene{
 
   _createHomeButton(){
     const w=this.scale.width,h=this.scale.height;
-    // ミニマップ(右上 w-116, y=6, w=110, h=80)の真下に配置
-    // ミニマップ中心X = w - 110/2 - 6 = w - 61
-    // ST.Xラベル y=90 の下にセーブ、さらに下にタイトル
-    const BX=w-61;           // ボタン中心X
-    const SAVE_Y=112;        // セーブボタンY
-    const TITLE_Y=146;       // タイトルボタンY
-    const BTN_W=100, BTN_H=28;
+    // ミニマップ(右上 w-166, y=6, w=160, h=120)の真下に配置
+    // ミニマップ中心X = w - 160/2 - 6 = w - 86
+    // ST.Xラベル y=130 の下にセーブ、さらに下にタイトル
+    const BX=w-86;           // ボタン中心X(新ミニマップ幅に合わせ更新)
+    const SAVE_Y=152;        // セーブボタンY(ミニマップ下端126+ラベル+余白)
+    const TITLE_Y=186;       // タイトルボタンY
+    const BTN_W=148, BTN_H=28;
 
     // ── セーブボタン(ミニマップ下・1段目) ──
     const saveBtn=this.add.rectangle(BX,SAVE_Y,BTN_W,BTN_H,0x0a2a0a,0.85)
@@ -12967,27 +12972,58 @@ class GameScene extends Phaser.Scene{
 
   createMinimap(){
     const w=this.scale.width,h=this.scale.height;
-    const mw=110,mh=80,mx=w-mw-6,my=6;
+    // 大きめのミニマップ(160x120)
+    const mw=160,mh=120,mx=w-mw-6,my=6;
     const cfg=this.cfg;
-    this.mmBg=this.add.rectangle(mx,my,mw,mh,0x000000,0.72).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(1,0xffd700);
-    this.mmStageLabel=this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
-    this.mmPlayerDot=this.add.circle(0,0,3,0xffd700).setScrollFactor(0).setDepth(23);
-    this.mmEnemyDots=[];this.mmX=mx;this.mmY=my;this.mmW=mw;this.mmH=mh;
+
+    // ── ミニマップ枠の背景(黒の余白) ──
+    this.mmBg=this.add.rectangle(mx,my,mw,mh,0x000000,0.85).setOrigin(0).setScrollFactor(0).setDepth(20).setStrokeStyle(2,0xffd700);
+
+    // ── マップ画像をアスペクト比保持で縮小表示 ──
+    // ワールドとミニマップのアスペクト比を比較してフィットさせる
+    const worldAspect=this.MW/this.MH;
+    const mmAspect=mw/mh;
+    let drawW, drawH, drawX, drawY;
+    if(worldAspect > mmAspect){
+      // 横長: 幅基準でフィット、上下に余白
+      drawW=mw; drawH=mw/worldAspect;
+      drawX=mx; drawY=my+(mh-drawH)/2;
+    } else {
+      // 縦長または正方形: 高さ基準でフィット、左右に余白
+      drawH=mh; drawW=mh*worldAspect;
+      drawX=mx+(mw-drawW)/2; drawY=my;
+    }
+    // ミニマップ内の有効描画範囲を保存(以降のマーカー座標計算で使う)
+    this.mmDrawX=drawX; this.mmDrawY=drawY;
+    this.mmDrawW=drawW; this.mmDrawH=drawH;
+    this.mmX=mx; this.mmY=my; this.mmW=mw; this.mmH=mh;
+
+    // マップ画像があれば縮小表示(透明度を下げて視認性確保)
+    if(cfg.mapImage && this.textures.exists(cfg.mapImage)){
+      this.mmMapImage=this.add.image(drawX, drawY, cfg.mapImage).setOrigin(0,0).setDisplaySize(drawW, drawH).setScrollFactor(0).setDepth(20.5).setAlpha(0.75);
+    }
+
+    // ステージラベル
+    this.mmStageLabel=this.add.text(mx+mw/2,my+mh+4,'ST.'+this.stage,{fontSize:'12px',fontFamily:'Arial',color:'#ffd700',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+
+    // プレイヤー(金●・少し大きめで視認性UP)
+    this.mmPlayerDot=this.add.circle(0,0,4,0xffd700,1).setScrollFactor(0).setDepth(24).setStrokeStyle(1,0x000000,0.9);
+    this.mmEnemyDots=[];
     // 動的マーカー(updateMinimap毎に再生成: 敵・ボス)以外を保持
     this.mmStaticObjs=[];
 
-    // 座標変換ヘルパ(ワールド座標 → ミニマップ座標)
+    // 座標変換ヘルパ(ワールド座標 → ミニマップ座標・アスペクト比保持版)
     const px2mm=(wx,wy)=>({
-      x:mx+wx/this.MW*mw,
-      y:my+wy/this.MH*mh
+      x:drawX+wx/this.MW*drawW,
+      y:drawY+wy/this.MH*drawH
     });
     // 共通: 静的マーカー登録ヘルパ
     const addMarker=(wx,wy,color,sym,symColor,r)=>{
       const pp=px2mm(wx,wy);
-      const dot=this.add.circle(pp.x,pp.y,r||4,color,0.9).setScrollFactor(0).setDepth(22);
+      const dot=this.add.circle(pp.x,pp.y,r||5,color,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0x000000,0.7);
       this.mmStaticObjs.push(dot);
       if(sym){
-        const t=this.add.text(pp.x,pp.y-7,sym,{fontSize:'8px',fontFamily:'Arial',color:symColor||'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+        const t=this.add.text(pp.x,pp.y-9,sym,{fontSize:'10px',fontFamily:'Arial',color:symColor||'#ffffff',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
         this.mmStaticObjs.push(t);
       }
     };
@@ -13007,6 +13043,10 @@ class GameScene extends Phaser.Scene{
     // ── 別ルートポータル(オレンジ ★) ──
     if(cfg.portalAlt){
       addMarker(cfg.portalAlt.x,cfg.portalAlt.y,0xf39c12,'★','#f39c12');
+    }
+    // ── 南方向ポータル(オレンジ ▼) ──
+    if(cfg.portalSouth!==null&&cfg.portalSouth!==undefined&&cfg.portalSouthX!==undefined){
+      addMarker(cfg.portalSouthX,cfg.portalSouthY,0xff8844,'▼','#ffaa66');
     }
     // ── マジックポータル(青魔法門・紫 ✦) ──
     if(cfg.magicGate){
@@ -13032,33 +13072,38 @@ class GameScene extends Phaser.Scene{
         const info=bIcon[b.type]||{col:0xcccccc, sym:'■'};
         const pp=px2mm(cx,cy);
         // 建物は四角マーカーで区別
-        const dot=this.add.rectangle(pp.x,pp.y,5,5,info.col,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0x000000,0.6);
+        const dot=this.add.rectangle(pp.x,pp.y,6,6,info.col,1).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0x000000,0.8);
         this.mmStaticObjs.push(dot);
       });
     }
     // ── NPC(💬青緑) ──
     if(cfg.npcs && Array.isArray(cfg.npcs)){
       cfg.npcs.forEach(n=>{
-        addMarker(n.x,n.y,0x44ddaa,'💬','#88ffcc',3);
+        addMarker(n.x,n.y,0x44ddaa,'💬','#88ffcc',4);
       });
     }
   }
   updateMinimap(){
     const p=this.player;
-    this.mmPlayerDot.setPosition(this.mmX+p.x/this.MW*this.mmW,this.mmY+p.y/this.MH*this.mmH);
-    this.mmEnemyDots.forEach(d=>d.destroy());this.mmEnemyDots=[];
+    // プレイヤー位置(アスペクト比保持版の有効描画範囲を使う)
+    this.mmPlayerDot.setPosition(
+      this.mmDrawX + p.x/this.MW*this.mmDrawW,
+      this.mmDrawY + p.y/this.MH*this.mmDrawH
+    );
+    this.mmEnemyDots.forEach(d=>d.destroy());
+    this.mmEnemyDots=[];
     this.enemyDataList.forEach(ed=>{
       if(ed.dead)return;
-      const mx2=this.mmX+ed.sprite.x/this.MW*this.mmW;
-      const my2=this.mmY+ed.sprite.y/this.MH*this.mmH;
+      const mx2=this.mmDrawX + ed.sprite.x/this.MW*this.mmDrawW;
+      const my2=this.mmDrawY + ed.sprite.y/this.MH*this.mmDrawH;
       if(ed.isBoss){
         // ボス: ポップなドクロ(赤い円 + 💀記号)
-        const bg=this.add.circle(mx2,my2,5,0xff2222,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1,0xffffff,0.9);
-        const sk=this.add.text(mx2,my2,'💀',{fontSize:'9px',fontFamily:'Arial'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
+        const bg=this.add.circle(mx2,my2,6,0xff2222,0.95).setScrollFactor(0).setDepth(22).setStrokeStyle(1.5,0xffffff,0.95);
+        const sk=this.add.text(mx2,my2,'💀',{fontSize:'10px',fontFamily:'Arial'}).setOrigin(0.5).setScrollFactor(0).setDepth(23);
         this.mmEnemyDots.push(bg);
         this.mmEnemyDots.push(sk);
       } else {
-        const dot=this.add.circle(mx2,my2,2,0xff6363).setScrollFactor(0).setDepth(22);
+        const dot=this.add.circle(mx2,my2,2.5,0xff6363,1).setScrollFactor(0).setDepth(22).setStrokeStyle(0.5,0x000000,0.6);
         this.mmEnemyDots.push(dot);
       }
     });
@@ -13291,6 +13336,11 @@ class GameScene extends Phaser.Scene{
     const def=ENEMY_DEFS[id]||ENEMY_DEFS.slime;
     // スポーン位置が壁内だと敵が詰まってしまうので、安全な近傍を探す
     const safe=this._findSafeSpawnPos(x, y, 200);
+    // 完全に歩けない場所(壁内・水中)ならスポーンキャンセル
+    if(!safe){
+      console.warn('[spawnEnemy] skipped (unreachable):', id, x, y);
+      return null;
+    }
     x=safe.x; y=safe.y;
     const sp=this.enemies.create(x,y,'enemy_'+id).setDisplaySize(def.sz,def.sz).setDepth(4);
     sp.setCollideWorldBounds(true);
@@ -13449,12 +13499,20 @@ class GameScene extends Phaser.Scene{
           if(!this.scene.isActive())return; // シーン遷移済みなら中止
           // プレイヤーから遠い位置にスポーン（最低200px離す）
           let rx,ry,tries=0;
+          let success=false;
           do{
             rx=Phaser.Math.Between(80,this.MW-80);
             ry=Phaser.Math.Between(80,this.MH-80);
             tries++;
-          }while(Phaser.Math.Distance.Between(rx,ry,this.player.x,this.player.y)<200&&tries<20);
-          this.spawnEnemy(deadId,rx,ry);
+            // プレイヤーから200px以上離れているか
+            if(Phaser.Math.Distance.Between(rx,ry,this.player.x,this.player.y)>=200){
+              // 歩ける位置かを事前チェック
+              if(this._isWalkable && this._isWalkable(rx, ry)){
+                success=true; break;
+              }
+            }
+          }while(tries<40);
+          if(success) this.spawnEnemy(deadId,rx,ry);
         });
       }
     }});
@@ -14353,7 +14411,8 @@ class GameScene extends Phaser.Scene{
     // ── sakura_dun1 桜の城(中央広場・城・桜大樹・池・建物群) ──
     if(cfg.mapType==='sakura_dun1'){
       // 暗いエリア(建物・屋根・影・壁) → 壁
-      if(sum < 200) return false;
+      // 城の入口の暗い石段も通れるよう閾値を緩める(200→170)
+      if(sum < 170) return false;
       // 池(青が支配的) → 壁
       if(b > r*1.2 && b > g*1.1 && b > 100) return false;
       // 桜(濃いピンク R高&B高&G低)→ 壁
@@ -14529,7 +14588,8 @@ class GameScene extends Phaser.Scene{
     }
     // 見つからない場合: 中心点1点歩けるなら採用(緩い基準)
     if(this._isWalkable(x, y)) return {x, y};
-    return {x, y};
+    // 完全に歩けない位置のため null を返す → spawnEnemy 側でスキップ
+    return null;
   }
 
   // ── 毒システム ──────────────────────────
