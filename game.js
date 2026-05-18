@@ -5863,8 +5863,6 @@ const STAGE_CONFIG={
       {x:1180, y:1200, w:140, h:80},    // 城の階段下〜中央道の繋ぎ
     ],
   },
-    ],
-  },
   // ── DUN.2 炭鉱1F: ブレイズフォージの洞窟入口から入る ──
   11:{name:'⛏ DUN.2 炭鉱1F', bgmKey:'mine', mapImage:'map_dun2_1',
     mapType:'mine', mapW:2508, mapH:2508,
