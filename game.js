@@ -5330,12 +5330,14 @@ const AWAKENINGS = {
     icon: '🗡',
     baseClass: 'warrior',           // 元クラス(これ以外では発動不可)
     requiresEquip: 'muramasa',      // 武器に装備されている必要あり
-    manualDeactivate: false,        // 手動解除不可(自動解除のみ)
+    manualDeactivate: true,         // 手動解除可能(緩和)
     statMul: {
-      def: 0.5,    // DEF -50%(脆くなる・ネガ効果のみ維持)
-      // ATK・spd・hit・agi の正補正は無し
+      atk: 1.2,    // ATK +20%(強化)
+      spd: 1.2,    // 速度 +20%(強化)
+      def: 0.75,   // DEF -25%(緩和: 0.5→0.75)
+      // hit・agi の正補正は無し
     },
-    hpDrainRatio: 0.005,            // 毎秒mhpの0.5%減少
+    // HP毎秒減少なし(緩和)
     forceDeactivateRatio: 0.10,     // HP10%以下で強制解除
     skills: [
       {id:'sk1', name:'居合斬り',  cost:8,  cd:2.5, desc:'敵の背後にワープ+強烈な一撃'},
@@ -5356,8 +5358,7 @@ const AWAKENINGS = {
       agi: 0.6,    // 回避ダウン(ネガ効果)
       // atk/def/mag の正補正は無し
     },
-    spDrainPerSec: 1.5,           // SP毎秒1.5消費
-    forceDeactivateSp: true,      // SPが0になったら強制解除
+    // SP毎秒消費・強制解除なし(緩和)
     skills: [
       {id:'sk1', name:'エンペラーボムズ',cost:30, cd:6,  desc:'空に巨大ドクロ爆弾を投げ、画面範囲ダメージ'},
       {id:'sk2', name:'マシンガン',     cost:25, cd:5,  desc:'15連射の多段攻撃・発射までタメあり'},
@@ -5376,12 +5377,7 @@ const AWAKENINGS = {
       def: 0.9,    // DEF わずかにダウン
       // atk/mag/spd/hit/agi の正補正は無し
     },
-    // 発動時にHPを1/4にする(ペナルティ)
-    onActivateHpRatio: 0.25,
-    // SPを継続的に消費
-    spDrainPerSec: 1.2,
-    // SP10%以下で強制解除
-    forceDeactivateSpRatio: 0.10,
+    // 発動時HP1/4・SP毎秒消費・SP強制解除すべて削除(緩和)
     skills: [
       {id:'sk1', name:'ウインドカッター',cost:25, cd:3,  desc:'正面に飛ぶ風属性の一撃'},
       {id:'sk2', name:'精霊の誓い',     cost:30, cd:5,  desc:'2体の精霊召喚で多段ビーム'},
@@ -5403,8 +5399,7 @@ const AWAKENINGS = {
     // 発動時のコスト: HP30%消費
     onActivateHpCost: 0.3,
     spDrainPerSec: 1.0,
-    // SP10%以下で強制解除
-    forceDeactivateSpRatio: 0.10,
+    // SP強制解除は削除(緩和)
     skills: [
       {id:'sk1', name:'ダークフォール',cost:35, cd:8,  desc:'中範囲のブラックホール+暗黒+毒継続'},
       {id:'sk2', name:'ダークストライク',cost:18, cd:1.5,desc:'闇の球体6個が連続着弾・連打可'},
@@ -7482,6 +7477,62 @@ class GameScene extends Phaser.Scene{
     }
     return eva;
   }
+  // 覚醒スキルを通常時から使う(awakIdx: 1,2,3)
+  useAwakSkill(awakIdx){
+    const pd = this.playerData;
+    const p = this.player;
+    if(!p) return;
+    // 装備中の覚醒武器から覚醒種別取得
+    const eqW = pd.equip && pd.equip.weapon_main;
+    const eqD = eqW ? EQUIP_DEFS[eqW] : null;
+    const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
+    if(!awakKey) return;
+    // 覚醒スキルレベル確認
+    const lv = pd.awakSkillLv && pd.awakSkillLv[awakKey] && pd.awakSkillLv[awakKey]['sk'+awakIdx] || 0;
+    if(lv <= 0){
+      this.showFloat(p.x, p.y-50, '覚醒スキル未習得', '#888888', 'info');
+      return;
+    }
+    // スキル定義取得
+    const A = AWAKENINGS[awakKey];
+    if(!A || !A.skills) return;
+    const sk = A.skills[awakIdx-1];
+    if(!sk) return;
+    // CDキー(覚醒スキル専用)
+    const cdKey = 'awakCD'+awakIdx;
+    if((this[cdKey]||0) > 0) return;
+    if(this._casting) return;
+    // SPチェック(Lv反映: 高Lvほどコスト軽減)
+    const costMul = Math.max(0.6, 1 - (lv-1) * 0.04);  // Lv1=1.0倍、Lv10=0.64倍
+    const cost = Math.floor(sk.cost * costMul);
+    if(pd.sp < cost){
+      this.showFloat(p.x, p.y-50, 'SP不足', '#3498db', 'info');
+      return;
+    }
+    pd.sp -= cost;
+    SE('skill');
+    // ── 覚醒スキル発動: 既存の useSkill 処理を流用するため、一時的に awakened をセット ──
+    // 既に覚醒中ならそのまま、覚醒中でなければ一時的にフラグを立てる
+    const wasAwakened = pd.awakened;
+    let pseudoAwaken = false;
+    if(!wasAwakened){
+      pd.awakened = awakKey;
+      pseudoAwaken = true;
+    }
+    // skNum(1/2/3)で発動 — useSkill 内の覚醒スキル分岐に入る
+    // ただしSP消費は既に済ませているので、useSkillの該当部分を抜粋して呼ぶ必要がある
+    // 簡略化: useSkillをそのまま呼ぶ(SP は2重消費されるが上で-=済みなのでロールバック)
+    pd.sp += cost;  // useSkillが再消費するのでここで戻す
+    this.useSkill(awakIdx);
+    // 元のフラグに戻す(疑似覚醒のみ)
+    if(pseudoAwaken){
+      pd.awakened = null;
+    }
+    // CD設定(Lv反映: 高Lvほどcd短縮)
+    const cdMul = Math.max(0.6, 1 - (lv-1) * 0.04);
+    this[cdKey] = sk.cd * cdMul;
+  }
+
   useSkill(num=1){
     const pd=this.playerData,p=this.player;
     const defs=this.getSkillDefs();
@@ -8556,13 +8607,94 @@ class GameScene extends Phaser.Scene{
                 lastPos.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
                 this.hitEnemy(ed, dmg, isCrit, true, '');
               }
-              // 斬撃エフェクト(死後でも演出)
+              // 斬撃エフェクト(派手な多段演出)
               const pos = lastPos.get(ed);
               const ang = Math.random()*Math.PI*2;
-              const slash=this.add.image(pos.x, pos.y, 'fx_slash').setRotation(ang).setDisplaySize(60,60).setDepth(20).setTint(0xff4466).setAlpha(0.85);
-              this.tweens.add({targets:slash, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash.destroy()});
+              // ── ヒット順で色変化(赤→赤橙→黄→白) ──
+              const slashCols = [0xff2244, 0xff5544, 0xffaa44, 0xffdd66, 0xffffff];
+              const slashCol = slashCols[i] || 0xff4466;
+              // ── 大きな斬撃本体(120pxに拡大・縦長で迫力) ──
+              const slash = this.add.image(pos.x, pos.y, 'fx_slash')
+                .setRotation(ang).setDisplaySize(120, 120).setDepth(22)
+                .setTint(slashCol).setAlpha(1.0);
+              this.tweens.add({
+                targets: slash, alpha: 0,
+                scaleX: 2.2, scaleY: 2.2,
+                duration: 320,
+                onComplete: ()=>slash.destroy()
+              });
+              // ── 残像(同じ位置に少しズラして3枚) ──
+              for(let k=0; k<3; k++){
+                const offX = (Math.random()-0.5)*40;
+                const offY = (Math.random()-0.5)*40;
+                const ghostAng = ang + (Math.random()-0.5)*0.5;
+                const ghost = this.add.image(pos.x+offX, pos.y+offY, 'fx_slash')
+                  .setRotation(ghostAng).setDisplaySize(80, 80).setDepth(21)
+                  .setTint(slashCol).setAlpha(0.7);
+                this.tweens.add({
+                  targets: ghost, alpha: 0,
+                  scaleX: 1.6, scaleY: 1.6,
+                  duration: 280,
+                  delay: k*30,
+                  onComplete: ()=>ghost.destroy()
+                });
+              }
+              // ── ヒット時の閃光(円形フラッシュ) ──
+              const flash = this.add.circle(pos.x, pos.y, 20, slashCol, 0.9).setDepth(23);
+              this.tweens.add({
+                targets: flash,
+                radius: 50, alpha: 0,
+                scaleX: 2.5, scaleY: 2.5,
+                duration: 200,
+                onComplete: ()=>flash.destroy()
+              });
+              // ── 火花パーティクル(8方向) ──
+              const sparkCount = 8;
+              for(let s=0; s<sparkCount; s++){
+                const sAng = (s/sparkCount)*Math.PI*2 + Math.random()*0.3;
+                const sDist = 30 + Math.random()*40;
+                const spark = this.add.circle(pos.x, pos.y, 3, 0xffeeaa, 1).setDepth(22);
+                this.tweens.add({
+                  targets: spark,
+                  x: pos.x + Math.cos(sAng)*sDist,
+                  y: pos.y + Math.sin(sAng)*sDist,
+                  alpha: 0,
+                  scaleX: 0.2, scaleY: 0.2,
+                  duration: 250 + Math.random()*150,
+                  onComplete: ()=>spark.destroy()
+                });
+              }
+              // ── 最終ヒット(5発目)は特別演出 ──
+              if(i === hits - 1){
+                // 大爆発リング
+                const bigRing = this.add.circle(pos.x, pos.y, 30, 0xffffff, 0)
+                  .setStrokeStyle(5, 0xffeecc, 1).setDepth(24);
+                this.tweens.add({
+                  targets: bigRing,
+                  radius: 100,
+                  alpha: 0,
+                  scaleX: 3, scaleY: 3,
+                  duration: 500,
+                  onComplete: ()=>bigRing.destroy()
+                });
+                // 十字斬りの大きな閃光
+                for(let q=0; q<2; q++){
+                  const cross = this.add.image(pos.x, pos.y, 'fx_slash')
+                    .setRotation(q*Math.PI/2).setDisplaySize(180, 60)
+                    .setDepth(23).setTint(0xffffff).setAlpha(0.9);
+                  this.tweens.add({
+                    targets: cross, alpha: 0,
+                    scaleX: 1.8, scaleY: 1.8,
+                    duration: 400,
+                    onComplete: ()=>cross.destroy()
+                  });
+                }
+              }
             });
-            this.cameras.main.shake(80, 0.006);
+            // ── シェイク強化(後半ほど強く) ──
+            const shakeIntensity = 0.008 + i*0.003;
+            const shakeDuration = 100 + i*20;
+            this.cameras.main.shake(shakeDuration, shakeIntensity);
             try{SE('slash');}catch(e){}
           });
         }
@@ -10434,23 +10566,30 @@ class GameScene extends Phaser.Scene{
     const skadd=(o)=>{skillCont.add(sf0(o));return o;};
     const sktmp={}; defs.forEach(sk=>{sktmp[sk.id]=0;}); let tmpJp=pd.jobPts||0;
 
-    // JOBポイント残数のみ表示（バーなし）
-    const jpTxt=skadd(this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'14px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
-    const refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
+    // ── 覚醒中かどうかで表示モード切替 ──
+    const isAwakenedNow = !!pd.awakened;
 
-    // 縦2×横2グリッドレイアウト（覚醒スキル領域を下に確保するため4セル）
-    const SK_COLS=2, SK_ROWS=2;
-    const SK_CW=(PW-20)/SK_COLS;
-    // 高さの60%を通常スキル用にし、残り40%を覚醒スキル用
-    const NORMAL_AREA_H = (IH-22) * 0.60;
-    const AWAK_AREA_H = (IH-22) * 0.40;
-    const SK_CH=NORMAL_AREA_H/SK_ROWS;
+    // 通常スキル領域の高さ(覚醒中は0)
+    const NORMAL_AREA_H = isAwakenedNow ? 0 : (IH-22) * 0.60;
+    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : (IH-22) * 0.40;
+
     const skVt={}, skAt={}, skCells={};
-    defs.forEach((sk,i)=>{
-      const skCol=i%SK_COLS, skRow=Math.floor(i/SK_COLS);
-      const cx=L+skCol*SK_CW+SK_CW/2;
-      const cy=ITOP+24+skRow*SK_CH+SK_CH/2;
-      const cL=L+skCol*SK_CW+4, cR=L+(skCol+1)*SK_CW-4;
+
+    if(!isAwakenedNow){
+      // 通常時のみ: JOBポイント残数表示と通常スキルグリッド
+      // JOBポイント残数のみ表示（バーなし）
+      const jpTxt=skadd(this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'14px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
+      var refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
+
+      // 縦2×横2グリッドレイアウト（覚醒スキル領域を下に確保するため4セル）
+      const SK_COLS=2, SK_ROWS=2;
+      const SK_CW=(PW-20)/SK_COLS;
+      const SK_CH=NORMAL_AREA_H/SK_ROWS;
+      defs.forEach((sk,i)=>{
+        const skCol=i%SK_COLS, skRow=Math.floor(i/SK_COLS);
+        const cx=L+skCol*SK_CW+SK_CW/2;
+        const cy=ITOP+24+skRow*SK_CH+SK_CH/2;
+        const cL=L+skCol*SK_CW+4, cR=L+(skCol+1)*SK_CW-4;
 
       // ── ロック枠
       if(sk.locked){
@@ -10525,6 +10664,7 @@ class GameScene extends Phaser.Scene{
         skadd(this.add.text(cR-btnW/2-2,cy,'MAX',{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
       }
     });
+    } // end if(!isAwakenedNow): 通常スキル領域はここで閉じる
 
     // ════════════════════════════════
     //  覚醒スキルセクション(装備中の覚醒武器のスキルを表示)
@@ -10536,7 +10676,8 @@ class GameScene extends Phaser.Scene{
     const awakA = awakKey ? AWAKENINGS[awakKey] : null;
 
     // 覚醒スキル領域の開始Y
-    const AWAK_TOP = ITOP + 24 + NORMAL_AREA_H + 8;
+    // 覚醒中は領域を上部から開始、通常時は通常スキルの下に配置
+    const AWAK_TOP = isAwakenedNow ? (ITOP + 8) : (ITOP + 24 + NORMAL_AREA_H + 8);
 
     // 仮振り用バッファと残ポイント
     const awakTmp = {sk1:0, sk2:0, sk3:0};
@@ -10544,19 +10685,23 @@ class GameScene extends Phaser.Scene{
     const refreshAsp = ()=>{};  // 後で再定義
 
     if(awakA && awakA.skills){
-      // ヘッダー(タイトル+残ポイント)
+      // ヘッダー(タイトル+残ポイント) - 覚醒中は大きく
       const awakHeaderTxt = '✨ '+(eqDef.name||'覚醒武器')+'の覚醒スキル ✨';
-      skadd(this.add.text(PX, AWAK_TOP, awakHeaderTxt, {fontSize:'12px',fontFamily:'Arial',color:'#ff88cc',fontStyle:'bold'}).setOrigin(0.5));
-      const aspTxt = skadd(this.add.text(PX, AWAK_TOP+16, '覚醒ポイント残り: '+tmpAsp+'pt', {fontSize:'12px',fontFamily:'Arial',color:'#ff66bb'}).setOrigin(0.5));
+      const headerFs = isAwakenedNow ? '16px' : '12px';
+      const aspFs = isAwakenedNow ? '14px' : '12px';
+      skadd(this.add.text(PX, AWAK_TOP, awakHeaderTxt, {fontSize:headerFs,fontFamily:'Arial',color:'#ff88cc',fontStyle:'bold'}).setOrigin(0.5));
+      const aspTxt = skadd(this.add.text(PX, AWAK_TOP+(isAwakenedNow?22:16), '覚醒ポイント残り: '+tmpAsp+'pt', {fontSize:aspFs,fontFamily:'Arial',color:'#ff66bb'}).setOrigin(0.5));
       const refreshAsp2 = ()=>aspTxt.setText('覚醒ポイント残り: '+tmpAsp+'pt');
 
       // 横3列に並べる
       const awakSkills = awakA.skills;
       const AW_COLS = awakSkills.length;  // 通常3
       const AW_CW = (PW-20) / AW_COLS;
-      const AW_CY = AWAK_TOP + 50 + (AWAK_AREA_H-60)/2;  // 中央寄せ
-      const AW_CH = AWAK_AREA_H - 60;
-      const AW_MAX_LV = 10;  // 覚醒スキルもLv10まで
+      // セルの上端(ヘッダーの下から) - 覚醒中はヘッダーが大きいので下げる
+      const AW_TOP = AWAK_TOP + (isAwakenedNow ? 50 : 36);
+      const AW_CH = AWAK_AREA_H - (isAwakenedNow ? 56 : 44);  // セル高
+      const AW_CY = AW_TOP + AW_CH/2;  // セル中心(他で使うため計算用)
+      const AW_MAX_LV = 10;
 
       // 覚醒スキルレベル取得用ヘルパ
       const getAwakLv = (skId)=>{
@@ -10564,7 +10709,15 @@ class GameScene extends Phaser.Scene{
         return map ? (map[skId]||0) : 0;
       };
 
-      // 各スキルセル(現在Lv表示+−+ボタン)
+      // 覚醒中はフォント・要素配置を大きくして見やすく
+      const fsName = isAwakenedNow ? '18px' : '12px';
+      const fsDesc = isAwakenedNow ? '12px' : '9px';
+      const fsLv   = isAwakenedNow ? '18px' : '12px';
+      const fsBtn  = isAwakenedNow ? '20px' : '14px';
+      const stepY  = isAwakenedNow ? 36 : 18;  // 各段の間隔
+      const descMaxLen = isAwakenedNow ? 30 : 16;
+
+      // 各スキルセル(縦レイアウト・整然と)
       const awakCells = {};
       const awakVtxt = {};
       const awakAtxt = {};
@@ -10573,40 +10726,49 @@ class GameScene extends Phaser.Scene{
         const cL = L + i*AW_CW + 4;
         const cR = L + (i+1)*AW_CW - 4;
 
-        // 枠
+        // ── 枠 ──
         skadd(this.add.rectangle(cx, AW_CY, AW_CW-6, AW_CH, 0x1a0a18, 0.85).setStrokeStyle(2, 0xff66bb, 0.85));
-        // スキル名
-        skadd(this.add.text(cx, AW_CY - AW_CH*0.36, sk.name, {fontSize:'12px',fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
-        // 説明(短く)
-        const desc = sk.desc || '';
-        skadd(this.add.text(cx, AW_CY - AW_CH*0.20, desc.length>20 ? desc.substr(0,18)+'…' : desc, {fontSize:'9px',fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-12}}).setOrigin(0.5));
 
-        // Lv表示
+        // ── 縦レイアウト: 上から順に積む ──
+        // 1段目: スキル名
+        const nameY = AW_TOP + (isAwakenedNow ? 30 : 14);
+        skadd(this.add.text(cx, nameY, sk.name, {fontSize:fsName,fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
+
+        // 2段目: 説明
+        const descY = AW_TOP + (isAwakenedNow ? 70 : 32);
+        const desc = sk.desc || '';
+        skadd(this.add.text(cx, descY, desc.length>descMaxLen ? desc.substr(0,descMaxLen-2)+'…' : desc, {fontSize:fsDesc,fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-10},align:'center'}).setOrigin(0.5));
+
+        // 3段目: Lv表示
         const curLv = getAwakLv(sk.id);
-        const vtxt = skadd(this.add.text(cx, AW_CY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:'11px',fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd'}).setOrigin(0.5));
+        const lvY = AW_TOP + (isAwakenedNow ? 120 : 52);
+        const vtxt = skadd(this.add.text(cx, lvY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:fsLv,fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd',fontStyle:'bold'}).setOrigin(0.5));
         awakVtxt[sk.id] = vtxt;
 
-        // Lvバー(ピンクで描画)
+        // 4段目: Lvバー
+        const barY = AW_TOP + (isAwakenedNow ? 160 : 70);
         const barW = AW_CW - 24;
-        const bW = Math.max(4, Math.floor(barW / AW_MAX_LV) - 2);
-        const barY = AW_CY + AW_CH*0.15;
+        const bW = Math.max(3, Math.floor(barW / AW_MAX_LV) - 2);
+        const barH = isAwakenedNow ? 12 : 6;
         const cells = [];
         for(let j=0; j<AW_MAX_LV; j++){
-          const cx2 = cL + 8 + j*(bW+2);
-          const cell = skadd(this.add.rectangle(cx2, barY, bW, 6, j<curLv ? 0xff44aa : 0x331122).setStrokeStyle(1, 0x551133, 0.6).setOrigin(0, 0.5));
+          const cx2 = cL + 12 + j*(bW+2);
+          const cell = skadd(this.add.rectangle(cx2, barY, bW, barH, j<curLv ? 0xff44aa : 0x331122).setStrokeStyle(1, 0x551133, 0.6).setOrigin(0, 0.5));
           cells.push(cell);
         }
         awakCells[sk.id] = {cells, maxLv: AW_MAX_LV};
 
-        // +/-ボタンと加算プレビュー
-        const addBtnW = 22, addBtnH = 20;
+        // 5段目: +/- ボタンと仮振り表示
+        const btnY = AW_TOP + (isAwakenedNow ? 210 : 90);
+        const addBtnW = isAwakenedNow ? 44 : 26;
+        const addBtnH = isAwakenedNow ? 36 : 22;
         if(curLv < AW_MAX_LV){
-          const minus = skadd(this.add.rectangle(cL+addBtnW/2+2, AW_CY+AW_CH*0.36, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(cL+addBtnW/2+2, AW_CY+AW_CH*0.36, '−', {fontSize:'14px',fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
-          const plus = skadd(this.add.rectangle(cR-addBtnW/2-2, AW_CY+AW_CH*0.36, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(cR-addBtnW/2-2, AW_CY+AW_CH*0.36, '+', {fontSize:'14px',fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
-          // 仮振り表示
-          const atxt = skadd(this.add.text(cx, AW_CY+AW_CH*0.36, '', {fontSize:'11px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
+          const minus = skadd(this.add.rectangle(cL+addBtnW/2+4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(cL+addBtnW/2+4, btnY, '−', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
+          const plus = skadd(this.add.rectangle(cR-addBtnW/2-4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(cR-addBtnW/2-4, btnY, '+', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
+          // 仮振り表示(中央)
+          const atxt = skadd(this.add.text(cx, btnY, '', {fontSize:isAwakenedNow?'18px':'12px',fontFamily:'Arial',color:'#ffd700',fontStyle:'bold'}).setOrigin(0.5));
           awakAtxt[sk.id] = atxt;
 
           plus.on('pointerdown', ()=>{
@@ -10625,7 +10787,7 @@ class GameScene extends Phaser.Scene{
             refreshAsp2();
           });
         } else {
-          skadd(this.add.text(cx, AW_CY+AW_CH*0.36, 'MAX', {fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
+          skadd(this.add.text(cx, btnY, 'MAX', {fontSize:'13px',fontFamily:'Arial',color:'#ffd700',fontStyle:'bold'}).setOrigin(0.5));
         }
       });
 
@@ -10669,24 +10831,27 @@ class GameScene extends Phaser.Scene{
     skOk.on('pointerover',()=>skOk.setFillStyle(0x00e5ff,0.5)); skOk.on('pointerout',()=>skOk.setFillStyle(0x00e5ff,0.22));
     skOk.on('pointerdown',()=>{
       let any=false;
-      defs.forEach(sk=>{
-        const n=sktmp[sk.id]||0;
-        if(n>0){pd[sk.id]=(pd[sk.id]||0)+n;any=true;}
-        sktmp[sk.id]=0;
-        if(skAt[sk.id])skAt[sk.id].setText('');
-        const newLv=pd[sk.id]||0;
-        // Lv数値を更新
-        if(skVt[sk.id])skVt[sk.id].setText('Lv'+newLv+'/'+sk.maxLv).setColor(newLv>=sk.maxLv?'#ffd700':'#aaaaaa');
-        // Lvバーのセルを更新（確定時に反映）
-        if(skCells[sk.id]){
-          const {cells,maxLv}=skCells[sk.id];
-          cells.forEach((cell,j)=>{
-            if(cell&&cell.active)cell.setFillStyle(j<newLv?0x00e5ff:0x111133);
-          });
-        }
-      });
-      pd.jobPts=tmpJp;
-      refreshJp();
+      // 覚醒中は通常スキルの振り分けはスキップ
+      if(!isAwakenedNow){
+        defs.forEach(sk=>{
+          const n=sktmp[sk.id]||0;
+          if(n>0){pd[sk.id]=(pd[sk.id]||0)+n;any=true;}
+          sktmp[sk.id]=0;
+          if(skAt[sk.id])skAt[sk.id].setText('');
+          const newLv=pd[sk.id]||0;
+          // Lv数値を更新
+          if(skVt[sk.id])skVt[sk.id].setText('Lv'+newLv+'/'+sk.maxLv).setColor(newLv>=sk.maxLv?'#ffd700':'#aaaaaa');
+          // Lvバーのセルを更新（確定時に反映）
+          if(skCells[sk.id]){
+            const {cells,maxLv}=skCells[sk.id];
+            cells.forEach((cell,j)=>{
+              if(cell&&cell.active)cell.setFillStyle(j<newLv?0x00e5ff:0x111133);
+            });
+          }
+        });
+        pd.jobPts=tmpJp;
+        if(typeof refreshJp==='function') refreshJp();
+      }
       // 覚醒スキルも同時に確定
       if(this._awakSkillDistribute){
         const anyAwak = this._awakSkillDistribute();
@@ -11224,6 +11389,10 @@ class GameScene extends Phaser.Scene{
     this._awakBtnLabel = this.add.text(BX, BY+24, '覚醒', {
       fontSize:'11px',fontFamily:'Arial',color:'#ffeecc',fontStyle:'bold',stroke:'#000',strokeThickness:2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(29).setVisible(false);
+    // 覚醒ポイント残量表示(ボタンの下)
+    this._awakSpTxt = this.add.text(BX, BY+50, '✨ 0pt', {
+      fontSize:'11px',fontFamily:'Arial',color:'#ffaadd',fontStyle:'bold',stroke:'#330033',strokeThickness:2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(29).setVisible(false);
     // 押すと発動 or 解除
     this._awakBtnBg.on('pointerdown', ()=>{
       if(this._menuOpen || this._gameOver) return;
@@ -11297,25 +11466,60 @@ class GameScene extends Phaser.Scene{
     this._awakBtnBg.setVisible(visible);
     this._awakBtnTxt.setVisible(visible);
     this._awakBtnLabel.setVisible(visible);
+    // 覚醒ポイント表示更新(覚醒武器を装備中のときだけ表示)
+    if(this._awakSpTxt){
+      this._awakSpTxt.setVisible(visible);
+      this._awakSpTxt.setText('✨ '+(pd.awakSp||0)+'pt');
+    }
     if(pd.awakened){
       const A = AWAKENINGS[pd.awakened];
       this._awakBtnTxt.setText(A.icon);
       this._awakBtnLabel.setText(A.deactivateLabel || '解除');
-      // 覚醒中: ゲージリングは隠す
-      if(this._awakBtnGauge) this._awakBtnGauge.setVisible(false);
       // クラス別の解除中の色
+      let activeGaugeCol;
       if(pd.awakened==='heavy'){
         this._awakBtnBg.setFillStyle(0x4488cc, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0x88ccff);
+        activeGaugeCol = 0x88ccff;
       }else if(pd.awakened==='spirit'){
         this._awakBtnBg.setFillStyle(0x44aa66, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0x88ffaa);
+        activeGaugeCol = 0x88ffaa;
       }else if(pd.awakened==='youma'){
         this._awakBtnBg.setFillStyle(0x4422aa, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0x9944ff);
+        activeGaugeCol = 0x9944ff;
       }else{
         this._awakBtnBg.setFillStyle(0x442288, 0.85);
         this._awakBtnBg.setStrokeStyle(3, 0xaa66ff);
+        activeGaugeCol = 0xff8866;
+      }
+      // ── 覚醒中: 残り時間ゲージリング ──
+      // 180秒(3分)を上限とし、経過に応じて減らす
+      if(this._awakBtnGauge){
+        const g = this._awakBtnGauge;
+        g.clear();
+        g.setVisible(true);
+        const BX = this._awakBtnGaugeBX;
+        const BY = this._awakBtnGaugeBY;
+        const elapsed = pd._awakElapsed || 0;
+        const total = 180;  // 3分
+        const remain = Math.max(0, total - elapsed);
+        const ratio = remain / total;  // 1.0 → 0.0
+        // 背景の薄い円
+        g.lineStyle(4, 0x000000, 0.4);
+        g.strokeCircle(BX, BY, 42);
+        // 残り時間ゲージ(時計回りに減る = 上から開始、時計回り方向)
+        if(ratio > 0){
+          // 残り時間が少なくなるにつれて色が赤くなる演出
+          let col = activeGaugeCol;
+          if(ratio < 0.2) col = 0xff3344;  // 残り20%以下で赤に
+          else if(ratio < 0.4) col = 0xff8844;  // 残り40%以下でオレンジ
+          g.lineStyle(4, col, 1);
+          g.beginPath();
+          g.arc(BX, BY, 42, -Math.PI/2, -Math.PI/2 + ratio*Math.PI*2, false);
+          g.strokePath();
+        }
       }
     }else if(canAwaken){
       const A = AWAKENINGS[def.awakening];
@@ -12455,11 +12659,10 @@ class GameScene extends Phaser.Scene{
     btnAtk.on('pointerup',  ()=>{btnAtk.setFillStyle(0xffd700,0.3);this._atkHeld=false;});
     btnAtk.on('pointerout', ()=>{btnAtk.setFillStyle(0xffd700,0.3);this._atkHeld=false;});
 
-    // スキルボタン3つ（攻撃ボタン左に横並び）
+    // スキルボタン3〜7個（攻撃ボタン左に横並び）
     this.skillCDOverlays=[];
     this.skillBtnRefs=[];
-    const SK_W=72, SK_H=58; // 少し大きく
-    const skLabels=['Q','E','R'];
+    const skLabels=['Q','E','R','T','Y','U','I'];
     const skIcons={
       warrior:['🌪','🛡','✨'], mage:['💥','❄️','⚡'],
       archer:['🏹','⭐','🔫'], bomber:['💣','💥','🚀']
@@ -12470,14 +12673,46 @@ class GameScene extends Phaser.Scene{
     // パッシブスキル（アーチャーのブーストアタック・ボマーのボマーパワー）はボタンに出さない
     const hasSk4Active=(pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm);
     const skNums=hasSk4Active?[1,2,3,4]:[1,2,3];
+
+    // ── 覚醒スキル(awakSk1/2/3) を装備中の覚醒武器から取得 ──
+    const eqW2 = pd.equip && pd.equip.weapon_main;
+    const eqD2 = eqW2 ? EQUIP_DEFS[eqW2] : null;
+    const awakKey2 = (eqD2 && eqD2.awakening) ? eqD2.awakening : null;
+    const awakA2 = awakKey2 ? AWAKENINGS[awakKey2] : null;
+    // 覚醒スキルのうちLv1以上のものだけボタンに追加(装備中の覚醒武器に紐づくもの限定)
+    const awakSkillsToShow = [];
+    if(awakA2 && awakA2.skills && pd.awakSkillLv && pd.awakSkillLv[awakKey2]){
+      awakA2.skills.forEach((sk, idx)=>{
+        const lv = pd.awakSkillLv[awakKey2][sk.id] || 0;
+        if(lv > 0){
+          awakSkillsToShow.push({skillDef: sk, awakIdx: idx+1, lv: lv});
+        }
+      });
+    }
+
+    // ボタン総数: 通常スキル + 覚醒スキル(最大7)
+    const totalBtns = skNums.length + awakSkillsToShow.length;
+    // ボタンサイズ: 個数に応じて縮小
+    let SK_W, SK_H;
+    if(totalBtns <= 4){
+      SK_W = 72; SK_H = 58;
+    } else if(totalBtns <= 5){
+      SK_W = 64; SK_H = 54;
+    } else if(totalBtns <= 6){
+      SK_W = 56; SK_H = 50;
+    } else {
+      SK_W = 50; SK_H = 46;  // 7個
+    }
+    const gap = totalBtns >= 6 ? 4 : 6;
+
+    // 通常スキル
     skNums.forEach((num,i)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0||(num===4&&hasSk4Active);
       const c=hasSkill?col:0x445566;
       const alpha=hasSkill?0.4:0.12;
-      // sk4がある場合はボタンを左に詰める（4個横並び）
-      const totalBtns=skNums.length;
-      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+6);
+      // ボタンを左に詰める
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+gap);
       const by = h - SK_H/2 - MARGIN;
       // ボタン本体
       const btn=_track(this.add.rectangle(bx,by,SK_W,SK_H,c,alpha)
@@ -12486,7 +12721,8 @@ class GameScene extends Phaser.Scene{
         .setInteractive({useHandCursor:true}));
       // スキルアイコン（sk4は専用アイコン）
       const iconStr=num===4?(sk4Icons[pd.cls]||'✨'):(icons[i]||'?');
-      _track(this.add.text(bx,by-14,iconStr,{fontSize:'26px'}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      const iconSize = totalBtns >= 6 ? '20px' : '26px';
+      _track(this.add.text(bx,by-14,iconStr,{fontSize:iconSize}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
       // スキル名（黒文字・白縁取りで強調）
       const nameTxt=_track(this.add.text(bx,by+10,sk.name,{
         fontSize:'11px',fontFamily:'Arial',
@@ -12513,6 +12749,57 @@ class GameScene extends Phaser.Scene{
       const ct=_track(this.add.text(bx,by,'',{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28));
       this.skillCDOverlays.push({key:'skillCD'+num,ov,ct});
       this.skillBtnRefs.push({btn,nameTxt,lvTxt,num,col});
+    });
+
+    // ── 覚醒スキルボタン (Lv1以上習得済みのもの・ピンク枠) ──
+    const awakCol = 0xff44aa;  // ピンク
+    awakSkillsToShow.forEach((info, j)=>{
+      const sk = info.skillDef;
+      const awakIdx = info.awakIdx;  // 1〜3
+      const lv = info.lv;
+      const i = skNums.length + j;  // 全体での位置
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+gap);
+      const by = h - SK_H/2 - MARGIN;
+      const btn = _track(this.add.rectangle(bx, by, SK_W, SK_H, awakCol, 0.45)
+        .setScrollFactor(0).setDepth(25)
+        .setStrokeStyle(2, awakCol, 1.0)
+        .setInteractive({useHandCursor:true}));
+      // 覚醒スキルのアイコン(クラス別)
+      const awakIcons={
+        samurai:['🗡','🌀','👹'],
+        heavy:['💥','🔫','❄'],
+        spirit:['🍃','✨','⭐'],
+        youma:['🕳','🌑','🐉'],
+      };
+      const aIcons = awakIcons[awakKey2] || ['✨','✨','✨'];
+      const iconStr = aIcons[awakIdx-1] || '✨';
+      const iconSize = totalBtns >= 6 ? '20px' : '24px';
+      _track(this.add.text(bx, by-14, iconStr, {fontSize:iconSize}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      // スキル名(短く)
+      const skName = sk.name;
+      const nameTxt = _track(this.add.text(bx, by+10, skName.length>6?skName.substr(0,5)+'…':skName, {
+        fontSize: totalBtns >= 6 ? '9px' : '10px',
+        fontFamily:'Arial',
+        color:'#ffffff', stroke:'#aa1166', strokeThickness:2,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      // Lv表示
+      const lvTxt = _track(this.add.text(bx, by+22, 'Lv'+lv, {
+        fontSize:'10px', fontFamily:'Arial',
+        color:'#ffffff', stroke:'#aa1166', strokeThickness:2,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      // クリック処理: 覚醒スキル発動 (num: 5/6/7 で発火)
+      const virtualNum = 4 + awakIdx;  // 5,6,7
+      btn.on('pointerdown', ()=>{
+        btn.setFillStyle(awakCol, 0.75);
+        this.useAwakSkill(awakIdx);
+      });
+      btn.on('pointerup', ()=>{btn.setFillStyle(awakCol, 0.45);});
+      btn.on('pointerout',()=>{btn.setFillStyle(awakCol, 0.45);});
+      // CDオーバーレイ
+      const ov = _track(this.add.rectangle(bx, by, SK_W, SK_H, 0x000000, 0).setScrollFactor(0).setDepth(27));
+      const ct = _track(this.add.text(bx, by, '', {fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28));
+      this.skillCDOverlays.push({key:'awakCD'+awakIdx, ov, ct});
+      this.skillBtnRefs.push({btn, nameTxt, lvTxt, num:virtualNum, col:awakCol, isAwak:true, awakIdx});
     });
 
     // ポーションボタン（ジョイスティック右、下部中央寄り）
@@ -13043,10 +13330,10 @@ class GameScene extends Phaser.Scene{
       }
       if(this._updateAwakeningButton) this._updateAwakeningButton();
     } else {
-      // 覚醒中: awakExp 蓄積(通常EXPの1.0倍)
-      pd.awakExp = (pd.awakExp||0) + ed.exp;
-      // awakExp 100ごとに awakSp +1
-      const newPts = Math.floor(pd.awakExp / 100);
+      // 覚醒中: awakExp 蓄積(通常EXPの0.3倍 = 抑制)
+      pd.awakExp = (pd.awakExp||0) + ed.exp * 0.3;
+      // awakExp 500ごとに awakSp +1 (雑魚30体程度で1pt)
+      const newPts = Math.floor(pd.awakExp / 500);
       const oldPts = pd._awakSpEarned || 0;
       if(newPts > oldPts){
         const diff = newPts - oldPts;
