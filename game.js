@@ -115,709 +115,12 @@ const BGM_FILES={
   boss:        BASE+'bgm/bgm_boss.mp3',
 };
 
-// ── 音楽理論定数 ──────────────────────────
-const NOTE={
-  C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,
-  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
-  C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,
-  Bb3:233.08,Bb4:466.16,F3s:185.00,C4s:277.18,G4s:415.30,
-};
-
-// ── 合成BGMエンジン ──────────────────────────
-function _playNote(ac,master,freq,type,vol,start,dur,attack=0.01,release=0.05){
-  if(!ac||!master)return;
-  try{
-    const o=ac.createOscillator(),g=ac.createGain();
-    o.type=type; o.frequency.value=freq;
-    o.connect(g); g.connect(master);
-    g.gain.setValueAtTime(0,start);
-    g.gain.linearRampToValueAtTime(vol,start+attack);
-    g.gain.setValueAtTime(vol,start+dur-release);
-    g.gain.exponentialRampToValueAtTime(0.0001,start+dur);
-    o.start(start); o.stop(start+dur+0.01);
-    _bgmNodes.push(o,g);
-  }catch(e){}
-}
-
+// ── 合成BGMは削除済み(無音フォールバック) ──────────
+// MP3が鳴らない場合は無音のままにする(合成カバー音楽は不要)
 function _stopSynthBGM(){
-  _bgmNodes.forEach(n=>{try{n.disconnect();if(n.stop)n.stop();}catch(e){}});
-  _bgmNodes=[];
-  if(_bgmLoopTimer){clearTimeout(_bgmLoopTimer);_bgmLoopTimer=null;}
+  // スタブ: 何もしない(_bgmNodesは常に空)
 }
 
-// ── 町BGM：明るくのどかなRPG風 ────────────────
-function _playTownBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=108, B=60/BPM, bar=B*4;
-
-  // メロディー（フルート風・sine）
-  const mel=[
-    [NOTE.E4,B*2],[NOTE.G4,B],[NOTE.A4,B],
-    [NOTE.G4,B*2],[NOTE.E4,B],[NOTE.C4,B],
-    [NOTE.D4,B*2],[NOTE.F4,B],[NOTE.G4,B],
-    [NOTE.E4,bar],[NOTE.E4,B*0.5],[NOTE.D4,B*0.5],[NOTE.E4,B*3],
-    [NOTE.C5,B*2],[NOTE.B4,B],[NOTE.A4,B],
-    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
-    [NOTE.C5,B*2],[NOTE.G4,B],[NOTE.E4,B],
-    [NOTE.D4,bar*2],
-  ];
-  let t=now;
-  mel.forEach(([f,d])=>{_playNote(ac,master,f,'sine',0.35,t,d*0.9);t+=d;});
-
-  // ベースライン（triangle）
-  const bass=[
-    [NOTE.C3,bar],[NOTE.C3,bar],[NOTE.G3,bar],[NOTE.C3,bar],
-    [NOTE.F3,bar],[NOTE.G3,bar],[NOTE.C3,bar],[NOTE.C3,bar],
-  ];
-  let bt=now;
-  bass.forEach(([f,d])=>{
-    _playNote(ac,master,f,'triangle',0.25,bt,d*0.7);
-    _playNote(ac,master,f*2,'triangle',0.10,bt+B,B*0.6);
-    bt+=d;
-  });
-
-  // 和音（piano風・square低音量）
-  const chords=[
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'square',0.04,ct,d*0.8,0.02,0.1));
-    ct+=d;
-  });
-
-  const totalDur=bar*8;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='town'&&!muted)_playTownBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ステージBGM（st2〜4共通）：緊張感のある冒険 ──
-function _playStageBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.15; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=130, B=60/BPM, bar=B*4;
-
-  // メロディー（sawtooth：力強い）
-  const mel=[
-    [NOTE.A4,B],[NOTE.A4,B*0.5],[NOTE.G4,B*0.5],[NOTE.F4,B],[NOTE.E4,B],
-    [NOTE.G4,B],[NOTE.G4,B*0.5],[NOTE.F4,B*0.5],[NOTE.E4,B],[NOTE.D4,B],
-    [NOTE.F4,B],[NOTE.E4,B],[NOTE.D4,B],[NOTE.C4,B],
-    [NOTE.E4,B*2],[NOTE.D4,B],[NOTE.C4,B],
-    [NOTE.A4,B],[NOTE.Bb3,B*0.5],[NOTE.A4,B*0.5],[NOTE.G4,B],[NOTE.F4,B],
-    [NOTE.G4,B*2],[NOTE.F4,B],[NOTE.E4,B],
-    [NOTE.D4,B],[NOTE.E4,B],[NOTE.F4,B],[NOTE.G4,B],
-    [NOTE.A4,bar*1.5],[NOTE.A4,bar*0.5],
-  ];
-  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'sawtooth',0.22,t,d*0.85,0.005,0.04);t+=d;});
-
-  // ベース（square・低い）
-  const bassLine=[
-    NOTE.A3,NOTE.A3,NOTE.G3,NOTE.G3,
-    NOTE.F3,NOTE.F3,NOTE.E3||NOTE.F3,NOTE.E3||NOTE.F3,
-  ];
-  for(let i=0;i<8;i++){
-    const f=bassLine[i]||NOTE.A3;
-    _playNote(ac,master,f,'square',0.18,now+i*bar,B*0.8,0.01,0.05);
-    _playNote(ac,master,f,'square',0.12,now+i*bar+B*2,B*0.8,0.01,0.05);
-  }
-
-  // ドラム風パーカッション（ノイズ代わりにdetuneした短音）
-  for(let i=0;i<8;i++){
-    const bt=now+i*bar;
-    // キック（低音短い）
-    _playNote(ac,master,60,'sine',0.30,bt,0.08,0.001,0.07);
-    _playNote(ac,master,60,'sine',0.30,bt+B*2,0.08,0.001,0.07);
-    // スネア風
-    _playNote(ac,master,200,'square',0.12,bt+B,0.05,0.001,0.04);
-    _playNote(ac,master,200,'square',0.12,bt+B*3,0.05,0.001,0.04);
-    // ハット風
-    for(let h=0;h<4;h++){
-      _playNote(ac,master,8000,'sine',0.03,bt+h*B,0.04,0.001,0.03);
-    }
-  }
-
-  const totalDur=bar*8;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    const k=_bgmKey;
-    if((k==='st2'||k==='st3'||k==='st4')&&!muted)_playStageBGM();
-    if(k==='st5'&&!muted)_playCliffBGM();
-    if(k==='st6'&&!muted)_playSkyBGM();
-    if(k==='st7'&&!muted)_playOrcBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── BOSSBGMスポーン時：激しく重い ───────────────
-function _playBossBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=150, B=60/BPM, bar=B*4;
-
-  // メロディー（sawtooth + 不協和）
-  const mel=[
-    [NOTE.A3,B*0.5],[NOTE.A3,B*0.5],[NOTE.G3,B],[NOTE.F3s,B],[NOTE.G3,B],
-    [NOTE.A3,B*0.5],[NOTE.Bb3,B*0.5],[NOTE.A3,B*2],[NOTE.G3,B],
-    [NOTE.F3,B*0.5],[NOTE.F3,B*0.5],[NOTE.E3||NOTE.F3,B],[NOTE.F3,B],[NOTE.G3,B],
-    [NOTE.A3,bar],
-    [NOTE.G3,B*0.5],[NOTE.A3,B*0.5],[NOTE.Bb3,B],[NOTE.A3,B],[NOTE.G3,B],
-    [NOTE.F3s,B*0.5],[NOTE.G3,B*0.5],[NOTE.A3,B*3],
-    [NOTE.C4,B],[NOTE.Bb3,B],[NOTE.A3,B],[NOTE.G3,B],
-    [NOTE.A3,bar],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sawtooth',0.28,t,d*0.9,0.005,0.03);
-    _playNote(ac,master,f*2,'square',0.08,t,d*0.9,0.005,0.03);
-    t+=d;
-  });
-
-  // 重いベース
-  for(let i=0;i<8;i++){
-    const bt=now+i*bar;
-    const f=i%2===0?NOTE.A3*0.5:NOTE.G3*0.5;
-    _playNote(ac,master,f,'sawtooth',0.28,bt,B*0.9,0.01,0.05);
-    _playNote(ac,master,f,'sawtooth',0.20,bt+B*1.5,B*0.4,0.01,0.04);
-    _playNote(ac,master,f,'sawtooth',0.24,bt+B*2,B*0.9,0.01,0.05);
-    _playNote(ac,master,f*1.5,'sawtooth',0.15,bt+B*3,B*0.4,0.01,0.04);
-  }
-
-  // 激しいドラム
-  for(let i=0;i<8;i++){
-    const bt=now+i*bar;
-    // キック（強め）
-    [0,B*0.5,B*2,B*2.5].forEach(o=>{
-      _playNote(ac,master,55,'sine',0.38,bt+o,0.06,0.001,0.055);
-    });
-    // スネア
-    [B,B*3].forEach(o=>{
-      _playNote(ac,master,180,'square',0.20,bt+o,0.04,0.001,0.035);
-      _playNote(ac,master,280,'square',0.12,bt+o,0.04,0.001,0.035);
-    });
-    // 16分ハット
-    for(let h=0;h<8;h++){
-      _playNote(ac,master,9000,'sine',0.04,bt+h*B*0.5,0.03,0.001,0.025);
-    }
-  }
-
-  const totalDur=bar*8;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='boss'&&!muted)_playBossBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── タイトルBGM：荘厳・壮大なオープニング ──────────────
-function _playTitleBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.14; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=84, B=60/BPM, bar=B*4;
-
-  // メロディー（sine・荘厳）
-  const mel=[
-    [NOTE.C4,B*2],[NOTE.E4,B],[NOTE.G4,B],
-    [NOTE.A4,B*3],[NOTE.G4,B],
-    [NOTE.F4,B*2],[NOTE.E4,B],[NOTE.D4,B],
-    [NOTE.C4,bar],
-    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
-    [NOTE.C5,B*3],[NOTE.B4,B],
-    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.F4,B],
-    [NOTE.E4,bar],
-    [NOTE.E4,B*2],[NOTE.F4,B],[NOTE.G4,B],
-    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.F4,B],
-    [NOTE.G4,B*2],[NOTE.E4,B],[NOTE.C4,B],
-    [NOTE.D4,bar],
-    [NOTE.C4,B*2],[NOTE.E4,B],[NOTE.G4,B],
-    [NOTE.C5,bar*1.5],[NOTE.B4,B*0.5],
-    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.E4,B],
-    [NOTE.C4,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'sine',0.32,t,d*0.92,0.02,0.08);t+=d;});
-
-  // 和音（重厚感）
-  const chords=[
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.E3,NOTE.G3,NOTE.B3],bar],
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.C3,NOTE.G3,NOTE.C4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar*2],
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.18,ct,d*0.85,0.04,0.15));
-    ct+=d;
-  });
-
-  // ベース（どっしり）
-  const bassNotes=[NOTE.C3,NOTE.C3,NOTE.F3,NOTE.G3,NOTE.A3,NOTE.G3,NOTE.F3,NOTE.E3,NOTE.C3,NOTE.C3,NOTE.F3,NOTE.G3,NOTE.C3,NOTE.C3,NOTE.F3,NOTE.C3];
-  bassNotes.forEach((f,i)=>{
-    _playNote(ac,master,f*0.5,'sine',0.28,now+i*bar,bar*0.9,0.01,0.1);
-    _playNote(ac,master,f,'triangle',0.08,now+i*bar+B,B*0.7,0.01,0.05);
-  });
-
-  const totalDur=bar*16;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='title'&&!muted)_playTitleBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── クリアBGM：明るく爽快な勝利ファンファーレ ────────────
-function _playClearBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.18; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=120, B=60/BPM, bar=B*4;
-
-  // ファンファーレ（明るいメロディー）
-  const mel=[
-    [NOTE.C4,B*.5],[NOTE.C4,B*.5],[NOTE.C4,B*.5],[NOTE.E4,B*.5],[NOTE.G4,B*.5],[NOTE.C5,B*1.5],
-    [NOTE.G4,B*.5],[NOTE.A4,B*.5],[NOTE.G4,B*.5],[NOTE.F4,B*.5],[NOTE.E4,B*2],
-    [NOTE.E4,B*.5],[NOTE.F4,B*.5],[NOTE.E4,B*.5],[NOTE.D4,B*.5],[NOTE.C4,B*2],
-    [NOTE.D4,B*.5],[NOTE.E4,B*.5],[NOTE.F4,B*.5],[NOTE.G4,B*.5],[NOTE.A4,B*.5],[NOTE.B4,B*.5],[NOTE.C5,B*2],
-    [NOTE.C5,B*.5],[NOTE.B4,B*.5],[NOTE.A4,B],[NOTE.G4,B],[NOTE.E4,B*.5],[NOTE.F4,B*.5],
-    [NOTE.G4,B*3],[NOTE.G4,B],
-    [NOTE.A4,B*.5],[NOTE.G4,B*.5],[NOTE.F4,B],[NOTE.E4,B*.5],[NOTE.D4,B*.5],[NOTE.C4,B],
-    [NOTE.C4,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{_playNote(ac,master,f,'square',0.22,t,d*0.88,0.005,0.04);t+=d;});
-
-  // 伴奏
-  const acc=[
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar],[[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],[[NOTE.C3,NOTE.E3,NOTE.G3],bar*2],
-  ];
-  let at=now;
-  acc.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.12,at,d*0.8,0.02,0.1));
-    at+=d;
-  });
-
-  const totalDur=bar*9;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='clear'&&!muted)_playClearBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ST7オーク集落BGM：重厚・部族的・ドラム強め ─────
-function _playOrcBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.15; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=140, B=60/BPM, bar=B*4;
-
-  // メロディー（力強いマイナー）
-  const mel=[
-    [NOTE.D4,B],[NOTE.D4,B*.5],[NOTE.C4,B*.5],[NOTE.Bb3,B],[NOTE.A3,B],
-    [NOTE.G3,B],[NOTE.A3,B],[NOTE.Bb3,B],[NOTE.C4,B],
-    [NOTE.D4,B*2],[NOTE.C4,B],[NOTE.Bb3,B],
-    [NOTE.A3,bar],[NOTE.A3,B*0.5],[NOTE.C4,B*0.5],[NOTE.D4,B*3],
-    [NOTE.F4,B],[NOTE.E4,B*.5],[NOTE.D4,B*.5],[NOTE.C4,B],[NOTE.Bb3,B],
-    [NOTE.A3,B*2],[NOTE.G3,B],[NOTE.A3,B],
-    [NOTE.Bb3,B],[NOTE.C4,B],[NOTE.D4,B],[NOTE.E4,B],
-    [NOTE.D4,bar*1.5],[NOTE.D4,B*0.5],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sawtooth',0.22,t,d*0.88,0.006,0.04);
-    _playNote(ac,master,f*0.5,'square',0.07,t,d*0.88,0.006,0.04);
-    t+=d;
-  });
-
-  // 重いベース
-  [NOTE.D3,NOTE.A3,NOTE.Bb3,NOTE.A3,NOTE.D3,NOTE.G3,NOTE.A3,NOTE.D3].forEach((f,i)=>{
-    _playNote(ac,master,f*.5,'sawtooth',0.28,now+i*bar,bar*.85,0.01,0.06);
-    _playNote(ac,master,f*.5,'sawtooth',0.18,now+i*bar+B*2,B*.8,0.01,0.04);
-  });
-
-  // 部族ドラム（強め）
-  for(let i=0;i<8;i++){
-    const bt=now+i*bar;
-    // キック（重い）
-    [0,B*0.5,B*2,B*3].forEach(o=>_playNote(ac,master,60,'sine',0.35,bt+o,0.08,0.001,0.07));
-    // スネア（強め）
-    [B,B*1.5,B*3.5].forEach(o=>_playNote(ac,master,220,'square',0.18,bt+o,0.05,0.001,0.04));
-    // 太鼓風
-    [0,B,B*2,B*3].forEach(o=>_playNote(ac,master,120,'triangle',0.12,bt+o,0.06,0.001,0.05));
-    // ハット（16分）
-    for(let h=0;h<8;h++)_playNote(ac,master,7000,'sine',0.028,bt+h*B*.5,0.03,0.001,0.025);
-  }
-
-  const totalDur=bar*8;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='st7'&&!muted)_playOrcBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ST6天空BGM：壮大・神秘的 ────────────────────
-function _playSkyBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.13; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=96, B=60/BPM, bar=B*4;
-
-  // メロディー（高音・幻想的）
-  const mel=[
-    [NOTE.E5,B*2],[NOTE.D5,B],[NOTE.C5,B],
-    [NOTE.G4,bar],[NOTE.A4,B*2],[NOTE.B4,B],[NOTE.C5,B],
-    [NOTE.D5,B*2],[NOTE.E5,B*2],[NOTE.C5,bar],
-    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],[NOTE.C5,B*2],[NOTE.G4,B*2],
-    [NOTE.E5,B*2],[NOTE.F5,B],[NOTE.E5,B],[NOTE.D5,bar],
-    [NOTE.C5,B*2],[NOTE.B4,B],[NOTE.A4,B],[NOTE.G4,bar],
-    [NOTE.A4,B*2],[NOTE.C5,B],[NOTE.B4,B],[NOTE.A4,B*2],[NOTE.G4,B*2],
-    [NOTE.C5,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sine',0.28,t,d*0.92,0.02,0.1);
-    _playNote(ac,master,f*1.5,'sine',0.06,t,d*0.92,0.02,0.1);
-    t+=d;
-  });
-
-  // 和音（広がり感）
-  const chords=[
-    [[NOTE.C4,NOTE.E4,NOTE.G4,NOTE.C5],bar*2],
-    [[NOTE.G3,NOTE.B3,NOTE.D4,NOTE.G4],bar*2],
-    [[NOTE.A3,NOTE.C4,NOTE.E4,NOTE.A4],bar*2],
-    [[NOTE.F3,NOTE.A3,NOTE.C4,NOTE.F4],bar*2],
-    [[NOTE.C4,NOTE.E4,NOTE.G4,NOTE.C5],bar*2],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar*2],
-    [[NOTE.A3,NOTE.E4,NOTE.A4],bar*2],
-    [[NOTE.C4,NOTE.G4,NOTE.C5],bar*2],
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.12,ct,d*0.88,0.04,0.2));
-    ct+=d;
-  });
-
-  // ベース（穏やか）
-  [NOTE.C3,NOTE.G3,NOTE.A3,NOTE.F3,NOTE.C3,NOTE.G3,NOTE.A3,NOTE.C3].forEach((f,i)=>{
-    _playNote(ac,master,f*.5,'sine',0.2,now+i*bar*2,bar*1.8,0.02,0.15);
-  });
-
-  const totalDur=bar*16;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='st6'&&!muted)_playSkyBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ST2森の遺跡BGM：穏やか・神秘的・川と古代遺跡の雰囲気 ──
-function _playForestBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.15; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=90, B=60/BPM, bar=B*4;
-
-  // メロディー（フルート風 sine・ペンタトニック寄り、優しい上昇下降）
-  const mel=[
-    [NOTE.G4,B*2],[NOTE.A4,B],[NOTE.B4,B],
-    [NOTE.D5,B*2],[NOTE.B4,B],[NOTE.A4,B],
-    [NOTE.G4,B*2],[NOTE.E4,B*2],
-    [NOTE.D4,bar],
-    [NOTE.A4,B*2],[NOTE.B4,B],[NOTE.D5,B],
-    [NOTE.E5,B*2],[NOTE.D5,B],[NOTE.B4,B],
-    [NOTE.A4,B*2],[NOTE.G4,B*2],
-    [NOTE.E4,bar],
-    // 後半（少し上に展開）
-    [NOTE.D5,B*2],[NOTE.E5,B],[NOTE.G5,B],
-    [NOTE.E5,B*2],[NOTE.D5,B],[NOTE.B4,B],
-    [NOTE.A4,bar],
-    [NOTE.B4,B*2],[NOTE.A4,B],[NOTE.G4,B],
-    [NOTE.E4,B*2],[NOTE.G4,B*2],
-    [NOTE.D4,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sine',0.30,t,d*0.92,0.03,0.12);
-    // 倍音をかすかに重ねて木管らしさ
-    _playNote(ac,master,f*2,'sine',0.04,t,d*0.92,0.03,0.10);
-    t+=d;
-  });
-
-  // 和音（triangle・温かいファンタジー進行 I-V-vi-IV）
-  const chords=[
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.D4,NOTE.F3s||NOTE.A3,NOTE.A3],bar],
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    // 後半同パターン
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.D4,NOTE.A3,NOTE.B3],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.10,ct,d*0.85,0.05,0.18));
-    ct+=d;
-  });
-
-  // ベース（川の流れのような低い sine、ゆっくり）
-  const bassLine=[NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3, NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3,
-                  NOTE.G3,NOTE.D3,NOTE.E3,NOTE.C3, NOTE.G3,NOTE.C3,NOTE.D3,NOTE.G3];
-  bassLine.forEach((f,i)=>{
-    _playNote(ac,master,f*0.5,'sine',0.18,now+i*bar,bar*0.9,0.04,0.2);
-  });
-
-  // 鳥のさえずり風の高音装飾（ランダム位置にぽつぽつと）
-  const birdTimes=[bar*1.5, bar*3.2, bar*5.7, bar*7.3, bar*9.1, bar*11.8, bar*13.5];
-  birdTimes.forEach(bt=>{
-    _playNote(ac,master,NOTE.C5*2,'sine',0.06,now+bt,0.08,0.005,0.05);
-    _playNote(ac,master,NOTE.E5*2,'sine',0.05,now+bt+0.1,0.08,0.005,0.05);
-  });
-
-  const totalDur=bar*16;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='st2_forest'&&!muted)_playForestBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ST3海岸BGM：南国・穏やか・波音と海風 ──────
-function _playBeachBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.16; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=92, B=60/BPM, bar=B*4;
-
-  // メロディー（マリンバ風 sine + 木管っぽい倍音）
-  const mel=[
-    [NOTE.C5,B],[NOTE.E5,B],[NOTE.G5,B*2],
-    [NOTE.A4,B],[NOTE.C5,B],[NOTE.E5,B*2],
-    [NOTE.G4,B],[NOTE.B4,B],[NOTE.D5,B*2],
-    [NOTE.C5,bar],
-    [NOTE.E5,B],[NOTE.G5,B],[NOTE.A5,B*2],
-    [NOTE.G5,B],[NOTE.E5,B],[NOTE.D5,B*2],
-    [NOTE.C5,B],[NOTE.B4,B],[NOTE.A4,B*2],
-    [NOTE.G4,bar],
-    // 後半：ゆるやかに展開
-    [NOTE.A4,B*2],[NOTE.C5,B*2],
-    [NOTE.E5,B*2],[NOTE.D5,B*2],
-    [NOTE.C5,B],[NOTE.A4,B],[NOTE.G4,B*2],
-    [NOTE.E4,bar],
-    [NOTE.D5,B],[NOTE.C5,B],[NOTE.B4,B*2],
-    [NOTE.A4,B],[NOTE.G4,B],[NOTE.E4,B*2],
-    [NOTE.G4,B*2],[NOTE.A4,B*2],
-    [NOTE.C5,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sine',0.26,t,d*0.92,0.02,0.1);
-    // 倍音(オクターブ上)で南国らしさ
-    _playNote(ac,master,f*2,'sine',0.05,t,d*0.4,0.02,0.06);
-    t+=d;
-  });
-
-  // 和音(triangle・南国の定番進行 IV-I-V-vi)
-  const chords=[
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.A3,NOTE.C4,NOTE.E4],bar],
-    [[NOTE.F3,NOTE.A3,NOTE.C4],bar],
-    [[NOTE.G3,NOTE.B3,NOTE.D4],bar],
-    [[NOTE.C4,NOTE.E4,NOTE.G4],bar*2],
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.10,ct,d*0.85,0.05,0.18));
-    ct+=d;
-  });
-
-  // ベース（穏やかな波のうねり）
-  const bassLine=[NOTE.F3,NOTE.C3,NOTE.G3,NOTE.A3, NOTE.F3,NOTE.C3,NOTE.G3,NOTE.C3,
-                  NOTE.F3,NOTE.C3,NOTE.G3,NOTE.A3, NOTE.F3,NOTE.G3,NOTE.C3,NOTE.C3];
-  bassLine.forEach((f,i)=>{
-    _playNote(ac,master,f*0.5,'sine',0.18,now+i*bar,bar*0.9,0.05,0.2);
-  });
-
-  // 波音風(高音ノイズの代替: 高い周波数の sine をフェードで重ねる)
-  const waveTimes=[bar*0.5, bar*2.3, bar*4.1, bar*5.8, bar*7.6, bar*9.4, bar*11.2, bar*13.0, bar*14.8];
-  waveTimes.forEach(wt=>{
-    // ザザー…と4音重ねて疑似波音
-    [3000, 3500, 4200, 5000].forEach((freq, idx)=>{
-      _playNote(ac,master,freq,'sine',0.018,now+wt+idx*0.04,0.5,0.15,0.4);
-    });
-  });
-
-  // カモメ風の高音(たまに)
-  const gullTimes=[bar*3, bar*8.5, bar*12.7];
-  gullTimes.forEach(gt=>{
-    _playNote(ac,master,NOTE.G5*1.5,'sine',0.05,now+gt,0.12,0.005,0.08);
-    _playNote(ac,master,NOTE.E5*1.5,'sine',0.04,now+gt+0.15,0.10,0.005,0.08);
-  });
-
-  const totalDur=bar*16;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='st3_beach'&&!muted)_playBeachBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── DUN1ダンジョンBGM：不気味・低音・謎めいた地下迷宮 ──
-function _playDungeonBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.14; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=60, B=60/BPM, bar=B*4; // ゆったり重厚
-
-  // 低いパッド(持続音・不安感)
-  const padNotes=[NOTE.E2, NOTE.G2, NOTE.A2, NOTE.F2, NOTE.E2, NOTE.B2, NOTE.C3, NOTE.E2];
-  padNotes.forEach((f,i)=>{
-    _playNote(ac,master,f,'sine',0.18,now+i*bar,bar*0.95,0.3,0.5);
-    _playNote(ac,master,f*2,'sine',0.05,now+i*bar,bar*0.95,0.3,0.5);
-  });
-
-  // メロディ(マイナー調・低音フルート風・不気味)
-  const mel=[
-    [NOTE.E4,B*2],[NOTE.G4,B],[NOTE.F4,B],
-    [NOTE.E4,bar],
-    [NOTE.A4,B*2],[NOTE.G4,B],[NOTE.E4,B],
-    [NOTE.D4,bar],
-    [NOTE.E4,B],[NOTE.G4,B],[NOTE.B4,B],[NOTE.A4,B],
-    [NOTE.G4,B*2],[NOTE.F4,B*2],
-    [NOTE.E4,bar*2],
-    // 後半: 一段下に
-    [NOTE.E4,B*2],[NOTE.D4,B],[NOTE.C4,B],
-    [NOTE.D4,bar],
-    [NOTE.F4,B*2],[NOTE.E4,B],[NOTE.D4,B],
-    [NOTE.C4,bar],
-    [NOTE.E4,B],[NOTE.G4,B],[NOTE.E4,B*2],
-    [NOTE.A4,bar*2],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sine',0.22,t,d*0.85,0.08,0.2);
-    t+=d;
-  });
-
-  // 不協和音の和音(暗い)
-  const chords=[
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar*2], // Em
-    [[NOTE.A3,NOTE.C4,NOTE.E4],bar*2], // Am
-    [[NOTE.D3,NOTE.F3,NOTE.A3],bar*2], // Dm
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar*2], // Em
-    [[NOTE.C3,NOTE.E3,NOTE.G3],bar*2], // C
-    [[NOTE.B3,NOTE.D4,NOTE.F4],bar*2], // Bdim
-    [[NOTE.A3,NOTE.C4,NOTE.E4],bar*2], // Am
-    [[NOTE.E3,NOTE.G3,NOTE.B3],bar*2], // Em
-  ];
-  let ct=now;
-  chords.forEach(([notes,d])=>{
-    notes.forEach(f=>_playNote(ac,master,f,'triangle',0.08,ct,d*0.9,0.1,0.3));
-    ct+=d;
-  });
-
-  // 鎖の音・水滴風の装飾(ランダム)
-  const dripTimes=[bar*1.2, bar*3.5, bar*6.1, bar*9.8, bar*12.3, bar*14.7];
-  dripTimes.forEach(dt=>{
-    _playNote(ac,master,NOTE.E5*1.5,'sine',0.04,now+dt,0.08,0.005,0.06);
-    _playNote(ac,master,NOTE.C5*1.2,'sine',0.03,now+dt+0.08,0.06,0.005,0.04);
-  });
-
-  // 低い鼓動のような音(bass drum風)
-  for(let i=0;i<16;i++){
-    _playNote(ac,master,NOTE.E2*0.5,'sine',0.12,now+i*bar+bar*0.75,0.15,0.01,0.1);
-  }
-
-  const totalDur=bar*16;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='dun1'&&!muted)_playDungeonBGM();
-  },(totalDur-0.1)*1000);
-}
-
-// ── ST5崖道BGM：不気味で緊張感のある崖道 ────────────
-function _playCliffBGM(){
-  const ac=getAC();if(!ac||muted)return;
-  const master=ac.createGain(); master.gain.value=0.14; master.connect(ac.destination);
-  _bgmNodes.push(master);
-  const now=ac.currentTime;
-  const BPM=120, B=60/BPM, bar=B*4;
-
-  // メロディー（不気味・マイナー）
-  const mel=[
-    [NOTE.A3,B],[NOTE.C4,B*.5],[NOTE.Bb3,B*.5],[NOTE.A3,B*2],
-    [NOTE.G3,B],[NOTE.A3,B],[NOTE.F3s,B],[NOTE.G3,B],
-    [NOTE.A3,B*.5],[NOTE.A3,B*.5],[NOTE.G3,B],[NOTE.F3s,B],[NOTE.E3||NOTE.F3,B],
-    [NOTE.A3,bar],
-    [NOTE.C4,B],[NOTE.Bb3,B],[NOTE.A3,B],[NOTE.G3,B],
-    [NOTE.F3s,B*2],[NOTE.A3,B],[NOTE.G3,B],
-    [NOTE.A3,B*.5],[NOTE.Bb3,B*.5],[NOTE.A3,B],[NOTE.G3,B],[NOTE.F3s,B],
-    [NOTE.A3,bar*1.5],[NOTE.A3,B*0.5],
-  ];
-  let t=now; mel.forEach(([f,d])=>{
-    _playNote(ac,master,f,'sawtooth',0.20,t,d*0.88,0.008,0.04);
-    _playNote(ac,master,f*2,'sine',0.05,t,d*0.88,0.008,0.04);
-    t+=d;
-  });
-
-  // ベース（重い）
-  const bassNotes=[NOTE.A3*.5,NOTE.G3*.5,NOTE.F3s*.5||NOTE.G3*.5,NOTE.A3*.5,NOTE.A3*.5,NOTE.G3*.5,NOTE.A3*.5,NOTE.E3*.5||NOTE.F3*.5];
-  bassNotes.forEach((f,i)=>{
-    _playNote(ac,master,f,'sine',0.25,now+i*bar,bar*0.9,0.01,0.08);
-    _playNote(ac,master,f,'sawtooth',0.08,now+i*bar+B,B*0.7,0.01,0.05);
-  });
-
-  // ドラム（重め・不規則）
-  for(let i=0;i<8;i++){
-    const bt=now+i*bar;
-    _playNote(ac,master,55,'sine',0.32,bt,0.08,0.001,0.07);
-    _playNote(ac,master,55,'sine',0.22,bt+B*2.5,0.06,0.001,0.055);
-    _playNote(ac,master,160,'square',0.12,bt+B,0.04,0.001,0.035);
-    _playNote(ac,master,160,'square',0.10,bt+B*3,0.04,0.001,0.035);
-    _playNote(ac,master,7000,'sine',0.025,bt,0.035,0.001,0.03);
-    _playNote(ac,master,7000,'sine',0.02,bt+B*2,0.03,0.001,0.025);
-  }
-
-  const totalDur=bar*8;
-  _bgmLoopTimer=setTimeout(()=>{
-    _stopSynthBGM();
-    if(_bgmKey==='st5'&&!muted)_playCliffBGM();
-  },(totalDur-0.1)*1000);
-}
 
 // シーン切替などで連続呼び出された場合のチャタリング防止用
 let _bgmStartId = 0;
@@ -849,10 +152,16 @@ function startBGM(key){
   if(muted)return;
   if(!key)return;
   // AudioContext を起こす(ブラウザ自動再生制限対応)
+  // resume() を呼ぶだけでなく、完了を待ってからplay()するため
+  // Promise を後の処理で利用
+  let acResumePromise = Promise.resolve();
   try{
     const ac=getAC();
     if(ac && ac.state==='suspended'){
-      ac.resume().catch(()=>{});
+      const p = ac.resume();
+      if(p && p.then){
+        acResumePromise = p.catch(()=>{});
+      }
     }
   }catch(e){}
   // この呼び出し固有のID(後発のstartBGMで上書きされたら以下の非同期処理を中断)
@@ -881,32 +190,36 @@ function startBGM(key){
       });
       // 再生失敗時はリトライ → それでも失敗なら合成BGMにフォールバック
       const tryPlay = (retriesLeft)=>{
-        const playPromise=audio.play();
-        if(playPromise && playPromise.catch){
-          playPromise.catch((err)=>{
-            if(retriesLeft > 0 && _bgmAudio===audio && myId === _bgmStartId){
-              // 200ms 後にもう一度トライ(AudioContext 復帰待ち)
-              setTimeout(()=>{
-                if(_bgmAudio===audio && myId === _bgmStartId){
-                  try{
-                    const ac=getAC();
-                    if(ac && ac.state==='suspended') ac.resume();
-                  }catch(e){}
-                  tryPlay(retriesLeft - 1);
-                }
-              }, 200);
-              return;
-            }
-            console.warn('[BGM] MP3 play failed after retries, falling back to synth', key, err);
-            if(_bgmAudio===audio){
-              _bgmAudio=null;
-              if(myId === _bgmStartId) _fallbackSynth(key);
-            }
-          });
-        }
+        // AudioContextの resume 完了を待ってから play
+        acResumePromise.then(()=>{
+          if(_bgmAudio!==audio || myId !== _bgmStartId) return;
+          const playPromise=audio.play();
+          if(playPromise && playPromise.catch){
+            playPromise.catch((err)=>{
+              if(retriesLeft > 0 && _bgmAudio===audio && myId === _bgmStartId){
+                // 300ms 後にもう一度トライ(AudioContext 復帰待ち)
+                setTimeout(()=>{
+                  if(_bgmAudio===audio && myId === _bgmStartId){
+                    try{
+                      const ac=getAC();
+                      if(ac && ac.state==='suspended') ac.resume();
+                    }catch(e){}
+                    tryPlay(retriesLeft - 1);
+                  }
+                }, 300);
+                return;
+              }
+              console.warn('[BGM] MP3 play failed after retries, falling back to synth', key, err);
+              if(_bgmAudio===audio){
+                _bgmAudio=null;
+                if(myId === _bgmStartId) _fallbackSynth(key);
+              }
+            });
+          }
+        });
       };
       _bgmAudio=audio;
-      tryPlay(2);  // 最大2回リトライ(計3回試行)
+      tryPlay(3);  // 最大3回リトライ(計4回試行)
     }catch(e){
       console.warn('[BGM] MP3 load failed, fallback', key, e);
       if(myId === _bgmStartId) _fallbackSynth(key);
@@ -919,18 +232,9 @@ function startBGM(key){
 
 // 合成BGMフォールバック
 function _fallbackSynth(key){
-  if(key==='title') _playTitleBGM();
-  else if(key==='town') _playTownBGM();
-  else if(key==='st2_forest') _playForestBGM();
-  else if(key==='st3_beach') _playBeachBGM();
-  else if(key==='dun1') _playDungeonBGM();
-  else if(key==='st2'||key==='st3'||key==='st4') _playStageBGM();
-  else if(key==='st5') _playCliffBGM();
-  else if(key==='st6') _playSkyBGM();
-  else if(key==='st7') _playOrcBGM();
-  else if(key==='boss') _playBossBGM();
-  else if(key==='clear') _playClearBGM();
-  // それ以外は無音
+  // 合成BGMは削除されました。MP3が鳴らない場合は無音のままにします。
+  // (合成のカバー音楽はクオリティが低いため不要との要望)
+  console.log('[BGM] MP3 unavailable for', key, '- silent fallback');
 }
 
 function updateBGM(){
@@ -951,6 +255,38 @@ function stopBGM(){
   _bgmKey=null;
   // 後発の非同期処理を全部キャンセル
   _bgmStartId++;
+}
+
+// ── ページ可視状態変化リスナー(タブ復帰時のBGM自動復活) ──
+// スマホでアプリ切替→戻った時や、PCでタブ切替→戻った時に音楽が止まることがある
+if(typeof document !== 'undefined'){
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible' && !muted && _bgmKey){
+      // AudioContextを起こす
+      try{
+        const ac=getAC();
+        if(ac && ac.state==='suspended') ac.resume().catch(()=>{});
+      }catch(e){}
+      // BGMが止まっていれば再起動
+      setTimeout(()=>{
+        if(muted || !_bgmKey) return;
+        const audioOk = _bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended && _bgmAudio.readyState >= 2;
+        const synthOk = _bgmNodes && _bgmNodes.length > 0;
+        if(!audioOk && !synthOk){
+          const k=_bgmKey;
+          _bgmKey=null;
+          startBGM(k);
+        } else if(_bgmAudio && _bgmAudio.paused){
+          // 一時停止されているだけなら再開だけ試みる
+          _bgmAudio.play().catch(()=>{
+            const k=_bgmKey;
+            _bgmKey=null;
+            startBGM(k);
+          });
+        }
+      }, 300);
+    }
+  });
 }
 
 function setMute(val){
@@ -1118,6 +454,19 @@ function makePlayerData(cls){
     jobLv:1, jobExp:0, jobExpNext:80, jobPts:0,
     // スキルレベル（各職業3スキル、Lv0=未習得）
     sk1:0, sk2:0, sk3:0,
+    // ── 覚醒システム(ゲージ蓄積式) ──
+    awakGauge:0,      // 覚醒ゲージ(0〜100、MAX で覚醒発動可能)
+    awakGaugeMax:100,
+    awakExp:0,        // 覚醒経験値(覚醒中に敵討伐で蓄積)
+    awakSp:0,         // 覚醒スキルポイント(awakExp 100 = 1pt)
+    // 覚醒スキルレベル(元クラスへの反映用・装備種別ごとに分離)
+    // 各覚醒形態(samurai/heavy/spirit/youma)ごとに sk1/sk2/sk3 のLvを管理
+    awakSkillLv:{
+      samurai:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒の習得状況
+      heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒
+      spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
+      youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒
+    },
   };
 }
 
@@ -6201,8 +5550,32 @@ class GameScene extends Phaser.Scene{
 
     // BGM: シーン開始時に再生(同じキーなら startBGM 内で継続される)
     // シーン作成完了直後に呼ぶことで、Phaser内部の破棄処理との競合を防ぐ
+    // 初回起動 + 1秒後・3秒後に「実際に鳴っているか」を確認して必要なら再起動
     this.time.delayedCall(60, ()=>{
       try{ startBGM(cfg.bgmKey); }catch(e){ console.warn('[BGM] start failed', e); }
+    });
+    // 1秒後の保険: 何らかの理由で鳴っていなければ強制再起動
+    this.time.delayedCall(1000, ()=>{
+      if(muted) return;
+      // 実際に音が鳴っているか厳密チェック
+      const audioOk = _bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended && _bgmAudio.readyState >= 2;
+      const synthOk = _bgmNodes && _bgmNodes.length > 0;
+      if(!audioOk && !synthOk){
+        console.log('[BGM] 1秒後チェック: 未再生のため強制再起動', cfg.bgmKey);
+        _bgmKey=null;  // 同キーチェックをバイパス
+        try{ startBGM(cfg.bgmKey); }catch(e){}
+      }
+    });
+    // 3秒後の最終チェック: それでも鳴っていなければもう一度
+    this.time.delayedCall(3000, ()=>{
+      if(muted) return;
+      const audioOk = _bgmAudio && !_bgmAudio.paused && !_bgmAudio.ended && _bgmAudio.readyState >= 2;
+      const synthOk = _bgmNodes && _bgmNodes.length > 0;
+      if(!audioOk && !synthOk){
+        console.log('[BGM] 3秒後チェック: 最終再起動試行', cfg.bgmKey);
+        _bgmKey=null;
+        try{ startBGM(cfg.bgmKey); }catch(e){}
+      }
     });
     this.cameras.main.setBounds(0,0,MW,MH);
     this.physics.world.setBounds(0,0,MW,MH);
@@ -11031,35 +10404,30 @@ class GameScene extends Phaser.Scene{
         {id:'sk1',name:'スーパーアタック',maxLv:5, desc:'単体への強力な一撃'},
         {id:'sk2',name:'手当',          maxLv:5, desc:'自分のHPを回復'},
         {id:'sk3',locked:true},{id:'sk4',locked:true},
-        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       warrior:[
         {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
         {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
         {id:'sk3',name:'パリィ',      maxLv:5, desc:'攻撃無効化'},
         {id:'sk4',name:'バーサクパワー',maxLv:10,desc:'攻撃速度UP（書物必須）',bookRequired:'warrior'},
-        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       mage:[
         {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
         {id:'sk2',name:'フロスト',    maxLv:10,desc:'広範囲凍結'},
         {id:'sk3',name:'ボルテックス',maxLv:5, desc:'雷の貫通弾'},
         {id:'sk4',name:'メテオーム',  maxLv:5, desc:'巨大隕石・詠唱10秒', bookRequired:true},
-        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       archer:[
         {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
         {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},
         {id:'sk3',name:'バルカン',          maxLv:10,desc:'連射'},
         {id:'sk4',name:'ブーストアタック',  maxLv:10,desc:'多段ヒット（パッシブ）',bookRequired:'archer'},
-        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
       bomber:[
         {id:'sk1',name:'設置爆弾',        maxLv:10,desc:'最大3個設置・敵接触で爆破'},
         {id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},
         {id:'sk3',name:'ハイパーボム',    maxLv:5, desc:'超巨大爆弾'},
         {id:'sk4',name:'ボマーパワー',    maxLv:10,desc:'攻撃範囲拡大（パッシブ）',bookRequired:'bomber'},
-        {id:'sk5',locked:true},{id:'sk6',locked:true},
       ],
     };
     const defs=DEFS[pd.cls]||[];
@@ -11070,10 +10438,13 @@ class GameScene extends Phaser.Scene{
     const jpTxt=skadd(this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'14px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
     const refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
 
-    // 縦3×横2グリッドレイアウト（ボタン位置まで最大活用）
-    const SK_COLS=2, SK_ROWS=3;
+    // 縦2×横2グリッドレイアウト（覚醒スキル領域を下に確保するため4セル）
+    const SK_COLS=2, SK_ROWS=2;
     const SK_CW=(PW-20)/SK_COLS;
-    const SK_CH=(IH-22)/SK_ROWS;
+    // 高さの60%を通常スキル用にし、残り40%を覚醒スキル用
+    const NORMAL_AREA_H = (IH-22) * 0.60;
+    const AWAK_AREA_H = (IH-22) * 0.40;
+    const SK_CH=NORMAL_AREA_H/SK_ROWS;
     const skVt={}, skAt={}, skCells={};
     defs.forEach((sk,i)=>{
       const skCol=i%SK_COLS, skRow=Math.floor(i/SK_COLS);
@@ -11155,6 +10526,140 @@ class GameScene extends Phaser.Scene{
       }
     });
 
+    // ════════════════════════════════
+    //  覚醒スキルセクション(装備中の覚醒武器のスキルを表示)
+    // ════════════════════════════════
+    // 装備中の武器から覚醒種別を取得
+    const eqW = pd.equip && pd.equip.weapon_main;
+    const eqDef = eqW ? EQUIP_DEFS[eqW] : null;
+    const awakKey = eqDef && eqDef.awakening ? eqDef.awakening : null;
+    const awakA = awakKey ? AWAKENINGS[awakKey] : null;
+
+    // 覚醒スキル領域の開始Y
+    const AWAK_TOP = ITOP + 24 + NORMAL_AREA_H + 8;
+
+    // 仮振り用バッファと残ポイント
+    const awakTmp = {sk1:0, sk2:0, sk3:0};
+    let tmpAsp = pd.awakSp || 0;
+    const refreshAsp = ()=>{};  // 後で再定義
+
+    if(awakA && awakA.skills){
+      // ヘッダー(タイトル+残ポイント)
+      const awakHeaderTxt = '✨ '+(eqDef.name||'覚醒武器')+'の覚醒スキル ✨';
+      skadd(this.add.text(PX, AWAK_TOP, awakHeaderTxt, {fontSize:'12px',fontFamily:'Arial',color:'#ff88cc',fontStyle:'bold'}).setOrigin(0.5));
+      const aspTxt = skadd(this.add.text(PX, AWAK_TOP+16, '覚醒ポイント残り: '+tmpAsp+'pt', {fontSize:'12px',fontFamily:'Arial',color:'#ff66bb'}).setOrigin(0.5));
+      const refreshAsp2 = ()=>aspTxt.setText('覚醒ポイント残り: '+tmpAsp+'pt');
+
+      // 横3列に並べる
+      const awakSkills = awakA.skills;
+      const AW_COLS = awakSkills.length;  // 通常3
+      const AW_CW = (PW-20) / AW_COLS;
+      const AW_CY = AWAK_TOP + 50 + (AWAK_AREA_H-60)/2;  // 中央寄せ
+      const AW_CH = AWAK_AREA_H - 60;
+      const AW_MAX_LV = 10;  // 覚醒スキルもLv10まで
+
+      // 覚醒スキルレベル取得用ヘルパ
+      const getAwakLv = (skId)=>{
+        const map = pd.awakSkillLv && pd.awakSkillLv[awakKey];
+        return map ? (map[skId]||0) : 0;
+      };
+
+      // 各スキルセル(現在Lv表示+−+ボタン)
+      const awakCells = {};
+      const awakVtxt = {};
+      const awakAtxt = {};
+      awakSkills.forEach((sk, i)=>{
+        const cx = L + i*AW_CW + AW_CW/2;
+        const cL = L + i*AW_CW + 4;
+        const cR = L + (i+1)*AW_CW - 4;
+
+        // 枠
+        skadd(this.add.rectangle(cx, AW_CY, AW_CW-6, AW_CH, 0x1a0a18, 0.85).setStrokeStyle(2, 0xff66bb, 0.85));
+        // スキル名
+        skadd(this.add.text(cx, AW_CY - AW_CH*0.36, sk.name, {fontSize:'12px',fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
+        // 説明(短く)
+        const desc = sk.desc || '';
+        skadd(this.add.text(cx, AW_CY - AW_CH*0.20, desc.length>20 ? desc.substr(0,18)+'…' : desc, {fontSize:'9px',fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-12}}).setOrigin(0.5));
+
+        // Lv表示
+        const curLv = getAwakLv(sk.id);
+        const vtxt = skadd(this.add.text(cx, AW_CY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:'11px',fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd'}).setOrigin(0.5));
+        awakVtxt[sk.id] = vtxt;
+
+        // Lvバー(ピンクで描画)
+        const barW = AW_CW - 24;
+        const bW = Math.max(4, Math.floor(barW / AW_MAX_LV) - 2);
+        const barY = AW_CY + AW_CH*0.15;
+        const cells = [];
+        for(let j=0; j<AW_MAX_LV; j++){
+          const cx2 = cL + 8 + j*(bW+2);
+          const cell = skadd(this.add.rectangle(cx2, barY, bW, 6, j<curLv ? 0xff44aa : 0x331122).setStrokeStyle(1, 0x551133, 0.6).setOrigin(0, 0.5));
+          cells.push(cell);
+        }
+        awakCells[sk.id] = {cells, maxLv: AW_MAX_LV};
+
+        // +/-ボタンと加算プレビュー
+        const addBtnW = 22, addBtnH = 20;
+        if(curLv < AW_MAX_LV){
+          const minus = skadd(this.add.rectangle(cL+addBtnW/2+2, AW_CY+AW_CH*0.36, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(cL+addBtnW/2+2, AW_CY+AW_CH*0.36, '−', {fontSize:'14px',fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
+          const plus = skadd(this.add.rectangle(cR-addBtnW/2-2, AW_CY+AW_CH*0.36, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(cR-addBtnW/2-2, AW_CY+AW_CH*0.36, '+', {fontSize:'14px',fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
+          // 仮振り表示
+          const atxt = skadd(this.add.text(cx, AW_CY+AW_CH*0.36, '', {fontSize:'11px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
+          awakAtxt[sk.id] = atxt;
+
+          plus.on('pointerdown', ()=>{
+            if(tmpAsp <= 0) return;
+            if(curLv + (awakTmp[sk.id]||0) >= AW_MAX_LV) return;
+            awakTmp[sk.id] = (awakTmp[sk.id]||0) + 1;
+            tmpAsp -= 1;
+            atxt.setText('+'+awakTmp[sk.id]);
+            refreshAsp2();
+          });
+          minus.on('pointerdown', ()=>{
+            if((awakTmp[sk.id]||0) <= 0) return;
+            awakTmp[sk.id] -= 1;
+            tmpAsp += 1;
+            atxt.setText(awakTmp[sk.id]>0 ? '+'+awakTmp[sk.id] : '');
+            refreshAsp2();
+          });
+        } else {
+          skadd(this.add.text(cx, AW_CY+AW_CH*0.36, 'MAX', {fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
+        }
+      });
+
+      // 覚醒スキル振り分け確定用にデータを保存(下の確定ボタンから呼ぶ)
+      this._awakSkillDistribute = ()=>{
+        let any = false;
+        if(!pd.awakSkillLv) pd.awakSkillLv = {samurai:{sk1:0,sk2:0,sk3:0},heavy:{sk1:0,sk2:0,sk3:0},spirit:{sk1:0,sk2:0,sk3:0},youma:{sk1:0,sk2:0,sk3:0}};
+        if(!pd.awakSkillLv[awakKey]) pd.awakSkillLv[awakKey] = {sk1:0,sk2:0,sk3:0};
+        awakSkills.forEach(sk=>{
+          const n = awakTmp[sk.id] || 0;
+          if(n > 0){
+            pd.awakSkillLv[awakKey][sk.id] = (pd.awakSkillLv[awakKey][sk.id]||0) + n;
+            any = true;
+          }
+          awakTmp[sk.id] = 0;
+          if(awakAtxt[sk.id]) awakAtxt[sk.id].setText('');
+          const newLv = pd.awakSkillLv[awakKey][sk.id];
+          if(awakVtxt[sk.id]) awakVtxt[sk.id].setText('Lv'+newLv+'/'+AW_MAX_LV).setColor(newLv>=AW_MAX_LV?'#ffd700':'#ffaadd');
+          if(awakCells[sk.id]){
+            awakCells[sk.id].cells.forEach((cell,j)=>{
+              if(cell && cell.active) cell.setFillStyle(j<newLv ? 0xff44aa : 0x331122);
+            });
+          }
+        });
+        pd.awakSp = tmpAsp;
+        refreshAsp2();
+        return any;
+      };
+    } else {
+      // 覚醒武器未装備
+      skadd(this.add.text(PX, AWAK_TOP+20, '🔒 覚醒武器を装備すると、ここに覚醒スキルが表示されます', {fontSize:'11px',fontFamily:'Arial',color:'#776677'}).setOrigin(0.5));
+      this._awakSkillDistribute = null;
+    }
+
     // スキル 確定ボタン（中央・リセットなし）
     // 確定ボタンを閉じるボタンと同じ高さ・左寄りに配置
     const skOkX=PX-PW/4;
@@ -11182,6 +10687,11 @@ class GameScene extends Phaser.Scene{
       });
       pd.jobPts=tmpJp;
       refreshJp();
+      // 覚醒スキルも同時に確定
+      if(this._awakSkillDistribute){
+        const anyAwak = this._awakSkillDistribute();
+        if(anyAwak) any = true;
+      }
       if(any){SE('levelup');this.updateHUD();}
     });
 
@@ -11728,10 +11238,21 @@ class GameScene extends Phaser.Scene{
         }
         this._deactivateAwakening();
       }else{
+        // ── ゲージMAXチェック ──
+        if((pd.awakGauge||0) < (pd.awakGaugeMax||100)){
+          // ゲージ不足: メッセージ表示
+          const p=this.player;
+          if(p){
+            this.showFloat(p.x, p.y-50, '覚醒ゲージ不足', '#ff8866', 'info');
+          }
+          return;
+        }
         // 装備中の武器から覚醒種別を判定
         const eq=pd.equip&&pd.equip.weapon_main;
         const def=eq?EQUIP_DEFS[eq]:null;
         if(def && def.awakening && AWAKENINGS[def.awakening]){
+          // ゲージを消費して覚醒発動
+          pd.awakGauge = 0;
           this._activateAwakening(def.awakening);
         }
       }
@@ -11744,6 +11265,11 @@ class GameScene extends Phaser.Scene{
       yoyo: true,
       repeat: -1,
     });
+    // ── ゲージ進捗表示用の円形リング ──
+    // Graphicsで円弧描画(更新は_updateAwakeningButtonで)
+    this._awakBtnGauge = this.add.graphics().setScrollFactor(0).setDepth(28.5).setVisible(false);
+    this._awakBtnGaugeBX = BX;
+    this._awakBtnGaugeBY = BY;
     // 装備状況に応じて表示更新
     this._updateAwakeningButton();
   }
@@ -11775,6 +11301,8 @@ class GameScene extends Phaser.Scene{
       const A = AWAKENINGS[pd.awakened];
       this._awakBtnTxt.setText(A.icon);
       this._awakBtnLabel.setText(A.deactivateLabel || '解除');
+      // 覚醒中: ゲージリングは隠す
+      if(this._awakBtnGauge) this._awakBtnGauge.setVisible(false);
       // クラス別の解除中の色
       if(pd.awakened==='heavy'){
         this._awakBtnBg.setFillStyle(0x4488cc, 0.85);
@@ -11793,20 +11321,58 @@ class GameScene extends Phaser.Scene{
       const A = AWAKENINGS[def.awakening];
       this._awakBtnTxt.setText(A.icon);
       this._awakBtnLabel.setText(A.activateLabel || '覚醒');
-      // 覚醒種類別の発動前色
+      // ゲージMAXチェック
+      const gauge = pd.awakGauge || 0;
+      const gMax = pd.awakGaugeMax || 100;
+      const ready = gauge >= gMax;
+      // 覚醒種類別の発動前色(MAX時は明るく、未満時は暗く)
+      let fillCol, strokeCol, gaugeCol;
       if(def.awakening==='heavy'){
-        this._awakBtnBg.setFillStyle(0x2266aa, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0x66aaff);
+        fillCol = ready ? 0x2266aa : 0x113355;
+        strokeCol = ready ? 0x66aaff : 0x335577;
+        gaugeCol = 0x66aaff;
       }else if(def.awakening==='spirit'){
-        this._awakBtnBg.setFillStyle(0x228844, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0x66ee88);
+        fillCol = ready ? 0x228844 : 0x114422;
+        strokeCol = ready ? 0x66ee88 : 0x336644;
+        gaugeCol = 0x66ee88;
       }else if(def.awakening==='youma'){
-        this._awakBtnBg.setFillStyle(0x331166, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0xaa44ff);
+        fillCol = ready ? 0x331166 : 0x180833;
+        strokeCol = ready ? 0xaa44ff : 0x552288;
+        gaugeCol = 0xaa44ff;
       }else{
-        this._awakBtnBg.setFillStyle(0xff2244, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0xff8866);
+        fillCol = ready ? 0xff2244 : 0x661122;
+        strokeCol = ready ? 0xff8866 : 0x884444;
+        gaugeCol = 0xff8866;
       }
+      this._awakBtnBg.setFillStyle(fillCol, 0.85);
+      this._awakBtnBg.setStrokeStyle(3, strokeCol);
+      // ── ゲージリング描画 ──
+      if(this._awakBtnGauge){
+        const g = this._awakBtnGauge;
+        g.clear();
+        g.setVisible(true);
+        const BX = this._awakBtnGaugeBX;
+        const BY = this._awakBtnGaugeBY;
+        // 背景の薄い円(残量目盛り)
+        g.lineStyle(4, 0x000000, 0.4);
+        g.strokeCircle(BX, BY, 42);
+        // ゲージ進捗(時計回り・上から開始)
+        const ratio = Math.min(1, gauge / gMax);
+        if(ratio > 0){
+          g.lineStyle(4, gaugeCol, 1);
+          g.beginPath();
+          g.arc(BX, BY, 42, -Math.PI/2, -Math.PI/2 + ratio*Math.PI*2, false);
+          g.strokePath();
+        }
+        // MAX時はキラキラ追加
+        if(ready){
+          g.lineStyle(2, 0xffffff, 0.7);
+          g.strokeCircle(BX, BY, 45);
+        }
+      }
+    } else {
+      // 覚醒不可: ゲージリングも隠す
+      if(this._awakBtnGauge) this._awakBtnGauge.setVisible(false);
     }
   }
 
@@ -12101,6 +11667,8 @@ class GameScene extends Phaser.Scene{
     pd.awakened = null;
     pd._awakElapsed = 0;
     pd._awakSkillsUsed = null;
+    // 次回の「覚醒準備完了」通知を有効化
+    pd._awakReadyShown = false;
     // 元クラスのテクスチャに戻す(displaySize も保持)
     const restoreSize = this.player.displayWidth;
     if(wasKey==='samurai' && this.textures.exists('player_warrior')){
@@ -12352,6 +11920,12 @@ class GameScene extends Phaser.Scene{
       }
     }
     pd._awakElapsed += dt;
+    // 強制解除条件: 3分(180秒)経過
+    if(pd._awakElapsed >= 180){
+      // 制限時間到達 → 自動解除
+      this._deactivateAwakening(true);
+      return;
+    }
     // 強制解除条件: HP低下
     if(A.forceDeactivateRatio && pd.hp <= pd.mhp * A.forceDeactivateRatio){
       this._deactivateAwakening(true);
@@ -13333,7 +12907,8 @@ class GameScene extends Phaser.Scene{
   spawnEnemy(id,x,y){
     const def=ENEMY_DEFS[id]||ENEMY_DEFS.slime;
     // スポーン位置が壁内だと敵が詰まってしまうので、安全な近傍を探す
-    const safe=this._findSafeSpawnPos(x, y, 200);
+    // 範囲を広く取って確実に歩ける位置を見つける
+    const safe=this._findSafeSpawnPos(x, y, 400);
     // 完全に歩けない場所(壁内・水中)ならスポーンキャンセル
     if(!safe){
       console.warn('[spawnEnemy] skipped (unreachable):', id, x, y);
@@ -13455,6 +13030,32 @@ class GameScene extends Phaser.Scene{
     SE(KILL_SE[ed.id]||'kill_grunt');
     // ジョブEXP付与（通常EXPの60%）
     this.addJobExp(Math.floor(ed.exp*0.6));
+    // ── 覚醒システム: ゲージ蓄積 ──
+    if(!pd.awakened){
+      // 通常時: ゲージを溜める(雑魚+5、ボス+30)
+      const gain = ed.isBoss ? 30 : 5;
+      pd.awakGauge = Math.min(pd.awakGaugeMax||100, (pd.awakGauge||0) + gain);
+      // ゲージMAX演出
+      if(pd.awakGauge >= (pd.awakGaugeMax||100) && !pd._awakReadyShown){
+        pd._awakReadyShown = true;
+        const p = this.player;
+        if(p) this.showFloat(p.x, p.y-60, '✨ 覚醒準備完了 ✨', '#ffeecc', 'boost');
+      }
+      if(this._updateAwakeningButton) this._updateAwakeningButton();
+    } else {
+      // 覚醒中: awakExp 蓄積(通常EXPの1.0倍)
+      pd.awakExp = (pd.awakExp||0) + ed.exp;
+      // awakExp 100ごとに awakSp +1
+      const newPts = Math.floor(pd.awakExp / 100);
+      const oldPts = pd._awakSpEarned || 0;
+      if(newPts > oldPts){
+        const diff = newPts - oldPts;
+        pd.awakSp = (pd.awakSp || 0) + diff;
+        pd._awakSpEarned = newPts;
+        const p = this.player;
+        if(p) this.showFloat(p.x, p.y-70, '+'+diff+' 覚醒ポイント', '#ffaa00', 'boost');
+      }
+    }
     // ドロップ（ポーション）
     if(ed.isBoss){
       const d1=this.drops.create(ed.sprite.x-20,ed.sprite.y,'drop_hp_potion').setDisplaySize(24,24);d1.setData('type','hp');d1.refreshBody();
@@ -14489,14 +14090,36 @@ class GameScene extends Phaser.Scene{
     const halfH=Math.min(16, sz*0.20);
     const lookAhead=Math.max(dt*1.2, 0.02);
 
-    // 現在位置の中心が壁内(本当のスタック)のみ押し出し
+    // ── スタック検出: 中心が壁内 ─→ 段階的に押し出し ──
     // 5点判定でNGでも中心が床なら歩ける(縁にひっかかってるだけ)とみなす
     if(!this._isWalkable(sp.x, sp.y)){
-      const safe=this._findSafeSpawnPos(sp.x, sp.y, 60);
-      if(safe){ sp.x=safe.x; sp.y=safe.y; }
+      // スタックカウンタ初期化
+      ed._stuckCount = (ed._stuckCount || 0) + 1;
+      // 段階的に半径を広げて押し出し位置を探索
+      let safe=this._findSafeSpawnPos(sp.x, sp.y, 80);
+      if(!safe) safe=this._findSafeSpawnPos(sp.x, sp.y, 160);
+      if(!safe) safe=this._findSafeSpawnPos(sp.x, sp.y, 300);
+      if(safe){
+        sp.x=safe.x; sp.y=safe.y;
+        ed._stuckCount=0;
+      } else if(this.player && ed._stuckCount > 3){
+        // 3回連続失敗: プレイヤー方向に強制テレポート(歩ける場所が確実にあるため)
+        const px=this.player.x, py=this.player.y;
+        const dx=px-sp.x, dy=py-sp.y;
+        const dist=Math.hypot(dx,dy)||1;
+        // プレイヤーから150px離れた位置にテレポート(直接重ならないように)
+        const tx=px - dx/dist*150;
+        const ty=py - dy/dist*150;
+        if(this._isWalkable(tx, ty)){
+          sp.x=tx; sp.y=ty;
+          ed._stuckCount=0;
+        }
+      }
       sp.setVelocity(vx, vy);
       return;
     }
+    // 中心は床にいる場合、スタックカウンタリセット
+    ed._stuckCount=0;
 
     // X方向とY方向を独立に判定(片方失敗しても他方で動ける=スライド)
     const canX=(vx===0) || this._canMoveTo(sp.x + vx*lookAhead, sp.y, halfW, halfH);
@@ -14510,9 +14133,61 @@ class GameScene extends Phaser.Scene{
       ed.wanderVx=-ed.wanderVx;
       ed.wanderVy=-ed.wanderVy;
       ed.wanderTimer=Math.min(ed.wanderTimer||0, 0.3);
+      // ── 「縁にひっかかり」検出: 中心は床なのに四方塞がれている ──
+      // 短時間だけならOK、長く続いたら脱出処理
+      ed._edgeStuckTime = (ed._edgeStuckTime || 0) + dt;
+      if(ed._edgeStuckTime > 1.5){
+        // 1.5秒以上どこにも動けない = 縁の凹みに引っかかってる
+        // 周辺200pxで歩ける位置を探して移動
+        let safe=this._findSafeSpawnPos(sp.x, sp.y, 200);
+        if(safe){
+          sp.x=safe.x; sp.y=safe.y;
+          ed._edgeStuckTime=0;
+        }
+      }
+    } else {
+      // 動けた瞬間にリセット
+      ed._edgeStuckTime=0;
     }
 
     sp.setVelocity(finalVx, finalVy);
+
+    // ── 実位置追跡: 5秒間動いていなければ強制リロケート ──
+    if(ed._lastTrackX===undefined){
+      ed._lastTrackX=sp.x; ed._lastTrackY=sp.y; ed._noMoveTime=0;
+    } else {
+      const moved=Math.hypot(sp.x-ed._lastTrackX, sp.y-ed._lastTrackY);
+      if(moved < 2){
+        // ほぼ動いていない
+        ed._noMoveTime += dt;
+        // 動こうとしている(速度がある)のに動けない場合のみ判定強化
+        const wantToMove = (Math.abs(vx)+Math.abs(vy)) > 5;
+        if(wantToMove && ed._noMoveTime > 3.0){
+          // 3秒以上「動きたいのに動けない」 = 確実にスタック
+          let safe=this._findSafeSpawnPos(sp.x, sp.y, 250);
+          if(safe){
+            sp.x=safe.x; sp.y=safe.y;
+            ed._noMoveTime=0;
+            ed._lastTrackX=sp.x; ed._lastTrackY=sp.y;
+          } else if(this.player){
+            // 最終手段: プレイヤー方向200px
+            const px=this.player.x, py=this.player.y;
+            const dx=px-sp.x, dy=py-sp.y;
+            const dist=Math.hypot(dx,dy)||1;
+            const tx=px - dx/dist*200;
+            const ty=py - dy/dist*200;
+            if(this._isWalkable(tx, ty)){
+              sp.x=tx; sp.y=ty;
+              ed._noMoveTime=0;
+            }
+          }
+        }
+      } else {
+        // 動いた: リセット
+        ed._lastTrackX=sp.x; ed._lastTrackY=sp.y;
+        ed._noMoveTime=0;
+      }
+    }
 
     // ── ボブ動作(歩行時に上下に弾む) ──
     // 移動してるかどうかを判定
@@ -14818,6 +14493,15 @@ class GameScene extends Phaser.Scene{
     this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c','info');
     this.updateHUD();
     SE('hurt');
+    // ── 覚醒ゲージ: 被弾で蓄積(通常時のみ、HP10%以上のダメージで+2) ──
+    if(!pd.awakened && dmg >= pd.mhp * 0.05){
+      pd.awakGauge = Math.min(pd.awakGaugeMax||100, (pd.awakGauge||0) + 2);
+      if(pd.awakGauge >= (pd.awakGaugeMax||100) && !pd._awakReadyShown){
+        pd._awakReadyShown = true;
+        this.showFloat(p.x, p.y-60, '✨ 覚醒準備完了 ✨', '#ffeecc', 'boost');
+      }
+      if(this._updateAwakeningButton) this._updateAwakeningButton();
+    }
     // 毒付与
     const poisonChance={scorpion:0.10, scorpion_queen:0.20, scorpion_king:0.30, zombie:0.10, ghost:0.25};
     if(poisonChance[ed.id] && !pd._poisoned && Math.random()<poisonChance[ed.id]){
@@ -15409,7 +15093,11 @@ class GameScene extends Phaser.Scene{
         }
       }
     }
-    if(Math.floor(time/100)!==Math.floor((time-delta)/100))this.updateMinimap();
+    if(Math.floor(time/100)!==Math.floor((time-delta)/100)){
+      this.updateMinimap();
+      // 覚醒ボタンのゲージリングも更新(ゲージが視覚的に伸びる)
+      if(this._updateAwakeningButton) this._updateAwakeningButton();
+    }
     // ドロップアイテムの拾得チェック（60フレームに1回）
     if(Math.floor(time/60)!==Math.floor((time-delta)/60)&&this._droppedItems&&this._droppedItems.length>0){
       const px=this.player.x, py=this.player.y;
