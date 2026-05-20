@@ -1430,18 +1430,7 @@ class BootScene extends Phaser.Scene{
       g.generateTexture('proj_arrow',W,H);
       g.destroy();
     }
-    const mk=(key,S,fn)=>{
-      if(this.textures&&this.textures.exists(key)){
-        // PNG ロード成功時はスキップ(デバッグ用ログ)
-        if(key.indexOf('scorpion')>=0) console.log('[mk] skipped (PNG loaded):', key);
-        return;
-      }
-      if(key.indexOf('scorpion')>=0) console.log('[mk] generating procedural texture:', key);
-      const g=this.make.graphics({x:0,y:0,add:false});
-      fn(g,S);
-      g.generateTexture(key,S,S);
-      g.destroy();
-    };
+    const mk=(key,S,fn)=>{if(this.textures&&this.textures.exists(key))return;const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
 
     // ── ボス4（砂漠の魔神・100×100px）────────────────────────
     mk('enemy_boss4',148,(g,S)=>{
