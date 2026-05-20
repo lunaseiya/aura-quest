@@ -611,6 +611,16 @@ class BootScene extends Phaser.Scene{
       this.load.image('enemy_'+k,       BASE+'enemies/'+k+'.png');
       this.load.image('enemy_'+k+'_atk',BASE+'enemies/'+k+'_atk.png');
     });
+    // ── ボス画像ロード(idle+attackセット) ──
+    // boss/フォルダのboss_*.png を読み込む。ファイル名は boss_<id>.png / boss_<id>_atk.png
+    [
+      'boss1','boss2','boss3','boss4',
+      'scorpion_king','tomb_guardian','mistress','thunder_god',
+      'dark_illusion','goblin_leader'
+    ].forEach(k=>{
+      this.load.image('enemy_'+k,       BASE+'boss/boss_'+k+'.png');
+      this.load.image('enemy_'+k+'_atk',BASE+'boss/boss_'+k+'_atk.png');
+    });
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -1420,7 +1430,18 @@ class BootScene extends Phaser.Scene{
       g.generateTexture('proj_arrow',W,H);
       g.destroy();
     }
-    const mk=(key,S,fn)=>{if(this.textures&&this.textures.exists(key))return;const g=this.make.graphics({x:0,y:0,add:false});fn(g,S);g.generateTexture(key,S,S);g.destroy();};
+    const mk=(key,S,fn)=>{
+      if(this.textures&&this.textures.exists(key)){
+        // PNG ロード成功時はスキップ(デバッグ用ログ)
+        if(key.indexOf('scorpion')>=0) console.log('[mk] skipped (PNG loaded):', key);
+        return;
+      }
+      if(key.indexOf('scorpion')>=0) console.log('[mk] generating procedural texture:', key);
+      const g=this.make.graphics({x:0,y:0,add:false});
+      fn(g,S);
+      g.generateTexture(key,S,S);
+      g.destroy();
+    };
 
     // ── ボス4（砂漠の魔神・100×100px）────────────────────────
     mk('enemy_boss4',148,(g,S)=>{
@@ -4316,7 +4337,7 @@ class SaveSelectScene extends Phaser.Scene{
   _doLoad(slot){
     const save=getSaveData(slot);
     if(!save)return;
-    this.scene.start('Game',{playerData:save.playerData,stage:save.stage});
+    this.scene.start('Game',{playerData:save.playerData,stage:save.stage,currentSlot:slot});
   }
 
   _confirmOverwrite(slot,existing){
@@ -4629,7 +4650,7 @@ const STAGE_CONFIG={
     portalTo:1, portalToLabel:'🌿 ST.1へ出発', portalToKey:'portal_st1',
     portalBack:null, portalBackLabel:'', portalBackKey:'portal_town',
     // 入口・出口位置
-    spawnX:625, spawnY:700,           // 中央広場(噴水の少し下)
+    spawnX:625, spawnY:720,           // 中央広場(噴水の少し下)
     portalNextX:1200, portalNextY:610, // 右側のゲート(ST1へ)
     spawnFromNextX:1130, spawnFromNextY:610,
     // 南へ行くポータル(セントラル南のゲート → south_st1へ)
@@ -4654,6 +4675,48 @@ const STAGE_CONFIG={
     // Y方向: アーチ上部(上の渡しブロック)も含めて Y=940〜1240 をカバー
     walkZones:[
       {x:520, y:940, w:210, h:300},  // 南ゲート全体 - アーチ天井・両柱の内側・通路下まで
+    ],
+    // ── NPC配置 ──
+    npcs:[
+      // 世界観を伝えるNPC(噴水左・スポーン地点近く)
+      {
+        id:'lore_npc',
+        x:520, y:700,
+        sprite:'npc_lore',
+        name:'吟遊詩人ライラ',
+        dialog:[
+          'おや、見ない顔だね。旅人さんかい?',
+          'この世界はかつて4つの種族…',
+          '人・エルフ・妖魔・鬼が共に暮らす平和な大陸だった。',
+          'けれど大いなる闇が現れ、各地に魔物があふれ出した。',
+          'ここ「セントラル」は冒険者たちの拠点さ。',
+          '東のゲートからST.1の草原へ、',
+          '南のゲートから南街道や港町、桜の里へ。',
+          'いずれは「桜の城」のダークイリュージョンを倒し、',
+          'この大陸に平和を取り戻すのが君の役目かもね。',
+          '健闘を祈るよ、旅人さん。',
+        ],
+      },
+      // 転職場(ブレイズフォージ)への道案内NPC(南ゲート手前)
+      {
+        id:'job_guide',
+        x:720, y:1080,
+        sprite:'npc_jobguide',
+        name:'冒険者アレン',
+        dialog:[
+          'よお、新人冒険者!まだ職業は決まってないんだろ?',
+          'お前さん、まだノービスのままだろう?',
+          '「ブレイズフォージ」って街で転職できるぜ。',
+          '剣士・マジシャン・アーチャー・ボマー…',
+          '4つの職業から好きなのを選べる。',
+          '行き方は簡単だ:',
+          'まずこの南ゲート(下の門)から「南街道」へ出る。',
+          '南街道を抜けると「ブレイズフォージ」って溶岩の街がある。',
+          'そこにある「✨ 転職場」で転職できるぞ。',
+          'ポータル屋でも転送してくれるから、ゴールドがあるならそっちが早いな。',
+          'ま、頑張れよ新人!',
+        ],
+      },
     ],
   },
   1:{name:'ST.1 草原',bgmKey:'east',mapImage:'map_st1',mapW:1254,mapH:1254,
@@ -5527,6 +5590,8 @@ class GameScene extends Phaser.Scene{
     this.magicReturnY=data.magicReturnY;
     this.customSpawnX=data.customSpawnX; // NPC(船頭等)指定のカスタムスポーン位置
     this.customSpawnY=data.customSpawnY;
+    // 現在のセーブスロット(ロード or 直前のシーンから引き継ぎ)
+    this.currentSlot = data.currentSlot !== undefined ? data.currentSlot : null;
     this.killCount=0;
     this.bossSpawned=false;
     this._dungeonGate=null;
@@ -7478,6 +7543,161 @@ class GameScene extends Phaser.Scene{
     return eva;
   }
   // 覚醒スキルを通常時から使う(awakIdx: 1,2,3)
+  // ── セーブダイアログ(Gameシーン上のポップアップ・シーン切替なし) ──
+  _openSaveDialog(){
+    if(this._saveDialogOpen) return;
+    this._saveDialogOpen = true;
+    const w = this.scale.width, h = this.scale.height;
+    const pd = this.playerData;
+    // 全てのダイアログ要素を保持するコンテナ
+    const cont = this.add.container(0, 0).setDepth(100).setScrollFactor(0);
+    // ── 半透明背景(タップ無効化) ──
+    const overlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.7).setOrigin(0).setScrollFactor(0).setDepth(100).setInteractive();
+    overlay.on('pointerdown', ()=>{}); // 背景タップは無視
+    cont.add(overlay);
+    // ── ダイアログ枠 ──
+    const boxW = Math.min(w-40, 480);
+    const boxH = Math.min(h-60, 460);
+    const boxX = w/2;
+    const boxY = h/2;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x0a1525, 0.98).setStrokeStyle(2, 0x44aa44).setScrollFactor(0).setDepth(101);
+    cont.add(box);
+    // ── タイトル ──
+    const titleY = boxY - boxH/2 + 28;
+    cont.add(this.add.text(boxX, titleY, '💾 セーブスロットを選択', {
+      fontSize:'18px', fontFamily:'Arial', color:'#ffd700', stroke:'#000', strokeThickness:2, fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+
+    // ── スロットカード ──
+    const SLOT_H = 90;
+    const SLOT_W = boxW - 40;
+    const startY = titleY + 30;
+
+    // ダイアログ閉じる関数
+    const closeDialog = ()=>{
+      cont.destroy();
+      this._saveDialogOpen = false;
+    };
+
+    for(let slot=1; slot<=SAVE_SLOTS; slot++){
+      const save = getSaveData(slot);
+      const sy = startY + (slot-1)*(SLOT_H+8) + SLOT_H/2;
+      const sx = boxX;
+      const isEmpty = (save === null);
+      // スロット背景
+      const slotBg = this.add.rectangle(sx, sy, SLOT_W, SLOT_H, isEmpty?0x0a1a2a:0x1a1400, 0.9)
+        .setStrokeStyle(2, isEmpty?0x44aaff:0xffaa00).setScrollFactor(0).setDepth(101).setInteractive({useHandCursor:true});
+      cont.add(slotBg);
+
+      // スロット番号
+      cont.add(this.add.text(sx-SLOT_W/2+12, sy-SLOT_H/2+10, 'スロット '+slot, {
+        fontSize:'12px', fontFamily:'Arial', color:'#aaaaaa'
+      }).setOrigin(0,0).setScrollFactor(0).setDepth(102));
+
+      if(isEmpty){
+        cont.add(this.add.text(sx, sy+4, '＋ ここにセーブする', {
+          fontSize:'16px', fontFamily:'Arial', color:'#44aaff', fontStyle:'bold'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+        slotBg.on('pointerover', ()=>slotBg.setFillStyle(0x1a2a3a, 0.95));
+        slotBg.on('pointerout', ()=>slotBg.setFillStyle(0x0a1a2a, 0.9));
+        slotBg.on('pointerdown', ()=>{
+          this._performSave(slot);
+          closeDialog();
+        });
+      } else {
+        // クラスアイコン
+        const clsIcon = {novice:'⭐',warrior:'⚔',mage:'🪄',archer:'🏹',bomber:'💣'}[save.cls]||'❓';
+        const clsCol = {novice:'#88ccff',warrior:'#e74c3c',mage:'#9b59b6',archer:'#27ae60',bomber:'#f39c12'}[save.cls]||'#ffffff';
+        cont.add(this.add.text(sx-SLOT_W/2+30, sy+8, clsIcon, {fontSize:'24px'}).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+        // 情報
+        cont.add(this.add.text(sx-SLOT_W/2+60, sy-15, (save.clsName||'?')+' / Lv'+(save.lv||1), {
+          fontSize:'15px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(102));
+        cont.add(this.add.text(sx-SLOT_W/2+60, sy+4, '📍 '+(save.stageName||''), {
+          fontSize:'12px', fontFamily:'Arial', color:'#aaddff'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(102));
+        cont.add(this.add.text(sx-SLOT_W/2+60, sy+22, '💰 '+(save.gold||0)+'G  🕐 '+(save.savedAt||''), {
+          fontSize:'10px', fontFamily:'Arial', color:'#888888'
+        }).setOrigin(0,0.5).setScrollFactor(0).setDepth(102));
+        // 上書きセーブ
+        slotBg.on('pointerover', ()=>slotBg.setFillStyle(0x2a2000, 0.95));
+        slotBg.on('pointerout', ()=>slotBg.setFillStyle(0x1a1400, 0.9));
+        slotBg.on('pointerdown', ()=>{
+          // 上書き確認
+          this._confirmOverwriteInGame(slot, save, ()=>{
+            this._performSave(slot);
+            closeDialog();
+          });
+        });
+      }
+    }
+
+    // ── 閉じるボタン ──
+    const closeBtnY = boxY + boxH/2 - 28;
+    const closeBtn = this.add.rectangle(boxX, closeBtnY, 140, 32, 0x223344, 0.9)
+      .setStrokeStyle(1, 0x556677).setScrollFactor(0).setDepth(102).setInteractive({useHandCursor:true});
+    cont.add(closeBtn);
+    cont.add(this.add.text(boxX, closeBtnY, '✕ 閉じる', {
+      fontSize:'14px', fontFamily:'Arial', color:'#aaaaaa'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103));
+    closeBtn.on('pointerover', ()=>closeBtn.setFillStyle(0x445566, 0.95));
+    closeBtn.on('pointerout', ()=>closeBtn.setFillStyle(0x223344, 0.9));
+    closeBtn.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      closeDialog();
+    });
+  }
+
+  // 実際のセーブ処理
+  _performSave(slot){
+    const pd = this.playerData;
+    const summary = (typeof makeSaveSummary === 'function') ? makeSaveSummary(pd, this.stage) : {};
+    const cleanPd = (typeof sanitizePlayerData === 'function') ? sanitizePlayerData(pd) : pd;
+    setSaveData(slot, {playerData:cleanPd, stage:this.stage, summary});
+    // セーブしたスロットを記憶(次回ボタン押下で自動上書き)
+    this.currentSlot = slot;
+    // 完了メッセージ(画面中央に2秒間)
+    const w = this.scale.width, h = this.scale.height;
+    const msgBg = this.add.rectangle(w/2, h/2, 320, 50, 0x0a3a0a, 0.95).setStrokeStyle(2, 0x44ff88).setScrollFactor(0).setDepth(110);
+    const msgTxt = this.add.text(w/2, h/2, '💾 スロット'+slot+' にセーブしました！', {
+      fontSize:'16px', fontFamily:'Arial', color:'#88ff88', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(111);
+    try{SE('levelup');}catch(e){}
+    this.time.delayedCall(1500, ()=>{
+      try{msgBg.destroy();msgTxt.destroy();}catch(e){}
+    });
+  }
+
+  // 上書き確認ダイアログ
+  _confirmOverwriteInGame(slot, existing, onConfirm){
+    const w = this.scale.width, h = this.scale.height;
+    const cont = this.add.container(0, 0).setDepth(120).setScrollFactor(0);
+    const overlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.7).setOrigin(0).setScrollFactor(0).setDepth(120).setInteractive();
+    cont.add(overlay);
+    const box = this.add.rectangle(w/2, h/2, 340, 180, 0x0a1525, 0.98).setStrokeStyle(2, 0xffaa00).setScrollFactor(0).setDepth(121);
+    cont.add(box);
+    cont.add(this.add.text(w/2, h/2-50, '⚠ 上書きしますか？', {
+      fontSize:'17px', fontFamily:'Arial', color:'#ffaa00', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(122));
+    cont.add(this.add.text(w/2, h/2-15, '既存: '+(existing.clsName||'?')+' Lv'+(existing.lv||1), {
+      fontSize:'13px', fontFamily:'Arial', color:'#cccccc'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(122));
+
+    const close = ()=>cont.destroy();
+    // YES
+    const yes = this.add.rectangle(w/2-80, h/2+40, 130, 36, 0x3a1414, 0.95)
+      .setStrokeStyle(2, 0xff4444).setScrollFactor(0).setDepth(122).setInteractive({useHandCursor:true});
+    cont.add(yes);
+    cont.add(this.add.text(w/2-80, h/2+40, '上書き', {fontSize:'15px',fontFamily:'Arial',color:'#ff8888',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(123));
+    yes.on('pointerdown', ()=>{ close(); if(onConfirm) onConfirm(); });
+    // NO
+    const no = this.add.rectangle(w/2+80, h/2+40, 130, 36, 0x1a2a3a, 0.95)
+      .setStrokeStyle(2, 0x556677).setScrollFactor(0).setDepth(122).setInteractive({useHandCursor:true});
+    cont.add(no);
+    cont.add(this.add.text(w/2+80, h/2+40, 'キャンセル', {fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(123));
+    no.on('pointerdown', ()=>{ close(); });
+  }
+
   useAwakSkill(awakIdx){
     const pd = this.playerData;
     const p = this.player;
@@ -7519,6 +7739,12 @@ class GameScene extends Phaser.Scene{
       pd.awakened = awakKey;
       pseudoAwaken = true;
     }
+    // useSkill内のpd[skKey]===0チェックを回避するため、一時的にスキルLvをセット
+    const skKey = 'sk'+awakIdx;
+    const origSkLv = pd[skKey];
+    if(!origSkLv || origSkLv === 0){
+      pd[skKey] = lv;  // 覚醒スキルのLvで一時上書き
+    }
     // skNum(1/2/3)で発動 — useSkill 内の覚醒スキル分岐に入る
     // ただしSP消費は既に済ませているので、useSkillの該当部分を抜粋して呼ぶ必要がある
     // 簡略化: useSkillをそのまま呼ぶ(SP は2重消費されるが上で-=済みなのでロールバック)
@@ -7527,6 +7753,10 @@ class GameScene extends Phaser.Scene{
     // 元のフラグに戻す(疑似覚醒のみ)
     if(pseudoAwaken){
       pd.awakened = null;
+    }
+    // 通常スキルLvも元に戻す
+    if(!origSkLv || origSkLv === 0){
+      pd[skKey] = origSkLv || 0;
     }
     // CD設定(Lv反映: 高Lvほどcd短縮)
     const cdMul = Math.max(0.6, 1 - (lv-1) * 0.04);
@@ -9522,12 +9752,14 @@ class GameScene extends Phaser.Scene{
     this.hudSub=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
     this.hudSub2=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
     this.killTxt=this.add.text(0,0,'').setVisible(false).setScrollFactor(0);
-    // ステージバッジ（ミニマップ左）
-    this.add.rectangle(w-124,0,80,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
-    this.add.text(w-132,4,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
-    // 現在座標表示(プレイヤーのワールド座標)
-    this.add.rectangle(w-124,24,80,18,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
-    this.hudCoordTxt=this.add.text(w-182,26,'X:0 Y:0',{fontSize:'11px',fontFamily:'Arial',color:'#88ddff'}).setOrigin(1,0).setScrollFactor(0).setDepth(12);
+    // ステージバッジ（ミニマップの左・上）
+    // ミニマップ: x=w-166〜w-6, y=6〜126 なので、その左側に縦並びで配置
+    // バッジ右端を w-170 に揃える(ミニマップ左端w-166の4px左)
+    this.add.rectangle(w-170,6,80,22,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
+    this.add.text(w-210,10,'ST.'+this.stage,{fontSize:'14px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5,0).setScrollFactor(0).setDepth(12);
+    // 現在座標表示(ステージバッジの下・少し幅広)
+    this.add.rectangle(w-170,30,120,18,0x000000,0.7).setOrigin(1,0).setScrollFactor(0).setDepth(10);
+    this.hudCoordTxt=this.add.text(w-230,32,'X:0 Y:0',{fontSize:'11px',fontFamily:'Arial',color:'#88ddff'}).setOrigin(0.5,0).setScrollFactor(0).setDepth(12);
     // ボスHPバー
     this.bossHPBg=this.add.rectangle(w/2,h-44,w*0.6+8,20,0x000000,0.8).setScrollFactor(0).setDepth(10).setVisible(false);
     this.bossHPBar=this.add.rectangle(w/2-w*0.3,h-44,w*0.6,16,0xe74c3c).setOrigin(0,0.5).setScrollFactor(0).setDepth(11).setVisible(false);
@@ -10570,8 +10802,8 @@ class GameScene extends Phaser.Scene{
     const isAwakenedNow = !!pd.awakened;
 
     // 通常スキル領域の高さ(覚醒中は0)
-    const NORMAL_AREA_H = isAwakenedNow ? 0 : (IH-22) * 0.60;
-    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : (IH-22) * 0.40;
+    const NORMAL_AREA_H = isAwakenedNow ? 0 : (IH-22) * 0.52;
+    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : (IH-22) * 0.48;
 
     const skVt={}, skAt={}, skCells={};
 
@@ -10731,22 +10963,22 @@ class GameScene extends Phaser.Scene{
 
         // ── 縦レイアウト: 上から順に積む ──
         // 1段目: スキル名
-        const nameY = AW_TOP + (isAwakenedNow ? 30 : 14);
+        const nameY = AW_TOP + (isAwakenedNow ? 30 : 10);
         skadd(this.add.text(cx, nameY, sk.name, {fontSize:fsName,fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
 
         // 2段目: 説明
-        const descY = AW_TOP + (isAwakenedNow ? 70 : 32);
+        const descY = AW_TOP + (isAwakenedNow ? 70 : 24);
         const desc = sk.desc || '';
         skadd(this.add.text(cx, descY, desc.length>descMaxLen ? desc.substr(0,descMaxLen-2)+'…' : desc, {fontSize:fsDesc,fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-10},align:'center'}).setOrigin(0.5));
 
         // 3段目: Lv表示
         const curLv = getAwakLv(sk.id);
-        const lvY = AW_TOP + (isAwakenedNow ? 120 : 52);
+        const lvY = AW_TOP + (isAwakenedNow ? 120 : 40);
         const vtxt = skadd(this.add.text(cx, lvY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:fsLv,fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd',fontStyle:'bold'}).setOrigin(0.5));
         awakVtxt[sk.id] = vtxt;
 
         // 4段目: Lvバー
-        const barY = AW_TOP + (isAwakenedNow ? 160 : 70);
+        const barY = AW_TOP + (isAwakenedNow ? 160 : 54);
         const barW = AW_CW - 24;
         const bW = Math.max(3, Math.floor(barW / AW_MAX_LV) - 2);
         const barH = isAwakenedNow ? 12 : 6;
@@ -10759,9 +10991,9 @@ class GameScene extends Phaser.Scene{
         awakCells[sk.id] = {cells, maxLv: AW_MAX_LV};
 
         // 5段目: +/- ボタンと仮振り表示
-        const btnY = AW_TOP + (isAwakenedNow ? 210 : 90);
+        const btnY = AW_TOP + (isAwakenedNow ? 210 : 72);
         const addBtnW = isAwakenedNow ? 44 : 26;
-        const addBtnH = isAwakenedNow ? 36 : 22;
+        const addBtnH = isAwakenedNow ? 36 : 20;
         if(curLv < AW_MAX_LV){
           const minus = skadd(this.add.rectangle(cL+addBtnW/2+4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
           skadd(this.add.text(cL+addBtnW/2+4, btnY, '−', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
@@ -11223,6 +11455,22 @@ class GameScene extends Phaser.Scene{
       if(yesBtn) return;
       nextHint.setVisible(false);
       const cy = boxY + boxH/2 - 28;
+      // ── 会話のみNPC(ferryでない): 「閉じる」だけ ──
+      if(npcDef.type !== 'ferry'){
+        const closeBtn = this.add.rectangle(boxX, cy, 180, 36, 0x223344, 0.95)
+          .setScrollFactor(0).setDepth(103).setStrokeStyle(2, 0x88aacc, 0.8)
+          .setInteractive({useHandCursor:true});
+        const closeTxt = this.add.text(boxX, cy, '✕ 話を終える',
+          {fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'}
+        ).setOrigin(0.5).setScrollFactor(0).setDepth(104);
+        closeBtn.on('pointerdown', ()=>{
+          SE('click');
+          this._closeNpcDialog([overlay, box, nameLabel, dialogTxt, nextHint, closeBtn, closeTxt]);
+        });
+        yesBtn = closeBtn;  // 二重表示防止フラグ用
+        return;
+      }
+      // ── ferry NPC: YES/NO選択肢 ──
       // YESボタン
       yesBtn = this.add.rectangle(boxX - 90, cy, 140, 36, 0x2ecc71, 0.95)
         .setScrollFactor(0).setDepth(103).setStrokeStyle(2, 0xffffff, 0.8)
@@ -12558,19 +12806,15 @@ class GameScene extends Phaser.Scene{
       if(this._menuOpen||this._gameOver)return;
       if(this._transitioning)return;
       // 二重起動防止
-      if(this.scene.isActive('SaveSelect')||this.scene.isPaused('SaveSelect'))return;
-      console.log('[SAVE BTN] opening SaveSelect…');
-      // 以前のSaveSelectが残ってたら確実に止める
-      try{ this.scene.stop('SaveSelect'); }catch(e){}
-      // SaveSelectを起動
-      this.scene.launch('SaveSelect',{mode:'save',playerData:this.playerData,stage:this.stage});
-      // 次フレームでpauseする(launch処理と競合させない)
-      this.time.delayedCall(50, ()=>{
-        try{
-          this.scene.pause();
-          console.log('[SAVE BTN] Game scene paused');
-        }catch(e){ console.warn('save pause failed:', e); }
-      });
+      if(this._saveDialogOpen) return;
+      try{ SE('click'); }catch(e){}
+      // currentSlotがあれば確認なしで即上書きセーブ
+      if(this.currentSlot){
+        this._performSave(this.currentSlot);
+      } else {
+        // 新規ゲーム or ロードしていない → スロット選択ダイアログ
+        this._openSaveDialog();
+      }
     });
 
     // ── タイトルボタン(セーブボタン下・2段目) ──
@@ -14103,6 +14347,10 @@ class GameScene extends Phaser.Scene{
     try{if(this.enemyDataList)this.enemyDataList.forEach(ed=>{try{if(ed.sprite&&ed.sprite.active)ed.sprite.setVelocity(0,0);}catch(e){}});}catch(e){}
     // _gameOverでupdateを止める
     this._gameOver=true;
+    // Gameシーン遷移の場合、currentSlotを引き継ぐ(明示指定がなければ自動付与)
+    if(sceneKey === 'Game' && sceneData && sceneData.currentSlot === undefined && this.currentSlot !== undefined){
+      sceneData.currentSlot = this.currentSlot;
+    }
     // setTimeoutで次フレームに遷移（Phaser内部アニメの後処理が終わってから）
     const key=sceneKey,data=sceneData;
     const self=this;
