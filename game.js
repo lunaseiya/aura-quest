@@ -11231,7 +11231,12 @@ class GameScene extends Phaser.Scene{
         const anyAwak = this._awakSkillDistribute();
         if(anyAwak) any = true;
       }
-      if(any){SE('levelup');this.updateHUD();}
+      if(any){
+        SE('levelup');
+        this.updateHUD();
+        // スキルボタンを再生成(覚醒スキルの新規習得・Lv変化を反映)
+        this._rebuildSkillButtons();
+      }
     });
 
 
@@ -11743,14 +11748,30 @@ class GameScene extends Phaser.Scene{
   _updateSkillBtns(){
     if(!this.skillBtnRefs||!this.skillBtnRefs.length)return;
     const pd=this.playerData;
-    this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col})=>{
+    // 装備中の覚醒武器キーを取得(覚醒スキルボタンのLv参照用)
+    const eqW = pd.equip && pd.equip.weapon_main;
+    const eqD = eqW ? EQUIP_DEFS[eqW] : null;
+    const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
+    this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col,isAwak,awakIdx})=>{
       try{
         if(!btn||!btn.active||!nameTxt||!nameTxt.active||!lvTxt||!lvTxt.active)return;
-        const has=pd['sk'+num]>0;
-        const c=has?col:0x555555;
-        btn.setFillStyle(c,has?0.28:0.1).setStrokeStyle(2,c,has?1.0:0.3);
-        nameTxt.setColor(has?'#000000':'#667788').setStroke(has?'#ffffff':'#223344',has?3:1);
-        lvTxt.setColor(has?'#000000':'#555555').setText('Lv'+(pd['sk'+num]||0)).setStroke(has?'#ffffff':'#223344',has?2:1);
+        if(isAwak){
+          // ── 覚醒スキルボタン: awakSkillLv を参照 ──
+          const lv = (awakKey && pd.awakSkillLv && pd.awakSkillLv[awakKey])
+            ? (pd.awakSkillLv[awakKey]['sk'+awakIdx]||0) : 0;
+          const has = lv > 0;
+          const c = has ? col : 0x555555;
+          btn.setFillStyle(c, has?0.45:0.1).setStrokeStyle(2, c, has?1.0:0.3);
+          nameTxt.setColor('#ffffff').setStroke('#aa1166', 2);
+          lvTxt.setColor('#ffffff').setText('Lv'+lv).setStroke('#aa1166', 2);
+        } else {
+          // ── 通常スキルボタン ──
+          const has=pd['sk'+num]>0;
+          const c=has?col:0x555555;
+          btn.setFillStyle(c,has?0.28:0.1).setStrokeStyle(2,c,has?1.0:0.3);
+          nameTxt.setColor(has?'#000000':'#667788').setStroke(has?'#ffffff':'#223344',has?3:1);
+          lvTxt.setColor(has?'#000000':'#555555').setText('Lv'+(pd['sk'+num]||0)).setStroke(has?'#ffffff':'#223344',has?2:1);
+        }
       }catch(e){}
     });
   }
