@@ -11207,7 +11207,7 @@ class GameScene extends Phaser.Scene{
           objs.push(skadd(this.add.text(sx, sy-6, info.icon, {fontSize:'22px'}).setOrigin(0.5)));
           const nm = info.name.length>4?info.name.substr(0,4):info.name;
           objs.push(skadd(this.add.text(sx, sy+SLOT_SZ/2-8, nm, {fontSize:'8px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:2}).setOrigin(0.5)));
-          bg.on('pointerdown', ()=>{ try{SE('click');}catch(e){} pd.skillSlots[s]=null; renderSlots(); renderList(); });
+          bg.on('pointerdown', ()=>{ try{SE('click');}catch(e){} pd.skillSlots[s]=null; renderSlots(); renderList(); this._rebuildSkillButtons(); });
         } else {
           objs.push(skadd(this.add.text(sx, sy, (s+1)+'', {fontSize:'14px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5)));
         }
@@ -11228,7 +11228,13 @@ class GameScene extends Phaser.Scene{
         const ry = LIST_TOP + i*rowH + rowH/2;
         const objs = [];
         const curLv = getCurLv(sk);
-        const learned = curLv > 0 || (sk.bookRequired && sk.type==='normal' && ((sk.num===4)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm))));
+        // 確定済みLv(仮Lvを含まない) — 装備可否はこちらで判定
+        const confirmedLv = (sk.type==='normal') ? (pd[sk.skId]||0)
+          : ((pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]) || 0);
+        const isPassive = sk.bookRequired && (sk.num===4) && (pd.cls==='archer'||pd.cls==='bomber');
+        // 装備可能 = 確定済みでLv1以上(パッシブは装備不可) or 書物パッシブ習得済み
+        const equippable = (confirmedLv > 0 && !isPassive)
+          || (sk.bookRequired && sk.type==='normal' && (sk.num===4) && !isPassive && ((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)));
         const inSlot = pd.skillSlots.indexOf(sk.key) >= 0;
         // 行背景
         const rowBg = skadd(this.add.rectangle(PX, ry, PW-24, rowH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
@@ -11240,15 +11246,19 @@ class GameScene extends Phaser.Scene{
         objs.push(skadd(this.add.text(PX-PW/2+44, ry-8, jobTag+sk.name+'  Lv'+curLv+'/'+sk.maxLv, {fontSize:'12px',fontFamily:'Arial',color: sk.type==='awak'?'#ffaadd':'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
         objs.push(skadd(this.add.text(PX-PW/2+44, ry+8, sk.desc||'', {fontSize:'9px',fontFamily:'Arial',color:'#99aabb'}).setOrigin(0,0.5)));
 
-        // 右側ボタン群: [-] Lv [+]  [装備]
-        const canLvUp = (sk.type==='normal') ? (!sk.bookRequired || learned) : sk.canLearn;
-        const isPassive = sk.bookRequired && (sk.num===4) && (pd.cls==='archer'||pd.cls==='bomber');
-        let bxR = PX + PW/2 - 20;
-        // 装備ボタン(最右)
-        if(learned && !isPassive){
-          const eqW2 = 54;
-          const eqB = skadd(this.add.rectangle(bxR-eqW2/2, ry, eqW2, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(bxR-eqW2/2, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
+        // ── 右側ボタン群(位置固定) ──
+        // レイアウト: [−] [+] ... [装備] を絶対座標で固定配置
+        const canLvUp = (sk.type==='normal') ? (!sk.bookRequired || equippable) : sk.canLearn;
+        const RIGHT = PX + PW/2 - 12;       // 右端基準
+        const EQ_W = 54;                     // 装備ボタン幅
+        const eqCx = RIGHT - EQ_W/2;         // 装備ボタン中心(固定)
+        const plusCx = RIGHT - EQ_W - 8 - 16;   // +ボタン中心(固定)
+        const minusCx = plusCx - 34;             // −ボタン中心(固定)
+
+        // 装備ボタン(最右・固定位置) — 確定済みで装備可能な時のみ
+        if(equippable){
+          const eqB = skadd(this.add.rectangle(eqCx, ry, EQ_W, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(eqB);
           eqB.on('pointerdown', ()=>{
             try{SE('click');}catch(e){}
@@ -11259,14 +11269,13 @@ class GameScene extends Phaser.Scene{
               if(empty>=0){ pd.skillSlots[empty]=sk.key; }
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
-            renderSlots(); renderList();
+            renderSlots(); renderList(); this._rebuildSkillButtons();
           });
-          bxR -= (eqW2 + 6);
         }
-        // +/- Lvボタン
+        // +/- Lvボタン(固定位置・装備ボタンの有無に関係なく同じ場所)
         if(canLvUp && curLv < sk.maxLv){
-          const plusB = skadd(this.add.rectangle(bxR-16, ry, 28, rowH-12, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(bxR-16, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
+          const plusB = skadd(this.add.rectangle(plusCx, ry, 28, rowH-12, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(plusCx, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
           objs.push(plusB);
           plusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
@@ -11280,8 +11289,8 @@ class GameScene extends Phaser.Scene{
             try{SE('click');}catch(e){}
             refreshHdr(); renderList();
           });
-          const minusB = skadd(this.add.rectangle(bxR-48, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(bxR-48, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
+          const minusB = skadd(this.add.rectangle(minusCx, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(minusCx, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
           objs.push(minusB);
           minusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
@@ -11839,29 +11848,26 @@ class GameScene extends Phaser.Scene{
   _updateSkillBtns(){
     if(!this.skillBtnRefs||!this.skillBtnRefs.length)return;
     const pd=this.playerData;
-    // 装備中の覚醒武器キーを取得(覚醒スキルボタンのLv参照用)
-    const eqW = pd.equip && pd.equip.weapon_main;
-    const eqD = eqW ? EQUIP_DEFS[eqW] : null;
-    const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
-    this.skillBtnRefs.forEach(({btn,nameTxt,lvTxt,num,col,isAwak,awakIdx})=>{
+    this.skillBtnRefs.forEach((ref)=>{
+      const {btn,nameTxt,lvTxt,num,col,isAwak,skillKey}=ref;
       try{
         if(!btn||!btn.active||!nameTxt||!nameTxt.active||!lvTxt||!lvTxt.active)return;
+        // skillKeyがあれば_resolveSkillKeyで正確な情報を取得
+        const info = skillKey ? this._resolveSkillKey(skillKey) : null;
         if(isAwak){
-          // ── 覚醒スキルボタン: awakSkillLv を参照 ──
-          const lv = (awakKey && pd.awakSkillLv && pd.awakSkillLv[awakKey])
-            ? (pd.awakSkillLv[awakKey]['sk'+awakIdx]||0) : 0;
+          const lv = info ? info.lv : 0;
           const has = lv > 0;
           const c = has ? col : 0x555555;
           btn.setFillStyle(c, has?0.45:0.1).setStrokeStyle(2, c, has?1.0:0.3);
           nameTxt.setColor('#ffffff').setStroke('#aa1166', 2);
           lvTxt.setColor('#ffffff').setText('Lv'+lv).setStroke('#aa1166', 2);
         } else {
-          // ── 通常スキルボタン ──
-          const has=pd['sk'+num]>0;
+          const lv = info ? info.lv : (pd['sk'+num]||0);
+          const has = lv > 0;
           const c=has?col:0x555555;
           btn.setFillStyle(c,has?0.28:0.1).setStrokeStyle(2,c,has?1.0:0.3);
           nameTxt.setColor(has?'#000000':'#667788').setStroke(has?'#ffffff':'#223344',has?3:1);
-          lvTxt.setColor(has?'#000000':'#555555').setText('Lv'+(pd['sk'+num]||0)).setStroke(has?'#ffffff':'#223344',has?2:1);
+          lvTxt.setColor(has?'#000000':'#555555').setText('Lv'+lv).setStroke(has?'#ffffff':'#223344',has?2:1);
         }
       }catch(e){}
     });
@@ -13183,12 +13189,114 @@ class GameScene extends Phaser.Scene{
       });
     }
 
-    // ボタン総数: 通常スキル + 覚醒スキル(最大7)
-    const totalBtns = skNums.length + awakSkillsToShow.length;
+    // ── 表示するスキルリストを決定 ──
+    // 覚醒中: その覚醒職の3スキルを表示(従来通り)
+    // 覚醒前: pd.skillSlots(6枠)にセットされたスキルを順に表示
+    const displayList = [];  // {key, type, num/awakKey/awakIdx, ...}
+    if(pd.awakened){
+      // 覚醒中: 覚醒職の3スキルすべて
+      const awKey = pd.awakened;
+      const awA = AWAKENINGS[awKey];
+      if(awA && awA.skills){
+        awA.skills.forEach((sk, idx)=>{
+          displayList.push({ key:'a_'+awKey+'_'+(idx+1), type:'awak', awakKey:awKey, awakIdx:idx+1 });
+        });
+      }
+    } else {
+      // 覚醒前: skillSlotsの順に表示(nullは飛ばす)
+      // skillSlotsが未初期化 or 全部空なら、習得済みスキルを自動セット
+      if(!pd.skillSlots || !Array.isArray(pd.skillSlots) || pd.skillSlots.length!==6){
+        pd.skillSlots = [null,null,null,null,null,null];
+      }
+      if(pd.skillSlots.every(s=>s===null)){
+        let si=0;
+        const cdefs = CLASS_SKILLS[pd.cls]||[];
+        cdefs.forEach((sk,idx)=>{
+          if(si>=6||!sk||sk.locked) return;
+          const lv = pd['sk'+(idx+1)]||0;
+          const hasBook = (idx===3)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm));
+          if(lv>0||hasBook){ pd.skillSlots[si++]='n'+(idx+1); }
+        });
+      }
+      if(pd.skillSlots && Array.isArray(pd.skillSlots)){
+        pd.skillSlots.forEach(key=>{
+          if(!key) return;
+          const info = this._resolveSkillKey(key);
+          if(!info) return;
+          if(info.type==='normal'){
+            displayList.push({ key, type:'normal', num:info.num });
+          } else {
+            displayList.push({ key, type:'awak', awakKey:info.awakKey, awakIdx:info.awakIdx });
+          }
+        });
+      }
+    }
+    const totalBtns = Math.max(1, displayList.length);
+    this._currentSkillKeys = displayList.map(s=>s.key);
 
-    // ── 統一スキルリスト構築(通常+覚醒を1配列に) ──
-    // 各エントリ: {key, type:'normal'|'awak', num/awakIdx, ...}
-    const skillList = [];
+    // ボタンサイズ: 個数に応じて縮小
+    let SK_W, SK_H;
+    if(totalBtns <= 4){ SK_W=72; SK_H=58; }
+    else if(totalBtns <= 5){ SK_W=64; SK_H=54; }
+    else if(totalBtns <= 6){ SK_W=56; SK_H=50; }
+    else { SK_W=50; SK_H=46; }
+    const gap = totalBtns >= 6 ? 4 : 6;
+
+    // ── 統一ボタン生成ヘルパ ──
+    const makeSkillBtn = (entry, i)=>{
+      const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+gap);
+      const by = h - SK_H/2 - MARGIN;
+      const info = this._resolveSkillKey(entry.key);
+      if(!info) return;
+      const isAwak = (entry.type==='awak');
+      const btnCol = isAwak ? 0xff44aa : col;
+      const learned = info.learned;
+      const baseAlpha = isAwak ? 0.45 : (learned?0.4:0.12);
+      const btn = _track(this.add.rectangle(bx,by,SK_W,SK_H,btnCol,baseAlpha)
+        .setScrollFactor(0).setDepth(25)
+        .setStrokeStyle(learned?2:1, btnCol, learned?1.0:0.4)
+        .setInteractive({useHandCursor:true}));
+      const iconSize = totalBtns >= 6 ? '20px' : '26px';
+      _track(this.add.text(bx,by-14,info.icon,{fontSize:iconSize}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      const nm = info.name.length>6 ? info.name.substr(0,5)+'…' : info.name;
+      const nameTxt=_track(this.add.text(bx,by+10,nm,{
+        fontSize: totalBtns>=6?'9px':'11px', fontFamily:'Arial',
+        color: isAwak?'#ffffff':(learned?'#000000':'#667788'),
+        stroke: isAwak?'#aa1166':(learned?'#ffffff':'#223344'),
+        strokeThickness: isAwak?2:(learned?3:1),
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      const lvTxt=_track(this.add.text(bx,by+22,'Lv'+info.lv,{
+        fontSize:'10px', fontFamily:'Arial',
+        color: isAwak?'#ffffff':(learned?'#000000':'#445566'),
+        stroke: isAwak?'#aa1166':(learned?'#ffffff':'#223344'),
+        strokeThickness: isAwak?2:(learned?2:1),
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(26));
+      // クリック処理
+      if(isAwak){
+        const ai = info.awakIdx;
+        btn.on('pointerdown',()=>{ btn.setFillStyle(btnCol,0.75); this.useAwakSkill(ai); });
+        btn.on('pointerup',  ()=>btn.setFillStyle(btnCol,0.45));
+        btn.on('pointerout', ()=>btn.setFillStyle(btnCol,0.45));
+      } else {
+        const num = info.num;
+        btn.on('pointerdown',()=>{ const has=this.playerData['sk'+num]>0; btn.setFillStyle(btnCol,has?0.75:0.15); this.useSkill(num); });
+        btn.on('pointerup',  ()=>{const has=this.playerData['sk'+num]>0; btn.setFillStyle(btnCol,has?0.4:0.12);});
+        btn.on('pointerout', ()=>{const has=this.playerData['sk'+num]>0; btn.setFillStyle(btnCol,has?0.4:0.12);});
+      }
+      // CDオーバーレイ
+      const ov=_track(this.add.rectangle(bx,by,SK_W,SK_H,0x000000,0).setScrollFactor(0).setDepth(27));
+      const ct=_track(this.add.text(bx,by,'',{fontSize:'16px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(28));
+      this.skillCDOverlays.push({key: info.cdKey, ov, ct});
+      this.skillBtnRefs.push({btn, nameTxt, lvTxt,
+        num: isAwak?(4+info.awakIdx):info.num,
+        col: btnCol, isAwak, awakIdx: isAwak?info.awakIdx:undefined,
+        skillKey: entry.key });
+    };
+
+    displayList.forEach((entry,i)=>makeSkillBtn(entry,i));
+
+    /* ===== 旧スキルボタン配置(無効化) =====
+    const skillList_OLD = [];
     skNums.forEach(num=>{
       skillList.push({ key:'n'+num, type:'normal', num:num });
     });
@@ -13319,6 +13427,7 @@ class GameScene extends Phaser.Scene{
       this.skillCDOverlays.push({key:'awakCD'+awakIdx, ov, ct});
       this.skillBtnRefs.push({btn, nameTxt, lvTxt, num:virtualNum, col:awakCol, isAwak:true, awakIdx});
     });
+    ===== 旧スキルボタン配置ここまで ===== */
 
     // ポーションボタン（ジョイスティック右、下部中央寄り）
     const POT_W=50, POT_H=44;
