@@ -467,6 +467,9 @@ function makePlayerData(cls){
       spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
       youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒
     },
+    // ── 各覚醒職で現在「習得中」のスキルID ──
+    // 1覚醒職につき1スキルだけ習得可・付け替え式(前のLvは awakSkillLv に保持される)
+    awakActive:{ samurai:null, heavy:null, spirit:null, youma:null },
     // ── スキルスロット(覚醒前に戦闘で使うスキル6枠) ──
     // 各要素はスキルキー or null。キー形式:
     //   通常スキル: 'n1','n2','n3','n4'
@@ -5780,6 +5783,21 @@ class GameScene extends Phaser.Scene{
       if(this.playerData.equip.weapon_main===undefined) this.playerData.equip.weapon_main=null;
       if(this.playerData.equip.weapon_off===undefined) this.playerData.equip.weapon_off=null;
     }
+    // 古いセーブの awakActive 補完: awakSkillLv に Lv>0 のスキルがあれば最初の1つを active 化
+    {
+      const pd=this.playerData;
+      if(!pd.awakActive || typeof pd.awakActive!=='object'){
+        pd.awakActive={samurai:null, heavy:null, spirit:null, youma:null};
+      }
+      ['samurai','heavy','spirit','youma'].forEach(awKey=>{
+        if(pd.awakActive[awKey]===undefined) pd.awakActive[awKey]=null;
+        if(pd.awakActive[awKey]===null && pd.awakSkillLv && pd.awakSkillLv[awKey]){
+          for(let i=1;i<=3;i++){
+            if((pd.awakSkillLv[awKey]['sk'+i]||0)>0){ pd.awakActive[awKey]='sk'+i; break; }
+          }
+        }
+      });
+    }
     this.stage=data.stage!==undefined?data.stage:1;
     this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
     this.magicReturnX=data.magicReturnX; // 青魔法ゲート経由の到着位置
@@ -7987,6 +8005,41 @@ class GameScene extends Phaser.Scene{
   }
 
   // 上書き確認ダイアログ
+  // 汎用確認ダイアログ: タイトル + 本文(複数行可) + Yes/No
+  // opts: { yesLabel, noLabel, yesColor, noColor }
+  _confirmDialog(title, message, onYes, opts){
+    opts = opts || {};
+    const w = this.scale.width, h = this.scale.height;
+    const cont = this.add.container(0, 0).setDepth(120).setScrollFactor(0);
+    const overlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.7).setOrigin(0).setScrollFactor(0).setDepth(120).setInteractive();
+    cont.add(overlay);
+    const lines = (message||'').split('\n');
+    const boxH = 130 + lines.length*18;
+    const box = this.add.rectangle(w/2, h/2, 360, boxH, 0x0a1525, 0.98).setStrokeStyle(2, 0xffaa00).setScrollFactor(0).setDepth(121);
+    cont.add(box);
+    cont.add(this.add.text(w/2, h/2 - boxH/2 + 24, title, {
+      fontSize:'16px', fontFamily:'Arial', color:'#ffaa00', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(122));
+    lines.forEach((ln,i)=>{
+      cont.add(this.add.text(w/2, h/2 - boxH/2 + 50 + i*18, ln, {
+        fontSize:'12px', fontFamily:'Arial', color:'#cccccc', align:'center'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(122));
+    });
+    const close = ()=>cont.destroy();
+    const yesCol = opts.yesColor || 0x44aa44;
+    const noCol = opts.noColor || 0x556677;
+    const yes = this.add.rectangle(w/2-80, h/2 + boxH/2 - 30, 130, 36, (yesCol&0x111111)|0x101010, 0.95)
+      .setStrokeStyle(2, yesCol).setScrollFactor(0).setDepth(122).setInteractive({useHandCursor:true});
+    cont.add(yes);
+    cont.add(this.add.text(w/2-80, h/2 + boxH/2 - 30, opts.yesLabel||'はい', {fontSize:'14px',fontFamily:'Arial',color:'#88ff88',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(123));
+    yes.on('pointerdown', ()=>{ try{SE('click');}catch(e){} close(); if(onYes) onYes(); });
+    const no = this.add.rectangle(w/2+80, h/2 + boxH/2 - 30, 130, 36, 0x1a2a3a, 0.95)
+      .setStrokeStyle(2, noCol).setScrollFactor(0).setDepth(122).setInteractive({useHandCursor:true});
+    cont.add(no);
+    cont.add(this.add.text(w/2+80, h/2 + boxH/2 - 30, opts.noLabel||'キャンセル', {fontSize:'13px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(123));
+    no.on('pointerdown', ()=>{ try{SE('click');}catch(e){} close(); });
+  }
+
   _confirmOverwriteInGame(slot, existing, onConfirm){
     const w = this.scale.width, h = this.scale.height;
     const cont = this.add.container(0, 0).setDepth(120).setScrollFactor(0);
@@ -11232,18 +11285,27 @@ class GameScene extends Phaser.Scene{
         const confirmedLv = (sk.type==='normal') ? (pd[sk.skId]||0)
           : ((pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]) || 0);
         const isPassive = sk.bookRequired && (sk.num===4) && (pd.cls==='archer'||pd.cls==='bomber');
+        // 覚醒スキル: 1覚醒職につき active な1スキルだけ「習得中」
+        const isAwakActive = sk.type==='awak' && pd.awakActive && pd.awakActive[sk.awakKey]==='sk'+sk.awakIdx;
         // 装備可能 = 確定済みでLv1以上(パッシブは装備不可) or 書物パッシブ習得済み
-        const equippable = (confirmedLv > 0 && !isPassive)
-          || (sk.bookRequired && sk.type==='normal' && (sk.num===4) && !isPassive && ((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)));
+        // 覚醒スキルは active なものだけ装備可能
+        let equippable;
+        if(sk.type==='awak'){
+          equippable = confirmedLv > 0 && isAwakActive;
+        } else {
+          equippable = (confirmedLv > 0 && !isPassive)
+            || (sk.bookRequired && (sk.num===4) && !isPassive && ((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)));
+        }
         const inSlot = pd.skillSlots.indexOf(sk.key) >= 0;
         // 行背景
         const rowBg = skadd(this.add.rectangle(PX, ry, PW-24, rowH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
         objs.push(rowBg);
         // アイコン
         objs.push(skadd(this.add.text(PX-PW/2+24, ry, sk.icon, {fontSize:'20px'}).setOrigin(0.5)));
-        // 名前+Lv
+        // 名前+Lv (覚醒の習得中スキルには ★ マーカー)
         const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+'] ') : '';
-        objs.push(skadd(this.add.text(PX-PW/2+44, ry-8, jobTag+sk.name+'  Lv'+curLv+'/'+sk.maxLv, {fontSize:'12px',fontFamily:'Arial',color: sk.type==='awak'?'#ffaadd':'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
+        const activeTag = isAwakActive ? ' ★習得中' : '';
+        objs.push(skadd(this.add.text(PX-PW/2+44, ry-8, jobTag+sk.name+activeTag+'  Lv'+curLv+'/'+sk.maxLv, {fontSize:'12px',fontFamily:'Arial',color: isAwakActive?'#ffdd66':(sk.type==='awak'?'#ffaadd':'#ffffff'),fontStyle:'bold'}).setOrigin(0,0.5)));
         objs.push(skadd(this.add.text(PX-PW/2+44, ry+8, sk.desc||'', {fontSize:'9px',fontFamily:'Arial',color:'#99aabb'}).setOrigin(0,0.5)));
 
         // ── 右側ボタン群(位置固定) ──
@@ -11281,13 +11343,49 @@ class GameScene extends Phaser.Scene{
             if(sk.type==='normal'){
               if(tmpJp<=0){ this.showFloat(this.player.x,this.player.y-60,'JOBポイント不足','#ffaa44'); return; }
               tmpJp--; tmpLv[sk.key]=(tmpLv[sk.key]||0)+1;
+              try{SE('click');}catch(e){}
+              refreshHdr(); renderList();
             } else {
+              // 覚醒スキル: 1覚醒職1スキル制ルール
               if(!sk.canLearn){ this.showFloat(this.player.x,this.player.y-60,'その覚醒武器を装備してください','#ffaa44'); return; }
               if(tmpAsp<=0){ this.showFloat(this.player.x,this.player.y-60,'覚醒ポイント不足','#ffaa44'); return; }
-              tmpAsp--; tmpAwakLv[sk.key]=(tmpAwakLv[sk.key]||0)+1;
+              if(!pd.awakActive) pd.awakActive={};
+              const curActive = pd.awakActive[sk.awakKey] || null;
+              const thisSkId = 'sk'+sk.awakIdx;
+              const applyPlus = ()=>{
+                pd.awakActive[sk.awakKey] = thisSkId;
+                tmpAsp--; tmpAwakLv[sk.key]=(tmpAwakLv[sk.key]||0)+1;
+                try{SE('click');}catch(e){}
+                refreshHdr(); renderSlots(); renderList();
+                this._rebuildSkillButtons();
+              };
+              if(curActive && curActive !== thisSkId){
+                // 別スキルが習得中 → 確認ダイアログ
+                const otherIdx = parseInt(curActive.slice(2));
+                const otherSk = (AWAKENINGS[sk.awakKey] && AWAKENINGS[sk.awakKey].skills) ? AWAKENINGS[sk.awakKey].skills[otherIdx-1] : null;
+                const otherName = (otherSk && otherSk.name) || '?';
+                const otherConfirmedLv = (pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey][curActive]) || 0;
+                this._confirmDialog(
+                  '習得スキルを切り替え',
+                  '【'+otherName+' Lv'+otherConfirmedLv+'】の習得を解除し、\n【'+sk.name+'】を新たに習得しますか?\n('+otherName+' の Lv は保持されます)',
+                  ()=>{
+                    // 旧スキルが skillSlots に入っていれば外す
+                    const oldKey = 'a_'+sk.awakKey+'_'+otherIdx;
+                    const at = pd.skillSlots.indexOf(oldKey);
+                    if(at>=0) pd.skillSlots[at]=null;
+                    // 旧スキルへの仮Lv加算があれば取り消して覚醒pt返却
+                    if(tmpAwakLv[oldKey]){
+                      tmpAsp += tmpAwakLv[oldKey];
+                      delete tmpAwakLv[oldKey];
+                    }
+                    applyPlus();
+                  },
+                  { yesLabel:'切替+習得', yesColor:0xff8844 }
+                );
+                return;
+              }
+              applyPlus();
             }
-            try{SE('click');}catch(e){}
-            refreshHdr(); renderList();
           });
           const minusB = skadd(this.add.rectangle(minusCx, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
           skadd(this.add.text(minusCx, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
@@ -13219,6 +13317,18 @@ class GameScene extends Phaser.Scene{
         });
       }
       if(pd.skillSlots && Array.isArray(pd.skillSlots)){
+        // 覚醒キーで awakActive と不一致のもの(=非習得スキル)が残っていれば null 化
+        for(let s=0;s<pd.skillSlots.length;s++){
+          const k = pd.skillSlots[s];
+          if(!k || typeof k!=='string') continue;
+          if(k.indexOf('a_')===0){
+            const parts = k.split('_');
+            const awKey = parts[1];
+            const idx = parseInt(parts[2]);
+            const active = pd.awakActive && pd.awakActive[awKey];
+            if(active !== 'sk'+idx){ pd.skillSlots[s]=null; }
+          }
+        }
         pd.skillSlots.forEach(key=>{
           if(!key) return;
           const info = this._resolveSkillKey(key);
