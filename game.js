@@ -467,6 +467,11 @@ function makePlayerData(cls){
       spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
       youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒
     },
+    // ── スキルスロット(覚醒前に戦闘で使うスキル6枠) ──
+    // 各要素はスキルキー or null。キー形式:
+    //   通常スキル: 'n1','n2','n3','n4'
+    //   覚醒スキル: 'a_<awakKey>_<idx>' 例: 'a_samurai_3'
+    skillSlots: [null, null, null, null, null, null],
   };
 }
 
@@ -5468,7 +5473,7 @@ const STAGE_CONFIG={
     // walkZones: 上下の梯子/階段通路を強制歩行可
     walkZones:[
       {x:1200, y:60,   w:110, h:200},   // 上端の梯子通路
-      {x:1200, y:2300, w:110, h:200},   // 下端の階段通路
+      {x:1200, y:2120, w:110, h:380},   // 下端の階段通路(2F着地位置2200もカバー)
     ],
   },
   // ── DUN.2 炭鉱2F: 1Fの下端階段から入る・最下層・クリスタル鉱脈 ──
@@ -5515,6 +5520,8 @@ const STAGE_CONFIG={
     portalTo:null, portalToLabel:'',
     // 戻り=上端の梯子(DUN.2 1Fへ戻る)
     portalBack:11, portalBackLabel:'⛏ 炭鉱1F へ戻る', portalBackKey:'portal_st4',
+    // 1Fへ戻る時の着地位置(1Fの下端の階段の少し上=2Fへの入口付近)
+    portalBackSpawnX:1254, portalBackSpawnY:2200,
     // 入口=上端の梯子から降りてきた位置
     spawnX:1254, spawnY:200,
     portalBackX:1254, portalBackY:80,        // 上端の梯子(戻り)
@@ -7686,6 +7693,128 @@ class GameScene extends Phaser.Scene{
   }
   // 覚醒スキルを通常時から使う(awakIdx: 1,2,3)
   // ── セーブダイアログ(Gameシーン上のポップアップ・シーン切替なし) ──
+  // ── スキル並び替えポップアップ(タップ選択→入替方式) ──
+  _openSkillReorder(){
+    if(this._skillReorderOpen) return;
+    this._skillReorderOpen = true;
+    const w = this.scale.width, h = this.scale.height;
+    const pd = this.playerData;
+
+    // 現在のスキルキー配列を取得(createSkillButtonsで設定済み)
+    let keys = (this._currentSkillKeys && this._currentSkillKeys.length)
+      ? this._currentSkillKeys.slice() : [];
+    if(!keys.length){
+      // フォールバック: 通常スキルから構築
+      keys = ['n1','n2','n3'];
+    }
+
+    // キーから表示情報を取得するヘルパ
+    const defs = this.getSkillDefs();
+    const eqW = pd.equip && pd.equip.weapon_main;
+    const eqD = eqW ? EQUIP_DEFS[eqW] : null;
+    const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
+    const awakA = awakKey ? AWAKENINGS[awakKey] : null;
+    const clsIcons = (DEFS[pd.cls]||[]).map(()=>'');
+    const normalIcons = {
+      warrior:['⚔','🛡','🌀','🔥'], mage:['🔮','❄','☄','🪄'],
+      archer:['🏹','💨','⭐','🎯'], bomber:['💣','🧨','💥','🦾'],
+      novice:['👊','✨','💫','⭐']
+    }[pd.cls] || ['?','?','?','?'];
+    const awakIconMap={
+      samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
+      spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+    };
+    const getInfo = (key)=>{
+      if(key[0]==='n'){
+        const num = parseInt(key.slice(1));
+        const sk = defs[num-1] || {name:'?'};
+        return { name: sk.name||'?', icon: normalIcons[num-1]||'?', col: 0x2bd4bb };
+      } else {
+        const ai = parseInt(key.slice(1));
+        const sk = (awakA && awakA.skills) ? awakA.skills[ai-1] : null;
+        const ic = (awakIconMap[awakKey]||['✨','✨','✨'])[ai-1] || '✨';
+        return { name: sk?sk.name:'?', icon: ic, col: 0xff44aa };
+      }
+    };
+
+    const cont = this.add.container(0,0).setDepth(130).setScrollFactor(0);
+    const overlay = this.add.rectangle(0,0,w,h,0x000000,0.78).setOrigin(0).setScrollFactor(0).setDepth(130).setInteractive();
+    cont.add(overlay);
+    const boxW = Math.min(w-40, 560), boxH = Math.min(h-80, 360);
+    const boxX = w/2, boxY = h/2;
+    cont.add(this.add.rectangle(boxX,boxY,boxW,boxH,0x0a1525,0.98).setStrokeStyle(2,0x44aaff).setScrollFactor(0).setDepth(131));
+    cont.add(this.add.text(boxX, boxY-boxH/2+26, '⇄ スキル並び替え', {fontSize:'18px',fontFamily:'Arial',color:'#44ddff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(132));
+    cont.add(this.add.text(boxX, boxY-boxH/2+52, 'スキルをタップして選択→もう1つタップで入れ替え', {fontSize:'12px',fontFamily:'Arial',color:'#aaccdd'}).setOrigin(0.5).setScrollFactor(0).setDepth(132));
+
+    // 選択状態
+    let selectedIdx = -1;
+    let slotObjs = [];  // 各スロットの{bg,iconTxt,nameTxt,idx}
+
+    const SLOT_W = Math.min(96, (boxW-40)/Math.max(1,keys.length) - 8);
+    const SLOT_H = 96;
+    const slotsY = boxY - 10;
+    const totalW = keys.length*SLOT_W + (keys.length-1)*10;
+    const startX = boxX - totalW/2 + SLOT_W/2;
+
+    const renderSlots = ()=>{
+      // 既存スロット破棄
+      slotObjs.forEach(o=>{ try{o.bg.destroy();o.iconTxt.destroy();o.nameTxt.destroy();o.numTxt.destroy();}catch(e){} });
+      slotObjs = [];
+      keys.forEach((key,idx)=>{
+        const info = getInfo(key);
+        const sx = startX + idx*(SLOT_W+10);
+        const sel = (idx===selectedIdx);
+        const bg = this.add.rectangle(sx, slotsY, SLOT_W, SLOT_H, info.col, sel?0.6:0.25)
+          .setStrokeStyle(sel?4:2, sel?0xffff00:info.col, 1).setScrollFactor(0).setDepth(132)
+          .setInteractive({useHandCursor:true});
+        cont.add(bg);
+        const numTxt = this.add.text(sx-SLOT_W/2+8, slotsY-SLOT_H/2+6, (idx+1)+'', {fontSize:'12px',fontFamily:'Arial',color:'#ffff88',fontStyle:'bold'}).setOrigin(0,0).setScrollFactor(0).setDepth(133);
+        cont.add(numTxt);
+        const iconTxt = this.add.text(sx, slotsY-12, info.icon, {fontSize:'30px'}).setOrigin(0.5).setScrollFactor(0).setDepth(133);
+        cont.add(iconTxt);
+        const nm = info.name.length>5 ? info.name.substr(0,5)+'…' : info.name;
+        const nameTxt = this.add.text(sx, slotsY+28, nm, {fontSize:'11px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setScrollFactor(0).setDepth(133);
+        cont.add(nameTxt);
+        bg.on('pointerdown', ()=>{
+          try{SE('click');}catch(e){}
+          if(selectedIdx < 0){
+            selectedIdx = idx;
+          } else if(selectedIdx === idx){
+            selectedIdx = -1;  // 選択解除
+          } else {
+            // 入れ替え
+            const tmp = keys[selectedIdx];
+            keys[selectedIdx] = keys[idx];
+            keys[idx] = tmp;
+            selectedIdx = -1;
+          }
+          renderSlots();
+        });
+        slotObjs.push({bg,iconTxt,nameTxt,numTxt,idx});
+      });
+    };
+    renderSlots();
+
+    const closeAll = ()=>{ cont.destroy(); this._skillReorderOpen = false; };
+
+    // 保存ボタン
+    const saveBtnY = boxY + boxH/2 - 30;
+    const saveB = this.add.rectangle(boxX-90, saveBtnY, 150, 36, 0x0a3a1a, 0.95).setStrokeStyle(2,0x44ff88).setScrollFactor(0).setDepth(132).setInteractive({useHandCursor:true});
+    cont.add(saveB);
+    cont.add(this.add.text(boxX-90, saveBtnY, '✔ 保存', {fontSize:'15px',fontFamily:'Arial',color:'#88ff99',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(133));
+    saveB.on('pointerdown', ()=>{
+      pd.skillOrder = keys.slice();
+      try{SE('levelup');}catch(e){}
+      this._rebuildSkillButtons();
+      closeAll();
+    });
+    // キャンセルボタン
+    const cancelB = this.add.rectangle(boxX+90, saveBtnY, 150, 36, 0x223344, 0.95).setStrokeStyle(2,0x556677).setScrollFactor(0).setDepth(132).setInteractive({useHandCursor:true});
+    cont.add(cancelB);
+    cont.add(this.add.text(boxX+90, saveBtnY, '✕ キャンセル', {fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5).setScrollFactor(0).setDepth(133));
+    cancelB.on('pointerdown', ()=>{ try{SE('click');}catch(e){} closeAll(); });
+  }
+
   _openSaveDialog(){
     if(this._saveDialogOpen) return;
     this._saveDialogOpen = true;
@@ -10182,39 +10311,44 @@ class GameScene extends Phaser.Scene{
       ],
       blacksmith:'craft', // 鍛冶屋はクラフト専用UI
       magic:[
-        {label:'メテオームの書　※マジシャン専用',price:1000,icon:'📖',mageOnly:true,action:()=>{
-          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
-          if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return;}
+        {label:'メテオームの書　※マジシャン専用',price:1000,icon:'📖',mageOnly:true,owned:()=>pd._hasMeteoorm,action:()=>{
+          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return false;}
+          if(pd._hasMeteoorm){showResult('既に習得済みです','#aaaaaa');return false;}
           pd._hasMeteoorm=true; pd.sk4=1;
           this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📖 メテオームの書を習得！','#cc88ff');
+          return true;
         }},
-        {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,action:()=>{
-          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return;}
-          if(pd._hasHardProtect){showResult('既に習得済みです','#aaaaaa');return;}
+        {label:'ハードプロテクトの書　※マジシャン専用',price:1000,icon:'📗',mageOnly:true,owned:()=>pd._hasHardProtect,action:()=>{
+          if(pd.cls!=='mage'){showResult('マジシャンのみ使用できます','#ff4444');return false;}
+          if(pd._hasHardProtect){showResult('既に習得済みです','#aaaaaa');return false;}
           pd._hasHardProtect=true;
           showResult('📗 ハードプロテクトの書を習得！（近日実装予定）','#cc88ff');
+          return true;
         }},
-        {label:'バーサクパワーの書　※剣士専用',price:800,icon:'📕',action:()=>{
-          if(pd.cls!=='warrior'){showResult('剣士のみ使用できます','#ff4444');return;}
-          if(pd._hasBerserk){showResult('既に習得済みです','#aaaaaa');return;}
+        {label:'バーサクパワーの書　※剣士専用',price:800,icon:'📕',owned:()=>pd._hasBerserk,action:()=>{
+          if(pd.cls!=='warrior'){showResult('剣士のみ使用できます','#ff4444');return false;}
+          if(pd._hasBerserk){showResult('既に習得済みです','#aaaaaa');return false;}
           pd._hasBerserk=true; pd.sk4=1;
           this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📕 バーサクパワーを習得！（スキルスロット4）','#ff8844');
+          return true;
         }},
-        {label:'ボマーパワーの書　※ボマー専用',price:800,icon:'📙',action:()=>{
-          if(pd.cls!=='bomber'){showResult('ボマーのみ使用できます','#ff4444');return;}
-          if(pd._hasBomberPower){showResult('既に習得済みです','#aaaaaa');return;}
+        {label:'ボマーパワーの書　※ボマー専用',price:800,icon:'📙',owned:()=>pd._hasBomberPower,action:()=>{
+          if(pd.cls!=='bomber'){showResult('ボマーのみ使用できます','#ff4444');return false;}
+          if(pd._hasBomberPower){showResult('既に習得済みです','#aaaaaa');return false;}
           pd._hasBomberPower=true; pd.sk4=1;
           this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📙 ボマーパワーを習得！（スキルスロット4・パッシブ）','#f39c12');
+          return true;
         }},
-        {label:'ブーストアタックの書　※アーチャー専用',price:800,icon:'📒',action:()=>{
-          if(pd.cls!=='archer'){showResult('アーチャーのみ使用できます','#ff4444');return;}
-          if(pd._hasBoostAtk){showResult('既に習得済みです','#aaaaaa');return;}
+        {label:'ブーストアタックの書　※アーチャー専用',price:800,icon:'📒',owned:()=>pd._hasBoostAtk,action:()=>{
+          if(pd.cls!=='archer'){showResult('アーチャーのみ使用できます','#ff4444');return false;}
+          if(pd._hasBoostAtk){showResult('既に習得済みです','#aaaaaa');return false;}
           pd._hasBoostAtk=true; pd.sk4=1;
           this._refreshSkillButtons&&this._refreshSkillButtons();
           showResult('📒 ブーストアタックを習得！（スキルスロット4・パッシブ）','#27ae60');
+          return true;
         }},
       ],
       guild:[
@@ -10416,8 +10550,14 @@ class GameScene extends Phaser.Scene{
       const item=selectedItem;
       const mageOnly=item.mageOnly||false;
       const wrongClass=mageOnly&&pd.cls!=='mage';
+      const isOwned = (typeof item.owned==='function') && item.owned();
       const canAfford=pd.gold>=item.price&&!wrongClass;
-      if(item.price===0){
+      if(isOwned){
+        // 既に習得済み: 購入不可
+        buyBtn.setFillStyle(0x0a1f0a,0.9).setStrokeStyle(2,0x336633);
+        buyBtnTxt.setText('✓ 習得済み').setColor('#66cc66');
+        buyBtn.removeInteractive();
+      }else if(item.price===0){
         buyBtn.setFillStyle(0x1a2a3a,0.9).setStrokeStyle(2,0x44aaff);
         buyBtnTxt.setText(item.icon+' 使用する').setColor('#44aaff');
         buyBtn.setInteractive({useHandCursor:true});
@@ -10431,7 +10571,12 @@ class GameScene extends Phaser.Scene{
         buyBtnTxt.setText('💰 '+item.icon+' '+item.label+' を購入する（'+item.price+'G）').setColor('#44aaff');
         buyBtn.setInteractive({useHandCursor:true});
         buyBtn.on('pointerdown',()=>{
-          pd.gold-=item.price; item.action(); refreshGold(); this.updateHUD(); SE('potion');
+          const before=pd.gold;
+          pd.gold-=item.price;
+          const result=item.action();
+          // actionがfalseを返したら購入失敗 → ゴールドを戻す
+          if(result===false){ pd.gold=before; }
+          refreshGold(); this.updateHUD(); SE('potion');
           // ポーションボタンの数字を即座に更新
           if(this.potHPTxt)this.potHPTxt.setText('x'+(pd.potHP||0));
           if(this.potMPTxt)this.potMPTxt.setText('x'+(pd.potMP||0));
@@ -10943,11 +11088,24 @@ class GameScene extends Phaser.Scene{
     // ── 覚醒中かどうかで表示モード切替 ──
     const isAwakenedNow = !!pd.awakened;
 
-    // 通常スキル領域の高さ(覚醒中は0)
-    const NORMAL_AREA_H = isAwakenedNow ? 0 : (IH-22) * 0.52;
-    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : (IH-22) * 0.48;
+    // 通常スキル領域の高さ(覚醒中は0、通常時は覚醒セクション150pxを除いた分)
+    const NORMAL_AREA_H = isAwakenedNow ? 0 : Math.max(100, (IH-22) - 210);
+    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : 200;
 
     const skVt={}, skAt={}, skCells={};
+
+    // ── スキル並び替えボタン(タブ右上) ──
+    {
+      const rbX = PX + PW/2 - 70, rbY = ITOP + 10;
+      const reorderBtn = skadd(this.add.rectangle(rbX, rbY, 110, 24, 0x223a55, 0.9).setStrokeStyle(1, 0x44aaff).setInteractive({useHandCursor:true}));
+      skadd(this.add.text(rbX, rbY, '⇄ 並び替え', {fontSize:'12px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
+      reorderBtn.on('pointerdown', ()=>{
+        try{SE('click');}catch(e){}
+        // メニューを閉じてから並び替えポップアップを開く
+        if(this._closeMenu) this._closeMenu();
+        this.time.delayedCall(50, ()=>this._openSkillReorder());
+      });
+    }
 
     if(!isAwakenedNow){
       // 通常時のみ: JOBポイント残数表示と通常スキルグリッド
@@ -11051,7 +11209,10 @@ class GameScene extends Phaser.Scene{
 
     // 覚醒スキル領域の開始Y
     // 覚醒中は領域を上部から開始、通常時は通常スキルの下に配置
-    const AWAK_TOP = isAwakenedNow ? (ITOP + 8) : (ITOP + 24 + NORMAL_AREA_H + 8);
+    // 覚醒中は領域を上部から、通常時は確定ボタンの上に収まるよう配置
+    // 通常時: 確定ボタン(IBOT)から逆算して、はみ出さない高さに固定
+    const AWAK_SECTION_H = 200;  // 覚醒セクションに必要な高さ(ヘッダー+セル+ボタン)
+    const AWAK_TOP = isAwakenedNow ? (ITOP + 8) : (IBOT - AWAK_SECTION_H);
 
     // 仮振り用バッファと残ポイント
     const awakTmp = {sk1:0, sk2:0, sk3:0};
@@ -11072,8 +11233,8 @@ class GameScene extends Phaser.Scene{
       const AW_COLS = awakSkills.length;  // 通常3
       const AW_CW = (PW-20) / AW_COLS;
       // セルの上端(ヘッダーの下から) - 覚醒中はヘッダーが大きいので下げる
-      const AW_TOP = AWAK_TOP + (isAwakenedNow ? 50 : 36);
-      const AW_CH = AWAK_AREA_H - (isAwakenedNow ? 56 : 44);  // セル高
+      const AW_TOP = AWAK_TOP + (isAwakenedNow ? 50 : 42);
+      const AW_CH = isAwakenedNow ? (AWAK_AREA_H - 56) : (AWAK_SECTION_H - 52);  // セル高
       const AW_CY = AW_TOP + AW_CH/2;  // セル中心(他で使うため計算用)
       const AW_MAX_LV = 10;
 
@@ -11105,25 +11266,25 @@ class GameScene extends Phaser.Scene{
 
         // ── 縦レイアウト: 上から順に積む ──
         // 1段目: スキル名
-        const nameY = AW_TOP + (isAwakenedNow ? 30 : 10);
+        const nameY = AW_TOP + (isAwakenedNow ? 30 : 12);
         skadd(this.add.text(cx, nameY, sk.name, {fontSize:fsName,fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
 
         // 2段目: 説明
-        const descY = AW_TOP + (isAwakenedNow ? 70 : 24);
+        const descY = AW_TOP + (isAwakenedNow ? 70 : 32);
         const desc = sk.desc || '';
         skadd(this.add.text(cx, descY, desc.length>descMaxLen ? desc.substr(0,descMaxLen-2)+'…' : desc, {fontSize:fsDesc,fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-10},align:'center'}).setOrigin(0.5));
 
         // 3段目: Lv表示
         const curLv = getAwakLv(sk.id);
-        const lvY = AW_TOP + (isAwakenedNow ? 120 : 40);
+        const lvY = AW_TOP + (isAwakenedNow ? 120 : 58);
         const vtxt = skadd(this.add.text(cx, lvY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:fsLv,fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd',fontStyle:'bold'}).setOrigin(0.5));
         awakVtxt[sk.id] = vtxt;
 
         // 4段目: Lvバー
-        const barY = AW_TOP + (isAwakenedNow ? 160 : 54);
+        const barY = AW_TOP + (isAwakenedNow ? 160 : 80);
         const barW = AW_CW - 24;
         const bW = Math.max(3, Math.floor(barW / AW_MAX_LV) - 2);
-        const barH = isAwakenedNow ? 12 : 6;
+        const barH = isAwakenedNow ? 12 : 7;
         const cells = [];
         for(let j=0; j<AW_MAX_LV; j++){
           const cx2 = cL + 12 + j*(bW+2);
@@ -11133,9 +11294,9 @@ class GameScene extends Phaser.Scene{
         awakCells[sk.id] = {cells, maxLv: AW_MAX_LV};
 
         // 5段目: +/- ボタンと仮振り表示
-        const btnY = AW_TOP + (isAwakenedNow ? 210 : 72);
-        const addBtnW = isAwakenedNow ? 44 : 26;
-        const addBtnH = isAwakenedNow ? 36 : 20;
+        const btnY = AW_TOP + (isAwakenedNow ? 210 : 108);
+        const addBtnW = isAwakenedNow ? 44 : 32;
+        const addBtnH = isAwakenedNow ? 36 : 26;
         if(curLv < AW_MAX_LV){
           const minus = skadd(this.add.rectangle(cL+addBtnW/2+4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
           skadd(this.add.text(cL+addBtnW/2+4, btnY, '−', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
@@ -13030,6 +13191,55 @@ class GameScene extends Phaser.Scene{
     }
   }
 
+  // ── スキルキーから情報を解決するヘルパ ──
+  // キー形式: 'n1'〜'n4'(通常), 'a_<awakKey>_<idx>'(覚醒)
+  _resolveSkillKey(key){
+    const pd = this.playerData;
+    if(!key) return null;
+    if(key[0]==='n'){
+      const num = parseInt(key.slice(1));
+      const defs = DEFS[pd.cls] || [];
+      const sk = defs[num-1];
+      if(!sk) return null;
+      const lv = pd['sk'+num] || 0;
+      // sk4(書物スキル)は習得フラグで判定
+      const hasSk4 = (pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm);
+      const learned = (num===4) ? hasSk4 : (lv>0);
+      const normalIcons = {
+        warrior:['🌪','🛡','✨','⚔'], mage:['💥','❄️','⚡','☄'],
+        archer:['🏹','⭐','🔫','🎯'], bomber:['💣','💥','🚀','🦾'],
+        novice:['👊','✨','💫','⭐']
+      }[pd.cls] || ['?','?','?','?'];
+      return {
+        key, type:'normal', num,
+        name: sk.name||'?', icon: normalIcons[num-1]||'?',
+        lv, learned, col: 0x2bd4bb,
+        cdKey: 'skillCD'+num,
+      };
+    } else if(key.indexOf('a_')===0){
+      // 'a_samurai_3' 形式
+      const parts = key.split('_');
+      const awKey = parts[1];
+      const idx = parseInt(parts[2]);
+      const awA = AWAKENINGS[awKey];
+      if(!awA || !awA.skills || !awA.skills[idx-1]) return null;
+      const sk = awA.skills[idx-1];
+      const lv = (pd.awakSkillLv && pd.awakSkillLv[awKey] && pd.awakSkillLv[awKey]['sk'+idx]) || 0;
+      const awakIconMap={
+        samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
+        spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+      };
+      const ic = (awakIconMap[awKey]||['✨','✨','✨'])[idx-1] || '✨';
+      return {
+        key, type:'awak', awakKey:awKey, awakIdx:idx,
+        name: sk.name||'?', icon: ic,
+        lv, learned: lv>0, col: 0xff44aa,
+        cdKey: 'awakCD'+idx,
+      };
+    }
+    return null;
+  }
+
   createSkillButtons(){
     const w=this.scale.width,h=this.scale.height,pd=this.playerData;
     const skillCols={warrior:0xe74c3c,mage:0x9b59b6,archer:0x27ae60,bomber:0xf39c12};
@@ -13087,8 +13297,9 @@ class GameScene extends Phaser.Scene{
     const awakKey2 = (eqD2 && eqD2.awakening) ? eqD2.awakening : null;
     const awakA2 = awakKey2 ? AWAKENINGS[awakKey2] : null;
     // 覚醒スキルのうちLv1以上のものだけボタンに追加(装備中の覚醒武器に紐づくもの限定)
+    // ※覚醒中は getSkillDefs() が覚醒スキルを通常枠に返すため、追加ボタンは出さない(二重表示防止)
     const awakSkillsToShow = [];
-    if(awakA2 && awakA2.skills && pd.awakSkillLv && pd.awakSkillLv[awakKey2]){
+    if(!pd.awakened && awakA2 && awakA2.skills && pd.awakSkillLv && pd.awakSkillLv[awakKey2]){
       awakA2.skills.forEach((sk, idx)=>{
         const lv = pd.awakSkillLv[awakKey2][sk.id] || 0;
         if(lv > 0){
@@ -13099,6 +13310,29 @@ class GameScene extends Phaser.Scene{
 
     // ボタン総数: 通常スキル + 覚醒スキル(最大7)
     const totalBtns = skNums.length + awakSkillsToShow.length;
+
+    // ── 統一スキルリスト構築(通常+覚醒を1配列に) ──
+    // 各エントリ: {key, type:'normal'|'awak', num/awakIdx, ...}
+    const skillList = [];
+    skNums.forEach(num=>{
+      skillList.push({ key:'n'+num, type:'normal', num:num });
+    });
+    awakSkillsToShow.forEach(info=>{
+      skillList.push({ key:'a'+info.awakIdx, type:'awak', awakIdx:info.awakIdx, info:info });
+    });
+    // pd.skillOrder(キー配列)があれば、その順に並べ替え
+    if(pd.skillOrder && Array.isArray(pd.skillOrder)){
+      const orderMap = {};
+      pd.skillOrder.forEach((k,idx)=>{ orderMap[k]=idx; });
+      skillList.sort((a,b)=>{
+        const ia = (orderMap[a.key]!==undefined) ? orderMap[a.key] : 999;
+        const ib = (orderMap[b.key]!==undefined) ? orderMap[b.key] : 999;
+        return ia - ib;
+      });
+    }
+    // 配置順のキー配列を保持(並び替えUI用)
+    this._currentSkillKeys = skillList.map(s=>s.key);
+
     // ボタンサイズ: 個数に応じて縮小
     let SK_W, SK_H;
     if(totalBtns <= 4){
@@ -13113,11 +13347,13 @@ class GameScene extends Phaser.Scene{
     const gap = totalBtns >= 6 ? 4 : 6;
 
     // 通常スキル
-    skNums.forEach((num,i)=>{
+    skNums.forEach((num,idx0)=>{
       const sk=defs[num-1]||{name:'---'};
       const hasSkill=pd['sk'+num]>0||(num===4&&hasSk4Active);
       const c=hasSkill?col:0x445566;
       const alpha=hasSkill?0.4:0.12;
+      // skillList内での位置を取得(並び替え反映)
+      const i = this._currentSkillKeys.indexOf('n'+num);
       // ボタンを左に詰める
       const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+gap);
       const by = h - SK_H/2 - MARGIN;
@@ -13127,7 +13363,7 @@ class GameScene extends Phaser.Scene{
         .setStrokeStyle(hasSkill?2:1,c,hasSkill?1.0:0.4)
         .setInteractive({useHandCursor:true}));
       // スキルアイコン（sk4は専用アイコン）
-      const iconStr=num===4?(sk4Icons[pd.cls]||'✨'):(icons[i]||'?');
+      const iconStr=num===4?(sk4Icons[pd.cls]||'✨'):(icons[num-1]||'?');
       const iconSize = totalBtns >= 6 ? '20px' : '26px';
       _track(this.add.text(bx,by-14,iconStr,{fontSize:iconSize}).setOrigin(0.5).setScrollFactor(0).setDepth(26));
       // スキル名（黒文字・白縁取りで強調）
@@ -13164,7 +13400,7 @@ class GameScene extends Phaser.Scene{
       const sk = info.skillDef;
       const awakIdx = info.awakIdx;  // 1〜3
       const lv = info.lv;
-      const i = skNums.length + j;  // 全体での位置
+      const i = this._currentSkillKeys.indexOf('a'+awakIdx);  // 並び替え反映
       const bx = atkX - ATK_R - MARGIN - SK_W/2 - (totalBtns-1-i)*(SK_W+gap);
       const by = h - SK_H/2 - MARGIN;
       const btn = _track(this.add.rectangle(bx, by, SK_W, SK_H, awakCol, 0.45)
