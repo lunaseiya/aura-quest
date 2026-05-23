@@ -5798,6 +5798,22 @@ class GameScene extends Phaser.Scene{
         }
       });
     }
+    // 旧セーブの skillSlots 移行: 配列が無い/壊れている場合のみ習得スキルから自動充填
+    // (新規キャラは makePlayerData で [null x 6] が用意され、ここでは充填しない)
+    {
+      const pd=this.playerData;
+      const cdefs=CLASS_SKILLS[pd.cls]||[];
+      if(!pd.skillSlots || !Array.isArray(pd.skillSlots) || pd.skillSlots.length!==6){
+        pd.skillSlots=[null,null,null,null,null,null];
+        let si=0;
+        cdefs.forEach((sk,idx)=>{
+          if(si>=6||!sk||sk.locked) return;
+          const lv=pd['sk'+(idx+1)]||0;
+          const hasBook=(idx===3)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm));
+          if(lv>0||hasBook){ pd.skillSlots[si++]='n'+(idx+1); }
+        });
+      }
+    }
     this.stage=data.stage!==undefined?data.stage:1;
     this.fromPortal=data.fromPortal||null; // ポータル遷移元を保存
     this.magicReturnX=data.magicReturnX; // 青魔法ゲート経由の到着位置
@@ -11207,14 +11223,11 @@ class GameScene extends Phaser.Scene{
     if(!pd.skillSlots || !Array.isArray(pd.skillSlots) || pd.skillSlots.length!==6){
       pd.skillSlots = [null,null,null,null,null,null];
     }
-    // 初回(全部null)なら、習得済み通常スキルを自動セット
-    if(pd.skillSlots.every(s=>s===null)){
-      let si=0;
-      allSkills.forEach(sk=>{
-        if(si>=6) return;
-        if(sk.type==='normal' && (pd[sk.skId]||0)>0){ pd.skillSlots[si++]=sk.key; }
-      });
-    }
+    // 注: 「全部 null なら自動装備で埋める」ロジックは削除済み。
+    // 原因: ユーザーが全スロット外した後にも auto-fill が発火し、再描画と
+    //       タイミングがズレて「画面は空・データは充填」の不整合になり、
+    //       装備ボタン押下時に意図と逆の動作(隠れた装備を解除)していた。
+    // 新規習得スキルの自動装備は「確定ボタン」のハンドラ側で行う。
 
     // ── 仮Lv管理(確定するまで反映しない) ──
     const tmpLv = {};       // 通常スキル仮Lv加算
@@ -11348,25 +11361,6 @@ class GameScene extends Phaser.Scene{
             try{ eqB.disableInteractive(); }catch(e){}
             try{SE('click');}catch(e){}
             const myKey = eqB._skKey;
-            const myName = eqB._skName;
-            const myIdx = eqB._rowIdx;
-            const myInSlot = eqB._inSlot;
-            // 診断ログ: window.__sklog に最新50件を蓄積(画面には出さない)
-            try{
-              if(!window.__sklog) window.__sklog = [];
-              window.__sklog.push({
-                t: Date.now(),
-                action: 'eqClick',
-                rowIdx: myIdx,
-                key: myKey,
-                name: myName,
-                inSlot: myInSlot,
-                closureKey: sk.key,        // closure 経由の値(比較用)
-                eqBY: eqB.y,                // 物理的なボタンY座標
-                slotsBefore: pd.skillSlots.slice(),
-              });
-              if(window.__sklog.length > 50) window.__sklog.shift();
-            }catch(e){}
             const at = pd.skillSlots.indexOf(myKey);
             if(at>=0){ pd.skillSlots[at]=null; }
             else {
@@ -11374,7 +11368,6 @@ class GameScene extends Phaser.Scene{
               if(empty>=0){ pd.skillSlots[empty]=myKey; }
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
-            try{ window.__sklog[window.__sklog.length-1].slotsAfter = pd.skillSlots.slice(); }catch(e){}
             // ハンドラ実行中の destroy を避けるため次フレームへ遅延
             this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
           });
@@ -11464,7 +11457,13 @@ class GameScene extends Phaser.Scene{
       Object.keys(tmpLv).forEach(key=>{
         const add=tmpLv[key]||0; if(add<=0)return;
         const sk=allSkills.find(s=>s.key===key); if(!sk)return;
+        const wasLvZero=(pd[sk.skId]||0)===0;
         pd[sk.skId]=(pd[sk.skId]||0)+add; any=true;
+        // 新規習得 → 空きスロットがあれば自動装備(便利機能)
+        if(wasLvZero && !pd.skillSlots.includes(sk.key)){
+          const empty=pd.skillSlots.indexOf(null);
+          if(empty>=0) pd.skillSlots[empty]=sk.key;
+        }
       });
       // 覚醒スキル仮Lvを確定
       Object.keys(tmpAwakLv).forEach(key=>{
@@ -13349,19 +13348,10 @@ class GameScene extends Phaser.Scene{
       }
     } else {
       // 覚醒前: skillSlotsの順に表示(nullは飛ばす)
-      // skillSlotsが未初期化 or 全部空なら、習得済みスキルを自動セット
+      // 形式不正のみ初期化。「全部 null なら auto-fill」は削除済み(swap バグの原因)。
+      // 旧セーブの移行は GameScene.init で実施。
       if(!pd.skillSlots || !Array.isArray(pd.skillSlots) || pd.skillSlots.length!==6){
         pd.skillSlots = [null,null,null,null,null,null];
-      }
-      if(pd.skillSlots.every(s=>s===null)){
-        let si=0;
-        const cdefs = CLASS_SKILLS[pd.cls]||[];
-        cdefs.forEach((sk,idx)=>{
-          if(si>=6||!sk||sk.locked) return;
-          const lv = pd['sk'+(idx+1)]||0;
-          const hasBook = (idx===3)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm));
-          if(lv>0||hasBook){ pd.skillSlots[si++]='n'+(idx+1); }
-        });
       }
       if(pd.skillSlots && Array.isArray(pd.skillSlots)){
         // 覚醒キーで awakActive と不一致のもの(=非習得スキル)が残っていれば null 化
