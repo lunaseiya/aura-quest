@@ -5534,6 +5534,40 @@ const STAGE_CONFIG={
   },
 };
 // ══════════════════════════════════════
+// クラス別通常スキル定義(グローバル: スキルタブと_resolveSkillKeyで共用)
+// ══════════════════════════════════════
+const CLASS_SKILLS = {
+  novice:[
+    {id:'sk1',name:'スーパーアタック',maxLv:5, desc:'単体への強力な一撃'},
+    {id:'sk2',name:'手当',          maxLv:5, desc:'自分のHPを回復'},
+    {id:'sk3',locked:true},{id:'sk4',locked:true},
+  ],
+  warrior:[
+    {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
+    {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
+    {id:'sk3',name:'パリィ',      maxLv:5, desc:'攻撃無効化'},
+    {id:'sk4',name:'バーサクパワー',maxLv:10,desc:'攻撃速度UP（書物必須）',bookRequired:'warrior'},
+  ],
+  mage:[
+    {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
+    {id:'sk2',name:'フロスト',    maxLv:10,desc:'広範囲凍結'},
+    {id:'sk3',name:'ボルテックス',maxLv:5, desc:'雷の貫通弾'},
+    {id:'sk4',name:'メテオーム',  maxLv:5, desc:'巨大隕石・詠唱10秒', bookRequired:true},
+  ],
+  archer:[
+    {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
+    {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},
+    {id:'sk3',name:'バルカン',          maxLv:10,desc:'連射'},
+    {id:'sk4',name:'ブーストアタック',  maxLv:10,desc:'多段ヒット（パッシブ）',bookRequired:'archer'},
+  ],
+  bomber:[
+    {id:'sk1',name:'設置爆弾',        maxLv:10,desc:'最大3個設置・敵接触で爆破'},
+    {id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},
+    {id:'sk3',name:'ハイパーボム',    maxLv:5, desc:'超巨大爆弾'},
+    {id:'sk4',name:'ボマーパワー',    maxLv:10,desc:'攻撃範囲拡大（パッシブ）',bookRequired:'bomber'},
+  ],
+};
+// ══════════════════════════════════════
 // 覚醒モード定義(各クラスの裏変身)
 // ══════════════════════════════════════
 const AWAKENINGS = {
@@ -7727,7 +7761,7 @@ class GameScene extends Phaser.Scene{
     const eqD = eqW ? EQUIP_DEFS[eqW] : null;
     const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
     const awakA = awakKey ? AWAKENINGS[awakKey] : null;
-    const clsIcons = (DEFS[pd.cls]||[]).map(()=>'');
+    const clsIcons = (CLASS_SKILLS[pd.cls]||[]).map(()=>'');
     const normalIcons = {
       warrior:['⚔','🛡','🌀','🔥'], mage:['🔮','❄','☄','🪄'],
       archer:['🏹','💨','⭐','🎯'], bomber:['💣','🧨','💥','🦾'],
@@ -11063,37 +11097,7 @@ class GameScene extends Phaser.Scene{
     // ════════════════════════════════
     //  スキルタブ（＋/－仮割り振り→確定）
     // ════════════════════════════════
-    const DEFS={
-      novice:[
-        {id:'sk1',name:'スーパーアタック',maxLv:5, desc:'単体への強力な一撃'},
-        {id:'sk2',name:'手当',          maxLv:5, desc:'自分のHPを回復'},
-        {id:'sk3',locked:true},{id:'sk4',locked:true},
-      ],
-      warrior:[
-        {id:'sk1',name:'烈風斬',      maxLv:10,desc:'周囲の敵を吹き飛ばす'},
-        {id:'sk2',name:'ハードガード', maxLv:10,desc:'防御力大幅UP'},
-        {id:'sk3',name:'パリィ',      maxLv:5, desc:'攻撃無効化'},
-        {id:'sk4',name:'バーサクパワー',maxLv:10,desc:'攻撃速度UP（書物必須）',bookRequired:'warrior'},
-      ],
-      mage:[
-        {id:'sk1',name:'大爆発',      maxLv:10,desc:'広範囲大ダメージ'},
-        {id:'sk2',name:'フロスト',    maxLv:10,desc:'広範囲凍結'},
-        {id:'sk3',name:'ボルテックス',maxLv:5, desc:'雷の貫通弾'},
-        {id:'sk4',name:'メテオーム',  maxLv:5, desc:'巨大隕石・詠唱10秒', bookRequired:true},
-      ],
-      archer:[
-        {id:'sk1',name:'5方向射撃',        maxLv:10,desc:'5方向同時射撃'},
-        {id:'sk2',name:'グロリアスショット',maxLv:10,desc:'クリ率×5'},
-        {id:'sk3',name:'バルカン',          maxLv:10,desc:'連射'},
-        {id:'sk4',name:'ブーストアタック',  maxLv:10,desc:'多段ヒット（パッシブ）',bookRequired:'archer'},
-      ],
-      bomber:[
-        {id:'sk1',name:'設置爆弾',        maxLv:10,desc:'最大3個設置・敵接触で爆破'},
-        {id:'sk2',name:'ボーリングボムス',maxLv:10,desc:'直線貫通→着弾で6方向爆撃'},
-        {id:'sk3',name:'ハイパーボム',    maxLv:5, desc:'超巨大爆弾'},
-        {id:'sk4',name:'ボマーパワー',    maxLv:10,desc:'攻撃範囲拡大（パッシブ）',bookRequired:'bomber'},
-      ],
-    };
+    const DEFS = CLASS_SKILLS;
     const defs=DEFS[pd.cls]||[];
     const skadd=(o)=>{skillCont.add(sf0(o));return o;};
     // ══════════════════════════════════════
@@ -11178,14 +11182,6 @@ class GameScene extends Phaser.Scene{
     const hdrTxt = skadd(this.add.text(PX, ITOP+8,
       'JOBpt: '+tmpJp+'   覚醒pt: '+tmpAsp, {fontSize:'13px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
     const refreshHdr = ()=>hdrTxt.setText('JOBpt: '+tmpJp+'   覚醒pt: '+tmpAsp);
-
-    // 並び替えボタン(右上)
-    {
-      const rbX = PX + PW/2 - 64, rbY = ITOP + 8;
-      const rb = skadd(this.add.rectangle(rbX, rbY, 100, 22, 0x223a55, 0.9).setStrokeStyle(1, 0x44aaff).setInteractive({useHandCursor:true}));
-      skadd(this.add.text(rbX, rbY, '⇄ 配置', {fontSize:'11px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
-      rb.on('pointerdown', ()=>{ try{SE('click');}catch(e){} if(this._closeMenu)this._closeMenu(); this.time.delayedCall(50,()=>this._openSkillReorder()); });
-    }
 
     // ── スロット表示(6枠・上部) ──
     const SLOT_TOP = ITOP + 30;
@@ -13077,7 +13073,7 @@ class GameScene extends Phaser.Scene{
     if(!key) return null;
     if(key[0]==='n'){
       const num = parseInt(key.slice(1));
-      const defs = DEFS[pd.cls] || [];
+      const defs = CLASS_SKILLS[pd.cls] || [];
       const sk = defs[num-1];
       if(!sk) return null;
       const lv = pd['sk'+num] || 0;
