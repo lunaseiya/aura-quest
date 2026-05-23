@@ -5541,6 +5541,10 @@ const AWAKENINGS = {
     name: '侍',
     icon: '🗡',
     baseClass: 'warrior',           // 元クラス(これ以外では発動不可)
+    // ── スプライト/演出データ(覚醒職追加時はここを設定) ──
+    sprite:'player_samurai', animPrefix:'samurai',       // 覚醒中のスプライト
+    baseSprite:'player_warrior', baseAnimPrefix:'warrior', // 解除後のスプライト
+    auraColor:0xff8866, facingFlip:'left',                // オーラ色・歩行向き反転方向
     requiresEquip: 'muramasa',      // 武器に装備されている必要あり
     manualDeactivate: true,         // 手動解除可能(緩和)
     statMul: {
@@ -5565,6 +5569,9 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'bomber',
     requiresEquip: 'heavy_customize',
+    sprite:'player_heavy', animPrefix:'heavy',
+    baseSprite:'player_bomber', baseAnimPrefix:'bomber',
+    auraColor:0x88ccff, facingFlip:'right',
     statMul: {
       spd: 0.5,    // 速度半減(超鈍重・ネガ効果)
       agi: 0.6,    // 回避ダウン(ネガ効果)
@@ -5585,6 +5592,9 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'archer',
     requiresEquip: 'spirit_bow',
+    sprite:'player_elf', animPrefix:'elf',
+    baseSprite:'player_archer', baseAnimPrefix:'archer',
+    auraColor:0x88ffaa, facingFlip:'none',
     statMul: {
       def: 0.9,    // DEF わずかにダウン
       // atk/mag/spd/hit/agi の正補正は無し
@@ -5604,6 +5614,9 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'mage',
     requiresEquip: 'dark_illusion_staff',
+    sprite:'player_youma', animPrefix:'youma',
+    baseSprite:'player_mage', baseAnimPrefix:'mage',
+    auraColor:0x9944ff, facingFlip:'left',
     statMul: {
       def: 0.85,   // DEF -15%(身体的に脆くなる)
       // atk/mag/spd の正補正は無し
@@ -11083,324 +11096,245 @@ class GameScene extends Phaser.Scene{
     };
     const defs=DEFS[pd.cls]||[];
     const skadd=(o)=>{skillCont.add(sf0(o));return o;};
-    const sktmp={}; defs.forEach(sk=>{sktmp[sk.id]=0;}); let tmpJp=pd.jobPts||0;
-
-    // ── 覚醒中かどうかで表示モード切替 ──
-    const isAwakenedNow = !!pd.awakened;
-
-    // 通常スキル領域の高さ(覚醒中は0、通常時は覚醒セクション150pxを除いた分)
-    const NORMAL_AREA_H = isAwakenedNow ? 0 : Math.max(100, (IH-22) - 210);
-    const AWAK_AREA_H = isAwakenedNow ? (IH-22) : 200;
-
-    const skVt={}, skAt={}, skCells={};
-
-    // ── スキル並び替えボタン(タブ右上) ──
-    {
-      const rbX = PX + PW/2 - 70, rbY = ITOP + 10;
-      const reorderBtn = skadd(this.add.rectangle(rbX, rbY, 110, 24, 0x223a55, 0.9).setStrokeStyle(1, 0x44aaff).setInteractive({useHandCursor:true}));
-      skadd(this.add.text(rbX, rbY, '⇄ 並び替え', {fontSize:'12px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
-      reorderBtn.on('pointerdown', ()=>{
-        try{SE('click');}catch(e){}
-        // メニューを閉じてから並び替えポップアップを開く
-        if(this._closeMenu) this._closeMenu();
-        this.time.delayedCall(50, ()=>this._openSkillReorder());
+    // ══════════════════════════════════════
+    //  スキルタブ（全面リニューアル: 習得リスト + 6スロット装備制）
+    // ══════════════════════════════════════
+    // 全習得可能スキルを統一リスト化
+    // 各エントリ: {key, name, desc, icon, maxLv, type, ...}
+    const allSkills = [];
+    // 通常スキル(クラス固有 sk1〜sk4)
+    const normalIcons = {
+      warrior:['🌪','🛡','⚔','🔥'], mage:['💥','❄️','⚡','☄'],
+      archer:['🏹','⭐','🔫','🎯'], bomber:['💣','💥','🚀','🦾'],
+      novice:['👊','✨','💫','⭐']
+    }[pd.cls] || ['①','②','③','④'];
+    defs.forEach((sk,i)=>{
+      if(sk.locked) return;
+      allSkills.push({
+        key:'n'+(i+1), skId:sk.id, num:i+1,
+        name:sk.name, desc:sk.desc, icon:normalIcons[i]||'?',
+        maxLv:sk.maxLv||10, type:'normal',
+        bookRequired:sk.bookRequired,
       });
-    }
-
-    if(!isAwakenedNow){
-      // 通常時のみ: JOBポイント残数表示と通常スキルグリッド
-      // JOBポイント残数のみ表示（バーなし）
-      const jpTxt=skadd(this.add.text(PX,ITOP+10,'JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt',{fontSize:'14px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
-      var refreshJp=()=>jpTxt.setText('JLv'+(pd.jobLv||1)+'   JOBポイント残り: '+tmpJp+'pt');
-
-      // 縦2×横2グリッドレイアウト（覚醒スキル領域を下に確保するため4セル）
-      const SK_COLS=2, SK_ROWS=2;
-      const SK_CW=(PW-20)/SK_COLS;
-      const SK_CH=NORMAL_AREA_H/SK_ROWS;
-      defs.forEach((sk,i)=>{
-        const skCol=i%SK_COLS, skRow=Math.floor(i/SK_COLS);
-        const cx=L+skCol*SK_CW+SK_CW/2;
-        const cy=ITOP+24+skRow*SK_CH+SK_CH/2;
-        const cL=L+skCol*SK_CW+4, cR=L+(skCol+1)*SK_CW-4;
-
-      // ── ロック枠
-      if(sk.locked){
-        skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x080d18,0.6).setStrokeStyle(1,0x223344,0.5));
-        skadd(this.add.text(cx,cy,'🔒',{fontSize:'16px'}).setOrigin(0.5));
-        return;
-      }
-      // ── 書物必須スキル（未習得）
-      if(sk.bookRequired){
-        const hasBook=(sk.bookRequired==='warrior'&&pd._hasBerserk)
-          ||(sk.bookRequired==='archer'&&pd._hasBoostAtk)
-          ||(sk.bookRequired==='bomber'&&pd._hasBomberPower)
-          ||(sk.id==='sk4'&&pd.cls==='mage'&&pd._hasMeteoorm);
-        if(!hasBook){
-          skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x0d0a00,0.7).setStrokeStyle(1,0x443322,0.6));
-          skadd(this.add.text(cx,cy-SK_CH*0.1,sk.name,{fontSize:'13px',fontFamily:'Arial',color:'#664422',fontStyle:'bold'}).setOrigin(0.5));
-          skadd(this.add.text(cx,cy+SK_CH*0.15,'📖 書物が必要',{fontSize:'11px',fontFamily:'Arial',color:'#664422'}).setOrigin(0.5));
-          return;
-        }
-      }
-
-      // ── 通常スキルセル
-      const curLv=pd[sk.id]||0, maxed=curLv>=sk.maxLv;
-      const acol=curLv>0?0x00e5ff:0x556677;
-      skadd(this.add.rectangle(cx,cy,SK_CW-6,SK_CH-6,0x0a1525,0.7).setStrokeStyle(2,acol));
-
-      const btnW=36, btnH=SK_CH-20;
-      // スキル名（大きく）
-      skadd(this.add.text(cL+4,cy-SK_CH*0.3,sk.name,{fontSize:'14px',fontFamily:'Arial',color:'#'+acol.toString(16).padStart(6,'0'),fontStyle:'bold'}).setOrigin(0,0.5));
-      // 説明
-      skadd(this.add.text(cL+4,cy-SK_CH*0.05,sk.desc,{fontSize:'10px',fontFamily:'Arial',color:'#667788',wordWrap:{width:SK_CW-btnW*2-16}}).setOrigin(0,0.5));
-
-      // Lvバー
-      const barW=SK_CW-btnW*2-24;
-      const bW=Math.max(4,Math.floor(barW/sk.maxLv)-2);
-      const lvCells=[];
-      for(let j=0;j<sk.maxLv;j++){
-        const cell=skadd(this.add.rectangle(cL+4+j*(bW+2),cy+SK_CH*0.22,bW,7,j<curLv?0x00e5ff:0x111133).setStrokeStyle(1,0x223355).setOrigin(0,0.5));
-        lvCells.push(cell);
-      }
-      // Lv数値
-      const lvTxt=skadd(this.add.text(cL+4,cy+SK_CH*0.4,'Lv'+curLv+'/'+sk.maxLv,{fontSize:'11px',fontFamily:'Arial',color:maxed?'#ffd700':'#aaaaaa'}).setOrigin(0,0.5));
-      const skAddTxt=skadd(this.add.text(cL+barW/2,cy+SK_CH*0.4,'',{fontSize:'10px',fontFamily:'Arial',color:'#44ff88'}).setOrigin(0,0.5));
-      skVt[sk.id]=lvTxt; skAt[sk.id]=skAddTxt;
-      skCells[sk.id]={cells:lvCells,maxLv:sk.maxLv};
-      sktmp[sk.id]=0;
-
-      // ±ボタン（右端縦並び）
-      if(!maxed){
-        const sbp=skadd(this.add.rectangle(cR-btnW/2-2,cy-SK_CH*0.12,btnW,btnH/2-2,0x00e5ff,0.2).setStrokeStyle(2,0x00e5ff).setInteractive());
-        skadd(this.add.text(cR-btnW/2-2,cy-SK_CH*0.12,'＋',{fontSize:'16px',fontFamily:'Arial',color:'#00e5ff'}).setOrigin(0.5));
-        const sbm=skadd(this.add.rectangle(cR-btnW/2-2,cy+SK_CH*0.22,btnW,btnH/2-2,0xe74c3c,0.2).setStrokeStyle(2,0xe74c3c).setInteractive());
-        skadd(this.add.text(cR-btnW/2-2,cy+SK_CH*0.22,'－',{fontSize:'16px',fontFamily:'Arial',color:'#e74c3c'}).setOrigin(0.5));
-        const adjSk=(dir)=>{
-          // 覚醒中はスキル振り分け不可
-          if(pd.awakened){
-            this.showFloat(this.player.x, this.player.y-50, '覚醒中は振り分け不可', '#ff6666', 'info');
-            SE('miss');
-            return;
-          }
-          const n=sktmp[sk.id]||0;
-          const newLv=curLv+n+dir;
-          if(dir>0&&(tmpJp<=0||newLv>sk.maxLv))return;
-          if(dir<0&&n<=0)return;
-          sktmp[sk.id]=n+dir; tmpJp-=dir;
-          skAddTxt.setText(sktmp[sk.id]>0?'(+'+sktmp[sk.id]+')':'');
-          refreshJp(); SE('click');
-        };
-        sbm.on('pointerdown',()=>adjSk(-1)); sbm.on('pointerover',()=>sbm.setFillStyle(0xe74c3c,0.5)); sbm.on('pointerout',()=>sbm.setFillStyle(0xe74c3c,0.2));
-        sbp.on('pointerdown',()=>adjSk(+1)); sbp.on('pointerover',()=>sbp.setFillStyle(0x00e5ff,0.5)); sbp.on('pointerout',()=>sbp.setFillStyle(0x00e5ff,0.2));
-      }else{
-        skadd(this.add.text(cR-btnW/2-2,cy,'MAX',{fontSize:'12px',fontFamily:'Arial',color:'#ffd700'}).setOrigin(0.5));
-      }
     });
-    } // end if(!isAwakenedNow): 通常スキル領域はここで閉じる
-
-    // ════════════════════════════════
-    //  覚醒スキルセクション(装備中の覚醒武器のスキルを表示)
-    // ════════════════════════════════
-    // 装備中の武器から覚醒種別を取得
-    const eqW = pd.equip && pd.equip.weapon_main;
-    const eqDef = eqW ? EQUIP_DEFS[eqW] : null;
-    const awakKey = eqDef && eqDef.awakening ? eqDef.awakening : null;
-    const awakA = awakKey ? AWAKENINGS[awakKey] : null;
-
-    // 覚醒スキル領域の開始Y
-    // 覚醒中は領域を上部から開始、通常時は通常スキルの下に配置
-    // 覚醒中は領域を上部から、通常時は確定ボタンの上に収まるよう配置
-    // 通常時: 確定ボタン(IBOT)から逆算して、はみ出さない高さに固定
-    const AWAK_SECTION_H = 200;  // 覚醒セクションに必要な高さ(ヘッダー+セル+ボタン)
-    const AWAK_TOP = isAwakenedNow ? (ITOP + 8) : (IBOT - AWAK_SECTION_H);
-
-    // 仮振り用バッファと残ポイント
-    const awakTmp = {sk1:0, sk2:0, sk3:0};
-    let tmpAsp = pd.awakSp || 0;
-    const refreshAsp = ()=>{};  // 後で再定義
-
-    if(awakA && awakA.skills){
-      // ヘッダー(タイトル+残ポイント) - 覚醒中は大きく
-      const awakHeaderTxt = '✨ '+(eqDef.name||'覚醒武器')+'の覚醒スキル ✨';
-      const headerFs = isAwakenedNow ? '16px' : '12px';
-      const aspFs = isAwakenedNow ? '14px' : '12px';
-      skadd(this.add.text(PX, AWAK_TOP, awakHeaderTxt, {fontSize:headerFs,fontFamily:'Arial',color:'#ff88cc',fontStyle:'bold'}).setOrigin(0.5));
-      const aspTxt = skadd(this.add.text(PX, AWAK_TOP+(isAwakenedNow?22:16), '覚醒ポイント残り: '+tmpAsp+'pt', {fontSize:aspFs,fontFamily:'Arial',color:'#ff66bb'}).setOrigin(0.5));
-      const refreshAsp2 = ()=>aspTxt.setText('覚醒ポイント残り: '+tmpAsp+'pt');
-
-      // 横3列に並べる
-      const awakSkills = awakA.skills;
-      const AW_COLS = awakSkills.length;  // 通常3
-      const AW_CW = (PW-20) / AW_COLS;
-      // セルの上端(ヘッダーの下から) - 覚醒中はヘッダーが大きいので下げる
-      const AW_TOP = AWAK_TOP + (isAwakenedNow ? 50 : 42);
-      const AW_CH = isAwakenedNow ? (AWAK_AREA_H - 56) : (AWAK_SECTION_H - 52);  // セル高
-      const AW_CY = AW_TOP + AW_CH/2;  // セル中心(他で使うため計算用)
-      const AW_MAX_LV = 10;
-
-      // 覚醒スキルレベル取得用ヘルパ
-      const getAwakLv = (skId)=>{
-        const map = pd.awakSkillLv && pd.awakSkillLv[awakKey];
-        return map ? (map[skId]||0) : 0;
-      };
-
-      // 覚醒中はフォント・要素配置を大きくして見やすく
-      const fsName = isAwakenedNow ? '18px' : '12px';
-      const fsDesc = isAwakenedNow ? '12px' : '9px';
-      const fsLv   = isAwakenedNow ? '18px' : '12px';
-      const fsBtn  = isAwakenedNow ? '20px' : '14px';
-      const stepY  = isAwakenedNow ? 36 : 18;  // 各段の間隔
-      const descMaxLen = isAwakenedNow ? 30 : 16;
-
-      // 各スキルセル(縦レイアウト・整然と)
-      const awakCells = {};
-      const awakVtxt = {};
-      const awakAtxt = {};
-      awakSkills.forEach((sk, i)=>{
-        const cx = L + i*AW_CW + AW_CW/2;
-        const cL = L + i*AW_CW + 4;
-        const cR = L + (i+1)*AW_CW - 4;
-
-        // ── 枠 ──
-        skadd(this.add.rectangle(cx, AW_CY, AW_CW-6, AW_CH, 0x1a0a18, 0.85).setStrokeStyle(2, 0xff66bb, 0.85));
-
-        // ── 縦レイアウト: 上から順に積む ──
-        // 1段目: スキル名
-        const nameY = AW_TOP + (isAwakenedNow ? 30 : 12);
-        skadd(this.add.text(cx, nameY, sk.name, {fontSize:fsName,fontFamily:'Arial',color:'#ffcce6',fontStyle:'bold'}).setOrigin(0.5));
-
-        // 2段目: 説明
-        const descY = AW_TOP + (isAwakenedNow ? 70 : 32);
-        const desc = sk.desc || '';
-        skadd(this.add.text(cx, descY, desc.length>descMaxLen ? desc.substr(0,descMaxLen-2)+'…' : desc, {fontSize:fsDesc,fontFamily:'Arial',color:'#ccaabb',wordWrap:{width:AW_CW-10},align:'center'}).setOrigin(0.5));
-
-        // 3段目: Lv表示
-        const curLv = getAwakLv(sk.id);
-        const lvY = AW_TOP + (isAwakenedNow ? 120 : 58);
-        const vtxt = skadd(this.add.text(cx, lvY, 'Lv'+curLv+'/'+AW_MAX_LV, {fontSize:fsLv,fontFamily:'Arial',color: curLv>=AW_MAX_LV?'#ffd700':'#ffaadd',fontStyle:'bold'}).setOrigin(0.5));
-        awakVtxt[sk.id] = vtxt;
-
-        // 4段目: Lvバー
-        const barY = AW_TOP + (isAwakenedNow ? 160 : 80);
-        const barW = AW_CW - 24;
-        const bW = Math.max(3, Math.floor(barW / AW_MAX_LV) - 2);
-        const barH = isAwakenedNow ? 12 : 7;
-        const cells = [];
-        for(let j=0; j<AW_MAX_LV; j++){
-          const cx2 = cL + 12 + j*(bW+2);
-          const cell = skadd(this.add.rectangle(cx2, barY, bW, barH, j<curLv ? 0xff44aa : 0x331122).setStrokeStyle(1, 0x551133, 0.6).setOrigin(0, 0.5));
-          cells.push(cell);
-        }
-        awakCells[sk.id] = {cells, maxLv: AW_MAX_LV};
-
-        // 5段目: +/- ボタンと仮振り表示
-        const btnY = AW_TOP + (isAwakenedNow ? 210 : 108);
-        const addBtnW = isAwakenedNow ? 44 : 32;
-        const addBtnH = isAwakenedNow ? 36 : 26;
-        if(curLv < AW_MAX_LV){
-          const minus = skadd(this.add.rectangle(cL+addBtnW/2+4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(cL+addBtnW/2+4, btnY, '−', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
-          const plus = skadd(this.add.rectangle(cR-addBtnW/2-4, btnY, addBtnW, addBtnH, 0x661133, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(cR-addBtnW/2-4, btnY, '+', {fontSize:fsBtn,fontFamily:'Arial',color:'#ffcce6'}).setOrigin(0.5));
-          // 仮振り表示(中央)
-          const atxt = skadd(this.add.text(cx, btnY, '', {fontSize:isAwakenedNow?'18px':'12px',fontFamily:'Arial',color:'#ffd700',fontStyle:'bold'}).setOrigin(0.5));
-          awakAtxt[sk.id] = atxt;
-
-          plus.on('pointerdown', ()=>{
-            if(tmpAsp <= 0) return;
-            if(curLv + (awakTmp[sk.id]||0) >= AW_MAX_LV) return;
-            awakTmp[sk.id] = (awakTmp[sk.id]||0) + 1;
-            tmpAsp -= 1;
-            atxt.setText('+'+awakTmp[sk.id]);
-            refreshAsp2();
+    // 覚醒スキル(全覚醒職・装備中の覚醒武器のもののみ習得可)
+    const eqWm = pd.equip && pd.equip.weapon_main;
+    const eqDm = eqWm ? EQUIP_DEFS[eqWm] : null;
+    const curAwakKey = (eqDm && eqDm.awakening) ? eqDm.awakening : null;
+    const awakIconMap={
+      samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
+      spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+    };
+    // 全覚醒職のスキルをリスト化(習得済みのもの or 現在装備中の覚醒職)
+    Object.keys(AWAKENINGS).forEach(awKey=>{
+      const awA = AWAKENINGS[awKey];
+      if(!awA.skills) return;
+      awA.skills.forEach((sk,idx)=>{
+        const lv = (pd.awakSkillLv && pd.awakSkillLv[awKey] && pd.awakSkillLv[awKey]['sk'+(idx+1)]) || 0;
+        // 現在装備中の覚醒職 or 既に習得済み(Lv1+)のものを表示
+        const isCurrentAwak = (awKey === curAwakKey);
+        if(isCurrentAwak || lv > 0){
+          allSkills.push({
+            key:'a_'+awKey+'_'+(idx+1), awakKey:awKey, awakIdx:idx+1,
+            name:sk.name, desc:sk.desc,
+            icon:(awakIconMap[awKey]||['✨','✨','✨'])[idx]||'✨',
+            maxLv:10, type:'awak',
+            awakJobName: awA.name,
+            canLearn: isCurrentAwak, // 装備中の覚醒職のみLv上げ可能
           });
-          minus.on('pointerdown', ()=>{
-            if((awakTmp[sk.id]||0) <= 0) return;
-            awakTmp[sk.id] -= 1;
-            tmpAsp += 1;
-            atxt.setText(awakTmp[sk.id]>0 ? '+'+awakTmp[sk.id] : '');
-            refreshAsp2();
-          });
-        } else {
-          skadd(this.add.text(cx, btnY, 'MAX', {fontSize:'13px',fontFamily:'Arial',color:'#ffd700',fontStyle:'bold'}).setOrigin(0.5));
         }
       });
+    });
 
-      // 覚醒スキル振り分け確定用にデータを保存(下の確定ボタンから呼ぶ)
-      this._awakSkillDistribute = ()=>{
-        let any = false;
-        if(!pd.awakSkillLv) pd.awakSkillLv = {samurai:{sk1:0,sk2:0,sk3:0},heavy:{sk1:0,sk2:0,sk3:0},spirit:{sk1:0,sk2:0,sk3:0},youma:{sk1:0,sk2:0,sk3:0}};
-        if(!pd.awakSkillLv[awakKey]) pd.awakSkillLv[awakKey] = {sk1:0,sk2:0,sk3:0};
-        awakSkills.forEach(sk=>{
-          const n = awakTmp[sk.id] || 0;
-          if(n > 0){
-            pd.awakSkillLv[awakKey][sk.id] = (pd.awakSkillLv[awakKey][sk.id]||0) + n;
-            any = true;
-          }
-          awakTmp[sk.id] = 0;
-          if(awakAtxt[sk.id]) awakAtxt[sk.id].setText('');
-          const newLv = pd.awakSkillLv[awakKey][sk.id];
-          if(awakVtxt[sk.id]) awakVtxt[sk.id].setText('Lv'+newLv+'/'+AW_MAX_LV).setColor(newLv>=AW_MAX_LV?'#ffd700':'#ffaadd');
-          if(awakCells[sk.id]){
-            awakCells[sk.id].cells.forEach((cell,j)=>{
-              if(cell && cell.active) cell.setFillStyle(j<newLv ? 0xff44aa : 0x331122);
-            });
-          }
-        });
-        pd.awakSp = tmpAsp;
-        refreshAsp2();
-        return any;
-      };
-    } else {
-      // 覚醒武器未装備
-      skadd(this.add.text(PX, AWAK_TOP+20, '🔒 覚醒武器を装備すると、ここに覚醒スキルが表示されます', {fontSize:'11px',fontFamily:'Arial',color:'#776677'}).setOrigin(0.5));
-      this._awakSkillDistribute = null;
+    // skillSlots初期化(6枠)
+    if(!pd.skillSlots || !Array.isArray(pd.skillSlots) || pd.skillSlots.length!==6){
+      pd.skillSlots = [null,null,null,null,null,null];
+    }
+    // 初回(全部null)なら、習得済み通常スキルを自動セット
+    if(pd.skillSlots.every(s=>s===null)){
+      let si=0;
+      allSkills.forEach(sk=>{
+        if(si>=6) return;
+        if(sk.type==='normal' && (pd[sk.skId]||0)>0){ pd.skillSlots[si++]=sk.key; }
+      });
     }
 
-    // スキル 確定ボタン（中央・リセットなし）
-    // 確定ボタンを閉じるボタンと同じ高さ・左寄りに配置
-    const skOkX=PX-PW/4;
-    const skOkY=PY+PH/2-BOT_H/2-2;
-    const skOk=skadd(this.add.rectangle(skOkX,skOkY,160,BOT_H,0x00e5ff,0.22).setStrokeStyle(2,0x00e5ff).setInteractive());
-    skadd(this.add.text(skOkX,skOkY,'✔ 確定して習得',{fontSize:'14px',fontFamily:'Arial',color:'#00e5ff'}).setOrigin(0.5));
+    // ── 仮Lv管理(確定するまで反映しない) ──
+    const tmpLv = {};       // 通常スキル仮Lv加算
+    const tmpAwakLv = {};   // 覚醒スキル仮Lv加算
+    let tmpJp = pd.jobPts||0;
+    let tmpAsp = pd.awakSp||0;
+    // 現在の合計Lv取得
+    const getCurLv = (sk)=>{
+      if(sk.type==='normal'){
+        return (pd[sk.skId]||0) + (tmpLv[sk.key]||0);
+      } else {
+        const base = (pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]) || 0;
+        return base + (tmpAwakLv[sk.key]||0);
+      }
+    };
+
+    // ── ヘッダー: ポイント表示 ──
+    const hdrTxt = skadd(this.add.text(PX, ITOP+8,
+      'JOBpt: '+tmpJp+'   覚醒pt: '+tmpAsp, {fontSize:'13px',fontFamily:'Arial',color:'#ffff44'}).setOrigin(0.5));
+    const refreshHdr = ()=>hdrTxt.setText('JOBpt: '+tmpJp+'   覚醒pt: '+tmpAsp);
+
+    // 並び替えボタン(右上)
+    {
+      const rbX = PX + PW/2 - 64, rbY = ITOP + 8;
+      const rb = skadd(this.add.rectangle(rbX, rbY, 100, 22, 0x223a55, 0.9).setStrokeStyle(1, 0x44aaff).setInteractive({useHandCursor:true}));
+      skadd(this.add.text(rbX, rbY, '⇄ 配置', {fontSize:'11px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
+      rb.on('pointerdown', ()=>{ try{SE('click');}catch(e){} if(this._closeMenu)this._closeMenu(); this.time.delayedCall(50,()=>this._openSkillReorder()); });
+    }
+
+    // ── スロット表示(6枠・上部) ──
+    const SLOT_TOP = ITOP + 30;
+    const SLOT_SZ = Math.min(56, (PW-40)/6 - 6);
+    const slotGap = 8;
+    const slotsW = 6*SLOT_SZ + 5*slotGap;
+    const slotStartX = PX - slotsW/2 + SLOT_SZ/2;
+    skadd(this.add.text(PX, SLOT_TOP-6, '【装備スロット】タップで外す', {fontSize:'10px',fontFamily:'Arial',color:'#88aacc'}).setOrigin(0.5));
+    const slotObjs = [];
+    const renderSlots = ()=>{
+      slotObjs.forEach(o=>{ try{o.forEach(x=>x.destroy());}catch(e){} });
+      slotObjs.length=0;
+      for(let s=0;s<6;s++){
+        const sx = slotStartX + s*(SLOT_SZ+slotGap);
+        const sy = SLOT_TOP + 18 + SLOT_SZ/2;
+        const key = pd.skillSlots[s];
+        const info = key ? this._resolveSkillKey(key) : null;
+        const objs = [];
+        const bg = skadd(this.add.rectangle(sx, sy, SLOT_SZ, SLOT_SZ, info?info.col:0x223344, info?0.35:0.15)
+          .setStrokeStyle(2, info?info.col:0x445566, info?1:0.4).setInteractive({useHandCursor:true}));
+        objs.push(bg);
+        if(info){
+          objs.push(skadd(this.add.text(sx, sy-6, info.icon, {fontSize:'22px'}).setOrigin(0.5)));
+          const nm = info.name.length>4?info.name.substr(0,4):info.name;
+          objs.push(skadd(this.add.text(sx, sy+SLOT_SZ/2-8, nm, {fontSize:'8px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:2}).setOrigin(0.5)));
+          bg.on('pointerdown', ()=>{ try{SE('click');}catch(e){} pd.skillSlots[s]=null; renderSlots(); renderList(); });
+        } else {
+          objs.push(skadd(this.add.text(sx, sy, (s+1)+'', {fontSize:'14px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5)));
+        }
+        slotObjs.push(objs);
+      }
+    };
+
+    // ── 習得スキルリスト(下部・スクロールなし1画面) ──
+    const LIST_TOP = SLOT_TOP + 18 + SLOT_SZ + 12;
+    const LIST_BOT = IBOT - 4;
+    const LIST_H = LIST_BOT - LIST_TOP;
+    const rowH = Math.max(40, Math.min(54, LIST_H / Math.max(1,allSkills.length)));
+    const listObjs = [];
+    const renderList = ()=>{
+      listObjs.forEach(o=>{ try{o.forEach(x=>x.destroy());}catch(e){} });
+      listObjs.length=0;
+      allSkills.forEach((sk,i)=>{
+        const ry = LIST_TOP + i*rowH + rowH/2;
+        const objs = [];
+        const curLv = getCurLv(sk);
+        const learned = curLv > 0 || (sk.bookRequired && sk.type==='normal' && ((sk.num===4)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm))));
+        const inSlot = pd.skillSlots.indexOf(sk.key) >= 0;
+        // 行背景
+        const rowBg = skadd(this.add.rectangle(PX, ry, PW-24, rowH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
+        objs.push(rowBg);
+        // アイコン
+        objs.push(skadd(this.add.text(PX-PW/2+24, ry, sk.icon, {fontSize:'20px'}).setOrigin(0.5)));
+        // 名前+Lv
+        const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+'] ') : '';
+        objs.push(skadd(this.add.text(PX-PW/2+44, ry-8, jobTag+sk.name+'  Lv'+curLv+'/'+sk.maxLv, {fontSize:'12px',fontFamily:'Arial',color: sk.type==='awak'?'#ffaadd':'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
+        objs.push(skadd(this.add.text(PX-PW/2+44, ry+8, sk.desc||'', {fontSize:'9px',fontFamily:'Arial',color:'#99aabb'}).setOrigin(0,0.5)));
+
+        // 右側ボタン群: [-] Lv [+]  [装備]
+        const canLvUp = (sk.type==='normal') ? (!sk.bookRequired || learned) : sk.canLearn;
+        const isPassive = sk.bookRequired && (sk.num===4) && (pd.cls==='archer'||pd.cls==='bomber');
+        let bxR = PX + PW/2 - 20;
+        // 装備ボタン(最右)
+        if(learned && !isPassive){
+          const eqW2 = 54;
+          const eqB = skadd(this.add.rectangle(bxR-eqW2/2, ry, eqW2, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(bxR-eqW2/2, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
+          objs.push(eqB);
+          eqB.on('pointerdown', ()=>{
+            try{SE('click');}catch(e){}
+            const at = pd.skillSlots.indexOf(sk.key);
+            if(at>=0){ pd.skillSlots[at]=null; }
+            else {
+              const empty = pd.skillSlots.indexOf(null);
+              if(empty>=0){ pd.skillSlots[empty]=sk.key; }
+              else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
+            }
+            renderSlots(); renderList();
+          });
+          bxR -= (eqW2 + 6);
+        }
+        // +/- Lvボタン
+        if(canLvUp && curLv < sk.maxLv){
+          const plusB = skadd(this.add.rectangle(bxR-16, ry, 28, rowH-12, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(bxR-16, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
+          objs.push(plusB);
+          plusB.on('pointerdown', ()=>{
+            if(sk.type==='normal'){
+              if(tmpJp<=0){ this.showFloat(this.player.x,this.player.y-60,'JOBポイント不足','#ffaa44'); return; }
+              tmpJp--; tmpLv[sk.key]=(tmpLv[sk.key]||0)+1;
+            } else {
+              if(!sk.canLearn){ this.showFloat(this.player.x,this.player.y-60,'その覚醒武器を装備してください','#ffaa44'); return; }
+              if(tmpAsp<=0){ this.showFloat(this.player.x,this.player.y-60,'覚醒ポイント不足','#ffaa44'); return; }
+              tmpAsp--; tmpAwakLv[sk.key]=(tmpAwakLv[sk.key]||0)+1;
+            }
+            try{SE('click');}catch(e){}
+            refreshHdr(); renderList();
+          });
+          const minusB = skadd(this.add.rectangle(bxR-48, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          skadd(this.add.text(bxR-48, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
+          objs.push(minusB);
+          minusB.on('pointerdown', ()=>{
+            if(sk.type==='normal'){
+              if((tmpLv[sk.key]||0)<=0) return;
+              tmpLv[sk.key]--; tmpJp++;
+            } else {
+              if((tmpAwakLv[sk.key]||0)<=0) return;
+              tmpAwakLv[sk.key]--; tmpAsp++;
+            }
+            try{SE('click');}catch(e){}
+            refreshHdr(); renderList();
+          });
+        }
+        listObjs.push(objs);
+      });
+    };
+    renderSlots();
+    renderList();
+
+    // 確定ボタン
+    const skOkX=PX-PW/4, skOkY=PY+PH/2-BOT_H/2-2;
+    const skOk=skadd(this.add.rectangle(skOkX,skOkY,160,BOT_H,0x00e5ff,0.22).setStrokeStyle(2,0x00e5ff).setInteractive({useHandCursor:true}));
+    skadd(this.add.text(skOkX,skOkY,'✔ 確定',{fontSize:'14px',fontFamily:'Arial',color:'#00e5ff'}).setOrigin(0.5));
     skOk.on('pointerover',()=>skOk.setFillStyle(0x00e5ff,0.5)); skOk.on('pointerout',()=>skOk.setFillStyle(0x00e5ff,0.22));
     skOk.on('pointerdown',()=>{
       let any=false;
-      // 覚醒中は通常スキルの振り分けはスキップ
-      if(!isAwakenedNow){
-        defs.forEach(sk=>{
-          const n=sktmp[sk.id]||0;
-          if(n>0){pd[sk.id]=(pd[sk.id]||0)+n;any=true;}
-          sktmp[sk.id]=0;
-          if(skAt[sk.id])skAt[sk.id].setText('');
-          const newLv=pd[sk.id]||0;
-          // Lv数値を更新
-          if(skVt[sk.id])skVt[sk.id].setText('Lv'+newLv+'/'+sk.maxLv).setColor(newLv>=sk.maxLv?'#ffd700':'#aaaaaa');
-          // Lvバーのセルを更新（確定時に反映）
-          if(skCells[sk.id]){
-            const {cells,maxLv}=skCells[sk.id];
-            cells.forEach((cell,j)=>{
-              if(cell&&cell.active)cell.setFillStyle(j<newLv?0x00e5ff:0x111133);
-            });
-          }
-        });
-        pd.jobPts=tmpJp;
-        if(typeof refreshJp==='function') refreshJp();
-      }
-      // 覚醒スキルも同時に確定
-      if(this._awakSkillDistribute){
-        const anyAwak = this._awakSkillDistribute();
-        if(anyAwak) any = true;
-      }
-      if(any){
-        SE('levelup');
-        this.updateHUD();
-        // スキルボタンを再生成(覚醒スキルの新規習得・Lv変化を反映)
-        this._rebuildSkillButtons();
-      }
+      // 通常スキル仮Lvを確定
+      Object.keys(tmpLv).forEach(key=>{
+        const add=tmpLv[key]||0; if(add<=0)return;
+        const sk=allSkills.find(s=>s.key===key); if(!sk)return;
+        pd[sk.skId]=(pd[sk.skId]||0)+add; any=true;
+      });
+      // 覚醒スキル仮Lvを確定
+      Object.keys(tmpAwakLv).forEach(key=>{
+        const add=tmpAwakLv[key]||0; if(add<=0)return;
+        const sk=allSkills.find(s=>s.key===key); if(!sk)return;
+        if(!pd.awakSkillLv) pd.awakSkillLv={};
+        if(!pd.awakSkillLv[sk.awakKey]) pd.awakSkillLv[sk.awakKey]={sk1:0,sk2:0,sk3:0};
+        pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]=(pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]||0)+add; any=true;
+      });
+      pd.jobPts=tmpJp; pd.awakSp=tmpAsp;
+      if(any){ SE('levelup'); }
+      this.updateHUD(); this._rebuildSkillButtons();
+      // 仮Lvリセット&リスト再描画
+      Object.keys(tmpLv).forEach(k=>delete tmpLv[k]);
+      Object.keys(tmpAwakLv).forEach(k=>delete tmpAwakLv[k]);
+      refreshHdr(); renderList();
     });
-
-
+    this._awakSkillDistribute = null;
     // ════════════════════════════════
     //  装備タブ
     // ════════════════════════════════
@@ -12047,25 +11981,12 @@ class GameScene extends Phaser.Scene{
       const A = AWAKENINGS[pd.awakened];
       this._awakBtnTxt.setText(A.icon);
       this._awakBtnLabel.setText(A.deactivateLabel || '解除');
-      // クラス別の解除中の色
-      let activeGaugeCol;
-      if(pd.awakened==='heavy'){
-        this._awakBtnBg.setFillStyle(0x4488cc, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0x88ccff);
-        activeGaugeCol = 0x88ccff;
-      }else if(pd.awakened==='spirit'){
-        this._awakBtnBg.setFillStyle(0x44aa66, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0x88ffaa);
-        activeGaugeCol = 0x88ffaa;
-      }else if(pd.awakened==='youma'){
-        this._awakBtnBg.setFillStyle(0x4422aa, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0x9944ff);
-        activeGaugeCol = 0x9944ff;
-      }else{
-        this._awakBtnBg.setFillStyle(0x442288, 0.85);
-        this._awakBtnBg.setStrokeStyle(3, 0xaa66ff);
-        activeGaugeCol = 0xff8866;
-      }
+      // 解除中の色(AWAKENINGSのauraColorを参照)
+      const aura = A.auraColor || 0xff8866;
+      // 背景は少し暗めに、枠とゲージはauraColor
+      this._awakBtnBg.setFillStyle(aura, 0.45);
+      this._awakBtnBg.setStrokeStyle(3, aura);
+      let activeGaugeCol = aura;
       // ── 覚醒中: 残り時間ゲージリング ──
       // 180秒(3分)を上限とし、経過に応じて減らす
       if(this._awakBtnGauge){
@@ -12101,25 +12022,16 @@ class GameScene extends Phaser.Scene{
       const gauge = pd.awakGauge || 0;
       const gMax = pd.awakGaugeMax || 100;
       const ready = gauge >= gMax;
-      // 覚醒種類別の発動前色(MAX時は明るく、未満時は暗く)
-      let fillCol, strokeCol, gaugeCol;
-      if(def.awakening==='heavy'){
-        fillCol = ready ? 0x2266aa : 0x113355;
-        strokeCol = ready ? 0x66aaff : 0x335577;
-        gaugeCol = 0x66aaff;
-      }else if(def.awakening==='spirit'){
-        fillCol = ready ? 0x228844 : 0x114422;
-        strokeCol = ready ? 0x66ee88 : 0x336644;
-        gaugeCol = 0x66ee88;
-      }else if(def.awakening==='youma'){
-        fillCol = ready ? 0x331166 : 0x180833;
-        strokeCol = ready ? 0xaa44ff : 0x552288;
-        gaugeCol = 0xaa44ff;
-      }else{
-        fillCol = ready ? 0xff2244 : 0x661122;
-        strokeCol = ready ? 0xff8866 : 0x884444;
-        gaugeCol = 0xff8866;
-      }
+      // 覚醒種類別の発動前色(auraColorを基準に・MAX時は明るく、未満時は暗く)
+      const baseAura = A.auraColor || 0xff8866;
+      // auraColorを暗くした色を計算
+      const dim = (col, f)=>{
+        const r=Math.floor(((col>>16)&0xff)*f), g2=Math.floor(((col>>8)&0xff)*f), b=Math.floor((col&0xff)*f);
+        return (r<<16)|(g2<<8)|b;
+      };
+      const fillCol = ready ? dim(baseAura,0.45) : dim(baseAura,0.18);
+      const strokeCol = ready ? baseAura : dim(baseAura,0.5);
+      const gaugeCol = baseAura;
       this._awakBtnBg.setFillStyle(fillCol, 0.85);
       this._awakBtnBg.setStrokeStyle(3, strokeCol);
       // ── ゲージリング描画 ──
@@ -12387,30 +12299,14 @@ class GameScene extends Phaser.Scene{
     // 覚醒中の専用スプライトに切り替え(侍・ヘヴィなど)
     // setTexture すると displaySize がリセットされるので、サイズも明示的に保持
     const pSize = this.player.displayWidth;  // 現在の表示サイズを記憶
-    if(awakKey==='samurai' && this.textures.exists('player_samurai')){
+    // ── 覚醒スプライトへ切替(AWAKENINGSのデータ参照) ──
+    const awDef = AWAKENINGS[awakKey];
+    if(awDef && awDef.sprite && this.textures.exists(awDef.sprite)){
       try{
-        this.player.setTexture('player_samurai', 0);
+        this.player.setTexture(awDef.sprite, 0);
         this.player.setDisplaySize(pSize, pSize);
-        this.player.play('samurai_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('samurai texture switch failed', e);}
-    }else if(awakKey==='heavy' && this.textures.exists('player_heavy')){
-      try{
-        this.player.setTexture('player_heavy', 0);
-        this.player.setDisplaySize(pSize, pSize);
-        this.player.play('heavy_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('heavy texture switch failed', e);}
-    }else if(awakKey==='youma' && this.textures.exists('player_youma')){
-      try{
-        this.player.setTexture('player_youma', 0);
-        this.player.setDisplaySize(pSize, pSize);
-        this.player.play('youma_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('youma texture switch failed', e);}
-    }else if(awakKey==='spirit' && this.textures.exists('player_elf')){
-      try{
-        this.player.setTexture('player_elf', 0);
-        this.player.setDisplaySize(pSize, pSize);
-        this.player.play('elf_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('elf texture switch failed', e);}
+        this.player.play(awDef.animPrefix+'_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('awaken texture switch failed', awakKey, e);}
     }
     // UIを更新
     this._updateAwakeningButton();
@@ -12445,32 +12341,15 @@ class GameScene extends Phaser.Scene{
     pd._awakSkillsUsed = null;
     // 次回の「覚醒準備完了」通知を有効化
     pd._awakReadyShown = false;
-    // 元クラスのテクスチャに戻す(displaySize も保持)
+    // ── 元クラスのテクスチャに戻す(AWAKENINGSのデータ参照・displaySize保持) ──
     const restoreSize = this.player.displayWidth;
-    if(wasKey==='samurai' && this.textures.exists('player_warrior')){
+    const wasDef = AWAKENINGS[wasKey];
+    if(wasDef && wasDef.baseSprite && this.textures.exists(wasDef.baseSprite)){
       try{
-        this.player.setTexture('player_warrior', 0);
+        this.player.setTexture(wasDef.baseSprite, 0);
         this.player.setDisplaySize(restoreSize, restoreSize);
-        this.player.play('warrior_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('warrior texture restore failed', e);}
-    }else if(wasKey==='heavy' && this.textures.exists('player_bomber')){
-      try{
-        this.player.setTexture('player_bomber', 0);
-        this.player.setDisplaySize(restoreSize, restoreSize);
-        this.player.play('bomber_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('bomber texture restore failed', e);}
-    }else if(wasKey==='youma' && this.textures.exists('player_mage')){
-      try{
-        this.player.setTexture('player_mage', 0);
-        this.player.setDisplaySize(restoreSize, restoreSize);
-        this.player.play('mage_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('mage texture restore failed', e);}
-    }else if(wasKey==='spirit' && this.textures.exists('player_archer')){
-      try{
-        this.player.setTexture('player_archer', 0);
-        this.player.setDisplaySize(restoreSize, restoreSize);
-        this.player.play('archer_'+(this._facing||'front')+'_idle', true);
-      }catch(e){console.warn('archer texture restore failed', e);}
+        this.player.play(wasDef.baseAnimPrefix+'_'+(this._facing||'front')+'_idle', true);
+      }catch(e){console.warn('base texture restore failed', wasKey, e);}
     }
     // エルフ専用バフ解除
     pd._allCritUntil = 0;
@@ -13769,17 +13648,10 @@ class GameScene extends Phaser.Scene{
     // ノービスも自前のアニメを持つ
     const cls = clsRaw;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
-    // 覚醒中は専用prefix(侍・ヘヴィなど)
+    // 覚醒中は専用prefix(AWAKENINGSのanimPrefixを参照)
     let prefix=cls;
-    if(this.playerData.awakened==='samurai'){
-      prefix='samurai';
-    }else if(this.playerData.awakened==='heavy'){
-      prefix='heavy';
-    }else if(this.playerData.awakened==='youma'){
-      prefix='youma';
-    }else if(this.playerData.awakened==='spirit'){
-      prefix='elf';
-    }
+    const awD0 = this.playerData.awakened ? AWAKENINGS[this.playerData.awakened] : null;
+    if(awD0 && awD0.animPrefix) prefix = awD0.animPrefix;
     const cur=p.anims.currentAnim;
     if(cur&&cur.key.endsWith('_atk')&&p.anims.isPlaying) return;
 
@@ -13790,17 +13662,15 @@ class GameScene extends Phaser.Scene{
       if(Math.abs(vy)>Math.abs(vx)*0.5){facing=vy<0?'back':'front';flip=false;}
       else{
         facing='side';
-        // archerはsideが左向き基準(mage/bomberは右向き基準)なので反転が逆
-        // 侍はマジシャンと同じ配置なので右向き基準扱い
+        // 通常クラスの基準: archer/warrior/noviceは右向き基準、mage/bomberは左向き基準
         flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
-        // 侍中は配置が違うので上書き(マジシャンと同じ右向き基準)
-        if(prefix==='samurai') flip=vx<0;
-        // ヘヴィのスプライトは左向き基準なので、右に動くときに反転(flip=true)
-        if(prefix==='heavy') flip=vx>0;
-        // 妖魔中も右向き基準(マジシャンと同じ配置)
-        if(prefix==='youma') flip=vx<0;
-        // エルフはアーチャー同様マジシャン系右向き基準扱い(画像が右向きベース)
-        if(prefix==='elf') flip=vx<0;
+        // 覚醒中はAWAKENINGSのfacingFlipで上書き
+        if(awD0 && awD0.facingFlip){
+          if(awD0.facingFlip==='left') flip=vx<0;        // 右向き基準(左に動くと反転)
+          else if(awD0.facingFlip==='right') flip=vx>0;  // 左向き基準(右に動くと反転)
+          // 'none' は通常クラス基準のまま
+          else if(awD0.facingFlip==='none') flip=vx<0;
+        }
       }
     }
     this._facing=facing; this._facingFlip=flip;
@@ -13815,12 +13685,10 @@ class GameScene extends Phaser.Scene{
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
-    // 覚醒中(侍)は専用アニメ
+    // 覚醒中は専用アニメ(AWAKENINGSのanimPrefix参照)
     let prefix=cls;
-    if(this.playerData.awakened==='samurai') prefix='samurai';
-    else if(this.playerData.awakened==='heavy') prefix='heavy';
-    else if(this.playerData.awakened==='youma') prefix='youma';
-    else if(this.playerData.awakened==='spirit') prefix='elf';
+    const awD1 = this.playerData.awakened ? AWAKENINGS[this.playerData.awakened] : null;
+    if(awD1 && awD1.animPrefix) prefix = awD1.animPrefix;
     const key=prefix+'_'+(this._facing||'front')+'_atk';
     p.play(key,true);
     p.once('animationcomplete',()=>{
