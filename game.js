@@ -11336,25 +11336,45 @@ class GameScene extends Phaser.Scene{
         // 装備ボタン(最右・固定位置) — 確定済みで装備可能な時のみ
         if(equippable){
           const eqB = skadd(this.add.rectangle(eqCx, ry, EQ_W, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
-          // 押下時にクロージャが壊れる場合に備えて、ボタン自体にスキルキーを保持
-          eqB.setData('skKey', sk.key);
-          eqB.setData('skName', sk.name);
+          // setData ではなく直接プロパティに保持(Phaser DataManager 経由を排除)
+          eqB._skKey = sk.key;
+          eqB._skName = sk.name;
+          eqB._rowIdx = i;
+          eqB._inSlot = inSlot;
           const eqLbl = skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(eqB); objs.push(eqLbl);
           eqB.on('pointerdown', ()=>{
             // 二重発火防止
             try{ eqB.disableInteractive(); }catch(e){}
             try{SE('click');}catch(e){}
-            // クロージャ経由でなく setData で保持したスキルキーを使う
-            const myKey = eqB.getData('skKey') || sk.key;
+            const myKey = eqB._skKey;
+            const myName = eqB._skName;
+            const myIdx = eqB._rowIdx;
+            const myInSlot = eqB._inSlot;
+            // 診断ログ: window.__sklog に最新50件を蓄積(画面には出さない)
+            try{
+              if(!window.__sklog) window.__sklog = [];
+              window.__sklog.push({
+                t: Date.now(),
+                action: 'eqClick',
+                rowIdx: myIdx,
+                key: myKey,
+                name: myName,
+                inSlot: myInSlot,
+                closureKey: sk.key,        // closure 経由の値(比較用)
+                eqBY: eqB.y,                // 物理的なボタンY座標
+                slotsBefore: pd.skillSlots.slice(),
+              });
+              if(window.__sklog.length > 50) window.__sklog.shift();
+            }catch(e){}
             const at = pd.skillSlots.indexOf(myKey);
             if(at>=0){ pd.skillSlots[at]=null; }
             else {
               const empty = pd.skillSlots.indexOf(null);
               if(empty>=0){ pd.skillSlots[empty]=myKey; }
-              // ※ myKey は eqB に setData で保持したスキルキー(closure 起因のずれ防止)
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
+            try{ window.__sklog[window.__sklog.length-1].slotsAfter = pd.skillSlots.slice(); }catch(e){}
             // ハンドラ実行中の destroy を避けるため次フレームへ遅延
             this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
           });
