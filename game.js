@@ -11347,17 +11347,12 @@ class GameScene extends Phaser.Scene{
             try{SE('click');}catch(e){}
             // クロージャ経由でなく setData で保持したスキルキーを使う
             const myKey = eqB.getData('skKey') || sk.key;
-            const myName = eqB.getData('skName') || sk.name;
-            // 診断用: タップしたスキルをメニュー上に短時間表示
-            try{
-              const dbg = this.add.text(PX, ITOP+22, 'tap: '+myName+' ('+myKey+')', {fontSize:'14px',fontFamily:'Arial',color:'#88ff88',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(210);
-              this.time.delayedCall(1500, ()=>{ try{dbg.destroy();}catch(e){} });
-            }catch(e){}
             const at = pd.skillSlots.indexOf(myKey);
             if(at>=0){ pd.skillSlots[at]=null; }
             else {
               const empty = pd.skillSlots.indexOf(null);
               if(empty>=0){ pd.skillSlots[empty]=myKey; }
+              // ※ myKey は eqB に setData で保持したスキルキー(closure 起因のずれ防止)
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
             // ハンドラ実行中の destroy を避けるため次フレームへ遅延
@@ -11465,7 +11460,9 @@ class GameScene extends Phaser.Scene{
       // 仮Lvリセット&リスト再描画
       Object.keys(tmpLv).forEach(k=>delete tmpLv[k]);
       Object.keys(tmpAwakLv).forEach(k=>delete tmpAwakLv[k]);
-      refreshHdr(); renderList();
+      // _rebuildSkillButtons 内の auto-fill で pd.skillSlots が変わる可能性があるので
+      // スロット表示も必ず再描画する
+      refreshHdr(); renderSlots(); renderList();
     });
     this._awakSkillDistribute = null;
     // ════════════════════════════════
