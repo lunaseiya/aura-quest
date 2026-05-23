@@ -11260,7 +11260,12 @@ class GameScene extends Phaser.Scene{
           objs.push(skadd(this.add.text(sx, sy-6, info.icon, {fontSize:'22px'}).setOrigin(0.5)));
           const nm = info.name.length>4?info.name.substr(0,4):info.name;
           objs.push(skadd(this.add.text(sx, sy+SLOT_SZ/2-8, nm, {fontSize:'8px',fontFamily:'Arial',color:'#ffffff',stroke:'#000',strokeThickness:2}).setOrigin(0.5)));
-          bg.on('pointerdown', ()=>{ try{SE('click');}catch(e){} pd.skillSlots[s]=null; renderSlots(); renderList(); this._rebuildSkillButtons(); });
+          bg.on('pointerdown', ()=>{
+            try{ bg.disableInteractive(); }catch(e){}
+            try{SE('click');}catch(e){}
+            pd.skillSlots[s]=null;
+            this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
+          });
         } else {
           objs.push(skadd(this.add.text(sx, sy, (s+1)+'', {fontSize:'14px',fontFamily:'Arial',color:'#556677'}).setOrigin(0.5)));
         }
@@ -11320,9 +11325,11 @@ class GameScene extends Phaser.Scene{
         // 装備ボタン(最右・固定位置) — 確定済みで装備可能な時のみ
         if(equippable){
           const eqB = skadd(this.add.rectangle(eqCx, ry, EQ_W, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
-          objs.push(eqB);
+          const eqLbl = skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
+          objs.push(eqB); objs.push(eqLbl);
           eqB.on('pointerdown', ()=>{
+            // 二重発火防止
+            try{ eqB.disableInteractive(); }catch(e){}
             try{SE('click');}catch(e){}
             const at = pd.skillSlots.indexOf(sk.key);
             if(at>=0){ pd.skillSlots[at]=null; }
@@ -11331,14 +11338,15 @@ class GameScene extends Phaser.Scene{
               if(empty>=0){ pd.skillSlots[empty]=sk.key; }
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
-            renderSlots(); renderList(); this._rebuildSkillButtons();
+            // ハンドラ実行中の destroy を避けるため次フレームへ遅延
+            this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
           });
         }
         // +/- Lvボタン(固定位置・装備ボタンの有無に関係なく同じ場所)
         if(canLvUp && curLv < sk.maxLv){
           const plusB = skadd(this.add.rectangle(plusCx, ry, 28, rowH-12, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(plusCx, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
-          objs.push(plusB);
+          const plusLbl = skadd(this.add.text(plusCx, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
+          objs.push(plusB); objs.push(plusLbl);
           plusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
               if(tmpJp<=0){ this.showFloat(this.player.x,this.player.y-60,'JOBポイント不足','#ffaa44'); return; }
@@ -11388,8 +11396,8 @@ class GameScene extends Phaser.Scene{
             }
           });
           const minusB = skadd(this.add.rectangle(minusCx, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          skadd(this.add.text(minusCx, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
-          objs.push(minusB);
+          const minusLbl = skadd(this.add.text(minusCx, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
+          objs.push(minusB); objs.push(minusLbl);
           minusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
               if((tmpLv[sk.key]||0)<=0) return;
