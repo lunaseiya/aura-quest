@@ -11245,7 +11245,11 @@ class GameScene extends Phaser.Scene{
     skadd(this.add.text(PX, SLOT_TOP-6, '【装備スロット】タップで外す', {fontSize:'10px',fontFamily:'Arial',color:'#88aacc'}).setOrigin(0.5));
     const slotObjs = [];
     const renderSlots = ()=>{
-      slotObjs.forEach(o=>{ try{o.forEach(x=>x.destroy());}catch(e){} });
+      // 古いオブジェクトを確実に破棄(1個ごとに try/catch)
+      slotObjs.forEach(o=>{
+        if(!o) return;
+        o.forEach(x=>{ try{ if(x && x.destroy) x.destroy(); }catch(e){} });
+      });
       slotObjs.length=0;
       for(let s=0;s<6;s++){
         const sx = slotStartX + s*(SLOT_SZ+slotGap);
@@ -11280,7 +11284,14 @@ class GameScene extends Phaser.Scene{
     const rowH = Math.max(40, Math.min(54, LIST_H / Math.max(1,allSkills.length)));
     const listObjs = [];
     const renderList = ()=>{
-      listObjs.forEach(o=>{ try{o.forEach(x=>x.destroy());}catch(e){} });
+      // 古いオブジェクトを確実に破棄(1個ごとに try/catch・古い setInteractive を確実に解除)
+      listObjs.forEach(o=>{
+        if(!o) return;
+        o.forEach(x=>{
+          try{ if(x && x.disableInteractive) x.disableInteractive(); }catch(e){}
+          try{ if(x && x.destroy) x.destroy(); }catch(e){}
+        });
+      });
       listObjs.length=0;
       allSkills.forEach((sk,i)=>{
         const ry = LIST_TOP + i*rowH + rowH/2;
@@ -11325,17 +11336,28 @@ class GameScene extends Phaser.Scene{
         // 装備ボタン(最右・固定位置) — 確定済みで装備可能な時のみ
         if(equippable){
           const eqB = skadd(this.add.rectangle(eqCx, ry, EQ_W, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
+          // 押下時にクロージャが壊れる場合に備えて、ボタン自体にスキルキーを保持
+          eqB.setData('skKey', sk.key);
+          eqB.setData('skName', sk.name);
           const eqLbl = skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(eqB); objs.push(eqLbl);
           eqB.on('pointerdown', ()=>{
             // 二重発火防止
             try{ eqB.disableInteractive(); }catch(e){}
             try{SE('click');}catch(e){}
-            const at = pd.skillSlots.indexOf(sk.key);
+            // クロージャ経由でなく setData で保持したスキルキーを使う
+            const myKey = eqB.getData('skKey') || sk.key;
+            const myName = eqB.getData('skName') || sk.name;
+            // 診断用: タップしたスキルをメニュー上に短時間表示
+            try{
+              const dbg = this.add.text(PX, ITOP+22, 'tap: '+myName+' ('+myKey+')', {fontSize:'14px',fontFamily:'Arial',color:'#88ff88',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(210);
+              this.time.delayedCall(1500, ()=>{ try{dbg.destroy();}catch(e){} });
+            }catch(e){}
+            const at = pd.skillSlots.indexOf(myKey);
             if(at>=0){ pd.skillSlots[at]=null; }
             else {
               const empty = pd.skillSlots.indexOf(null);
-              if(empty>=0){ pd.skillSlots[empty]=sk.key; }
+              if(empty>=0){ pd.skillSlots[empty]=myKey; }
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
             }
             // ハンドラ実行中の destroy を避けるため次フレームへ遅延
