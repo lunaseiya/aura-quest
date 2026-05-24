@@ -11344,13 +11344,11 @@ class GameScene extends Phaser.Scene{
         const confirmedLv = (sk.type==='normal') ? (pd[sk.skId]||0)
           : ((pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey]['sk'+sk.awakIdx]) || 0);
         const isPassive = sk.bookRequired && (sk.num===4) && (pd.cls==='archer'||pd.cls==='bomber');
-        // 覚醒スキル: 1覚醒職につき active な1スキルだけ「習得中」
-        const isAwakActive = sk.type==='awak' && pd.awakActive && pd.awakActive[sk.awakKey]==='sk'+sk.awakIdx;
         // 装備可能 = 確定済みでLv1以上(パッシブは装備不可) or 書物パッシブ習得済み
-        // 覚醒スキルは active なものだけ装備可能
+        // 覚醒スキルも個別に習得可・装備可(同じ覚醒の他スキルは無関係)
         let equippable;
         if(sk.type==='awak'){
-          equippable = confirmedLv > 0 && isAwakActive;
+          equippable = confirmedLv > 0;
         } else {
           equippable = (confirmedLv > 0 && !isPassive)
             || (sk.bookRequired && (sk.num===4) && !isPassive && ((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)));
@@ -11367,14 +11365,13 @@ class GameScene extends Phaser.Scene{
         objs.push(skadd(this.add.text(cellLeft + 14, cellTop + 12, sk.icon, {fontSize:iconSize}).setOrigin(0.5)));
         // 名前
         const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+']') : '';
-        const activeTag = isAwakActive ? ' ★' : '';
         const nameFs = compact ? '10px' : '12px';
-        objs.push(skadd(this.add.text(cellLeft + 26, cellTop + 12, jobTag+sk.name+activeTag, {fontSize:nameFs,fontFamily:'Arial',color: isAwakActive?'#ffdd66':(sk.type==='awak'?'#ffaadd':'#ffffff'),fontStyle:'bold'}).setOrigin(0,0.5)));
+        objs.push(skadd(this.add.text(cellLeft + 26, cellTop + 12, jobTag+sk.name, {fontSize:nameFs,fontFamily:'Arial',color: sk.type==='awak'?'#ffaadd':'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
         // Lv 表示(仮加算時は黄緑で「現→新/最大」)
         const lvText = tmpAdd > 0
           ? ('Lv '+confirmedLv+'→'+curLv+'/'+sk.maxLv)
           : ('Lv '+curLv+'/'+sk.maxLv);
-        const lvColor = tmpAdd > 0 ? '#aaff66' : (isAwakActive ? '#ffdd66' : '#ffffff');
+        const lvColor = tmpAdd > 0 ? '#aaff66' : '#ffffff';
         const lvFs = compact ? '10px' : '13px';
         // compact 時は Lv をボタン行と同じY座標に置く(縦詰め)
         const lvY = compact ? cellTop + cellH - 12 : cellTop + 28;
@@ -11433,45 +11430,12 @@ class GameScene extends Phaser.Scene{
               try{SE('click');}catch(e){}
               refreshHdr(); renderList();
             } else {
-              // 覚醒スキル: 1覚醒職1スキル制ルール
+              // 覚醒スキル: 各スキル独立に習得可(同じ覚醒の他スキルとの切り替え制約なし)
               if(!sk.canLearn){ this.showFloat(this.player.x,this.player.y-60,'その覚醒武器を装備してください','#ffaa44'); return; }
               if(tmpAsp<=0){ this.showFloat(this.player.x,this.player.y-60,'覚醒ポイント不足','#ffaa44'); return; }
-              if(!pd.awakActive) pd.awakActive={};
-              const curActive = pd.awakActive[sk.awakKey] || null;
-              const thisSkId = 'sk'+sk.awakIdx;
-              const applyPlus = ()=>{
-                pd.awakActive[sk.awakKey] = thisSkId;
-                tmpAsp--; tmpAwakLv[sk.key]=(tmpAwakLv[sk.key]||0)+1;
-                try{SE('click');}catch(e){}
-                refreshHdr(); renderSlots(); renderList();
-                this._rebuildSkillButtons();
-              };
-              if(curActive && curActive !== thisSkId){
-                // 別スキルが習得中 → 確認ダイアログ
-                const otherIdx = parseInt(curActive.slice(2));
-                const otherSk = (AWAKENINGS[sk.awakKey] && AWAKENINGS[sk.awakKey].skills) ? AWAKENINGS[sk.awakKey].skills[otherIdx-1] : null;
-                const otherName = (otherSk && otherSk.name) || '?';
-                const otherConfirmedLv = (pd.awakSkillLv && pd.awakSkillLv[sk.awakKey] && pd.awakSkillLv[sk.awakKey][curActive]) || 0;
-                this._confirmDialog(
-                  '習得スキルを切り替え',
-                  '【'+otherName+' Lv'+otherConfirmedLv+'】の習得を解除し、\n【'+sk.name+'】を新たに習得しますか?\n('+otherName+' の Lv は保持されます)',
-                  ()=>{
-                    // 旧スキルが skillSlots に入っていれば外す
-                    const oldKey = 'a_'+sk.awakKey+'_'+otherIdx;
-                    const at = pd.skillSlots.indexOf(oldKey);
-                    if(at>=0) pd.skillSlots[at]=null;
-                    // 旧スキルへの仮Lv加算があれば取り消して覚醒pt返却
-                    if(tmpAwakLv[oldKey]){
-                      tmpAsp += tmpAwakLv[oldKey];
-                      delete tmpAwakLv[oldKey];
-                    }
-                    applyPlus();
-                  },
-                  { yesLabel:'切替+習得', yesColor:0xff8844 }
-                );
-                return;
-              }
-              applyPlus();
+              tmpAsp--; tmpAwakLv[sk.key]=(tmpAwakLv[sk.key]||0)+1;
+              try{SE('click');}catch(e){}
+              refreshHdr(); renderList();
             }
           });
           const minusB = skadd(this.add.rectangle(minusCx, btnY, PM_W, btnH, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
@@ -13407,7 +13371,7 @@ class GameScene extends Phaser.Scene{
         pd.skillSlots = [null,null,null,null,null,null];
       }
       if(pd.skillSlots && Array.isArray(pd.skillSlots)){
-        // 覚醒キーで awakActive と不一致のもの(=非習得スキル)が残っていれば null 化
+        // 覚醒キーで Lv=0(=未習得)のものが残っていれば null 化(セーブ移行・リセット対策)
         for(let s=0;s<pd.skillSlots.length;s++){
           const k = pd.skillSlots[s];
           if(!k || typeof k!=='string') continue;
@@ -13415,8 +13379,8 @@ class GameScene extends Phaser.Scene{
             const parts = k.split('_');
             const awKey = parts[1];
             const idx = parseInt(parts[2]);
-            const active = pd.awakActive && pd.awakActive[awKey];
-            if(active !== 'sk'+idx){ pd.skillSlots[s]=null; }
+            const lv = (pd.awakSkillLv && pd.awakSkillLv[awKey] && pd.awakSkillLv[awKey]['sk'+idx]) || 0;
+            if(lv <= 0){ pd.skillSlots[s]=null; }
           }
         }
         pd.skillSlots.forEach(key=>{
