@@ -465,11 +465,11 @@ function makePlayerData(cls){
       samurai:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒の習得状況
       heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒
       spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
-      youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒
+      youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(妖魔)
+      abyss:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(アビスウォーロック)
     },
-    // ── 各覚醒職で現在「習得中」のスキルID ──
-    // 1覚醒職につき1スキルだけ習得可・付け替え式(前のLvは awakSkillLv に保持される)
-    awakActive:{ samurai:null, heavy:null, spirit:null, youma:null },
+    // ── 各覚醒職で現在「習得中」のスキルID(現在は装備制限のみで参照は廃止)──
+    awakActive:{ samurai:null, heavy:null, spirit:null, youma:null, abyss:null },
     // ── スキルスロット(覚醒前に戦闘で使うスキル6枠) ──
     // 各要素はスキルキー or null。キー形式:
     //   通常スキル: 'n1','n2','n3','n4'
@@ -3756,6 +3756,8 @@ const EQUIP_DEFS={
   spirit_bow:    {name:'精霊の弓',  slot:'weapon_main',icon:'🏹', desc:'精霊が宿る神秘の弓。装備するとエルフ化が可能になる',stats:{atk:20,hit:5},price:0,col:0x88ee88, classOnly:'archer', awakening:'spirit'},
   // ── ダークイリュージョンの杖(マジシャン専用・覚醒「妖魔化」を発動可能) ──
   dark_illusion_staff:{name:'ダークイリュージョンの杖',slot:'weapon_main',icon:'🔮', desc:'闇の力を宿した禁忌の杖。装備すると妖魔化が可能になる',stats:{atk:8,mag:24},price:0,col:0x6622aa, classOnly:'mage', awakening:'youma'},
+  // ── リヴァイアリーの杖(マジシャン専用・覚醒「アビスウォーロック」)──
+  riviary_staff:{name:'リヴァイアリーの杖',slot:'weapon_main',icon:'🌊', desc:'深海の魔力を宿した杖。装備するとアビスウォーロックに変身可能',stats:{mag:26,msp:30},price:0,col:0x1144ff, classOnly:'mage', awakening:'abyss', twoHand:true},
   // ── アーチャー向け ──
   wooden_bow:    {name:'木の弓',    slot:'weapon_main',icon:'🏹', desc:'シンプルな木の弓・片手で持つ',         stats:{atk:7,hit:5},           price:80,  col:0x886633, classOnly:'archer'},
   composite_bow: {name:'合成弓',    slot:'weapon_main',icon:'🏹', desc:'複数素材を組み合わせた強弓・片手で持つ',stats:{atk:14,hit:8},          price:200, col:0xaa6633, classOnly:'archer'},
@@ -5668,6 +5670,31 @@ const AWAKENINGS = {
       {id:'sk3', name:'黒龍炎',     cost:50, cd:10, desc:'黒龍が貫通する大技・詠唱長め'},
     ],
   },
+  // ── アビスウォーロック(マジシャン・深淵化)──
+  abyss: {
+    name: 'アビスウォーロック',
+    icon: '🌊',
+    activateLabel: '深淵化',
+    deactivateLabel: '解除',
+    baseClass: 'mage',
+    requiresEquip: 'riviary_staff',
+    sprite:'player_mage', animPrefix:'mage',          // 仮: player_mage を流用
+    baseSprite:'player_mage', baseAnimPrefix:'mage',
+    auraColor:0x1144ff, facingFlip:'none',
+    tintColor:0x4488ff,                                // setTint で青く着色して差別化
+    // ── スキルタブのセル色(濃い青) ──
+    cellBg: 0x0a1438, cellStroke: 0x4488ff, cellText: '#88ccff',
+    statMul: {
+      mag: 1.3,    // MAG +30%
+      spd: 0.85,   // 速度 -15%(詠唱時の重さを表現)
+    },
+    spDrainPerSec: 0.5,                                // 持続消費(穏やか)
+    skills: [
+      {id:'sk1', name:'ウォーターボール',  cost:25, cd:6,  desc:'水属性連射・自動追尾・移動不可・最大10発'},
+      {id:'sk2', name:'リヴァイアサンゲート',cost:40, cd:8, desc:'画面横断の津波・3hit+右ノックバック'},
+      {id:'sk3', name:'深淵の呪印',        cost:30, cd:15, desc:'次の魔法ダメージ2倍(連続攻撃でもまとめて2倍)'},
+    ],
+  },
   // 将来の追加: oni(剣士・鬼神化)
 };
 
@@ -5812,6 +5839,17 @@ class GameScene extends Phaser.Scene{
           const hasBook=(idx===3)&&((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm));
           if(lv>0||hasBook){ pd.skillSlots[si++]='n'+(idx+1); }
         });
+      }
+      // awakSkillLv.abyss が無い旧セーブの補完
+      if(pd.awakSkillLv && !pd.awakSkillLv.abyss){
+        pd.awakSkillLv.abyss = {sk1:0, sk2:0, sk3:0};
+      }
+      // マジシャンキャラには riviary_staff を1本配布(まだ持っていなければ)
+      if(pd.cls==='mage'){
+        if(!pd.items) pd.items={};
+        if(!pd.items['riviary_staff']){
+          pd.items['riviary_staff'] = 1;
+        }
       }
     }
     this.stage=data.stage!==undefined?data.stage:1;
@@ -6443,12 +6481,14 @@ class GameScene extends Phaser.Scene{
         heavy:   'player_heavy',
         youma:   'player_youma',
         spirit:  'player_elf',
+        abyss:   'player_mage',   // 仮: マジシャンスプライトを流用、青tintで差別化
       };
       const awakAnimPrefix = {
         samurai: 'samurai',
         heavy:   'heavy',
         youma:   'youma',
         spirit:  'elf',
+        abyss:   'mage',
       };
       const tex = awakSpriteMap[pd.awakened];
       const prefix = awakAnimPrefix[pd.awakened];
@@ -6458,6 +6498,11 @@ class GameScene extends Phaser.Scene{
           this.player.setDisplaySize(pSize, pSize);
           if(prefix && this.anims.exists(prefix+'_front_idle')){
             this.player.play(prefix+'_front_idle');
+          }
+          // 覚醒別の追加 tint(abyss は青く着色)
+          const A = AWAKENINGS[pd.awakened];
+          if(A && A.tintColor){
+            this.player.setTint(A.tintColor);
           }
         }catch(e){console.warn('awakening sprite restore on scene change failed', e);}
       }
@@ -9142,6 +9187,234 @@ class GameScene extends Phaser.Scene{
       return;
     }
 
+    // ─ 覚醒「アビスウォーロック」(abyss) ─
+    // 深淵の呪印を「この魔法発動」で消費するヘルパ
+    const _consumeAbyssCurse = ()=>{
+      if(!pd._abyssCurseActive) return false;
+      pd._abyssCurseActive = false;
+      if(pd._abyssCurseAura){ try{pd._abyssCurseAura.destroy();}catch(e){} pd._abyssCurseAura=null; }
+      return true;
+    };
+    if(pd.awakened==='abyss'){
+      if(num===1){
+        // ── ウォーターボール: 連射・自動追尾・移動不可・最大10発 ──
+        // プレイヤー移動をロックする方式: _casting フラグ + 専用フラグ
+        if(this._wbActive) return;  // 既に発動中なら無視
+        this._wbActive = true;
+        this._casting = true;       // 通常攻撃やスキル移動を抑止
+        // 呪印を発動時に消費(この魔法発動の全ダメージが2倍になる)
+        const useCurse = _consumeAbyssCurse();
+        let shots = 0;
+        const maxShots = 10;
+        const shotInterval = 130;    // 連射間隔(ms)
+        const spPerShot = 3;
+        const playerDepth = 18;
+        // 詠唱の青オーラ
+        const castAura = this.add.circle(p.x, p.y, 36, 0x3366ff, 0.35).setDepth(15);
+        const stop = ()=>{
+          this._wbActive = false;
+          this._casting = false;
+          try{ castAura.destroy(); }catch(e){}
+          this[cdKey] = sk.cd;
+        };
+        const fireOne = ()=>{
+          if(!this._wbActive) return;
+          // SP 切れチェック
+          if(pd.sp < spPerShot){ stop(); return; }
+          // 標的選定: 最寄りの生存敵
+          let tgt=null, mind=99999;
+          this.enemyDataList.forEach(ed=>{
+            if(ed.dead || !ed.sprite) return;
+            const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+            if(d<mind){ mind=d; tgt=ed; }
+          });
+          if(!tgt){ stop(); return; }
+          // SP消費
+          pd.sp -= spPerShot;
+          // 水球生成・追尾
+          const ball = this.add.circle(p.x, p.y-10, 9, 0x3399ff, 0.95).setStrokeStyle(2, 0x88ddff, 1.0).setDepth(20);
+          const glow = this.add.circle(p.x, p.y-10, 14, 0x66ccff, 0.4).setDepth(19);
+          const start = {x:p.x, y:p.y-10};
+          const tween = this.time.addEvent({
+            delay: 16, repeat: 40,  // 約 640ms 最大
+            callback: ()=>{
+              if(!tgt || tgt.dead || !tgt.sprite){
+                try{ball.destroy(); glow.destroy();}catch(e){}
+                tween.remove();
+                return;
+              }
+              const tx = tgt.sprite.x, ty = tgt.sprite.y;
+              const dx = tx - ball.x, dy = ty - ball.y;
+              const dist = Math.hypot(dx, dy);
+              if(dist < 20){
+                // 着弾: ダメージ
+                const lv = (pd.awakSkillLv && pd.awakSkillLv.abyss && pd.awakSkillLv.abyss.sk1) || 1;
+                const base = Math.max(1, Math.floor(pd.mag * (0.5 + lv*0.08)));
+                let dmg = base + Phaser.Math.Between(0, pd.mag>>2);
+                // 呪印を発動時に消費(この発動内の全ダメージが2倍)
+                if(useCurse) dmg *= 2;
+                // 属性: water
+                const em = getElementMult('water', tgt.element||'none');
+                dmg = Math.max(1, Math.floor(dmg * em.mult));
+                this.hitEnemy(tgt, dmg, false, true, em.label);
+                // 着弾エフェクト
+                const splash = this.add.circle(tx, ty, 14, 0x88ddff, 0.7).setDepth(21);
+                this.tweens.add({targets: splash, scaleX:2, scaleY:2, alpha:0, duration:280, onComplete:()=>splash.destroy()});
+                try{ball.destroy(); glow.destroy();}catch(e){}
+                tween.remove();
+              }else{
+                // ゴム的な追尾(速度を距離に応じて加速)
+                const sp2 = Math.min(14, 6 + (40 - tween.getRepeatCount())*0.3);
+                ball.x += (dx/dist) * sp2;
+                ball.y += (dy/dist) * sp2;
+                glow.setPosition(ball.x, ball.y);
+              }
+            }
+          });
+          shots++;
+          if(shots >= maxShots){
+            this.time.delayedCall(shotInterval, stop);
+            return;
+          }
+          this.time.delayedCall(shotInterval, fireOne);
+        };
+        try{SE('skill');}catch(e){}
+        fireOne();
+        this.showFloat(p.x, p.y-60, '💧 ウォーターボール', '#66ccff');
+      }
+      else if(num===2){
+        // ── リヴァイアサンゲート: 画面横断の津波・3hit+右ノックバック ──
+        // 呪印を発動時に消費(この発動内の全ダメージが2倍)
+        const useCurse = _consumeAbyssCurse();
+        const cam = this.cameras.main;
+        const camLeft = cam.scrollX;
+        const camTop = cam.scrollY;
+        const screenW = cam.width;
+        const screenH = cam.height;
+        // 津波の波(複数の青いストライプを横に並べて左から右へ移動)
+        const waveY = camTop + screenH * 0.55;
+        const waveH = screenH * 0.45;
+        const wave = this.add.rectangle(camLeft - 60, waveY, 120, waveH, 0x1144aa, 0.7).setOrigin(0, 0.5).setScrollFactor(0,1).setDepth(15);
+        wave.setStrokeStyle(3, 0x88ddff, 0.9);
+        const foam = this.add.rectangle(camLeft - 40, waveY - waveH*0.4, 100, 20, 0xeeffff, 0.85).setOrigin(0, 0.5).setScrollFactor(0,1).setDepth(16);
+        const hitSet = new Set();
+        let hitCount = 0;
+        const lv = (pd.awakSkillLv && pd.awakSkillLv.abyss && pd.awakSkillLv.abyss.sk2) || 1;
+        const dmgBase = Math.max(1, Math.floor(pd.mag * (1.6 + lv*0.18)));
+        const dealDamage = ()=>{
+          if(hitCount >= 3) return;
+          hitCount++;
+          const waveLeft = wave.x;
+          const waveRight = wave.x + wave.width;
+          this.enemyDataList.forEach(ed=>{
+            if(ed.dead || !ed.sprite) return;
+            const ex = ed.sprite.x;
+            const ey = ed.sprite.y;
+            // 画面座標に変換
+            const sx = ex - camLeft;
+            const sy = ey - camTop;
+            if(sx >= waveLeft && sx <= waveRight && sy >= waveY - waveH/2 && sy <= waveY + waveH/2){
+              let dmg = dmgBase + Phaser.Math.Between(0, pd.mag>>2);
+              if(useCurse) dmg *= 2;
+              const em = getElementMult('water', ed.element||'none');
+              dmg = Math.max(1, Math.floor(dmg * em.mult));
+              this.hitEnemy(ed, dmg, false, true, em.label);
+              // ノックバック(強制右へ)
+              if(ed.sprite && ed.sprite.body){
+                ed.sprite.body.setVelocityX(500);
+              }else if(ed.sprite){
+                ed.sprite.x += 50;
+              }
+            }
+          });
+        };
+        // 津波の x を camLeft - 60 から camLeft + screenW + 60 までトゥイーン
+        const totalDur = 1500;
+        this.tweens.add({
+          targets: [wave, foam],
+          x: '+='+(screenW + 120),
+          duration: totalDur,
+          ease: 'Sine.easeInOut',
+          onUpdate: ()=>{
+            // 3 等分で hit
+            const prog = (wave.x - (camLeft - 60)) / (screenW + 120);
+            if(hitCount === 0 && prog > 0.25) dealDamage();
+            else if(hitCount === 1 && prog > 0.55) dealDamage();
+            else if(hitCount === 2 && prog > 0.85) dealDamage();
+          },
+          onComplete: ()=>{
+            try{wave.destroy(); foam.destroy();}catch(e){}
+          },
+        });
+        try{SE('skill');}catch(e){}
+        this.showFloat(p.x, p.y-60, '🌊 リヴァイアサンゲート', '#3399ff');
+        this[cdKey] = sk.cd;
+      }
+      else if(num===3){
+        // ── 深淵の呪印: 次の魔法ダメージ2倍 ──
+        // 既に有効なら何もしない(連打防止)
+        if(pd._abyssCurseActive){
+          this.showFloat(p.x, p.y-60, '既に呪印が有効', '#88aaff', 'info');
+          return;
+        }
+        pd._abyssCurseActive = true;
+        pd._abyssCurseConsumeOnNext = false;
+        // ── 演出: 青いゲート → プレイヤーを包む → 青いオーラ持続 ──
+        const gate = this.add.rectangle(p.x, p.y-10, 8, 8, 0x000000, 0).setStrokeStyle(4, 0x3366ff, 1.0).setDepth(18);
+        const gateGlow = this.add.circle(p.x, p.y, 10, 0x1144ff, 0.4).setDepth(17);
+        this.tweens.add({
+          targets: gate,
+          scaleX: 14, scaleY: 18,
+          duration: 500,
+          ease: 'Cubic.easeOut',
+        });
+        this.tweens.add({
+          targets: gateGlow,
+          scaleX: 6, scaleY: 6,
+          alpha: 0.7,
+          duration: 500,
+          ease: 'Cubic.easeOut',
+          onComplete: ()=>{
+            // ゲートを縮小してプレイヤーに吸い込まれる
+            this.tweens.add({
+              targets: [gate, gateGlow],
+              scaleX: 0, scaleY: 0,
+              alpha: 0,
+              duration: 400,
+              ease: 'Cubic.easeIn',
+              onComplete: ()=>{
+                try{gate.destroy(); gateGlow.destroy();}catch(e){}
+                // 青オーラ持続(消費されるまで)
+                const aura = this.add.circle(p.x, p.y, 36, 0x1144ff, 0.35).setStrokeStyle(2, 0x66aaff, 0.8).setDepth(15);
+                pd._abyssCurseAura = aura;
+                // 追従Tween
+                const followTween = this.time.addEvent({
+                  delay: 30, loop: true,
+                  callback: ()=>{
+                    if(!pd._abyssCurseActive){
+                      try{aura.destroy();}catch(e){}
+                      followTween.remove();
+                      return;
+                    }
+                    aura.setPosition(p.x, p.y);
+                  }
+                });
+                // パルス効果
+                this.tweens.add({
+                  targets: aura, scaleX: 1.3, scaleY: 1.3, alpha: 0.5,
+                  duration: 800, yoyo: true, repeat: -1,
+                });
+              },
+            });
+          },
+        });
+        try{SE('skill');}catch(e){}
+        this.showFloat(p.x, p.y-60, '🌀 深淵の呪印', '#3366ff');
+        this[cdKey] = sk.cd;
+      }
+      return;
+    }
+
     // ─ 覚醒「侍」 ─
     if(pd.awakened==='samurai'){
       if(num===1){ // 居合斬り: 敵の背後にワープ+一撃
@@ -11357,8 +11630,17 @@ class GameScene extends Phaser.Scene{
         // 仮Lv加算量(黄緑表示の判定用)
         const tmpAdd = (sk.type==='normal') ? (tmpLv[sk.key]||0) : (tmpAwakLv[sk.key]||0);
 
-        // セル背景
-        const rowBg = skadd(this.add.rectangle(cellCx, cellCy, cellW, cellH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
+        // セル背景(覚醒スキルは AWAKENINGS のセル色を使用、無ければデフォ赤系)
+        let awBgCol = 0x2a1424, awStrokeCol = 0xff66bb, awTextCol = '#ffaadd';
+        if(sk.type==='awak'){
+          const awd = AWAKENINGS[sk.awakKey];
+          if(awd){
+            if(awd.cellBg!==undefined) awBgCol = awd.cellBg;
+            if(awd.cellStroke!==undefined) awStrokeCol = awd.cellStroke;
+            if(awd.cellText!==undefined) awTextCol = awd.cellText;
+          }
+        }
+        const rowBg = skadd(this.add.rectangle(cellCx, cellCy, cellW, cellH-4, sk.type==='awak'?awBgCol:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?awStrokeCol:0x2bd4bb, inSlot?1:0.4));
         objs.push(rowBg);
         // アイコン
         const iconSize = compact ? '14px' : '18px';
@@ -11366,7 +11648,7 @@ class GameScene extends Phaser.Scene{
         // 名前
         const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+']') : '';
         const nameFs = compact ? '10px' : '12px';
-        objs.push(skadd(this.add.text(cellLeft + 26, cellTop + 12, jobTag+sk.name, {fontSize:nameFs,fontFamily:'Arial',color: sk.type==='awak'?'#ffaadd':'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
+        objs.push(skadd(this.add.text(cellLeft + 26, cellTop + 12, jobTag+sk.name, {fontSize:nameFs,fontFamily:'Arial',color: sk.type==='awak'?awTextCol:'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5)));
         // Lv 表示(仮加算時は黄緑で「現→新/最大」)
         const lvText = tmpAdd > 0
           ? ('Lv '+confirmedLv+'→'+curLv+'/'+sk.maxLv)
@@ -12286,6 +12568,7 @@ class GameScene extends Phaser.Scene{
     const isHeavy = (awakKey==='heavy');
     const isSpirit = (awakKey==='spirit');
     const isYouma = (awakKey==='youma');
+    const isAbyss = (awakKey==='abyss');
     let flashCol, auraCol, ringCol;
     if(isHeavy){
       flashCol=[100,200,255]; auraCol=0x4488ff; ringCol=0x66aaff;
@@ -12293,6 +12576,8 @@ class GameScene extends Phaser.Scene{
       flashCol=[150,255,150]; auraCol=0x66ff88; ringCol=0x88ffaa;
     }else if(isYouma){
       flashCol=[80,30,120]; auraCol=0x6622aa; ringCol=0x9944ff;
+    }else if(isAbyss){
+      flashCol=[30,80,200]; auraCol=0x1144ff; ringCol=0x3366ff;
     }else{
       flashCol=[255,50,50]; auraCol=0xff2244; ringCol=0xff4466;
     }
@@ -12481,6 +12766,12 @@ class GameScene extends Phaser.Scene{
         this.player.setTexture(awDef.sprite, 0);
         this.player.setDisplaySize(pSize, pSize);
         this.player.play(awDef.animPrefix+'_'+(this._facing||'front')+'_idle', true);
+        // 覚醒別の tint 適用(abyss は青く着色)
+        if(awDef.tintColor){
+          this.player.setTint(awDef.tintColor);
+        }else{
+          this.player.clearTint();
+        }
       }catch(e){console.warn('awaken texture switch failed', awakKey, e);}
     }
     // UIを更新
@@ -12524,11 +12815,16 @@ class GameScene extends Phaser.Scene{
         this.player.setTexture(wasDef.baseSprite, 0);
         this.player.setDisplaySize(restoreSize, restoreSize);
         this.player.play(wasDef.baseAnimPrefix+'_'+(this._facing||'front')+'_idle', true);
+        this.player.clearTint();  // 覚醒中の tint をクリア
       }catch(e){console.warn('base texture restore failed', wasKey, e);}
     }
     // エルフ専用バフ解除
     pd._allCritUntil = 0;
     if(pd._allCritRing){try{pd._allCritRing.destroy();}catch(e){} pd._allCritRing=null;}
+    // アビス専用状態クリア
+    pd._abyssCurseActive = false;
+    if(pd._abyssCurseAura){try{pd._abyssCurseAura.destroy();}catch(e){} pd._abyssCurseAura=null;}
+    this._wbActive = false;
     // ── 解除演出(覚醒種別ごとに特色を出す)──
     if(this._awakAura){
       this.tweens.add({
@@ -14821,6 +15117,8 @@ class GameScene extends Phaser.Scene{
       if(newCls==='mage'){
         if(!pd.items) pd.items={};
         pd.items['dark_illusion_staff'] = (pd.items['dark_illusion_staff']||0) + 1;
+        // アビスウォーロック用のリヴァイアリーの杖も合わせて配布
+        pd.items['riviary_staff'] = (pd.items['riviary_staff']||0) + 1;
       }
 
       cleanup();
