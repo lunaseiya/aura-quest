@@ -6788,18 +6788,35 @@ class GameScene extends Phaser.Scene{
       }
 
     }else if(cls==='mage'){
-      // 妖魔化覚醒中: 闇属性の回転球を発射
+      // 装備中の覚醒武器を確認(リヴァイアリー = 水属性の青い回転球)
+      const eqW = pd.equip && pd.equip.weapon_main;
+      const eqD = eqW ? EQUIP_DEFS[eqW] : null;
+      const isRiviary = (eqD && eqD.awakening === 'abyss');
       if(pd.awakened==='youma'){
+        // 妖魔化覚醒中: 闇属性の回転球
         if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
         pd.sp-=3;
         const ang=this.getFacingAngle();
-        // 闇の回転球(コードで描画・回転)
         const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
         const isCrit = Math.random()*100 < calcCrit(pd);
         this._fireDarkOrb(p.x, p.y, ang, {
           spd: 280, maxDist: 520,
           dmg, isCrit,
           element: 'dark',
+        });
+        SE('magic'); this.updateHUD();
+        this.atkCooldown = this._calcAtkCD(0.7);
+      }else if(isRiviary){
+        // リヴァイアリーの杖装備中: 水属性の青い回転球(覚醒前後問わず)
+        if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
+        pd.sp-=3;
+        const ang=this.getFacingAngle();
+        const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
+        const isCrit = Math.random()*100 < calcCrit(pd);
+        this._fireWaterOrb(p.x, p.y, ang, {
+          spd: 320, maxDist: 540,
+          dmg, isCrit,
+          element: 'water',
         });
         SE('magic'); this.updateHUD();
         this.atkCooldown = this._calcAtkCD(0.7);
@@ -7156,6 +7173,136 @@ class GameScene extends Phaser.Scene{
             });
             // 火花(8方向に散る・赤・オレンジ・黄色のミックス)
             const sparkColors = [0xff4422, 0xff8822, 0xffcc44, 0xffee66];
+            for(let k=0;k<8;k++){
+              const sa = (k/8)*Math.PI*2;
+              const sc = sparkColors[k % sparkColors.length];
+              const sp = this.add.circle(orb.x, orb.y, 3, sc, 0.95).setDepth(21);
+              this.tweens.add({
+                targets: sp,
+                x: orb.x + Math.cos(sa)*36,
+                y: orb.y + Math.sin(sa)*36,
+                alpha: 0,
+                duration: 450,
+                onComplete: ()=>sp.destroy(),
+              });
+            }
+            this._destroyDarkOrb(orb);
+            flyLoop.remove();
+          }
+        });
+      },
+    });
+  }
+
+  // マジシャン用: 水属性の回転球(ファイヤーボールの青版)
+  _fireWaterOrb(sx, sy, ang, opt){
+    const speed = opt.spd || 320;
+    const maxDist = opt.maxDist || 540;
+    const orb = this.add.container(sx, sy).setDepth(8);
+    // 外側の青いオーラ
+    const aura = this.add.circle(0, 0, 17, 0x4488dd, 0.45);
+    // 中心の水本体
+    const core = this.add.circle(0, 0, 11, 0x4499ee, 1).setStrokeStyle(2, 0xaaddff, 0.95);
+    // 周囲を回転する3つの水滴
+    const orbiters = [];
+    const orbiterColors = [0x66bbff, 0xaaeeff, 0x3388dd];
+    for(let i=0;i<3;i++){
+      const a = (i/3) * Math.PI * 2;
+      const sm = this.add.circle(Math.cos(a)*14, Math.sin(a)*14, 4, orbiterColors[i], 0.95);
+      orbiters.push({sm, baseAng: a});
+    }
+    // 中心の白いハイライト
+    const center = this.add.circle(-2, -3, 4, 0xffffff, 0.85);
+    orb.add([aura, core, ...orbiters.map(o=>o.sm), center]);
+    // 移動データ
+    const vx = Math.cos(ang) * speed;
+    const vy = Math.sin(ang) * speed;
+    orb.setData('vx', vx);
+    orb.setData('vy', vy);
+    orb.setData('dmg', opt.dmg);
+    orb.setData('isCrit', opt.isCrit);
+    orb.setData('element', opt.element || 'water');
+    orb.setData('born', this.time.now);
+    orb.setData('dist', 0);
+    orb.setData('hit', false);
+    // 青オーラの脈動
+    this.tweens.add({
+      targets: aura,
+      scaleX: 1.4, scaleY: 1.4, alpha: 0.7,
+      duration: 220, yoyo: true, repeat: -1,
+    });
+    // 球本体の回転
+    this.tweens.add({
+      targets: orb,
+      rotation: Math.PI * 4,
+      duration: 1200,
+      repeat: -1,
+    });
+    const startTime = this.time.now;
+    // 飛行ループ
+    const flyLoop = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: ()=>{
+        if(!orb.scene || orb.getData('hit')){flyLoop.remove(); return;}
+        const dt = 16/1000;
+        orb.x += orb.getData('vx') * dt;
+        orb.y += orb.getData('vy') * dt;
+        const distAdd = Math.hypot(orb.getData('vx')*dt, orb.getData('vy')*dt);
+        const newDist = orb.getData('dist') + distAdd;
+        orb.setData('dist', newDist);
+        // 周回小球の角度更新
+        const elapsed = this.time.now - startTime;
+        orbiters.forEach(o=>{
+          const a = o.baseAng + elapsed * 0.010;
+          o.sm.setPosition(Math.cos(a)*14, Math.sin(a)*14);
+        });
+        // 水の軌跡(青系の泡)
+        if(Math.random() < 0.7){
+          const trailColors = [0x66aacc, 0x88ccff, 0x3377dd];
+          const trailColor = trailColors[Phaser.Math.Between(0, 2)];
+          const trail = this.add.circle(orb.x + (Math.random()-0.5)*4, orb.y + (Math.random()-0.5)*4, 4, trailColor, 0.7).setDepth(7);
+          this.tweens.add({
+            targets: trail,
+            alpha: 0, scaleX: 0.2, scaleY: 0.2,
+            y: trail.y + 6,  // 水滴は少し下に沈む感
+            duration: 450,
+            onComplete: ()=>trail.destroy(),
+          });
+        }
+        // 寿命
+        if(newDist > maxDist){
+          this._destroyDarkOrb(orb);
+          flyLoop.remove();
+          return;
+        }
+        // 命中判定
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead || !ed.sprite || orb.getData('hit')) return;
+          if(Phaser.Math.Distance.Between(orb.x, orb.y, ed.sprite.x, ed.sprite.y) < 26){
+            orb.setData('hit', true);
+            const dmg = orb.getData('dmg');
+            const isCrit = orb.getData('isCrit');
+            const em = getElementMult(orb.getData('element'), ed.element||'none');
+            const finalDmg = Math.max(1, Math.floor((isCrit?dmg*2:dmg) * em.mult));
+            this.hitEnemy(ed, finalDmg, isCrit, false, em.label);
+            // 着弾の水しぶき(青→白)
+            const burst1 = this.add.circle(orb.x, orb.y, 22, 0x4499ee, 0.9).setDepth(20);
+            this.tweens.add({
+              targets: burst1,
+              scaleX: 2.8, scaleY: 2.8, alpha: 0,
+              duration: 380,
+              onComplete: ()=>burst1.destroy(),
+            });
+            const burst2 = this.add.circle(orb.x, orb.y, 14, 0xffffff, 1).setDepth(21);
+            this.tweens.add({
+              targets: burst2,
+              scaleX: 1.8, scaleY: 1.8, alpha: 0,
+              duration: 220,
+              onComplete: ()=>burst2.destroy(),
+            });
+            // 水しぶき(8方向に散る)
+            const sparkColors = [0x4477dd, 0x66aacc, 0xaaeeff, 0xffffff];
             for(let k=0;k<8;k++){
               const sa = (k/8)*Math.PI*2;
               const sc = sparkColors[k % sparkColors.length];
