@@ -8148,6 +8148,11 @@ class GameScene extends Phaser.Scene{
     if(!origSkLv || origSkLv === 0){
       pd[skKey] = origSkLv || 0;
     }
+    // useSkill が skillCD'+awakIdx を設定するが、覚醒中は CD オーバーレイで
+    // awakCD のみ追跡されるため skillCD が減算されず永久に残ってしまう。
+    // 結果 2 回目以降の useSkill 呼び出しが silent return される(発動しないバグ)。
+    // 覚醒スキルの CD は this[cdKey]=awakCD で別管理するので skillCD はクリアする。
+    this['skillCD'+awakIdx] = 0;
     // CD設定(Lv反映: 高Lvほどcd短縮)
     const cdMul = Math.max(0.6, 1 - (lv-1) * 0.04);
     this[cdKey] = sk.cd * cdMul;
