@@ -9217,18 +9217,26 @@ class GameScene extends Phaser.Scene{
           try{ castAura.destroy(); }catch(e){}
           this[cdKey] = sk.cd;
         };
+        // ロックオン: 最初に決めた1体だけを撃ち続ける(死んだら発動停止)
+        let lockedTgt = null;
         const fireOne = ()=>{
           if(!this._wbActive) return;
           // SP 切れチェック
           if(pd.sp < spPerShot){ stop(); return; }
-          // 標的選定: 最寄りの生存敵
-          let tgt=null, mind=99999;
-          this.enemyDataList.forEach(ed=>{
-            if(ed.dead || !ed.sprite) return;
-            const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-            if(d<mind){ mind=d; tgt=ed; }
-          });
-          if(!tgt){ stop(); return; }
+          // 初回はロックオン、以降は同じ敵を狙い続ける
+          if(!lockedTgt){
+            let cand=null, mind=99999;
+            this.enemyDataList.forEach(ed=>{
+              if(ed.dead || !ed.sprite) return;
+              const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+              if(d<mind){ mind=d; cand=ed; }
+            });
+            if(!cand){ stop(); return; }
+            lockedTgt = cand;
+          }
+          const tgt = lockedTgt;
+          // ロック対象が死んだ/消えた → 発動停止(単体スキル)
+          if(tgt.dead || !tgt.sprite){ stop(); return; }
           // SP消費
           pd.sp -= spPerShot;
           // 水球生成・追尾
@@ -9284,132 +9292,262 @@ class GameScene extends Phaser.Scene{
       }
       else if(num===2){
         // ── リヴァイアサンゲート: 画面横断の津波・3hit+右ノックバック ──
-        // 呪印を発動時に消費(この発動内の全ダメージが2倍)
         const useCurse = _consumeAbyssCurse();
         const cam = this.cameras.main;
-        const camLeft = cam.scrollX;
-        const camTop = cam.scrollY;
         const screenW = cam.width;
         const screenH = cam.height;
-        // 津波の波(複数の青いストライプを横に並べて左から右へ移動)
-        const waveY = camTop + screenH * 0.55;
-        const waveH = screenH * 0.45;
-        const wave = this.add.rectangle(camLeft - 60, waveY, 120, waveH, 0x1144aa, 0.7).setOrigin(0, 0.5).setScrollFactor(0,1).setDepth(15);
-        wave.setStrokeStyle(3, 0x88ddff, 0.9);
-        const foam = this.add.rectangle(camLeft - 40, waveY - waveH*0.4, 100, 20, 0xeeffff, 0.85).setOrigin(0, 0.5).setScrollFactor(0,1).setDepth(16);
-        const hitSet = new Set();
-        let hitCount = 0;
+        // 全てスクリーン座標で構築(scrollFactor 0)
+        const waveCenterY = screenH * 0.55;
+        const waveH = screenH * 0.78;          // 画面のほぼ縦全体
+        const waveW = 180;                      // 波の厚み
+        const startX = -waveW - 20;
+        const endX = screenW + 80;
+
+        // ── 背景の暗転(津波の暗い影)──
+        const dim = this.add.rectangle(screenW/2, screenH/2, screenW, screenH, 0x000022, 0)
+          .setScrollFactor(0).setDepth(15);
+        this.tweens.add({targets:dim, alpha:0.25, duration:300, yoyo:true, hold:600, onComplete:()=>dim.destroy()});
+
+        // ── 津波本体(複数層で立体感)──
+        const layers = [];
+        const layerDefs = [
+          {col:0x051a44, alpha:0.85, depth:18, offX:-30, offY:8,  scaleY:1.0},
+          {col:0x0a2266, alpha:0.85, depth:19, offX:-15, offY:4,  scaleY:1.0},
+          {col:0x1144aa, alpha:0.85, depth:20, offX:0,   offY:0,  scaleY:1.0},
+          {col:0x2266cc, alpha:0.75, depth:21, offX:18,  offY:-4, scaleY:0.94},
+          {col:0x66bbee, alpha:0.65, depth:22, offX:36,  offY:-10,scaleY:0.85},
+        ];
+        layerDefs.forEach(d=>{
+          const r = this.add.rectangle(startX + d.offX, waveCenterY + d.offY, waveW, waveH * d.scaleY, d.col, d.alpha)
+            .setOrigin(0, 0.5).setScrollFactor(0).setDepth(d.depth);
+          r.setStrokeStyle(d===layerDefs[2]?3:0, 0x88ddff, 0.95);
+          layers.push(r);
+        });
+        // 白い泡(波頭・上端)
+        const foamTop = this.add.rectangle(startX + 30, waveCenterY - waveH*0.4, waveW, 22, 0xeeffff, 0.95)
+          .setOrigin(0, 0.5).setScrollFactor(0).setDepth(23);
+        const foamMid = this.add.rectangle(startX + 50, waveCenterY, waveW * 0.85, 14, 0xddeeff, 0.85)
+          .setOrigin(0, 0.5).setScrollFactor(0).setDepth(23);
+
+        // ── 飛沫パーティクル(連続生成)──
+        const sprays = [];
+        const spraySpawn = this.time.addEvent({
+          delay: 30, loop: true,
+          callback: ()=>{
+            // 波頭付近に飛沫
+            const baseX = layers[2].x + waveW * 0.5;
+            const baseY = waveCenterY - waveH * 0.42 + Math.random() * 30;
+            for(let i=0;i<3;i++){
+              const sx = baseX + (Math.random()-0.5) * waveW;
+              const sy = baseY + Math.random() * 15;
+              const sz = 2 + Math.random()*5;
+              const spray = this.add.circle(sx, sy, sz, 0xddeeff, 0.85).setScrollFactor(0).setDepth(24);
+              this.tweens.add({
+                targets: spray,
+                x: sx + (Math.random()-0.2) * 60,
+                y: sy - 40 - Math.random()*80,
+                alpha: 0,
+                duration: 600 + Math.random()*400,
+                onComplete: ()=>{ try{spray.destroy();}catch(e){} },
+              });
+            }
+          }
+        });
+
+        // 画面振動(津波の迫力)
+        this.cameras.main.shake(1500, 0.008);
+
+        // ── ダメージ判定 ──
         const lv = (pd.awakSkillLv && pd.awakSkillLv.abyss && pd.awakSkillLv.abyss.sk2) || 1;
         const dmgBase = Math.max(1, Math.floor(pd.mag * (1.6 + lv*0.18)));
+        let hitCount = 0;
         const dealDamage = ()=>{
           if(hitCount >= 3) return;
           hitCount++;
-          const waveLeft = wave.x;
-          const waveRight = wave.x + wave.width;
+          // 中央レイヤーの画面X位置で判定
+          const waveScreenLeft = layers[2].x;
+          const waveScreenRight = waveScreenLeft + waveW;
+          const waveScreenTop = waveCenterY - waveH/2;
+          const waveScreenBot = waveCenterY + waveH/2;
           this.enemyDataList.forEach(ed=>{
             if(ed.dead || !ed.sprite) return;
-            const ex = ed.sprite.x;
-            const ey = ed.sprite.y;
-            // 画面座標に変換
-            const sx = ex - camLeft;
-            const sy = ey - camTop;
-            if(sx >= waveLeft && sx <= waveRight && sy >= waveY - waveH/2 && sy <= waveY + waveH/2){
+            // 敵のワールド座標 → スクリーン座標
+            const ex = ed.sprite.x - cam.scrollX;
+            const ey = ed.sprite.y - cam.scrollY;
+            if(ex >= waveScreenLeft - 30 && ex <= waveScreenRight + 30 &&
+               ey >= waveScreenTop && ey <= waveScreenBot){
               let dmg = dmgBase + Phaser.Math.Between(0, pd.mag>>2);
               if(useCurse) dmg *= 2;
               const em = getElementMult('water', ed.element||'none');
               dmg = Math.max(1, Math.floor(dmg * em.mult));
               this.hitEnemy(ed, dmg, false, true, em.label);
-              // ノックバック(強制右へ)
+              // ノックバック(強制右へ・物理速度+位置オフセット)
               if(ed.sprite && ed.sprite.body){
-                ed.sprite.body.setVelocityX(500);
-              }else if(ed.sprite){
-                ed.sprite.x += 50;
+                ed.sprite.body.setVelocityX(600);
+                ed.sprite.body.setVelocityY(-150);
+              }
+              if(ed.sprite){
+                ed.sprite.x += 30;
+              }
+              // ヒット時に水しぶきエフェクト
+              for(let i=0;i<5;i++){
+                const sx = ed.sprite.x + (Math.random()-0.5)*30;
+                const sy = ed.sprite.y - 10 - Math.random()*20;
+                const sp = this.add.circle(sx, sy, 4+Math.random()*4, 0xaaccff, 0.9).setDepth(25);
+                this.tweens.add({
+                  targets: sp, x: sx + Math.random()*40, y: sy - 30 - Math.random()*30,
+                  alpha: 0, duration: 500,
+                  onComplete: ()=>{ try{sp.destroy();}catch(e){} },
+                });
               }
             }
           });
         };
-        // 津波の x を camLeft - 60 から camLeft + screenW + 60 までトゥイーン
-        const totalDur = 1500;
+
+        // ── トゥイーン: 全レイヤーを左→右へ移動 ──
+        const totalDur = 1400;
+        const allShapes = [...layers, foamTop, foamMid];
         this.tweens.add({
-          targets: [wave, foam],
-          x: '+='+(screenW + 120),
+          targets: allShapes,
+          x: '+='+(endX - startX),
           duration: totalDur,
           ease: 'Sine.easeInOut',
           onUpdate: ()=>{
-            // 3 等分で hit
-            const prog = (wave.x - (camLeft - 60)) / (screenW + 120);
-            if(hitCount === 0 && prog > 0.25) dealDamage();
-            else if(hitCount === 1 && prog > 0.55) dealDamage();
-            else if(hitCount === 2 && prog > 0.85) dealDamage();
+            // 中央レイヤーの位置で進捗を計測
+            const prog = (layers[2].x - startX) / (endX - startX);
+            if(hitCount === 0 && prog > 0.20) dealDamage();
+            else if(hitCount === 1 && prog > 0.50) dealDamage();
+            else if(hitCount === 2 && prog > 0.80) dealDamage();
           },
           onComplete: ()=>{
-            try{wave.destroy(); foam.destroy();}catch(e){}
+            allShapes.forEach(o=>{try{o.destroy();}catch(e){}});
+            spraySpawn.remove();
           },
         });
-        try{SE('skill');}catch(e){}
+        try{SE('skill');SE('boss');}catch(e){}
         this.showFloat(p.x, p.y-60, '🌊 リヴァイアサンゲート', '#3399ff');
         this[cdKey] = sk.cd;
       }
       else if(num===3){
-        // ── 深淵の呪印: 次の魔法ダメージ2倍 ──
-        // 既に有効なら何もしない(連打防止)
+        // ── 深淵の呪印: 次の魔法ダメージ2倍 + 派手な発動演出 ──
         if(pd._abyssCurseActive){
           this.showFloat(p.x, p.y-60, '既に呪印が有効', '#88aaff', 'info');
           return;
         }
         pd._abyssCurseActive = true;
-        pd._abyssCurseConsumeOnNext = false;
-        // ── 演出: 青いゲート → プレイヤーを包む → 青いオーラ持続 ──
-        const gate = this.add.rectangle(p.x, p.y-10, 8, 8, 0x000000, 0).setStrokeStyle(4, 0x3366ff, 1.0).setDepth(18);
-        const gateGlow = this.add.circle(p.x, p.y, 10, 0x1144ff, 0.4).setDepth(17);
+        // ── (1) 画面の青フラッシュ + 振動 ──
+        this.cameras.main.flash(400, 30, 80, 200);
+        this.cameras.main.shake(400, 0.012);
+        // ── (2) プレイヤーの足元から深海の渦が立ち昇る ──
+        // 巨大な青いゲート(楕円多重リング)
+        const gates = [];
+        for(let i=0;i<4;i++){
+          const gate = this.add.ellipse(p.x, p.y+5, 30, 12, [0x1144ff,0x3366ff,0x66aaff,0x88ccff][i], 0)
+            .setStrokeStyle(5-i, [0x66aaff,0x88ccff,0xaaddff,0xccf0ff][i], 0.95).setDepth(17+i);
+          gates.push(gate);
+          this.tweens.add({
+            targets: gate,
+            scaleX: 5 + i*0.5, scaleY: 8 + i*0.4,
+            alpha: 0,
+            duration: 700 + i*100,
+            ease: 'Cubic.easeOut',
+            delay: i*60,
+            onComplete: ()=>{ try{gate.destroy();}catch(e){} },
+          });
+        }
+        // ── (3) 深海色の柱がプレイヤーを包む ──
+        const pillar = this.add.rectangle(p.x, p.y, 8, 8, 0x1144ff, 0.85).setDepth(19);
+        pillar.setStrokeStyle(3, 0x66aaff, 0.9);
         this.tweens.add({
-          targets: gate,
-          scaleX: 14, scaleY: 18,
-          duration: 500,
+          targets: pillar,
+          scaleX: 14, scaleY: 28,
+          duration: 350,
           ease: 'Cubic.easeOut',
+          yoyo: true,
+          hold: 200,
+          onComplete: ()=>{ try{pillar.destroy();}catch(e){} },
         });
+        // ── (4) 水泡(バブル)が周囲から吸い込まれる ──
+        for(let i=0;i<24;i++){
+          const ang = (i/24) * Math.PI * 2;
+          const startR = 100 + Math.random()*40;
+          const sx = p.x + Math.cos(ang)*startR;
+          const sy = p.y + Math.sin(ang)*startR;
+          const bubble = this.add.circle(sx, sy, 4+Math.random()*4, 0x88ccff, 0.85)
+            .setStrokeStyle(1, 0xddeeff, 0.9).setDepth(20);
+          this.tweens.add({
+            targets: bubble,
+            x: p.x + (Math.random()-0.5)*10,
+            y: p.y + (Math.random()-0.5)*10,
+            alpha: 0,
+            scaleX: 0.3, scaleY: 0.3,
+            duration: 500 + i*15,
+            ease: 'Cubic.easeIn',
+            onComplete: ()=>{ try{bubble.destroy();}catch(e){} },
+          });
+        }
+        // ── (5) 神秘的な呪印(六角形リング)──
+        const sigil = this.add.text(p.x, p.y, '⛧', {fontSize:'80px', color:'#66aaff', stroke:'#ffffff', strokeThickness:4}).setOrigin(0.5).setDepth(22).setAlpha(0);
         this.tweens.add({
-          targets: gateGlow,
-          scaleX: 6, scaleY: 6,
-          alpha: 0.7,
-          duration: 500,
-          ease: 'Cubic.easeOut',
+          targets: sigil, alpha: 1, scaleX: 1.5, scaleY: 1.5, rotation: Math.PI*2,
+          duration: 600, ease: 'Cubic.easeOut',
           onComplete: ()=>{
-            // ゲートを縮小してプレイヤーに吸い込まれる
             this.tweens.add({
-              targets: [gate, gateGlow],
-              scaleX: 0, scaleY: 0,
-              alpha: 0,
+              targets: sigil, alpha: 0, scaleX: 0.5, scaleY: 0.5,
               duration: 400,
-              ease: 'Cubic.easeIn',
-              onComplete: ()=>{
-                try{gate.destroy(); gateGlow.destroy();}catch(e){}
-                // 青オーラ持続(消費されるまで)
-                const aura = this.add.circle(p.x, p.y, 36, 0x1144ff, 0.35).setStrokeStyle(2, 0x66aaff, 0.8).setDepth(15);
-                pd._abyssCurseAura = aura;
-                // 追従Tween
-                const followTween = this.time.addEvent({
-                  delay: 30, loop: true,
-                  callback: ()=>{
-                    if(!pd._abyssCurseActive){
-                      try{aura.destroy();}catch(e){}
-                      followTween.remove();
-                      return;
-                    }
-                    aura.setPosition(p.x, p.y);
-                  }
-                });
-                // パルス効果
-                this.tweens.add({
-                  targets: aura, scaleX: 1.3, scaleY: 1.3, alpha: 0.5,
-                  duration: 800, yoyo: true, repeat: -1,
-                });
-              },
+              onComplete: ()=>{ try{sigil.destroy();}catch(e){} },
             });
-          },
+          }
         });
-        try{SE('skill');}catch(e){}
-        this.showFloat(p.x, p.y-60, '🌀 深淵の呪印', '#3366ff');
+        // ── (6) 持続オーラ(消費されるまで)──
+        // 大きい外側オーラ(青)
+        const auraOuter = this.add.circle(p.x, p.y, 44, 0x1144ff, 0.25).setDepth(15);
+        // 内側ストロークオーラ
+        const auraInner = this.add.circle(p.x, p.y, 30, 0x3366ff, 0.0).setStrokeStyle(3, 0x66aaff, 0.9).setDepth(16);
+        // 回転リング(呪印のテキスト)
+        const ringTxt = this.add.text(p.x, p.y, '◇', {fontSize:'40px', color:'#88ccff', stroke:'#0a1438', strokeThickness:3}).setOrigin(0.5).setDepth(17).setAlpha(0.85);
+        pd._abyssCurseAura = auraOuter;
+        // 追従 + パルス + 回転
+        const followTween = this.time.addEvent({
+          delay: 30, loop: true,
+          callback: ()=>{
+            if(!pd._abyssCurseActive){
+              try{auraOuter.destroy(); auraInner.destroy(); ringTxt.destroy();}catch(e){}
+              followTween.remove();
+              return;
+            }
+            auraOuter.setPosition(p.x, p.y);
+            auraInner.setPosition(p.x, p.y);
+            ringTxt.setPosition(p.x, p.y);
+            ringTxt.rotation += 0.04;
+          }
+        });
+        // パルス
+        this.tweens.add({
+          targets: auraOuter, scaleX:1.3, scaleY:1.3, alpha:0.45,
+          duration:700, yoyo:true, repeat:-1, ease:'Sine.easeInOut',
+        });
+        this.tweens.add({
+          targets: auraInner, scaleX:1.5, scaleY:1.5, alpha:0.6,
+          duration:900, yoyo:true, repeat:-1, ease:'Sine.easeInOut',
+        });
+        // 立ち昇る泡(オーラ持続中)
+        const bubbleSpawn = this.time.addEvent({
+          delay: 200, loop: true,
+          callback: ()=>{
+            if(!pd._abyssCurseActive){ bubbleSpawn.remove(); return; }
+            const bsx = p.x + (Math.random()-0.5)*30;
+            const bsy = p.y + 20;
+            const bb = this.add.circle(bsx, bsy, 2+Math.random()*3, 0x88ccff, 0.85).setDepth(16);
+            this.tweens.add({
+              targets: bb, y: bsy - 50 - Math.random()*30, alpha: 0,
+              duration: 800 + Math.random()*300,
+              onComplete: ()=>{ try{bb.destroy();}catch(e){} },
+            });
+          }
+        });
+        try{SE('skill');SE('meteor');}catch(e){}
+        this.showFloat(p.x, p.y-70, '⛧ 深淵の呪印', '#66aaff');
         this[cdKey] = sk.cd;
       }
       return;
