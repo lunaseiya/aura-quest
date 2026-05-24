@@ -11407,8 +11407,24 @@ class GameScene extends Phaser.Scene{
             try{SE('click');}catch(e){}
             const myKey = eqB._skKey;
             const at = pd.skillSlots.indexOf(myKey);
-            if(at>=0){ pd.skillSlots[at]=null; }
-            else {
+            if(at>=0){
+              // 既に装備中 → 外す
+              pd.skillSlots[at]=null;
+            } else {
+              // 装備しようとしている
+              // 覚醒スキル: 同じ覚醒の他スキルが既にスロットにいたら拒否
+              // (1覚醒職につきスロットに入るのは1スキルのみ。切替は「外す→装備」の2段階)
+              if(myKey.indexOf('a_')===0){
+                const myAwKey = myKey.split('_')[1];
+                const conflictIdx = pd.skillSlots.findIndex(k =>
+                  k && typeof k==='string' && k!==myKey && k.indexOf('a_'+myAwKey+'_')===0
+                );
+                if(conflictIdx >= 0){
+                  this.showFloat(this.player.x,this.player.y-60,'同じ覚醒のスキルを外してください','#ffaa44');
+                  this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
+                  return;
+                }
+              }
               const empty = pd.skillSlots.indexOf(null);
               if(empty>=0){ pd.skillSlots[empty]=myKey; }
               else { this.showFloat(this.player.x,this.player.y-60,'スロットが満杯です','#ffaa44'); return; }
