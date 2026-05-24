@@ -8094,8 +8094,11 @@ class GameScene extends Phaser.Scene{
     const eqD = eqW ? EQUIP_DEFS[eqW] : null;
     const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
     if(!awakKey) return;
-    // 覚醒スキルレベル確認
-    const lv = pd.awakSkillLv && pd.awakSkillLv[awakKey] && pd.awakSkillLv[awakKey]['sk'+awakIdx] || 0;
+    // 覚醒スキルレベル取得(覚醒中は MAX(10) 扱いにして 3 スキルすべて発動可)
+    let lv = pd.awakSkillLv && pd.awakSkillLv[awakKey] && pd.awakSkillLv[awakKey]['sk'+awakIdx] || 0;
+    if(pd.awakened === awakKey){
+      lv = 10;
+    }
     if(lv <= 0){
       this.showFloat(p.x, p.y-50, '覚醒スキル未習得', '#888888', 'info');
       return;
@@ -13290,7 +13293,11 @@ class GameScene extends Phaser.Scene{
       const awA = AWAKENINGS[awKey];
       if(!awA || !awA.skills || !awA.skills[idx-1]) return null;
       const sk = awA.skills[idx-1];
-      const lv = (pd.awakSkillLv && pd.awakSkillLv[awKey] && pd.awakSkillLv[awKey]['sk'+idx]) || 0;
+      let lv = (pd.awakSkillLv && pd.awakSkillLv[awKey] && pd.awakSkillLv[awKey]['sk'+idx]) || 0;
+      // 覚醒中はその覚醒の全3スキルを MAX(Lv10) 扱いで発動可能にする
+      if(pd.awakened === awKey){
+        lv = 10;
+      }
       const awakIconMap={
         samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
         spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
