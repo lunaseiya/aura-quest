@@ -11290,11 +11290,23 @@ class GameScene extends Phaser.Scene{
       }
     };
 
-    // ── 習得スキルリスト(下部・スクロールなし1画面) ──
+    // ── 習得スキルリスト(下部・複数列レイアウト) ──
+    // 列数: スキル3個ごとに1列追加(最大4列)。画面幅も考慮(セル幅<130pxにしない)
     const LIST_TOP = SLOT_TOP + 18 + SLOT_SZ + 12;
     const LIST_BOT = IBOT - 4;
     const LIST_H = LIST_BOT - LIST_TOP;
-    const rowH = Math.max(40, Math.min(54, LIST_H / Math.max(1,allSkills.length)));
+    const LIST_LEFT = PX - PW/2 + 12;
+    const LIST_RIGHT = PX + PW/2 - 12;
+    const LIST_W = LIST_RIGHT - LIST_LEFT;
+    const minCellW = 140;
+    const colsByCount = Math.min(4, Math.ceil(allSkills.length / 3));
+    const colsByWidth = Math.max(1, Math.floor(LIST_W / minCellW));
+    const cols = Math.max(1, Math.min(colsByCount || 1, colsByWidth));
+    const rowsPerCol = Math.ceil(allSkills.length / cols);
+    const colGap = 6;
+    const cellW = (LIST_W - colGap*(cols-1)) / cols;
+    const cellH = Math.max(56, Math.min(90, LIST_H / Math.max(1, rowsPerCol)));
+    const showDesc = cellH >= 65;
     const listObjs = [];
     const renderList = ()=>{
       // 古いオブジェクトを確実に破棄(1個ごとに try/catch・古い setInteractive を確実に解除)
@@ -11307,7 +11319,13 @@ class GameScene extends Phaser.Scene{
       });
       listObjs.length=0;
       allSkills.forEach((sk,i)=>{
-        const ry = LIST_TOP + i*rowH + rowH/2;
+        // 配置: col-major(左列を rowsPerCol まで埋めてから次列)
+        const col = Math.floor(i / rowsPerCol);
+        const row = i % rowsPerCol;
+        const cellLeft = LIST_LEFT + col*(cellW + colGap);
+        const cellTop = LIST_TOP + row*cellH;
+        const cellCx = cellLeft + cellW/2;
+        const cellCy = cellTop + cellH/2;
         const objs = [];
         const curLv = getCurLv(sk);
         // 確定済みLv(仮Lvを含まない) — 装備可否はこちらで判定
@@ -11326,35 +11344,46 @@ class GameScene extends Phaser.Scene{
             || (sk.bookRequired && (sk.num===4) && !isPassive && ((pd.cls==='warrior'&&pd._hasBerserk)||(pd.cls==='mage'&&pd._hasMeteoorm)));
         }
         const inSlot = pd.skillSlots.indexOf(sk.key) >= 0;
-        // 行背景
-        const rowBg = skadd(this.add.rectangle(PX, ry, PW-24, rowH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
+        // 仮Lv加算量(黄緑表示の判定用)
+        const tmpAdd = (sk.type==='normal') ? (tmpLv[sk.key]||0) : (tmpAwakLv[sk.key]||0);
+
+        // セル背景
+        const rowBg = skadd(this.add.rectangle(cellCx, cellCy, cellW, cellH-4, sk.type==='awak'?0x2a1424:0x0a2230, inSlot?0.5:0.25).setStrokeStyle(1, sk.type==='awak'?0xff66bb:0x2bd4bb, inSlot?1:0.4));
         objs.push(rowBg);
-        // アイコン
-        objs.push(skadd(this.add.text(PX-PW/2+24, ry, sk.icon, {fontSize:'20px'}).setOrigin(0.5)));
-        // 名前+Lv (覚醒の習得中スキルには ★ マーカー)
-        const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+'] ') : '';
-        const activeTag = isAwakActive ? ' ★習得中' : '';
-        objs.push(skadd(this.add.text(PX-PW/2+44, ry-8, jobTag+sk.name+activeTag+'  Lv'+curLv+'/'+sk.maxLv, {fontSize:'12px',fontFamily:'Arial',color: isAwakActive?'#ffdd66':(sk.type==='awak'?'#ffaadd':'#ffffff'),fontStyle:'bold'}).setOrigin(0,0.5)));
-        objs.push(skadd(this.add.text(PX-PW/2+44, ry+8, sk.desc||'', {fontSize:'9px',fontFamily:'Arial',color:'#99aabb'}).setOrigin(0,0.5)));
+        // アイコン(セル左上)
+        objs.push(skadd(this.add.text(cellLeft + 16, cellTop + 14, sk.icon, {fontSize:'18px'}).setOrigin(0.5)));
+        // 名前(アイコンの右)
+        const jobTag = sk.type==='awak' ? ('['+sk.awakJobName+']') : '';
+        const activeTag = isAwakActive ? ' ★' : '';
+        objs.push(skadd(this.add.text(cellLeft + 30, cellTop + 13, jobTag+sk.name+activeTag, {fontSize:'12px',fontFamily:'Arial',color: isAwakActive?'#ffdd66':(sk.type==='awak'?'#ffaadd':'#ffffff'),fontStyle:'bold'}).setOrigin(0,0.5)));
+        // Lv 表示(大きめ・仮加算時は黄緑で「現→新/最大」表示)
+        const lvText = tmpAdd > 0
+          ? ('Lv '+confirmedLv+' → '+curLv+' / '+sk.maxLv)
+          : ('Lv '+curLv+' / '+sk.maxLv);
+        const lvColor = tmpAdd > 0 ? '#aaff66' : (isAwakActive ? '#ffdd66' : '#ffffff');
+        objs.push(skadd(this.add.text(cellLeft + 30, cellTop + 30, lvText, {fontSize:'14px',fontFamily:'Arial',color: lvColor, fontStyle:'bold', stroke:'#000', strokeThickness:2}).setOrigin(0,0.5)));
+        // 説明(セルが大きい時のみ)
+        if(showDesc){
+          objs.push(skadd(this.add.text(cellLeft + 10, cellTop + 47, sk.desc||'', {fontSize:'9px',fontFamily:'Arial',color:'#99aabb'}).setOrigin(0,0.5)));
+        }
 
-        // ── 右側ボタン群(位置固定) ──
-        // レイアウト: [−] [+] ... [装備] を絶対座標で固定配置
+        // ── ボタン群(セル下部に配置) ──
         const canLvUp = (sk.type==='normal') ? (!sk.bookRequired || equippable) : sk.canLearn;
-        const RIGHT = PX + PW/2 - 12;       // 右端基準
-        const EQ_W = 54;                     // 装備ボタン幅
-        const eqCx = RIGHT - EQ_W/2;         // 装備ボタン中心(固定)
-        const plusCx = RIGHT - EQ_W - 8 - 16;   // +ボタン中心(固定)
-        const minusCx = plusCx - 34;             // −ボタン中心(固定)
+        const btnY = cellTop + cellH - 14;       // ボタン中心Y(下端から14px上)
+        const EQ_W = Math.min(50, cellW * 0.30);   // 装備ボタン幅
+        const eqCx = cellLeft + cellW - EQ_W/2 - 4;
+        const plusCx = eqCx - EQ_W/2 - 6 - 13;
+        const minusCx = plusCx - 28;
 
-        // 装備ボタン(最右・固定位置) — 確定済みで装備可能な時のみ
+        // 装備ボタン(セル右下) — 確定済みで装備可能な時のみ
         if(equippable){
-          const eqB = skadd(this.add.rectangle(eqCx, ry, EQ_W, rowH-12, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
+          const eqB = skadd(this.add.rectangle(eqCx, btnY, EQ_W, 22, inSlot?0x3a2a0a:0x0a3a1a, 0.9).setStrokeStyle(1, inSlot?0xffaa44:0x44ff88).setInteractive({useHandCursor:true}));
           // setData ではなく直接プロパティに保持(Phaser DataManager 経由を排除)
           eqB._skKey = sk.key;
           eqB._skName = sk.name;
           eqB._rowIdx = i;
           eqB._inSlot = inSlot;
-          const eqLbl = skadd(this.add.text(eqCx, ry, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
+          const eqLbl = skadd(this.add.text(eqCx, btnY, inSlot?'外す':'装備', {fontSize:'11px',fontFamily:'Arial',color: inSlot?'#ffcc66':'#88ff99',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(eqB); objs.push(eqLbl);
           eqB.on('pointerdown', ()=>{
             // 二重発火防止
@@ -11372,10 +11401,10 @@ class GameScene extends Phaser.Scene{
             this.time.delayedCall(1, ()=>{ renderSlots(); renderList(); this._rebuildSkillButtons(); });
           });
         }
-        // +/- Lvボタン(固定位置・装備ボタンの有無に関係なく同じ場所)
+        // +/- Lvボタン(セル右下・装備ボタンの左側)
         if(canLvUp && curLv < sk.maxLv){
-          const plusB = skadd(this.add.rectangle(plusCx, ry, 28, rowH-12, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
-          const plusLbl = skadd(this.add.text(plusCx, ry, '+', {fontSize:'18px',fontFamily:'Arial',color:'#66ccff'}).setOrigin(0.5));
+          const plusB = skadd(this.add.rectangle(plusCx, btnY, 24, 22, 0x113355, 0.85).setStrokeStyle(1, 0x3399ff).setInteractive({useHandCursor:true}));
+          const plusLbl = skadd(this.add.text(plusCx, btnY, '+', {fontSize:'16px',fontFamily:'Arial',color:'#66ccff',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(plusB); objs.push(plusLbl);
           plusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
@@ -11425,8 +11454,8 @@ class GameScene extends Phaser.Scene{
               applyPlus();
             }
           });
-          const minusB = skadd(this.add.rectangle(minusCx, ry, 28, rowH-12, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
-          const minusLbl = skadd(this.add.text(minusCx, ry, '−', {fontSize:'18px',fontFamily:'Arial',color:'#ff6699'}).setOrigin(0.5));
+          const minusB = skadd(this.add.rectangle(minusCx, btnY, 24, 22, 0x331122, 0.85).setStrokeStyle(1, 0xaa3366).setInteractive({useHandCursor:true}));
+          const minusLbl = skadd(this.add.text(minusCx, btnY, '−', {fontSize:'16px',fontFamily:'Arial',color:'#ff6699',fontStyle:'bold'}).setOrigin(0.5));
           objs.push(minusB); objs.push(minusLbl);
           minusB.on('pointerdown', ()=>{
             if(sk.type==='normal'){
