@@ -8815,11 +8815,11 @@ class GameScene extends Phaser.Scene{
         const sinA = Math.sin(targetAng);
         const muzzleOffsetX = cosA * 20;
         const muzzleOffsetY = sinA * 20;
-        // 移動ロック(短時間)
+        // 移動ロック(チャージ + 発射まで)
         this._lockMovement = true;
-        this.time.delayedCall(260, ()=>{ this._lockMovement = false; });
-        // 簡易チャージ + 発射(プリザーブドバスター短縮版・赤オレンジ)
-        const chargeDur = 220;
+        // チャージ時間: 溜めるのを明確に演出
+        const chargeDur = 550;
+        this.time.delayedCall(chargeDur + 80, ()=>{ this._lockMovement = false; });
         const chargeBall = this.add.circle(p.x + muzzleOffsetX, p.y + muzzleOffsetY, 8, 0xffaa66, 1).setDepth(20).setStrokeStyle(2, 0xffffff, 0.9);
         const heatRing = this.add.circle(p.x, p.y+10, 30, 0xff5522, 0).setStrokeStyle(3, 0xff7744, 0.8).setDepth(7);
         this.tweens.add({
@@ -8837,22 +8837,30 @@ class GameScene extends Phaser.Scene{
             if(this.player && heatRing.scene) heatRing.setPosition(this.player.x, this.player.y+10);
           },
         });
-        // 火花パーティクル
-        for(let i=0;i<10;i++){
-          this.time.delayedCall(i*15, ()=>{
+        // 火花パーティクル(チャージ時間を埋める量で生成)
+        const particleCount = 24;
+        for(let i=0;i<particleCount;i++){
+          this.time.delayedCall(i * (chargeDur - 200) / particleCount, ()=>{
             if(!this.player) return;
             const ang = Math.random() * Math.PI * 2;
-            const dist = 60 + Math.random() * 50;
+            const dist = 80 + Math.random() * 60;
             const sx2 = this.player.x + Math.cos(ang) * dist;
             const sy2 = this.player.y + Math.sin(ang) * dist;
-            const particle = this.add.circle(sx2, sy2, 3+Math.random()*2, 0xff8844, 0.9).setDepth(18);
+            const colors = [0xff5522, 0xff8844, 0xffaa44, 0xffeecc];
+            const col = colors[Phaser.Math.Between(0,3)];
+            const particle = this.add.circle(sx2, sy2, 3+Math.random()*2, col, 0.9).setDepth(18);
             this.tweens.add({
               targets: particle, x: this.player.x + muzzleOffsetX, y: this.player.y + muzzleOffsetY,
-              alpha: 0, scaleX: 0.2, scaleY: 0.2, duration: chargeDur - 20,
+              alpha: 0, scaleX: 0.2, scaleY: 0.2, duration: 350 + Math.random()*150,
               onComplete: ()=>{try{particle.destroy();}catch(e){}},
             });
           });
         }
+        // 砲口の脈動エフェクト(溜まり感)
+        this.tweens.add({
+          targets: chargeBall, alpha: 0.7,
+          duration: 180, yoyo: true, repeat: Math.floor(chargeDur / 360),
+        });
         // チャージ完了→発射
         this.time.delayedCall(chargeDur, ()=>{
           chargeFollow.remove();
@@ -8956,13 +8964,31 @@ class GameScene extends Phaser.Scene{
           });
         }
         // (4) 画面下から漢字「撃」が現れる(カプコン感)
+        // 出現 → 中央でホールド → ビーム発射後にフェードアウト
         const kanji = this.add.text(this.scale.width/2, this.scale.height + 60, '撃', {
-          fontSize:'120px', color:'#ff4422', stroke:'#ffeecc', strokeThickness:8, fontStyle:'bold'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setAlpha(0.9);
+          fontSize:'140px', color:'#ff4422', stroke:'#ffeecc', strokeThickness:10, fontStyle:'bold'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setAlpha(0);
+        // 出現フェーズ: 下から飛び上がり+拡大+不透明化
         this.tweens.add({
-          targets: kanji, y: this.scale.height * 0.55, alpha: 0,
-          duration: chargeDur, ease: 'Cubic.easeOut',
-          onComplete: ()=>{try{kanji.destroy();}catch(e){}},
+          targets: kanji, y: this.scale.height * 0.45, alpha: 1, scaleX: 1.15, scaleY: 1.15,
+          duration: 350, ease: 'Back.easeOut',
+        });
+        // 滞在フェーズ: 軽く脈動して目立たせる
+        this.time.delayedCall(380, ()=>{
+          if(!kanji.scene) return;
+          this.tweens.add({
+            targets: kanji, scaleX: 1.25, scaleY: 1.25,
+            duration: 250, yoyo: true, repeat: 2,
+          });
+        });
+        // 退場フェーズ: ビーム発射後に派手に弾けて消える
+        this.time.delayedCall(chargeDur + 1400, ()=>{
+          if(!kanji.scene) return;
+          this.tweens.add({
+            targets: kanji, scaleX: 3, scaleY: 3, alpha: 0, rotation: 0.15,
+            duration: 500, ease: 'Cubic.easeIn',
+            onComplete: ()=>{try{kanji.destroy();}catch(e){}},
+          });
         });
         // チャージ完了→発射
         this.time.delayedCall(chargeDur, ()=>{
@@ -9003,11 +9029,14 @@ class GameScene extends Phaser.Scene{
               this.tweens.add({targets:[r2], scaleX:2, scaleY:2, alpha:0, duration:280, onComplete:()=>r2.destroy()});
             });
           }
-          // ── 多段ヒット(3回ヒット判定) ──
+          // ── 多段ヒット(10連続) ──
           const lv = (pd.awakSkillLv && pd.awakSkillLv.busters && pd.awakSkillLv.busters.sk2) || 1;
-          const baseDmg = Math.max(1, Math.floor(pd.atk*3.5 + lv*15));
-          for(let hit=0; hit<3; hit++){
-            this.time.delayedCall(hit*120, ()=>{
+          // 3hit→10hit に変更したのでダメージは少し抑えてバランス
+          const baseDmg = Math.max(1, Math.floor(pd.atk*1.4 + lv*7));
+          const HIT_COUNT = 10;
+          const HIT_INTERVAL = 90;  // 90ms 間隔 = 約 900ms で全段
+          for(let hit=0; hit<HIT_COUNT; hit++){
+            this.time.delayedCall(hit*HIT_INTERVAL, ()=>{
               const targets = this.enemyDataList.filter(ed=>{
                 if(ed.dead || !ed.sprite) return false;
                 const dx = ed.sprite.x - sx;
@@ -9022,10 +9051,14 @@ class GameScene extends Phaser.Scene{
                 const em = getElementMult('fire', ed.element||'none');
                 const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
                 this.hitEnemy(ed, dmg, isCrit, true, em.label);
-                // 着弾炎エフェクト
-                const burst = this.add.text(ed.sprite.x + (Math.random()-0.5)*30, ed.sprite.y + (Math.random()-0.5)*20, '💥', {fontSize:'36px'}).setOrigin(0.5).setDepth(23);
-                this.tweens.add({targets: burst, alpha:0, scaleX:2.2, scaleY:2.2, duration:380, onComplete:()=>burst.destroy()});
+                // 着弾炎エフェクト(段数が多いので軽量化)
+                if(hit % 2 === 0){
+                  const burst = this.add.text(ed.sprite.x + (Math.random()-0.5)*30, ed.sprite.y + (Math.random()-0.5)*20, '💥', {fontSize:'30px'}).setOrigin(0.5).setDepth(23);
+                  this.tweens.add({targets: burst, alpha:0, scaleX:2, scaleY:2, duration:320, onComplete:()=>burst.destroy()});
+                }
               });
+              // 軽い画面振動を各段で
+              if(hit % 3 === 0) this.cameras.main.shake(120, 0.006);
             });
           }
         });
@@ -9094,6 +9127,8 @@ class GameScene extends Phaser.Scene{
         this.tweens.add({targets:buffAura, scaleX:1.3, scaleY:1.3, alpha:0.45, duration:600, yoyo:true, repeat:-1});
         try{SE('skill');SE('boss');}catch(e){}
         this.showFloat(p.x, p.y-80, '⚙ アーマーパージ', '#ff5522');
+        // 画面上部に残時間バーを表示(パリィと同じ仕組み)
+        this.showBuffTimer('⚙ アーマーパージ', '#ff5522', dur*1000);
         this.updateHUD();
         this[cdKey] = sk.cd;
       }
