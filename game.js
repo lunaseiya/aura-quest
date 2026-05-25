@@ -8963,32 +8963,16 @@ class GameScene extends Phaser.Scene{
             });
           });
         }
-        // (4) 画面下から漢字「撃」が現れる(カプコン感)
-        // 出現 → 中央でホールド → ビーム発射後にフェードアウト
+        // (4) 画面下から漢字「撃」が現れる(カプコン感・元の仕様に少し足したシンプル版)
+        // 出現 → そのままフェードアウト。砲撃の邪魔にならない長さ。
         const kanji = this.add.text(this.scale.width/2, this.scale.height + 60, '撃', {
-          fontSize:'140px', color:'#ff4422', stroke:'#ffeecc', strokeThickness:10, fontStyle:'bold'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setAlpha(0);
-        // 出現フェーズ: 下から飛び上がり+拡大+不透明化
+          fontSize:'130px', color:'#ff4422', stroke:'#ffeecc', strokeThickness:8, fontStyle:'bold'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setAlpha(0.95);
         this.tweens.add({
-          targets: kanji, y: this.scale.height * 0.45, alpha: 1, scaleX: 1.15, scaleY: 1.15,
-          duration: 350, ease: 'Back.easeOut',
-        });
-        // 滞在フェーズ: 軽く脈動して目立たせる
-        this.time.delayedCall(380, ()=>{
-          if(!kanji.scene) return;
-          this.tweens.add({
-            targets: kanji, scaleX: 1.25, scaleY: 1.25,
-            duration: 250, yoyo: true, repeat: 2,
-          });
-        });
-        // 退場フェーズ: ビーム発射後に派手に弾けて消える
-        this.time.delayedCall(chargeDur + 1400, ()=>{
-          if(!kanji.scene) return;
-          this.tweens.add({
-            targets: kanji, scaleX: 3, scaleY: 3, alpha: 0, rotation: 0.15,
-            duration: 500, ease: 'Cubic.easeIn',
-            onComplete: ()=>{try{kanji.destroy();}catch(e){}},
-          });
+          targets: kanji, y: this.scale.height * 0.50, alpha: 0,
+          duration: chargeDur + 200,    // 元(chargeDur)に 200ms だけ追加
+          ease: 'Cubic.easeOut',
+          onComplete: ()=>{try{kanji.destroy();}catch(e){}},
         });
         // チャージ完了→発射
         this.time.delayedCall(chargeDur, ()=>{
