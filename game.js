@@ -17285,6 +17285,30 @@ const _handleResize=()=>{
 window.addEventListener('orientationchange',()=>{setTimeout(_handleResize,500);});
 window.addEventListener('resize',()=>{setTimeout(_handleResize,300);});
 
+// ── 初回起動時のサイズ問題対策 ──
+// モバイルブラウザ(iOS Safari 等)のアドレスバー収納タイミングのズレで、
+// 初回ロード時に Phaser が小さい viewport を取得し、画面下部に余白が出ることがある。
+// 数回 scale.refresh + UIシーン restart で確実にフィットさせる。
+const _forceResize = ()=>{
+  try{
+    if(_game && _game.scale && typeof _game.scale.refresh==='function'){
+      _game.scale.refresh();
+    }
+  }catch(e){}
+  _handleResize();
+};
+window.addEventListener('load', ()=>{
+  // load 直後 + 短遅延 + アドレスバー収納待ちの3回
+  _forceResize();
+  setTimeout(_forceResize, 200);
+  setTimeout(_forceResize, 700);
+  setTimeout(_forceResize, 1500);
+});
+// visualViewport があれば追加で監視(モバイルでより正確)
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ()=>{ setTimeout(_forceResize, 100); });
+}
+
 // デバッグ用: ブラウザのコンソールから game.xxx でアクセスできるように
 window.game = _game;
 

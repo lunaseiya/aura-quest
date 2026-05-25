@@ -22,10 +22,17 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
     html,body{
-      width:100%;height:100%;
+      width:100vw;
+      /* iOS Safari 等の動的アドレスバー対応:
+         100% だとアドレスバー表示込みの高さになり、後で縮むと余白が出る。
+         100dvh は表示中ビューポートの高さに動的追従する */
+      height:100vh;
+      height:100dvh;
       overflow:hidden;
       background:#000;
       display:block;
+      position:fixed;
+      top:0; left:0;
     }
     canvas{
       display:block;
