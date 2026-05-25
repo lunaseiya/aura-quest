@@ -15122,7 +15122,21 @@ class GameScene extends Phaser.Scene{
     // ヒットフラッシュ（敵が赤く光る）
     ed.sprite.setTint(0xff4444);
     this.time.delayedCall(120,()=>{if(!ed.dead&&ed.sprite.active)ed.sprite.clearTint();});
-    this.tweens.add({targets:ed.sprite,alpha:0.3,duration:80,yoyo:true});
+    // 多段ヒット時に alpha tween が重なると yoyo の戻り先が中途半端な値で
+    // 固定され「敵が薄くなったまま」になるバグを防ぐ:
+    //  1) 進行中の hit tween があれば停止 (ed._hitTween)
+    //  2) alpha を明示的に 1.0 にリセットしてから新規 tween
+    //  3) onComplete/onStop で必ず 1.0 に戻す
+    if(ed._hitTween){ try{ed._hitTween.stop();}catch(e){} ed._hitTween=null; }
+    ed.sprite.setAlpha(1.0);
+    ed._hitTween = this.tweens.add({
+      targets: ed.sprite,
+      alpha: 0.3,
+      duration: 80,
+      yoyo: true,
+      onComplete: ()=>{ if(ed.sprite && ed.sprite.active) ed.sprite.setAlpha(1.0); ed._hitTween=null; },
+      onStop:     ()=>{ if(ed.sprite && ed.sprite.active) ed.sprite.setAlpha(1.0); ed._hitTween=null; },
+    });
     if(ed.isBoss)this.updateBossHP(ed);
     if(ed.hp<=0)this.killEnemy(ed);
   }
