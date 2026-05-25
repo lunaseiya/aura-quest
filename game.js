@@ -9102,7 +9102,11 @@ class GameScene extends Phaser.Scene{
               pd._armorPurgeAura = null;
               auraFollow.remove();
               try{this.updateHUD();}catch(e){}
-              this.showFloat(p.x, p.y-50, 'アーマーパージ終了', '#ff8844', 'info');
+              // 覚醒が既に解除されている場合(_deactivateAwakening 経由で来た時)は
+              // 「アーマーパージ終了」メッセージを出さない
+              if(pd.awakened === 'busters'){
+                this.showFloat(p.x, p.y-50, 'アーマーパージ終了', '#ff8844', 'info');
+              }
               return;
             }
             buffAura.setPosition(p.x, p.y);
@@ -13487,12 +13491,11 @@ class GameScene extends Phaser.Scene{
     if(pd._abyssCurseAura){try{pd._abyssCurseAura.destroy();}catch(e){} pd._abyssCurseAura=null;}
     this._wbActive = false;
     // バスターズ専用状態クリア(アーマーパージ・ストリーク・移動ロック)
-    if(pd._armorPurgeOrig){
-      pd.spd = pd._armorPurgeOrig.spd;
-      pd.atk = pd._armorPurgeOrig.atk;
-      pd.def = pd._armorPurgeOrig.def;
-      pd._armorPurgeOrig = null;
-    }
+    // 注: spd/atk/def は上の _preAwakeStats 復元で覚醒前の値(=元の100%)に既に戻っている。
+    //     ここで _armorPurgeOrig.spd 等を再代入すると statMul 適用後の値(spd×0.7 等)で
+    //     上書きしてしまい、再覚醒のたびに speed が複合的に減衰するバグになる。
+    //     フラグとビジュアルだけクリアして、ステータスは触らない。
+    pd._armorPurgeOrig = null;
     pd._armorPurgeUntil = null;
     if(pd._armorPurgeAura){try{pd._armorPurgeAura.destroy();}catch(e){} pd._armorPurgeAura=null;}
     pd._bcStreak = 0;
