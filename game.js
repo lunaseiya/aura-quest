@@ -65,6 +65,7 @@ function makeSaveSummary(pd,stage){
     4:'🏜 ST.4 海と砂漠の境', 5:'🏛 ST.5 砂漠の集落跡', 6:'💀 ST.6 砂漠の果て',
     7:'⛰ ST.7 天空への路', 8:'☁ ST.8 天空の島々',
     9:'🌈 ST.9 虹の道',
+    13:'🌈 ST.13 虹の道 II',
     10:'⚔ DUN.1 地下迷宮',
     11:'⛏ DUN.2 炭鉱1F',
     12:'⛏ DUN.2 炭鉱2F',
@@ -592,6 +593,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st7', BASE+'maps/st7.png');
     this.load.image('map_st8', BASE+'maps/st8.png');
     this.load.image('map_rainbow1', BASE+'maps/rainbow-1.png');
+    this.load.image('map_rainbow2', BASE+'maps/rainbow-2.png');
     this.load.image('map_dun1', BASE+'maps/dun1.png');
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/town1.png');
@@ -4872,9 +4874,32 @@ const STAGE_CONFIG={
   9:{name:'ST.9 虹の道',bgmKey:'sky',
     mapImage:'map_rainbow1', mapType:'sky', mapW:1881, mapH:1881,
     tiles:[],tileWeights:[],objects:[],objPos:[],
-    enemies:[],
-    boss:null,
-    bossThreshold:999,
+    // 敵: 中央の石畳の道に沿って下→上に配置(計25体)
+    enemies:[
+      // ── 下段(入口付近・Y=1500〜1650) ──
+      ['cloud_monkey', 850, 1550], ['cloud_monkey', 1030, 1550],
+      ['treant',       760, 1450], ['treant',      1120, 1450],
+      // ── 中下段(Y=1150〜1350) ──
+      ['cloud_monkey', 870, 1300], ['cloud_monkey', 1010, 1300],
+      ['rock_golem',   780, 1200], ['giant',       1100, 1200],
+      // ── 中段(Y=850〜1050) ──
+      ['treant',       820, 950],  ['treant',      1060, 950],
+      ['cloud_monkey', 920, 850],  ['giant',        940, 1000],
+      ['rock_golem',   790, 880],
+      // ── 中上段(Y=550〜750) ──
+      ['cloud_monkey', 860, 700],  ['cloud_monkey',1020, 700],
+      ['giant',        780, 600],  ['rock_golem',  1100, 600],
+      // ── 上段(門番手前・Y=350〜500) ──
+      ['treant',       820, 450],  ['treant',      1060, 450],
+      ['giant',        890, 380],  ['rock_golem',   990, 380],
+      ['cloud_monkey', 760, 500],  ['cloud_monkey',1120, 500],
+      ['rock_golem',   940, 430],
+    ],
+    // 門番: 虹のゲート手前の上端中央(幻惑の女王スプライト流用)
+    boss:{id:'mistress', x:940, y:280},
+    bossThreshold:20,
+    // 門番撃破後に上端ゲート開放 → ST.13 虹の道 II
+    dungeonGate:{x:940, y:210, to:13, label:'🌈 虹の道 II'},
     portalTo:null, portalToLabel:'',
     // 戻るポータル: 下端(ST.8 から来た入口)
     portalBack:8, portalBackLabel:'☁ ST.8 天空の島々へ', portalBackKey:'portal_st8',
@@ -4884,6 +4909,8 @@ const STAGE_CONFIG={
     // ST.8 から portalAlt 経由で来た時のスポーン位置 = 下端中央(rainbow-1 の下端)
     spawnX:940, spawnY:1720,
     spawnFromBackX:940, spawnFromBackY:1720,
+    // ST.13 から戻ってきた時のスポーン位置 = 上端ゲート下(portalBackSpawn 経由で受け取る)
+    // ※ ST.13 の portalBackSpawnX/Y で magicReturnX/Y として渡される
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:1896,mapH:3318,
@@ -5560,6 +5587,25 @@ const STAGE_CONFIG={
     walkZones:[
       {x:1200, y:60, w:110, h:200},
     ],
+  },
+  // ── ST.13 虹の道 II(rainbow-2)── ST.9 上端ゲートから繋がる空中ステージ
+  13:{name:'ST.13 虹の道 II', bgmKey:'sky',
+    mapImage:'map_rainbow2', mapType:'sky', mapW:1881, mapH:1881,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    // 敵: まだ無し(後で配置可能・現状は静かな道中)
+    enemies:[],
+    boss:null,
+    bossThreshold:999,
+    portalTo:null, portalToLabel:'',
+    // 戻るポータル: 下端(ST.9 から来た入口)
+    portalBack:9, portalBackLabel:'🌈 ST.9 虹の道へ', portalBackKey:'portal_st8',
+    portalBackX:940, portalBackY:1850,
+    // ST.9 に戻った時のスポーン位置 = 上端ゲート下(dungeonGate 再侵入回避のため少し下)
+    // portalBackSpawnX/Y は magicReturnX/Y として渡され ST.9 の spawn に使用される
+    portalBackSpawnX:940, portalBackSpawnY:380,
+    // ST.9 から dungeonGate 経由で来た時のスポーン位置 = 下端中央(rainbow-2 の下端)
+    spawnX:940, spawnY:1720,
+    spawnFromBackX:940, spawnFromBackY:1720,
   },
 };
 // ══════════════════════════════════════
