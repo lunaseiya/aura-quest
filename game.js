@@ -463,13 +463,14 @@ function makePlayerData(cls){
     // 各覚醒形態(samurai/heavy/spirit/youma)ごとに sk1/sk2/sk3 のLvを管理
     awakSkillLv:{
       samurai:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒の習得状況
-      heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒
+      heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒(重装兵器)
+      busters:{sk1:0,sk2:0,sk3:0},  // ボマー覚醒(バスターズ換装)
       spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
       youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(妖魔)
       abyss:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(アビスウォーロック)
     },
     // ── 各覚醒職で現在「習得中」のスキルID(現在は装備制限のみで参照は廃止)──
-    awakActive:{ samurai:null, heavy:null, spirit:null, youma:null, abyss:null },
+    awakActive:{ samurai:null, heavy:null, busters:null, spirit:null, youma:null, abyss:null },
     // ── スキルスロット(覚醒前に戦闘で使うスキル6枠) ──
     // 各要素はスキルキー or null。キー形式:
     //   通常スキル: 'n1','n2','n3','n4'
@@ -3752,6 +3753,8 @@ const EQUIP_DEFS={
   muramasa:      {name:'妖刀 村雨',  slot:'weapon_main',icon:'🗡', desc:'呪われた妖刀。装備すると侍化が可能になる',stats:{atk:18,agi:5},     price:0,   col:0xff2244, classOnly:'warrior', awakening:'samurai'},
   // ── ヘヴィカスタマイズ(ボマー専用・覚醒「重装兵器」を発動可能) ──
   heavy_customize:{name:'ヘヴィカスタマイズ',slot:'weapon_main',icon:'🦾', desc:'重武装の改造装備。装備すると換装が可能になる',stats:{atk:22,def:5},price:0,col:0x4488cc, classOnly:'bomber', awakening:'heavy', twoHand:true},
+  // ── バスターライフル(ボマー専用・覚醒「バスターズ換装」)──
+  buster_rifle:{name:'バスターライフル',slot:'weapon_main',icon:'🔫', desc:'対獣用大火力ライフル。装備するとバスターズへの換装が可能',stats:{atk:24,hit:3},price:0,col:0xff5522, classOnly:'bomber', awakening:'busters', twoHand:true},
   // ── 精霊の弓(アーチャー専用・覚醒「転生」を発動可能) ──
   spirit_bow:    {name:'精霊の弓',  slot:'weapon_main',icon:'🏹', desc:'精霊が宿る神秘の弓。装備するとエルフ化が可能になる',stats:{atk:20,hit:5},price:0,col:0x88ee88, classOnly:'archer', awakening:'spirit'},
   // ── ダークイリュージョンの杖(マジシャン専用・覚醒「妖魔化」を発動可能) ──
@@ -5623,6 +5626,29 @@ const AWAKENINGS = {
       {id:'sk3', name:'プリザーブドバスター',cost:28, cd:5, desc:'氷の波動で正面範囲に攻撃+凍結'},
     ],
   },
+  // ── バスターズ換装(ボマー)──
+  busters: {
+    name: 'バスターズ',
+    icon: '🔫',
+    activateLabel: 'バスターズ換装',
+    deactivateLabel: '解除',
+    baseClass: 'bomber',
+    requiresEquip: 'buster_rifle',
+    sprite:'player_heavy', animPrefix:'heavy',          // 仮: ヘヴィスプライト流用
+    baseSprite:'player_bomber', baseAnimPrefix:'bomber',
+    auraColor:0xff4422, facingFlip:'right',
+    tintColor:0xff7744,                                 // 赤オレンジに着色
+    cellBg: 0x3a1408, cellStroke: 0xff7744, cellText: '#ffaa66',
+    statMul: {
+      spd: 0.7,    // 速度減
+      def: 0.85,   // DEF わずかにダウン
+    },
+    skills: [
+      {id:'sk1', name:'バスターキャノン',  cost:14, cd:0,  desc:'連射可能なキャノン砲(動かなければCDなし・3発まで範囲拡大)'},
+      {id:'sk2', name:'メガトンキャノン',  cost:45, cd:10, desc:'多段高火力+広範囲爆発(火属性)'},
+      {id:'sk3', name:'アーマーパージ',    cost:25, cd:20, desc:'装甲解放: 速度UP・攻撃UP・防御DOWN'},
+    ],
+  },
   // ── 転生・エルフ(アーチャー)──
   spirit: {
     name: 'エルフ',
@@ -5840,15 +5866,25 @@ class GameScene extends Phaser.Scene{
           if(lv>0||hasBook){ pd.skillSlots[si++]='n'+(idx+1); }
         });
       }
-      // awakSkillLv.abyss が無い旧セーブの補完
+      // awakSkillLv.abyss / busters が無い旧セーブの補完
       if(pd.awakSkillLv && !pd.awakSkillLv.abyss){
         pd.awakSkillLv.abyss = {sk1:0, sk2:0, sk3:0};
+      }
+      if(pd.awakSkillLv && !pd.awakSkillLv.busters){
+        pd.awakSkillLv.busters = {sk1:0, sk2:0, sk3:0};
       }
       // マジシャンキャラには riviary_staff を1本配布(まだ持っていなければ)
       if(pd.cls==='mage'){
         if(!pd.items) pd.items={};
         if(!pd.items['riviary_staff']){
           pd.items['riviary_staff'] = 1;
+        }
+      }
+      // ボマーキャラには buster_rifle を1本配布
+      if(pd.cls==='bomber'){
+        if(!pd.items) pd.items={};
+        if(!pd.items['buster_rifle']){
+          pd.items['buster_rifle'] = 1;
         }
       }
     }
@@ -6479,6 +6515,7 @@ class GameScene extends Phaser.Scene{
       const awakSpriteMap = {
         samurai: 'player_samurai',
         heavy:   'player_heavy',
+        busters: 'player_heavy',  // 仮: ヘヴィスプライトを流用、赤tintで差別化
         youma:   'player_youma',
         spirit:  'player_elf',
         abyss:   'player_mage',   // 仮: マジシャンスプライトを流用、青tintで差別化
@@ -6486,6 +6523,7 @@ class GameScene extends Phaser.Scene{
       const awakAnimPrefix = {
         samurai: 'samurai',
         heavy:   'heavy',
+        busters: 'heavy',
         youma:   'youma',
         spirit:  'elf',
         abyss:   'mage',
@@ -8742,6 +8780,322 @@ class GameScene extends Phaser.Scene{
 
         this.showFloat(p.x, p.y-80, '❄ プリザーブドバスター', '#aaeeff');
         this[cdKey]=sk.cd;
+      }
+      return;
+    }
+
+    // ─ 覚醒「バスターズ換装」(busters) ─
+    if(pd.awakened==='busters'){
+      if(num===1){
+        // ── バスターキャノン: 連射可能・動かなければCDなし・3発まで範囲拡大 ──
+        // 移動検出: 発動時にjoystick入力があれば「動いている」と判定
+        const movingNow = (Math.abs(this.joyDx||0) > 0.1 || Math.abs(this.joyDy||0) > 0.1);
+        const now = this.time.now;
+        const lastFire = pd._bcLastFire || 0;
+        const streakAlive = (now - lastFire) < 1500; // 1.5秒以内なら連続扱い
+        if(movingNow || !streakAlive){
+          pd._bcStreak = 0;
+        }
+        pd._bcStreak = Math.min(2, (pd._bcStreak||0));  // 表示用にcap
+        const rangeMul = Math.pow(1.2, pd._bcStreak);
+        // 向き取得
+        let targetAng = this._lastAngle || 0;
+        let nearest=null, nd=500;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<nd){nd=d; nearest=ed;}
+        });
+        if(nearest){
+          targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
+        }
+        const beamLen = 700 * rangeMul;
+        const beamWidth = 80 * rangeMul;
+        const cosA = Math.cos(targetAng);
+        const sinA = Math.sin(targetAng);
+        const muzzleOffsetX = cosA * 20;
+        const muzzleOffsetY = sinA * 20;
+        // 移動ロック(短時間)
+        this._lockMovement = true;
+        this.time.delayedCall(260, ()=>{ this._lockMovement = false; });
+        // 簡易チャージ + 発射(プリザーブドバスター短縮版・赤オレンジ)
+        const chargeDur = 220;
+        const chargeBall = this.add.circle(p.x + muzzleOffsetX, p.y + muzzleOffsetY, 8, 0xffaa66, 1).setDepth(20).setStrokeStyle(2, 0xffffff, 0.9);
+        const heatRing = this.add.circle(p.x, p.y+10, 30, 0xff5522, 0).setStrokeStyle(3, 0xff7744, 0.8).setDepth(7);
+        this.tweens.add({
+          targets: chargeBall, scaleX: 3.5*rangeMul, scaleY: 3.5*rangeMul,
+          duration: chargeDur, ease: 'Cubic.easeOut',
+        });
+        this.tweens.add({
+          targets: heatRing, scaleX: 1.6*rangeMul, scaleY: 1.6*rangeMul, alpha: 1,
+          duration: chargeDur/2, yoyo: true,
+        });
+        const chargeFollow = this.time.addEvent({
+          delay: 16, loop: true,
+          callback: ()=>{
+            if(this.player && chargeBall.scene) chargeBall.setPosition(this.player.x + muzzleOffsetX, this.player.y + muzzleOffsetY);
+            if(this.player && heatRing.scene) heatRing.setPosition(this.player.x, this.player.y+10);
+          },
+        });
+        // 火花パーティクル
+        for(let i=0;i<10;i++){
+          this.time.delayedCall(i*15, ()=>{
+            if(!this.player) return;
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 60 + Math.random() * 50;
+            const sx2 = this.player.x + Math.cos(ang) * dist;
+            const sy2 = this.player.y + Math.sin(ang) * dist;
+            const particle = this.add.circle(sx2, sy2, 3+Math.random()*2, 0xff8844, 0.9).setDepth(18);
+            this.tweens.add({
+              targets: particle, x: this.player.x + muzzleOffsetX, y: this.player.y + muzzleOffsetY,
+              alpha: 0, scaleX: 0.2, scaleY: 0.2, duration: chargeDur - 20,
+              onComplete: ()=>{try{particle.destroy();}catch(e){}},
+            });
+          });
+        }
+        // チャージ完了→発射
+        this.time.delayedCall(chargeDur, ()=>{
+          chargeFollow.remove();
+          try{chargeBall.destroy();}catch(e){}
+          try{heatRing.destroy();}catch(e){}
+          const sx = this.player.x + muzzleOffsetX;
+          const sy = this.player.y + muzzleOffsetY;
+          const ex = sx + cosA * beamLen;
+          const ey = sy + sinA * beamLen;
+          // 赤オレンジビーム発射(_fireMegaBeam を流用しつつ色だけ差し替え)
+          this._fireBusterBeam(sx, sy, ex, ey, targetAng, beamWidth, beamLen);
+          try{SE('magic');}catch(e){}
+          // ダメージ判定
+          const targets = this.enemyDataList.filter(ed=>{
+            if(ed.dead) return false;
+            const dx = ed.sprite.x - sx;
+            const dy = ed.sprite.y - sy;
+            const fwd = dx*cosA + dy*sinA;
+            if(fwd < 0 || fwd > beamLen) return false;
+            const perp = Math.abs(dx*(-sinA) + dy*cosA);
+            return perp < beamWidth/2 + 15;
+          });
+          const lv = (pd.awakSkillLv && pd.awakSkillLv.busters && pd.awakSkillLv.busters.sk1) || 1;
+          targets.forEach(ed=>{
+            const baseDmg = Math.max(1, Math.floor((pd.atk*2.2 + lv*8) * rangeMul));
+            const isCrit = Math.random()*100 < calcCrit(pd);
+            const em = getElementMult('fire', ed.element||'none');
+            const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
+            this.hitEnemy(ed, dmg, isCrit, true, em.label);
+            // 着弾の炎エフェクト
+            const burst = this.add.text(ed.sprite.x, ed.sprite.y, '🔥', {fontSize:'34px'}).setOrigin(0.5).setDepth(20);
+            this.tweens.add({targets: burst, alpha:0, scaleX:2, scaleY:2, duration:400, onComplete:()=>burst.destroy()});
+          });
+          this.cameras.main.shake(220, 0.012);
+          // streak 加算(次のショットで使う)
+          pd._bcStreak = Math.min(2, (pd._bcStreak||0) + 1);
+          pd._bcLastFire = this.time.now;
+        });
+        const streakLabel = ['', '×1.2', '×1.44'][pd._bcStreak] || '';
+        this.showFloat(p.x, p.y-80, '🔫 バスターキャノン'+(streakLabel?' '+streakLabel:''), '#ff8844');
+        // CD: 動いた場合はディレイ、連射時はゼロ
+        this[cdKey] = movingNow ? 1.2 : 0.05;
+      }
+      else if(num===2){
+        // ── メガトンキャノン: 多段高火力+広範囲爆発(カプコン風) ──
+        let targetAng = this._lastAngle || 0;
+        let nearest=null, nd=500;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+          if(d<nd){nd=d; nearest=ed;}
+        });
+        if(nearest) targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
+        const cosA = Math.cos(targetAng);
+        const sinA = Math.sin(targetAng);
+        // バスターキャノン3撃目の更に倍くらい
+        const beamLen = 900;
+        const beamWidth = 200;
+        // 移動ロック(タメ+発射)
+        this._lockMovement = true;
+        this.time.delayedCall(1100, ()=>{ this._lockMovement = false; });
+        const chargeDur = 700;
+        // ── タメ演出: カプコン風 ──
+        // (1) プレイヤー周囲の赤い渦
+        const swirl = this.add.circle(p.x, p.y, 40, 0xff3300, 0.5).setStrokeStyle(4, 0xff8844, 0.95).setDepth(15);
+        this.tweens.add({targets:swirl, scaleX:2, scaleY:2, alpha:0.85, duration:chargeDur/2, yoyo:true});
+        // (2) 砲口の超巨大チャージ球
+        const muzzleOffsetX = cosA * 30;
+        const muzzleOffsetY = sinA * 30;
+        const charge = this.add.circle(p.x + muzzleOffsetX, p.y + muzzleOffsetY, 10, 0xffeecc, 1).setStrokeStyle(3, 0xffffff, 1.0).setDepth(20);
+        const chargeOuter = this.add.circle(p.x + muzzleOffsetX, p.y + muzzleOffsetY, 14, 0xff4422, 0.6).setDepth(19);
+        this.tweens.add({targets:charge, scaleX:6, scaleY:6, duration:chargeDur, ease:'Cubic.easeOut'});
+        this.tweens.add({targets:chargeOuter, scaleX:7, scaleY:7, alpha:0.85, duration:chargeDur, ease:'Cubic.easeOut'});
+        const chargeFollow = this.time.addEvent({
+          delay: 16, loop: true,
+          callback: ()=>{
+            if(this.player){
+              swirl.setPosition(this.player.x, this.player.y);
+              charge.setPosition(this.player.x + muzzleOffsetX, this.player.y + muzzleOffsetY);
+              chargeOuter.setPosition(this.player.x + muzzleOffsetX, this.player.y + muzzleOffsetY);
+            }
+          },
+        });
+        // (3) 周囲から赤い火花が砲口に集まる
+        for(let i=0;i<24;i++){
+          this.time.delayedCall(i*22, ()=>{
+            if(!this.player) return;
+            const ang = Math.random() * Math.PI * 2;
+            const dist = 110 + Math.random() * 60;
+            const sx2 = this.player.x + Math.cos(ang) * dist;
+            const sy2 = this.player.y + Math.sin(ang) * dist;
+            const colors = [0xff4422, 0xff8844, 0xffaa44, 0xffeecc];
+            const col = colors[Phaser.Math.Between(0,3)];
+            const particle = this.add.circle(sx2, sy2, 4+Math.random()*3, col, 0.9).setDepth(18);
+            this.tweens.add({
+              targets: particle,
+              x: this.player.x + muzzleOffsetX, y: this.player.y + muzzleOffsetY,
+              alpha: 0, scaleX: 0.2, scaleY: 0.2, duration: 380 + Math.random()*200,
+              onComplete: ()=>{try{particle.destroy();}catch(e){}},
+            });
+          });
+        }
+        // (4) 画面下から漢字「撃」が現れる(カプコン感)
+        const kanji = this.add.text(this.scale.width/2, this.scale.height + 60, '撃', {
+          fontSize:'120px', color:'#ff4422', stroke:'#ffeecc', strokeThickness:8, fontStyle:'bold'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(50).setAlpha(0.9);
+        this.tweens.add({
+          targets: kanji, y: this.scale.height * 0.55, alpha: 0,
+          duration: chargeDur, ease: 'Cubic.easeOut',
+          onComplete: ()=>{try{kanji.destroy();}catch(e){}},
+        });
+        // チャージ完了→発射
+        this.time.delayedCall(chargeDur, ()=>{
+          chargeFollow.remove();
+          try{swirl.destroy(); charge.destroy(); chargeOuter.destroy();}catch(e){}
+          const sx = this.player.x + muzzleOffsetX;
+          const sy = this.player.y + muzzleOffsetY;
+          // 巨大ビーム(複数層・カプコン的フラッシュ)
+          this.cameras.main.flash(300, 255, 200, 100);
+          this.cameras.main.shake(800, 0.025);
+          // 複数の重ねビーム(色違いで分厚く見せる)
+          const layers = [
+            {col:0xff2200, w: beamWidth*1.1, alpha:0.85, dur:600},
+            {col:0xff5522, w: beamWidth*0.9, alpha:0.95, dur:600},
+            {col:0xff8844, w: beamWidth*0.65, alpha:0.95, dur:560},
+            {col:0xffeecc, w: beamWidth*0.35, alpha:1.00, dur:520},
+            {col:0xffffff, w: beamWidth*0.18, alpha:1.00, dur:480},
+          ];
+          layers.forEach(L=>{
+            const beam = this.add.rectangle(sx, sy, beamLen, L.w, L.col, L.alpha)
+              .setOrigin(0, 0.5).setRotation(targetAng).setDepth(20);
+            this.tweens.add({
+              targets: beam, alpha: 0, scaleY: 1.4,
+              duration: L.dur, ease: 'Cubic.easeOut',
+              onComplete: ()=>{try{beam.destroy();}catch(e){}},
+            });
+          });
+          // 沿線に多発する爆発(カプコン風)
+          const explosionPts = 10;
+          for(let i=0;i<explosionPts;i++){
+            const t = i/explosionPts;
+            const ex = sx + cosA * beamLen * t;
+            const ey = sy + sinA * beamLen * t;
+            this.time.delayedCall(i*40, ()=>{
+              const r1 = this.add.circle(ex, ey, 30, 0xff4422, 0.85).setDepth(21);
+              const r2 = this.add.circle(ex, ey, 16, 0xffeecc, 1.0).setDepth(22);
+              this.tweens.add({targets:[r1], scaleX:3, scaleY:3, alpha:0, duration:400, onComplete:()=>r1.destroy()});
+              this.tweens.add({targets:[r2], scaleX:2, scaleY:2, alpha:0, duration:280, onComplete:()=>r2.destroy()});
+            });
+          }
+          // ── 多段ヒット(3回ヒット判定) ──
+          const lv = (pd.awakSkillLv && pd.awakSkillLv.busters && pd.awakSkillLv.busters.sk2) || 1;
+          const baseDmg = Math.max(1, Math.floor(pd.atk*3.5 + lv*15));
+          for(let hit=0; hit<3; hit++){
+            this.time.delayedCall(hit*120, ()=>{
+              const targets = this.enemyDataList.filter(ed=>{
+                if(ed.dead || !ed.sprite) return false;
+                const dx = ed.sprite.x - sx;
+                const dy = ed.sprite.y - sy;
+                const fwd = dx*cosA + dy*sinA;
+                if(fwd < 0 || fwd > beamLen) return false;
+                const perp = Math.abs(dx*(-sinA) + dy*cosA);
+                return perp < beamWidth/2 + 20;
+              });
+              targets.forEach(ed=>{
+                const isCrit = Math.random()*100 < calcCrit(pd);
+                const em = getElementMult('fire', ed.element||'none');
+                const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
+                this.hitEnemy(ed, dmg, isCrit, true, em.label);
+                // 着弾炎エフェクト
+                const burst = this.add.text(ed.sprite.x + (Math.random()-0.5)*30, ed.sprite.y + (Math.random()-0.5)*20, '💥', {fontSize:'36px'}).setOrigin(0.5).setDepth(23);
+                this.tweens.add({targets: burst, alpha:0, scaleX:2.2, scaleY:2.2, duration:380, onComplete:()=>burst.destroy()});
+              });
+            });
+          }
+        });
+        try{SE('boss');SE('meteor');}catch(e){}
+        this.showFloat(p.x, p.y-90, '💥 メガトンキャノン', '#ff4422');
+        this[cdKey] = sk.cd;
+      }
+      else if(num===3){
+        // ── アーマーパージ: 速度UP・攻撃UP・防御DOWN ──
+        const dur = 12;  // 12秒持続
+        // 既存のバフがあれば上書き
+        if(!pd._armorPurgeOrig){
+          pd._armorPurgeOrig = { spd: pd.spd, atk: pd.atk, def: pd.def };
+        }
+        pd.spd = Math.floor(pd._armorPurgeOrig.spd * 1.6);
+        pd.atk = Math.floor(pd._armorPurgeOrig.atk * 1.5);
+        pd.def = Math.floor(pd._armorPurgeOrig.def * 0.5);
+        pd._armorPurgeUntil = this.time.now + dur*1000;
+        // ── 演出: 装甲が剥がれて飛び散る ──
+        this.cameras.main.flash(280, 255, 180, 80);
+        this.cameras.main.shake(450, 0.02);
+        // 装甲片(複数の四角形が散らばる)
+        for(let i=0;i<14;i++){
+          const ang = (i/14) * Math.PI * 2 + (Math.random()-0.5)*0.3;
+          const dx = Math.cos(ang) * (80 + Math.random()*40);
+          const dy = Math.sin(ang) * (80 + Math.random()*40);
+          const piece = this.add.rectangle(p.x, p.y, 10 + Math.random()*6, 6 + Math.random()*4, 0x886644, 0.95)
+            .setStrokeStyle(1, 0x442211).setDepth(20).setRotation(Math.random()*Math.PI*2);
+          this.tweens.add({
+            targets: piece,
+            x: p.x + dx, y: p.y + dy,
+            rotation: piece.rotation + (Math.random()-0.5) * Math.PI * 4,
+            alpha: 0, scaleX: 0.4, scaleY: 0.4,
+            duration: 700 + Math.random()*300,
+            onComplete: ()=>{try{piece.destroy();}catch(e){}},
+          });
+        }
+        // 赤い解放オーラ
+        const releaseRing = this.add.circle(p.x, p.y, 30, 0xff3322, 0).setStrokeStyle(6, 0xff5522, 0.95).setDepth(16);
+        this.tweens.add({targets:releaseRing, scaleX:5, scaleY:5, alpha:0, duration:600, onComplete:()=>releaseRing.destroy()});
+        // 持続オーラ(バフ中ずっと)
+        const buffAura = this.add.circle(p.x, p.y, 36, 0xff4422, 0.3).setStrokeStyle(2, 0xff8844, 0.85).setDepth(15);
+        pd._armorPurgeAura = buffAura;
+        const auraFollow = this.time.addEvent({
+          delay: 30, loop: true,
+          callback: ()=>{
+            if(!pd._armorPurgeUntil || this.time.now > pd._armorPurgeUntil){
+              try{buffAura.destroy();}catch(e){}
+              // ステ復元
+              if(pd._armorPurgeOrig){
+                pd.spd = pd._armorPurgeOrig.spd;
+                pd.atk = pd._armorPurgeOrig.atk;
+                pd.def = pd._armorPurgeOrig.def;
+                pd._armorPurgeOrig = null;
+              }
+              pd._armorPurgeUntil = null;
+              pd._armorPurgeAura = null;
+              auraFollow.remove();
+              try{this.updateHUD();}catch(e){}
+              this.showFloat(p.x, p.y-50, 'アーマーパージ終了', '#ff8844', 'info');
+              return;
+            }
+            buffAura.setPosition(p.x, p.y);
+          },
+        });
+        this.tweens.add({targets:buffAura, scaleX:1.3, scaleY:1.3, alpha:0.45, duration:600, yoyo:true, repeat:-1});
+        try{SE('skill');SE('boss');}catch(e){}
+        this.showFloat(p.x, p.y-80, '⚙ アーマーパージ', '#ff5522');
+        this.updateHUD();
+        this[cdKey] = sk.cd;
       }
       return;
     }
@@ -12851,12 +13205,15 @@ class GameScene extends Phaser.Scene{
     const p=this.player;
     // 種類別の色
     const isHeavy = (awakKey==='heavy');
+    const isBusters = (awakKey==='busters');
     const isSpirit = (awakKey==='spirit');
     const isYouma = (awakKey==='youma');
     const isAbyss = (awakKey==='abyss');
     let flashCol, auraCol, ringCol;
     if(isHeavy){
       flashCol=[100,200,255]; auraCol=0x4488ff; ringCol=0x66aaff;
+    }else if(isBusters){
+      flashCol=[255,140,60]; auraCol=0xff5522; ringCol=0xff8844;
     }else if(isSpirit){
       flashCol=[150,255,150]; auraCol=0x66ff88; ringCol=0x88ffaa;
     }else if(isYouma){
@@ -13110,6 +13467,18 @@ class GameScene extends Phaser.Scene{
     pd._abyssCurseActive = false;
     if(pd._abyssCurseAura){try{pd._abyssCurseAura.destroy();}catch(e){} pd._abyssCurseAura=null;}
     this._wbActive = false;
+    // バスターズ専用状態クリア(アーマーパージ・ストリーク・移動ロック)
+    if(pd._armorPurgeOrig){
+      pd.spd = pd._armorPurgeOrig.spd;
+      pd.atk = pd._armorPurgeOrig.atk;
+      pd.def = pd._armorPurgeOrig.def;
+      pd._armorPurgeOrig = null;
+    }
+    pd._armorPurgeUntil = null;
+    if(pd._armorPurgeAura){try{pd._armorPurgeAura.destroy();}catch(e){} pd._armorPurgeAura=null;}
+    pd._bcStreak = 0;
+    pd._bcLastFire = 0;
+    this._lockMovement = false;
     // ── 解除演出(覚醒種別ごとに特色を出す)──
     if(this._awakAura){
       this.tweens.add({
@@ -13512,6 +13881,60 @@ class GameScene extends Phaser.Scene{
         targets: [outer, middle, core],
         alpha: 0,
         duration: 250,
+        onComplete: ()=>{
+          try{outer.destroy();}catch(e){}
+          try{middle.destroy();}catch(e){}
+          try{core.destroy();}catch(e){}
+        },
+      });
+    });
+  }
+
+  // バスターキャノン用: 赤オレンジ版ビーム(_fireMegaBeam を色違いで)
+  _fireBusterBeam(sx, sy, ex, ey, ang, width, len){
+    const outer = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*1.2, 0xff5522, 0.45).setRotation(ang).setDepth(18);
+    const middle = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*0.8, 0xff8844, 0.75).setRotation(ang).setDepth(19);
+    const core = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*0.35, 0xffeecc, 0.95).setRotation(ang).setDepth(20);
+    [outer, middle, core].forEach(r=>r.setScale(0, 1));
+    this.tweens.add({targets:[outer, middle, core], scaleX:1, duration:80, ease:'Cubic.easeOut'});
+    this.tweens.add({targets: middle, alpha:0.55, duration:100, yoyo:true, repeat:3});
+    // 砲口の閃光
+    const muzzle = this.add.circle(sx, sy, 30, 0xffeecc, 1).setDepth(21);
+    this.tweens.add({targets:muzzle, scaleX:3.5, scaleY:3.5, alpha:0, duration:400, onComplete:()=>muzzle.destroy()});
+    // 火花が周囲に飛び散る
+    for(let i=0;i<24;i++){
+      const t = i/24;
+      const px = sx + (ex-sx)*t;
+      const py = sy + (ey-sy)*t;
+      const perpAng = ang + Math.PI/2;
+      const perpDist = (Math.random()*2-1) * width * 0.7;
+      const spark = this.add.circle(
+        px + Math.cos(perpAng)*perpDist,
+        py + Math.sin(perpAng)*perpDist,
+        3 + Math.random()*2,
+        [0xff4422, 0xff8844, 0xffaa44, 0xffeecc][Phaser.Math.Between(0,3)],
+        0.95
+      ).setDepth(20);
+      const flyDist = 30 + Math.random()*40;
+      this.tweens.add({
+        targets: spark,
+        x: spark.x + Math.cos(perpAng+Math.PI*Math.random()) * flyDist,
+        y: spark.y + Math.sin(perpAng+Math.PI*Math.random()) * flyDist,
+        alpha: 0,
+        duration: 600 + Math.random()*200,
+        onComplete: ()=>spark.destroy(),
+      });
+    }
+    // 着弾点の大爆発
+    const impact = this.add.circle(ex, ey, 40, 0xff5522, 0.8).setDepth(20);
+    this.tweens.add({targets:impact, scaleX:4, scaleY:4, alpha:0, duration:700, onComplete:()=>impact.destroy()});
+    const impactCore = this.add.circle(ex, ey, 20, 0xffeecc, 1).setDepth(21);
+    this.tweens.add({targets:impactCore, scaleX:3, scaleY:3, alpha:0, duration:400, onComplete:()=>impactCore.destroy()});
+    // ビーム本体フェードアウト
+    this.time.delayedCall(500, ()=>{
+      this.tweens.add({
+        targets: [outer, middle, core],
+        alpha: 0, duration: 250,
         onComplete: ()=>{
           try{outer.destroy();}catch(e){}
           try{middle.destroy();}catch(e){}
@@ -14448,6 +14871,8 @@ class GameScene extends Phaser.Scene{
     const pd=this.playerData,p=this.player;
     // Menu表示中は入力を完全に無視して静止
     if(this._menuOpen){p.setVelocity(0,0);return;}
+    // バスターキャノン等で移動ロックされている時も静止
+    if(this._lockMovement){p.setVelocity(0,0);return;}
     const kl=this.cursors.left.isDown||this.wasd.A.isDown;
     const kr=this.cursors.right.isDown||this.wasd.D.isDown;
     const ku=this.cursors.up.isDown||this.wasd.W.isDown;
@@ -15388,10 +15813,11 @@ class GameScene extends Phaser.Scene{
         if(!pd.items) pd.items={};
         pd.items['muramasa'] = (pd.items['muramasa']||0) + 1;
       }
-      // ボマーに転職した時、ヘヴィカスタマイズを自動取得
+      // ボマーに転職した時、ヘヴィカスタマイズ+バスターライフルを自動取得
       if(newCls==='bomber'){
         if(!pd.items) pd.items={};
         pd.items['heavy_customize'] = (pd.items['heavy_customize']||0) + 1;
+        pd.items['buster_rifle'] = (pd.items['buster_rifle']||0) + 1;
       }
       // アーチャーに転職した時、精霊の弓を自動取得
       if(newCls==='archer'){
