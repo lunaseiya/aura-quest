@@ -64,6 +64,7 @@ function makeSaveSummary(pd,stage){
     1:'🌳 ST.1 草原', 2:'🌲 ST.2 流れる森', 3:'🏖 ST.3 海岸',
     4:'🏜 ST.4 海と砂漠の境', 5:'🏛 ST.5 砂漠の集落跡', 6:'💀 ST.6 砂漠の果て',
     7:'⛰ ST.7 天空への路', 8:'☁ ST.8 天空の島々',
+    9:'🌈 ST.9 虹の道',
     10:'⚔ DUN.1 地下迷宮',
     11:'⛏ DUN.2 炭鉱1F',
     12:'⛏ DUN.2 炭鉱2F',
@@ -590,6 +591,7 @@ class BootScene extends Phaser.Scene{
     this.load.image('map_st6', BASE+'maps/st6.png');
     this.load.image('map_st7', BASE+'maps/st7.png');
     this.load.image('map_st8', BASE+'maps/st8.png');
+    this.load.image('map_rainbow1', BASE+'maps/rainbow-1.png');
     this.load.image('map_dun1', BASE+'maps/dun1.png');
     this.load.image('map_st20', BASE+'maps/st20.png');
     this.load.image('map_blaze', BASE+'maps/town1.png');
@@ -4860,9 +4862,28 @@ const STAGE_CONFIG={
     portalBack:null,portalBackLabel:'',
     // 下中央の青魔法門(ダイアログ式) → ST.7 に戻る
     magicGate:{x:1500, y:1750, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
+    // 左上アーチ門 → ST.9 虹の道(rainbow-1)
+    portalAlt:{x:950, y:200, to:9, label:'🌈 虹の道へ'},
     // スポーン(ST.7 から青ゲートを抜けてきた時) = 下中央の青魔法門の少し上(門前)
     spawnX:1500, spawnY:1800,
     spawnFromBackX:1500, spawnFromBackY:1800,
+  },
+  // ── ST.9 虹の道(rainbow-1)── ST.8 左上ゲートから繋がる空中ステージ
+  9:{name:'ST.9 虹の道',bgmKey:'sky',
+    mapImage:'map_rainbow1', mapType:'sky', mapW:1881, mapH:1881,
+    tiles:[],tileWeights:[],objects:[],objPos:[],
+    enemies:[],
+    boss:null,
+    bossThreshold:999,
+    portalTo:null, portalToLabel:'',
+    // 戻るポータル: 下端(ST.8 から来た入口)
+    portalBack:8, portalBackLabel:'☁ ST.8 天空の島々へ', portalBackKey:'portal_st8',
+    portalBackX:940, portalBackY:1850,
+    // ST.8 に戻った時のスポーン位置 = ST.8 左上アーチ門のすぐ下(portalAlt に即再侵入しない距離)
+    portalBackSpawnX:950, portalBackSpawnY:340,
+    // ST.8 から portalAlt 経由で来た時のスポーン位置 = 下端中央(rainbow-1 の下端)
+    spawnX:940, spawnY:1720,
+    spawnFromBackX:940, spawnFromBackY:1720,
   },
   // ── DUN1 ダンジョン(隠し/高難度) ──
   10:{name:'DUN.1 忘れられし地下迷宮',bgmKey:'dungeon1',mapImage:'map_dun1',mapType:'dungeon',mapW:1896,mapH:3318,
