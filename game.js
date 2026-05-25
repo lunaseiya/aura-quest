@@ -1213,6 +1213,24 @@ class BootScene extends Phaser.Scene{
     //  弾・エフェクト生成
     // ══════════════════════════════════════
 
+    // ── テスト NPC スプライト (96x96・緑円+試験管) ──
+    mk2('npc_test',96,96,g=>{
+      // 背景の緑円
+      g.fillStyle(0x44cc88,0.95); g.fillCircle(48,48,42);
+      g.lineStyle(3,0x227755,1);  g.strokeCircle(48,48,42);
+      // 内側の白い試験管
+      g.fillStyle(0xffffff,1);
+      g.fillRect(38,22,20,40);
+      // 試験管の中の液体(青)
+      g.fillStyle(0x44aaff,1);
+      g.fillRect(40,46,16,14);
+      // 試験管の栓(茶)
+      g.fillStyle(0x886633,1);
+      g.fillRect(38,18,20,6);
+      // ハイライト
+      g.fillStyle(0xeeffee,0.6); g.fillCircle(36,36,8);
+    });
+
     // ── ファイアボール ──
     mk2('proj_fireball',24,24,g=>{
       g.fillStyle(0xff6600,0.3);g.fillCircle(12,12,11);
@@ -6435,6 +6453,10 @@ class GameScene extends Phaser.Scene{
           promptTxt: promptTxt,
         });
       });
+    }
+    // ── テストモード専用 NPC: セントラルにのみ出現 ──
+    if(testMode && this.stage === 0){
+      this._spawnTestNpc();
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -12842,6 +12864,112 @@ class GameScene extends Phaser.Scene{
     if(this._updateAwakeningButton) this._updateAwakeningButton();
   }
   // ── NPC会話ダイアログ ──
+  // ─────────────────────────────────────────
+  // テストモード専用 NPC(セントラルに出現・経験値/JOBEXP/覚醒pt 付与)
+  // ─────────────────────────────────────────
+  _spawnTestNpc(){
+    if(this._testNpcSpawned) return;
+    this._testNpcSpawned = true;
+    const x = 627, y = 200;  // セントラル上部・道沿いの目立つ位置
+    const sprite = this.add.sprite(x, y, 'npc_test').setDepth(5).setDisplaySize(96, 96);
+    sprite.setInteractive({useHandCursor:true});
+    // 浮遊アニメ(ふわふわ)で目立たせる
+    this.tweens.add({targets:sprite, y:y-6, duration:1000, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    const nameTag = this.add.text(x, y-60, '🧪 テスト助手', {
+      fontSize:'13px', fontFamily:'Arial', color:'#88ffaa', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6);
+    const promptTxt = this.add.text(x, y+60, '💬 タップで話す', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6).setVisible(false);
+    this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
+    sprite.on('pointerdown', ()=>{
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+      if(dist < 120) this._openTestNpcDialog();
+    });
+    this.npcs.push({def:{id:'test_npc', x, y, name:'🧪 テスト助手'}, sprite, nameTag, promptTxt});
+  }
+
+  _openTestNpcDialog(){
+    if(this._npcDialogOpen) return;
+    this._npcDialogOpen = true;
+    try{SE('open');}catch(e){}
+    if(this.player && this.player.body) this.player.body.setVelocity(0,0);
+    const w = this.scale.width, h = this.scale.height;
+    const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(100).setInteractive();
+    const boxW = Math.min(w*0.85, 540), boxH = 280;
+    const boxX = w/2, boxY = h - boxH/2 - 30;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x0a1a14, 0.96)
+      .setScrollFactor(0).setDepth(101)
+      .setStrokeStyle(3, 0x88ffaa, 1);
+    const elements = [overlay, box];
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 22, '🧪 テスト助手', {
+      fontSize:'16px', fontFamily:'Arial', color:'#88ffaa', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 50, '何を付与しますか?', {
+      fontSize:'13px', fontFamily:'Arial', color:'#ffffff'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+
+    const pd = this.playerData;
+    const p = this.player;
+    // ボタン定義: ラベル / 色 / 動作
+    const btnDefs = [
+      {label:'⭐ 経験値 +500',     col:0x4488ff, action:()=>{
+        pd.exp = (pd.exp||0) + 500;
+        this.checkLevelUp();
+        this.showFloat(p.x, p.y-50, '+500 EXP', '#88ccff', 'info');
+        this.updateHUD();
+      }},
+      {label:'💼 JOB経験値 +300',  col:0xff8844, action:()=>{
+        this.addJobExp(300);
+        this.showFloat(p.x, p.y-50, '+300 JOB EXP', '#ffaa66', 'info');
+      }},
+      {label:'✨ 覚醒ポイント +5', col:0xaa66ff, action:()=>{
+        pd.awakSp = (pd.awakSp||0) + 5;
+        pd._awakSpEarned = (pd._awakSpEarned||0) + 5;
+        this.showFloat(p.x, p.y-50, '+5 覚醒ポイント', '#cc99ff', 'info');
+      }},
+    ];
+    const btnW = boxW - 60, btnH = 40, gap = 8;
+    const startY = boxY - boxH/2 + 86;
+    btnDefs.forEach((bd, i)=>{
+      const by = startY + i*(btnH + gap);
+      const bg = this.add.rectangle(boxX, by, btnW, btnH, bd.col, 0.95)
+        .setScrollFactor(0).setDepth(102)
+        .setStrokeStyle(2, 0xffffff, 0.8)
+        .setInteractive({useHandCursor:true});
+      const tx = this.add.text(boxX, by, bd.label, {
+        fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+      bg.on('pointerover', ()=>bg.setFillStyle(bd.col, 1.0));
+      bg.on('pointerout',  ()=>bg.setFillStyle(bd.col, 0.95));
+      bg.on('pointerdown', ()=>{
+        try{SE('click');}catch(e){}
+        try{ bd.action(); }catch(e){ console.warn('test npc action error:', e); }
+      });
+      elements.push(bg, tx);
+    });
+    // 閉じるボタン
+    const closeY = boxY + boxH/2 - 24;
+    const closeBg = this.add.rectangle(boxX, closeY, 160, 32, 0x223344, 0.95)
+      .setScrollFactor(0).setDepth(102)
+      .setStrokeStyle(2, 0x88aacc, 0.8)
+      .setInteractive({useHandCursor:true});
+    const closeTx = this.add.text(boxX, closeY, '✕ 閉じる', {
+      fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    closeBg.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([closeBg, closeTx]));
+    });
+    overlay.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([closeBg, closeTx]));
+    });
+  }
+
   _openNpcDialog(npcDef){
     if(this._npcDialogOpen) return;
     this._npcDialogOpen = true;
