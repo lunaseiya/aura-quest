@@ -584,30 +584,30 @@ class BootScene extends Phaser.Scene{
     // proj・fx はコード生成に変更
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
     // ── カスタムマップ画像（1枚絵背景） ──
-    this.load.image('map_st1', BASE+'maps/st1.png');
-    this.load.image('map_st2', BASE+'maps/st2.png');
-    this.load.image('map_st3', BASE+'maps/st3.png');
-    this.load.image('map_st4', BASE+'maps/st4.png');
-    this.load.image('map_st5', BASE+'maps/st5.png');
-    this.load.image('map_st6', BASE+'maps/st6.png');
-    this.load.image('map_st7', BASE+'maps/st7.png');
-    this.load.image('map_st8', BASE+'maps/st8.png');
-    this.load.image('map_rainbow1', BASE+'maps/rainbow-1.png');
-    this.load.image('map_rainbow2', BASE+'maps/rainbow-2.png');
-    this.load.image('map_dun1', BASE+'maps/dun1.png');
-    this.load.image('map_st20', BASE+'maps/st20.png');
-    this.load.image('map_blaze', BASE+'maps/town1.png');
-    this.load.image('map_town0', BASE+'maps/town0.png');
-    this.load.image('map_town2', BASE+'maps/town2.png');
-    this.load.image('map_dun2_1', BASE+'maps/dun2-1.png');
-    this.load.image('map_dun2_2', BASE+'maps/dun2-2.png');
-    this.load.image('map_south_st1', BASE+'maps/south_st1.png');
-    this.load.image('map_south_st2', BASE+'maps/south_st2.png');
-    this.load.image('map_south_st3', BASE+'maps/south_st3.png');
-    this.load.image('map_south_st4', BASE+'maps/south_st4.png');
-    this.load.image('map_town_minato', BASE+'maps/town_minato.png');
-    this.load.image('map_sakura_gate', BASE+'maps/sakura_gate.png');
-    this.load.image('map_sakura_dun1', BASE+'maps/sakura_dun1.png');
+    this.load.image('map_st1', BASE+'maps/st1.webp');
+    this.load.image('map_st2', BASE+'maps/st2.webp');
+    this.load.image('map_st3', BASE+'maps/st3.webp');
+    this.load.image('map_st4', BASE+'maps/st4.webp');
+    this.load.image('map_st5', BASE+'maps/st5.webp');
+    this.load.image('map_st6', BASE+'maps/st6.webp');
+    this.load.image('map_st7', BASE+'maps/st7.webp');
+    this.load.image('map_st8', BASE+'maps/st8.webp');
+    this.load.image('map_rainbow1', BASE+'maps/rainbow-1.webp');
+    this.load.image('map_rainbow2', BASE+'maps/rainbow-2.webp');
+    this.load.image('map_dun1', BASE+'maps/dun1.webp');
+    this.load.image('map_st20', BASE+'maps/st20.webp');
+    this.load.image('map_blaze', BASE+'maps/town1.webp');
+    this.load.image('map_town0', BASE+'maps/town0.webp');
+    this.load.image('map_town2', BASE+'maps/town2.webp');
+    this.load.image('map_dun2_1', BASE+'maps/dun2-1.webp');
+    this.load.image('map_dun2_2', BASE+'maps/dun2-2.webp');
+    this.load.image('map_south_st1', BASE+'maps/south_st1.webp');
+    this.load.image('map_south_st2', BASE+'maps/south_st2.webp');
+    this.load.image('map_south_st3', BASE+'maps/south_st3.webp');
+    this.load.image('map_south_st4', BASE+'maps/south_st4.webp');
+    this.load.image('map_town_minato', BASE+'maps/town_minato.webp');
+    this.load.image('map_sakura_gate', BASE+'maps/sakura_gate.webp');
+    this.load.image('map_sakura_dun1', BASE+'maps/sakura_dun1.webp');
     // NPC スプライト
     this.load.image('npc_sakura5', BASE+'npcs/sakura-5.png');
 
