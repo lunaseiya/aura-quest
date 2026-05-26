@@ -12927,11 +12927,15 @@ class GameScene extends Phaser.Scene{
       {label:'💼 JOB経験値 +300',  col:0xff8844, action:()=>{
         this.addJobExp(300);
         this.showFloat(p.x, p.y-50, '+300 JOB EXP', '#ffaa66', 'info');
+        this.updateHUD();              // JB バー再描画
+        if(this._updateMenuBadge) this._updateMenuBadge();  // pt 増加バッジ
       }},
       {label:'✨ 覚醒ポイント +5', col:0xaa66ff, action:()=>{
         pd.awakSp = (pd.awakSp||0) + 5;
         pd._awakSpEarned = (pd._awakSpEarned||0) + 5;
         this.showFloat(p.x, p.y-50, '+5 覚醒ポイント', '#cc99ff', 'info');
+        // 覚醒ボタン横の「✨Npt」表示を即更新
+        if(this._updateAwakeningButton) this._updateAwakeningButton();
       }},
     ];
     const btnW = boxW - 60, btnH = 40, gap = 8;
