@@ -12868,8 +12868,10 @@ class GameScene extends Phaser.Scene{
   // テストモード専用 NPC(セントラルに出現・経験値/JOBEXP/覚醒pt 付与)
   // ─────────────────────────────────────────
   _spawnTestNpc(){
-    if(this._testNpcSpawned) return;
-    this._testNpcSpawned = true;
+    // 注: 以前は this._testNpcSpawned フラグで二重スポーン防止していたが、
+    //     Phaser のシーン再利用でフラグが残り、転職復帰時にスポーンされない
+    //     バグになっていたため削除。create() は1シーン起動につき1回しか呼ばれ
+    //     ないので、ここに到達した時点で常にスポーンしてよい。
     const x = 808, y = 377;  // セントラル上部・宿屋とギルドの間の道沿い
     const sprite = this.add.sprite(x, y, 'npc_test').setDepth(5).setDisplaySize(96, 96);
     sprite.setInteractive({useHandCursor:true});
