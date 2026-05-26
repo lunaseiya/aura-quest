@@ -4883,7 +4883,7 @@ const STAGE_CONFIG={
     // 下中央の青魔法門(ダイアログ式) → ST.7 に戻る
     magicGate:{x:1500, y:1750, to:7, label:'⛰ 地上への路へ戻る', returnX:474, returnY:1280},
     // 左上アーチ門 → ST.9 虹の道(rainbow-1)
-    portalAlt:{x:950, y:200, to:9, label:'🌈 虹の道へ'},
+    portalAlt:{x:689, y:229, to:9, label:'🌈 虹の道へ'},
     // スポーン(ST.7 から青ゲートを抜けてきた時) = 下中央の青魔法門の少し上(門前)
     spawnX:1500, spawnY:1800,
     spawnFromBackX:1500, spawnFromBackY:1800,
@@ -4922,8 +4922,8 @@ const STAGE_CONFIG={
     // 戻るポータル: 下端(ST.8 から来た入口)
     portalBack:8, portalBackLabel:'☁ ST.8 天空の島々へ', portalBackKey:'portal_st8',
     portalBackX:940, portalBackY:1850,
-    // ST.8 に戻った時のスポーン位置 = ST.8 左上アーチ門のすぐ下(portalAlt に即再侵入しない距離)
-    portalBackSpawnX:950, portalBackSpawnY:340,
+    // ST.8 に戻った時のスポーン位置 = ST.8 アーチ門のすぐ下(portalAlt に即再侵入しない距離)
+    portalBackSpawnX:689, portalBackSpawnY:380,
     // ST.8 から portalAlt 経由で来た時のスポーン位置 = 下端中央(rainbow-1 の下端)
     spawnX:940, spawnY:1720,
     spawnFromBackX:940, spawnFromBackY:1720,
