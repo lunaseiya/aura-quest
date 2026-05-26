@@ -12870,7 +12870,7 @@ class GameScene extends Phaser.Scene{
   _spawnTestNpc(){
     if(this._testNpcSpawned) return;
     this._testNpcSpawned = true;
-    const x = 627, y = 200;  // セントラル上部・道沿いの目立つ位置
+    const x = 808, y = 377;  // セントラル上部・宿屋とギルドの間の道沿い
     const sprite = this.add.sprite(x, y, 'npc_test').setDepth(5).setDisplaySize(96, 96);
     sprite.setInteractive({useHandCursor:true});
     // 浮遊アニメ(ふわふわ)で目立たせる
