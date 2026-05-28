@@ -107,6 +107,8 @@ const BGM_FILES={
   desert:      BASE+'bgm/bgm_desert.mp3',
   // 天空
   sky:         BASE+'bgm/bgm_sky.mp3',
+  // 虹の道(ST.9 / ST.13)
+  rainbow:     BASE+'bgm/bgm_rainbow.mp3',
   // ダンジョン
   dungeon1:    BASE+'bgm/bgm_dungeon1.mp3',
   mine:        BASE+'bgm/bgm_mine.mp3',
@@ -4889,7 +4891,7 @@ const STAGE_CONFIG={
     spawnFromBackX:1500, spawnFromBackY:1800,
   },
   // ── ST.9 虹の道(rainbow-1)── ST.8 左上ゲートから繋がる空中ステージ
-  9:{name:'ST.9 虹の道',bgmKey:'sky',
+  9:{name:'ST.9 虹の道',bgmKey:'rainbow',
     mapImage:'map_rainbow1', mapType:'sky', mapW:1881, mapH:1881,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 敵: 中央の石畳の道に沿って下→上に配置(計25体)
@@ -5607,7 +5609,7 @@ const STAGE_CONFIG={
     ],
   },
   // ── ST.13 虹の道 II(rainbow-2)── ST.9 上端ゲートから繋がる空中ステージ
-  13:{name:'ST.13 虹の道 II', bgmKey:'sky',
+  13:{name:'ST.13 虹の道 II', bgmKey:'rainbow',
     mapImage:'map_rainbow2', mapType:'sky', mapW:1881, mapH:1881,
     tiles:[],tileWeights:[],objects:[],objPos:[],
     // 敵: まだ無し(後で配置可能・現状は静かな道中)
@@ -11522,6 +11524,8 @@ class GameScene extends Phaser.Scene{
         {label:'💀 ST.6 砂漠の果て',    price:0, icon:'💀', action:()=>{ close(); this._doGuildWarp(6);  }},
         {label:'⛰ ST.7 天空への路',     price:0, icon:'⛰', action:()=>{ close(); this._doGuildWarp(7);  }},
         {label:'☁ ST.8 天空の島々',    price:0, icon:'☁', action:()=>{ close(); this._doGuildWarp(8);  }},
+        {label:'🌈 ST.9 虹の道',        price:0, icon:'🌈', action:()=>{ close(); this._doGuildWarp(9);  }},
+        {label:'🌈 ST.13 虹の道 II',    price:0, icon:'🌈', action:()=>{ close(); this._doGuildWarp(13); }},
         {label:'⚔ DUN.1 地下迷宮',     price:0, icon:'⚔', action:()=>{ close(); this._doGuildWarp(10); }},
         {label:'⛏ DUN.2 炭鉱1F',       price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(11); }},
         {label:'⛏ DUN.2 炭鉱2F',       price:0, icon:'⛏', action:()=>{ close(); this._doGuildWarp(12); }},
