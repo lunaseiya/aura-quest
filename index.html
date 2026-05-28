@@ -45,10 +45,18 @@
 <body>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script>
-    // game.js を毎回キャッシュなしで読み込む
-    const s = document.createElement('script');
-    s.src = 'game.js?v=' + Date.now();
-    document.body.appendChild(s);
+    // NPC セリフは別ファイル化(編集しやすさのため)
+    // game.js より先にロードする
+    const cacheBust = '?v=' + Date.now();
+    const dlg = document.createElement('script');
+    dlg.src = 'npc_dialog.js' + cacheBust;
+    dlg.onload = () => {
+      // npc_dialog.js のロード完了後に game.js を読み込む
+      const g = document.createElement('script');
+      g.src = 'game.js' + cacheBust;
+      document.body.appendChild(g);
+    };
+    document.body.appendChild(dlg);
   </script>
 </body>
 </html>
