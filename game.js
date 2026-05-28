@@ -618,12 +618,12 @@ class BootScene extends Phaser.Scene{
     this.load.image('npc_main_town3', BASE+'npcs/main_town3.png');
     this.load.image('npc_main_town4', BASE+'npcs/main_town4.png');
     this.load.image('npc_main_town5', BASE+'npcs/main_town5.png');
-    // ブレイズフォージ系 NPC キャラ
-    this.load.image('npc_breize1', BASE+'npcs/breize1.jpg');
-    this.load.image('npc_breize2', BASE+'npcs/breize2.jpg');
-    this.load.image('npc_breize3', BASE+'npcs/breize3.jpg');
-    this.load.image('npc_breize4', BASE+'npcs/breize4.jpg');
-    this.load.image('npc_breize5', BASE+'npcs/breize5.jpg');
+    // ブレイズフォージ系 NPC キャラ(透過処理後の PNG 版)
+    this.load.image('npc_breize1', BASE+'npcs/breize1.png');
+    this.load.image('npc_breize2', BASE+'npcs/breize2.png');
+    this.load.image('npc_breize3', BASE+'npcs/breize3.png');
+    this.load.image('npc_breize4', BASE+'npcs/breize4.png');
+    this.load.image('npc_breize5', BASE+'npcs/breize5.png');
 
     // 桜の城モンスター画像（PNG優先・存在しなければコード描画にフォールバック）
     // ── 全モンスターのPNG画像ロード(idle + 攻撃モーション) ──
@@ -6303,7 +6303,7 @@ class GameScene extends Phaser.Scene{
         // テクスチャが存在する場合のみsprite作成、なければプレースホルダー
         if(this.textures.exists(npcDef.sprite)){
           sprite = this.add.sprite(npcDef.x, npcDef.y, npcDef.sprite).setDepth(5);
-          sprite.setDisplaySize(96, 96);
+          sprite.setDisplaySize(60, 60);
         }else{
           // フォールバック: 黄色い円 + ?マーク(テクスチャが見つからない時)
           console.warn('[NPC] Texture not found:', npcDef.sprite);
