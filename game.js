@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-05-06-v1'; // 更新日付
+const GAME_VERSION = '2026-05-28-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -8404,14 +8404,22 @@ class GameScene extends Phaser.Scene{
     no.on('pointerdown', ()=>{ close(); });
   }
 
-  useAwakSkill(awakIdx){
+  useAwakSkill(awakIdx, overrideAwakKey){
     const pd = this.playerData;
     const p = this.player;
     if(!p) return;
-    // 装備中の覚醒武器から覚醒種別取得
-    const eqW = pd.equip && pd.equip.weapon_main;
-    const eqD = eqW ? EQUIP_DEFS[eqW] : null;
-    const awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
+    // 呼び出し元(スキルボタン)が awakKey を渡してきたらそれを優先。
+    // 渡されない場合のみ、装備中の覚醒武器から推定する(旧挙動の互換)。
+    // これにより、装備中と異なる覚醒のスキル(例: リヴァイアリー装備中のダークストライク)も
+    // 学習済みなら発動できる。
+    let awakKey;
+    if(overrideAwakKey){
+      awakKey = overrideAwakKey;
+    } else {
+      const eqW = pd.equip && pd.equip.weapon_main;
+      const eqD = eqW ? EQUIP_DEFS[eqW] : null;
+      awakKey = (eqD && eqD.awakening) ? eqD.awakening : null;
+    }
     if(!awakKey) return;
     // 覚醒スキルレベル取得(覚醒中は MAX(10) 扱いにして 3 スキルすべて発動可)
     let lv = pd.awakSkillLv && pd.awakSkillLv[awakKey] && pd.awakSkillLv[awakKey]['sk'+awakIdx] || 0;
@@ -8483,7 +8491,10 @@ class GameScene extends Phaser.Scene{
     const sk=defs[num-1]; if(!sk)return;
     const skKey='sk'+num;
     if(pd[skKey]===0){this.showFloat(p.x,p.y-50,'スキル未習得','#888888','info');return;}
-    const cdKey='skillCD'+num;
+    // 覚醒中(natural / useAwakSkill 経由の pseudo)は CD を awakCD'+num に書く。
+    // skillCD'+num に書くと、useAwakSkill の非同期 stop() が呼ばれた瞬間に
+    // スロット同番の通常スキル(例: 大爆発 slot1)が CD 表示になるバグになる。
+    const cdKey = pd.awakened ? ('awakCD'+num) : ('skillCD'+num);
     if((this[cdKey]||0)>0)return;
     if(this._casting){return;} // 詠唱中は新しいスキル不可
     if(pd.sp<sk.cost){this.showFloat(p.x,p.y-50,'SP不足','#3498db','info');return;}
@@ -14681,7 +14692,8 @@ class GameScene extends Phaser.Scene{
       // クリック処理
       if(isAwak){
         const ai = info.awakIdx;
-        btn.on('pointerdown',()=>{ btn.setFillStyle(btnCol,0.75); this.useAwakSkill(ai); });
+        const ak = info.awakKey;  // スロットの覚醒種別(装備武器と違う覚醒のスキルでも判定する)
+        btn.on('pointerdown',()=>{ btn.setFillStyle(btnCol,0.75); this.useAwakSkill(ai, ak); });
         btn.on('pointerup',  ()=>btn.setFillStyle(btnCol,0.45));
         btn.on('pointerout', ()=>btn.setFillStyle(btnCol,0.45));
       } else {
@@ -15297,17 +15309,28 @@ class GameScene extends Phaser.Scene{
       ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
     }
     const sx=ed.sprite.x, sy=ed.sprite.y;
+    // 属性相性によるダメージ数値の装飾:
+    //   弱点 (WEAK!) → 💥 ... 💥 で両側を挟んで強調
+    //   耐性 (RESIST) → 🌀 を頭だけに付けて「効果いまひとつ」を示唆
+    const isWeak    = (elemLabel === 'WEAK!');
+    const isResist  = (elemLabel === 'RESIST');
     if(isCrit){
       SE('crit');
       const critType=isSkill?'skillcrit':'crit';
-      const critTxt=isSkill?'💥 '+dmg+'!!':'★ '+dmg+'!!';
+      let critTxt;
+      if(isWeak)        critTxt = '💥 '+dmg+'!! 💥';
+      else if(isResist) critTxt = '🌀 '+dmg+'!!';
+      else              critTxt = isSkill?'💥 '+dmg+'!!':'★ '+dmg+'!!';
       this.showFloat(sx,sy-ed.sprite.displayHeight/2,critTxt,'#ffee00',critType);
       this.showHitEffect(sx,sy,'crit');
       this.cameras.main.flash(80,255,180,0);
     }else{
       SE('hit');
       const normalType=isSkill?'skill':'normal';
-      const normalTxt=isSkill?'⚡ '+dmg:'-'+dmg;
+      let normalTxt;
+      if(isWeak)        normalTxt = '💥 '+dmg+' 💥';
+      else if(isResist) normalTxt = '🌀 '+dmg;
+      else              normalTxt = isSkill?'⚡ '+dmg:'-'+dmg;
       const normalCol=isSkill?'#44ffff':'#ffffff';
       this.showFloat(sx,sy-ed.sprite.displayHeight/2,normalTxt,normalCol,normalType);
       this.showHitEffect(sx,sy,'normal');
