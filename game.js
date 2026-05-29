@@ -633,7 +633,9 @@ class BootScene extends Phaser.Scene{
       'crab','dark_elf','dragon','gama_ninja','ghost','giant','goblin','goblin_archer',
       'goblin_axe','hornet','lich','mummy','orc_archer','orc_high','orc_lady','orc_warrior',
       'red_oni','rock_golem','sakura','sandman','sandworm','scorpion','seal','skeleton',
-      'slime','treant','treasure_hunt','troll','wisp','wolf','zombie'
+      'slime','treant','treasure_hunt','troll','wisp','wolf','zombie',
+      // ST.13 虹の道II 新ザコ(PNG が無ければプレースホルダー描画にフォールバック)
+      'cross_rock','ace_trump','bomb_slime'
     ].forEach(k=>{
       this.load.image('enemy_'+k,       BASE+'enemies/'+k+'.png');
       this.load.image('enemy_'+k+'_atk',BASE+'enemies/'+k+'_atk.png');
@@ -643,11 +645,16 @@ class BootScene extends Phaser.Scene{
     [
       'boss1','boss2','boss3','boss4',
       'scorpion_king','tomb_guardian','mistress','thunder_god',
-      'dark_illusion','goblin_leader'
+      'dark_illusion','goblin_leader',
+      // 新規ボス(画像未提供。後で boss/boss_<id>.png を追加すれば自動反映)
+      'mimic','shell_king'
     ].forEach(k=>{
       this.load.image('enemy_'+k,       BASE+'boss/boss_'+k+'.png');
       this.load.image('enemy_'+k+'_atk',BASE+'boss/boss_'+k+'_atk.png');
     });
+    // big_sakura は専用画像を持たず、sakura のテクスチャを別キーで流用
+    this.load.image('enemy_big_sakura',     BASE+'enemies/sakura.png');
+    this.load.image('enemy_big_sakura_atk', BASE+'enemies/sakura_atk.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
@@ -5368,7 +5375,9 @@ const STAGE_CONFIG={
       // ── 上部エリア(Y=200〜500・上部の道) ──
       ['gama_ninja', 700, 400],['gama_ninja', 1800, 400],
     ],
-    boss:null, bossThreshold:9999,
+    // ボス: 大桜(城の最上部・桜の大樹を背負う巨大なサクラ)
+    boss:{id:'big_sakura', x:1250, y:300},
+    bossThreshold:25,
     portalTo:null, portalToLabel:'',
     // 戻り = 桜の里(sakura_gate)
     portalBack:28, portalBackLabel:'🌸 桜の里へ戻る', portalBackKey:'portal_st1',
@@ -5477,8 +5486,8 @@ const STAGE_CONFIG={
       ['bone_walker', 2050, 1700],['treasure_hunt', 2200, 1850],
       ['lich',        2150, 2000],
     ],
-    // ボス: 蜘蛛女王ミストレス(中央広間の祭壇に配置)
-    boss:{id:'mistress', x:1254, y:1900},
+    // ボス: ミミック(中央広間の祭壇に配置・宝箱に擬態した怪物)
+    boss:{id:'mimic', x:1254, y:1900},
     bossThreshold:20,
     portalTo:null, portalToLabel:'',
     // 戻り=上端の梯子(DUN.2 1Fへ戻る)
@@ -5499,10 +5508,25 @@ const STAGE_CONFIG={
   13:{name:'ST.13 虹の道 II', bgmKey:'rainbow',
     mapImage:'map_rainbow2', mapType:'sky', mapW:1881, mapH:1881,
     tiles:[],tileWeights:[],objects:[],objPos:[],
-    // 敵: まだ無し(後で配置可能・現状は静かな道中)
-    enemies:[],
-    boss:null,
-    bossThreshold:999,
+    // 敵配置:クロスロック(岩)・エーストランプ(トランプ)・ボムスライム(自爆)
+    enemies:[
+      // ── 下層(入口側 Y=1300〜1700) ──
+      ['cross_rock', 500, 1500],['cross_rock', 1380, 1500],
+      ['ace_trump',  700, 1400],['ace_trump',  1180, 1400],
+      ['bomb_slime', 940, 1550],
+      // ── 中層(Y=800〜1200) ──
+      ['cross_rock', 400, 1000],['cross_rock', 1480, 1000],
+      ['ace_trump',  650, 900], ['ace_trump',  1230, 900],
+      ['ace_trump',  940, 1050],
+      ['bomb_slime', 500, 1100],['bomb_slime', 1380, 1100],
+      // ── 上層(ボス前 Y=400〜800) ──
+      ['cross_rock', 600, 700], ['cross_rock', 1280, 700],
+      ['ace_trump',  450, 550], ['ace_trump',  1430, 550],
+      ['bomb_slime', 940, 750],
+    ],
+    // ボス: シェルキング(クッパ風・最上段に配置)
+    boss:{id:'shell_king', x:940, y:300},
+    bossThreshold:15,
     portalTo:null, portalToLabel:'',
     // 戻るポータル: 下端(ST.9 から来た入口)
     portalBack:9, portalBackLabel:'🌈 ST.9 虹の道へ', portalBackKey:'portal_st8',
@@ -5717,6 +5741,14 @@ const ENEMY_NAMES={
   goblin_leader:'ゴブリンリーダー',
   // 炭鉱
   bone_walker:'ボーンウォーカー', treasure_hunt:'トレジャーハント', ghost:'ゴースト',
+  // 炭鉱2F ボス
+  mimic:'ミミック',
+  // 桜の城 ボス
+  big_sakura:'大桜',
+  // ST.13 虹の道II ザコ
+  cross_rock:'クロスロック', ace_trump:'エーストランプ', bomb_slime:'ボムスライム',
+  // ST.13 虹の道II ボス
+  shell_king:'シェルキング',
 };
 
 const ENEMY_DEFS={
@@ -5796,6 +5828,19 @@ const ENEMY_DEFS={
   treasure_hunt:{hp:140, atk:32, def:5, spd:160,exp:160, gold:80, sz:60,rng:50, acd:0.7, passive:true,  eva:25,element:'none'},
   // ゴースト: アクティブ・足普通・体力多い・毒攻撃あり
   ghost:       {hp:240, atk:18, def:6, spd:80, exp:140, gold:40, sz:64,rng:54, acd:1.2, passive:false, eva:30,element:'dark'},
+  // ── DUN.2 炭鉱2F ボス: ミミック(回避高め・HP低め・速攻軽打) ──
+  mimic:       {hp:1500,atk:18, def:8, spd:130,exp:2500,gold:800, sz:80, rng:65, acd:0.5, passive:true,  eva:45,isBoss:true,element:'dark'},
+  // ── 桜の城 ボス: 大桜(サクラ強化版・無属性) ──
+  big_sakura:  {hp:5500,atk:55, def:18,spd:55, exp:6000,gold:2000,sz:140,rng:100,acd:1.3, passive:false, eva:10,isBoss:true,element:'none'},
+  // ── ST.13 虹の道II ザコ ──
+  // クロスロック: 重い岩・防御高・速度遅・回避ゼロ
+  cross_rock:  {hp:160, atk:28, def:22,spd:35, exp:90, gold:22, sz:64, rng:60, acd:1.6, passive:true,  eva:0 ,element:'earth'},
+  // エーストランプ: 軽快・回避高め
+  ace_trump:   {hp:110, atk:22, def:6, spd:115,exp:78, gold:20, sz:56, rng:54, acd:0.9, passive:false, eva:25,element:'none'},
+  // ボムスライム: 詠唱長め・自爆型(高威力・行動 acd 長)※自爆挙動は別途実装予定
+  bomb_slime:  {hp:90,  atk:48, def:0, spd:75, exp:70, gold:18, sz:52, rng:50, acd:3.5, passive:false, eva:5 ,element:'fire', selfDestruct:true, castTime:2.5},
+  // ── ST.13 虹の道II ボス: シェルキング(クッパ風・重装・炎ブレス) ──
+  shell_king:  {hp:9500,atk:75, def:38,spd:60, exp:8500,gold:2500,sz:150,rng:110,acd:1.0, passive:false, eva:5 ,isBoss:true,element:'fire'},
 };
 
 // ============================================================
@@ -12317,7 +12362,15 @@ class GameScene extends Phaser.Scene{
         }
 
         // ── ボタン群(セル右下に配置) ──
-        const canLvUp = (sk.type==='normal') ? (!sk.bookRequired || equippable) : sk.canLearn;
+        // パッシブ書物スキル(archer:ブーストアタック / bomber:ボマーパワー)は
+        // 装備不要で自動発動するため、書物入手済みなら Lv 上げ可能にする。
+        const passiveBookOwned = isPassive && (
+          (pd.cls==='archer' && pd._hasBoostAtk) ||
+          (pd.cls==='bomber' && pd._hasBomberPower)
+        );
+        const canLvUp = (sk.type==='normal')
+          ? (!sk.bookRequired || equippable || passiveBookOwned)
+          : sk.canLearn;
         const btnH = compact ? 18 : 22;
         const btnY = cellTop + cellH - btnH/2 - 3;
         const EQ_W = compact ? Math.min(40, cellW * 0.26) : Math.min(50, cellW * 0.30);
@@ -15399,16 +15452,44 @@ class GameScene extends Phaser.Scene{
       this.tweens.add({targets:p, x:x, y:y, alpha:0, duration:700, ease:'Cubic.easeIn', onComplete:()=>p.destroy()});
     }
     SE('magic');
-    // ゲート本体
+    // ゲート本体は描画しない(マップ画像に既存のゲート絵が描かれているため)
+    // 代わりにキラキラ光るエフェクト+ぼんやりグローを重ねる
     this.time.delayedCall(600, ()=>{
-      const gate=this.add.image(x,y,'dungeon_gate').setDepth(4).setScale(0.5);
-      this.tweens.add({targets:gate, scaleX:1, scaleY:1, duration:500, ease:'Back.easeOut'});
+      // 不可視マーカー(近接判定の sprite.active チェック用)
+      const gate = this.add.rectangle(x, y, 1, 1, 0x000000, 0).setDepth(4);
+      // 中央の脈動グロー(柔らかい暖色)
+      const glow = this.add.circle(x, y, 50, 0xffee88, 0.25).setDepth(4);
+      this.tweens.add({targets: glow, scaleX:{from:0.8,to:1.3}, scaleY:{from:0.8,to:1.3}, alpha:{from:0.18,to:0.45}, duration:1200, yoyo:true, repeat:-1});
+      // キラキラ連続生成 — 星型がポップしては消える
+      const sparkleColors = [0xffffff, 0xffee88, 0xaaffff, 0xff88ff, 0xffcc66, 0x88ffcc];
+      const sparkleTimer = this.time.addEvent({
+        delay: 130, loop: true,
+        callback: () => {
+          if(!gate.active) return;
+          const ang = Math.random() * Math.PI * 2;
+          const r   = 10 + Math.random() * 55;
+          const px  = x + Math.cos(ang) * r;
+          const py  = y + Math.sin(ang) * r;
+          const col = sparkleColors[Math.floor(Math.random() * sparkleColors.length)];
+          const sz  = 5 + Math.random() * 4;
+          const sp  = this.add.star(px, py, 4, sz*0.4, sz, col).setDepth(5).setAlpha(0);
+          this.tweens.add({
+            targets: sp,
+            alpha:  { from: 0, to: 1 },
+            scale:  { from: 0.4, to: 1.4 },
+            angle:  Math.random() * 180,
+            duration: 350 + Math.random()*200,
+            yoyo: true,
+            onComplete: () => { try{ sp.destroy(); }catch(e){} }
+          });
+        }
+      });
       // ラベル(頭上)
-      const label=this.add.text(x,y-78,'⚔ '+(gateCfg.label||'ダンジョン')+' ⚔',{fontSize:'12px',fontFamily:'Arial',color:'#cc66ff',stroke:'#000',strokeThickness:3,fontStyle:'bold'}).setOrigin(0.5).setDepth(5);
+      const label=this.add.text(x,y-78,'✨ '+(gateCfg.label||'ダンジョン')+' ✨',{fontSize:'12px',fontFamily:'Arial',color:'#ffee88',stroke:'#000',strokeThickness:3,fontStyle:'bold'}).setOrigin(0.5).setDepth(5);
       // 点滅
       this.tweens.add({targets:label, alpha:0.5, duration:900, yoyo:true, repeat:-1});
-      // グループに保存(近接判定用)
-      this._dungeonGate={x, y, to:gateCfg.to, label:gateCfg.label, sprite:gate, labelTxt:label, dialogOpen:false};
+      // グループに保存(近接判定用)— glow も持っておく(後始末用)
+      this._dungeonGate={x, y, to:gateCfg.to, label:gateCfg.label, sprite:gate, labelTxt:label, glow, sparkleTimer, dialogOpen:false};
       // 告知
       this.cameras.main.shake(200,0.003);
       const ann=this.add.text(this.scale.width/2,this.scale.height/2,'✨ 地下への入口が現れた… ✨',{fontSize:'22px',fontFamily:'Arial',color:'#cc66ff',stroke:'#000',strokeThickness:4,fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(50);
@@ -17309,9 +17390,10 @@ class GameScene extends Phaser.Scene{
         return;
       }
       // ダンジョンゲート（ボス撃破後に出現・近づくとダイアログ表示）
+      // 反応半径を 60→100 に拡大(キャラがゲート真下に立てない地形向け)
       if(this._dungeonGate && !this._dungeonGate.dialogOpen &&
          this._dungeonGate.sprite && this._dungeonGate.sprite.active &&
-         Phaser.Math.Distance.Between(p.x,p.y,this._dungeonGate.x,this._dungeonGate.y) < 60){
+         Phaser.Math.Distance.Between(p.x,p.y,this._dungeonGate.x,this._dungeonGate.y) < 100){
         this._showDungeonDialog();
       }
       // 青魔法ゲート（magicGate: 近づくとダイアログ表示）
