@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-05-28-v1'; // 更新日付
+const GAME_VERSION = '2026-05-30-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -117,6 +117,40 @@ const BGM_FILES={
   sakura_dun:  BASE+'bgm/bgm_sakuradun.mp3',   // 桜の城
   // ボス戦
   boss:        BASE+'bgm/bgm_boss.mp3',
+};
+
+// ============================================================
+//  マップ画像 URL テーブル(遅延ロード用)
+// ============================================================
+//   起動時にまとめてロードせず、各ステージに入る時だけ動的に読み込む。
+//   GameScene.preload が cfg.mapImage を見て、テクスチャ未読込なら
+//   ここから URL を引いてロード→ノービス歩行のローディング画面を出す。
+//   2 回目以降の同じステージはブラウザキャッシュで瞬時。
+const MAP_URLS = {
+  map_st1:          BASE+'maps/st1.webp',
+  map_st2:          BASE+'maps/st2.webp',
+  map_st3:          BASE+'maps/st3.webp',
+  map_st4:          BASE+'maps/st4.webp',
+  map_st5:          BASE+'maps/st5.webp',
+  map_st6:          BASE+'maps/st6.webp',
+  map_st7:          BASE+'maps/st7.webp',
+  map_st8:          BASE+'maps/st8.webp',
+  map_rainbow1:     BASE+'maps/rainbow-1.webp',
+  map_rainbow2:     BASE+'maps/rainbow-2.webp',
+  map_dun1:         BASE+'maps/dun1.webp',
+  map_st20:         BASE+'maps/st20.webp',
+  map_blaze:        BASE+'maps/town1.webp',
+  map_town0:        BASE+'maps/town0.webp',
+  map_town2:        BASE+'maps/town2.webp',
+  map_dun2_1:       BASE+'maps/dun2-1.webp',
+  map_dun2_2:       BASE+'maps/dun2-2.webp',
+  map_south_st1:    BASE+'maps/south_st1.webp',
+  map_south_st2:    BASE+'maps/south_st2.webp',
+  map_south_st3:    BASE+'maps/south_st3.webp',
+  map_south_st4:    BASE+'maps/south_st4.webp',
+  map_town_minato:  BASE+'maps/town_minato.webp',
+  map_sakura_gate:  BASE+'maps/sakura_gate.webp',
+  map_sakura_dun1:  BASE+'maps/sakura_dun1.webp',
 };
 
 // ── 合成BGMは削除済み(無音フォールバック) ──────────
@@ -585,31 +619,9 @@ class BootScene extends Phaser.Scene{
     // arrow はコード描画テクスチャを使用
     // proj・fx はコード生成に変更
     ['hp_potion','mp_potion'].forEach(k=>this.load.image('drop_'+k,BASE+'drops/'+k+'.png'));
-    // ── カスタムマップ画像（1枚絵背景） ──
-    this.load.image('map_st1', BASE+'maps/st1.webp');
-    this.load.image('map_st2', BASE+'maps/st2.webp');
-    this.load.image('map_st3', BASE+'maps/st3.webp');
-    this.load.image('map_st4', BASE+'maps/st4.webp');
-    this.load.image('map_st5', BASE+'maps/st5.webp');
-    this.load.image('map_st6', BASE+'maps/st6.webp');
-    this.load.image('map_st7', BASE+'maps/st7.webp');
-    this.load.image('map_st8', BASE+'maps/st8.webp');
-    this.load.image('map_rainbow1', BASE+'maps/rainbow-1.webp');
-    this.load.image('map_rainbow2', BASE+'maps/rainbow-2.webp');
-    this.load.image('map_dun1', BASE+'maps/dun1.webp');
-    this.load.image('map_st20', BASE+'maps/st20.webp');
-    this.load.image('map_blaze', BASE+'maps/town1.webp');
-    this.load.image('map_town0', BASE+'maps/town0.webp');
-    this.load.image('map_town2', BASE+'maps/town2.webp');
-    this.load.image('map_dun2_1', BASE+'maps/dun2-1.webp');
-    this.load.image('map_dun2_2', BASE+'maps/dun2-2.webp');
-    this.load.image('map_south_st1', BASE+'maps/south_st1.webp');
-    this.load.image('map_south_st2', BASE+'maps/south_st2.webp');
-    this.load.image('map_south_st3', BASE+'maps/south_st3.webp');
-    this.load.image('map_south_st4', BASE+'maps/south_st4.webp');
-    this.load.image('map_town_minato', BASE+'maps/town_minato.webp');
-    this.load.image('map_sakura_gate', BASE+'maps/sakura_gate.webp');
-    this.load.image('map_sakura_dun1', BASE+'maps/sakura_dun1.webp');
+    // ── カスタムマップ画像は遅延ロードに変更(MAP_URLS テーブルから都度ロード) ──
+    // 起動時の合計ダウンロード量を削減するため、各ステージに入る時に
+    // GameScene.preload が必要な 1 枚だけ動的に読み込む。
     // NPC スプライト
     this.load.image('npc_sakura5', BASE+'npcs/sakura-5.png');
     // メインタウン系 NPC キャラ(セントラル等で使用)
@@ -5921,6 +5933,94 @@ class GameScene extends Phaser.Scene{
     this._dungeonGateSpawned=false;
     this._transitioning=false;
     this._gameOver=false;
+  }
+  // ── マップ画像を遅延ロード(必要なら) ──
+  // 起動時に全マップを読まないので、ステージ進入時にここで対象マップを動的取得。
+  // 既にテクスチャがキャッシュに有れば即スキップ。
+  preload(){
+    const cfg = STAGE_CONFIG[this.stage] || STAGE_CONFIG[1];
+    const mapKey = cfg && cfg.mapImage;
+    if(!mapKey) return;                          // 画像マップでないステージ
+    if(this.textures.exists(mapKey)) return;     // 既にキャッシュにある(2 回目以降)
+    const url = MAP_URLS[mapKey];
+    if(!url){
+      console.warn('[lazy-load] MAP_URLS にエントリ無し:', mapKey);
+      return;
+    }
+    // ローディングオーバーレイ(ノービス歩行)を表示してから load 開始
+    this._showMapLoadingOverlay();
+    this.load.image(mapKey, url);
+    this.load.once('complete', () => this._hideMapLoadingOverlay());
+  }
+  _showMapLoadingOverlay(){
+    const w = this.scale.width, h = this.scale.height;
+    // 暗い半透明オーバーレイ
+    const ov = this.add.rectangle(0, 0, w, h, 0x000814, 0.95).setOrigin(0,0)
+      .setScrollFactor(0).setDepth(900);
+    // ── ランダム敵を 1 体ピックして「ぽよんぽよん」アニメ ──
+    // テクスチャがキャッシュ済みのものだけから抽選(画像未配置の新規敵は除外)
+    const candidates = [
+      'slime','sakura','cider','bat','wisp','goblin','skeleton','zombie',
+      'bear','beetle','hornet','crab','seal','red_oni','blue_oni',
+      'goblin_archer','goblin_axe','ghost','lich','dark_elf','wolf','troll',
+      'sandman','mummy','cloud_monkey','treant','beach_crab','gama_ninja',
+      'sandworm','scorpion','dragon','bone_walker','treasure_hunt'
+    ];
+    const available = candidates.filter(k => this.textures.exists('enemy_'+k));
+    const pickId = available.length
+      ? available[Math.floor(Math.random() * available.length)]
+      : 'slime';
+    const mon = this.add.image(w/2, h/2 - 10, 'enemy_'+pickId)
+      .setScrollFactor(0).setDepth(901).setOrigin(0.5, 1.0);  // 接地点を下端に
+    mon.setDisplaySize(120, 120);
+    const baseSX = mon.scaleX, baseSY = mon.scaleY;
+    // ぽよん: 縦に潰れて横に広がる→戻る を繰り返す(yoyo + Sine ease)
+    this.tweens.add({
+      targets: mon,
+      scaleY: baseSY * 0.78,
+      scaleX: baseSX * 1.12,
+      duration: 280,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+    // 名前タグ(キャラの下に)
+    const monName = (ENEMY_NAMES && ENEMY_NAMES[pickId]) ? ENEMY_NAMES[pickId] : pickId;
+    const nameTxt = this.add.text(w/2, h/2 + 22, monName, {
+      fontSize: '12px', fontFamily: 'Arial', color: '#aaccff',
+      stroke: '#000', strokeThickness: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(902);
+    // メッセージ
+    const msg = this.add.text(w/2, h/2 + 90, '⏳ マップ読み込み中…', {
+      fontSize: '18px', fontFamily: 'Arial', color: '#ffee88',
+      stroke: '#000', strokeThickness: 3, fontStyle: 'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(902);
+    // プログレスバー(枠 + 中身)
+    const PB_W = 260, PB_H = 14;
+    const barBg = this.add.rectangle(w/2, h/2 + 130, PB_W+4, PB_H+4, 0x333333, 0.9)
+      .setScrollFactor(0).setDepth(902).setStrokeStyle(2, 0x666666);
+    const bar = this.add.rectangle(w/2 - PB_W/2, h/2 + 130, 0, PB_H, 0xffee88, 1)
+      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(903);
+    this._mapLoadingOverlay = { ov, mon, nameTxt, msg, barBg, bar, PB_W };
+    // 進捗反映
+    const onProgress = (v) => {
+      const o = this._mapLoadingOverlay;
+      if(o && o.bar) o.bar.width = o.PB_W * v;
+    };
+    this.load.on('progress', onProgress);
+    this._mapLoadingOnProgress = onProgress;
+  }
+  _hideMapLoadingOverlay(){
+    if(this._mapLoadingOnProgress){
+      try{ this.load.off('progress', this._mapLoadingOnProgress); }catch(e){}
+      this._mapLoadingOnProgress = null;
+    }
+    if(!this._mapLoadingOverlay) return;
+    const o = this._mapLoadingOverlay;
+    [o.ov, o.mon, o.nameTxt, o.msg, o.barBg, o.bar].forEach(x => {
+      try { if(x && x.destroy) x.destroy(); } catch(e) {}
+    });
+    this._mapLoadingOverlay = null;
   }
   create(){
     const cfg=STAGE_CONFIG[this.stage]||STAGE_CONFIG[1];
