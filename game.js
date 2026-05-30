@@ -4820,6 +4820,11 @@ const STAGE_CONFIG={
     portalNextX:3020, portalNextY:1024,         // 右端の道(ST.3へ)
     spawnFromBackX:200, spawnFromBackY:1024,    // ST.1から戻ってきたら左から
     spawnFromNextX:2870, spawnFromNextY:1024,   // ST.3から戻ってきたら右端から200px内側
+    // 橋(中央〜右側)が色判定で歩けない問題への対応:
+    // ユーザー報告位置 (1923, 1321) 周辺を強制歩行可に
+    walkZones:[
+      {x:1480, y:1240, w:880, h:180},  // 中央〜右の石橋(横長)
+    ],
   },
   3:{name:'ST.3 海岸',bgmKey:'east',mapImage:'map_st3',mapW:1448,mapH:1086,tiles:['tile_sand_beach','tile_sea','tile_oasis_grass'],tileWeights:[60,20,20],objects:[],objPos:[],enemies:[['slime',300,260],['slime',450,540],['slime',700,350],['bat',550,380],['bat',700,200],['wolf',450,820],['wolf',290,720],['crab',900,350],['crab',1050,600],['crab',950,800],['crab',1190,400],['crab',1150,700],['seal',1100,500],['seal',1200,600],['seal',1050,950]],boss:{id:'boss3',x:700,y:500},bossThreshold:18,portalTo:4,portalToLabel:'🏜 ST.4へ',portalToKey:'portal_st4',portalBack:2,portalBackLabel:'⛰ ST.2へ',portalBackKey:'portal_st2',spawnX:140,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
   4:{name:'ST.4 海と砂漠の境',bgmKey:'desert',mapImage:'map_st4',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_oasis_grass','tile_sand_beach'],tileWeights:[70,15,15],objects:[],objPos:[],enemies:[['crab',280,420],['crab',250,800],['seal',220,800],['wolf',400,400],['wolf',380,670],['scorpion',800,300],['scorpion',900,600],['scorpion',1080,580],['sandworm',1000,400],['sandworm',1200,300],['sandworm',900,800],['sandman',1100,200],['sandman',800,900],['sandman',1300,600]],boss:{id:'boss4',x:1100,y:500},bossThreshold:18,portalTo:5,portalToLabel:'🏜 ST.5へ',portalToKey:'portal_st5',portalBack:3,portalBackLabel:'🏖 ST.3へ',portalBackKey:'portal_st3',spawnX:180,spawnY:540,portalNextX:1400,portalNextY:540,portalBackX:60,portalBackY:540},
@@ -5987,21 +5992,40 @@ class GameScene extends Phaser.Scene{
     // 名前タグ(キャラの下に)
     const monName = (ENEMY_NAMES && ENEMY_NAMES[pickId]) ? ENEMY_NAMES[pickId] : pickId;
     const nameTxt = this.add.text(w/2, h/2 + 22, monName, {
-      fontSize: '12px', fontFamily: 'Arial', color: '#aaccff',
+      fontSize: '14px', fontFamily: 'Arial', color: '#ffffff', fontStyle: 'bold',
       stroke: '#000', strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(902);
+    // 属性 + 弱点(攻略 Tips としてロード中に確認できる)
+    const def = (typeof ENEMY_DEFS !== 'undefined' && ENEMY_DEFS[pickId]) ? ENEMY_DEFS[pickId] : {};
+    const elem = def.element || 'none';
+    const elInfo = (ELEMENT_INFO && ELEMENT_INFO[elem]) ? ELEMENT_INFO[elem] : ELEMENT_INFO.none;
+    let elemText, elemColor;
+    if(elem === 'none' || !elInfo.label){
+      elemText = '属性  なし';
+      elemColor = '#aaaaaa';
+    } else {
+      const weakElem = ELEMENT_OPPOSITE[elem];
+      const weakInfo = weakElem ? ELEMENT_INFO[weakElem] : null;
+      elemText = `属性 ${elInfo.icon} ${elInfo.label}`;
+      if(weakInfo) elemText += `   弱点 ${weakInfo.icon} ${weakInfo.label}`;
+      elemColor = elInfo.color || '#ffffff';
+    }
+    const elemTxt = this.add.text(w/2, h/2 + 46, elemText, {
+      fontSize: '13px', fontFamily: 'Arial', color: elemColor,
+      stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(902);
     // メッセージ
-    const msg = this.add.text(w/2, h/2 + 90, '⏳ マップ読み込み中…', {
-      fontSize: '18px', fontFamily: 'Arial', color: '#ffee88',
+    const msg = this.add.text(w/2, h/2 + 96, '⏳ マップ読み込み中…', {
+      fontSize: '17px', fontFamily: 'Arial', color: '#ffee88',
       stroke: '#000', strokeThickness: 3, fontStyle: 'bold'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(902);
     // プログレスバー(枠 + 中身)
     const PB_W = 260, PB_H = 14;
-    const barBg = this.add.rectangle(w/2, h/2 + 130, PB_W+4, PB_H+4, 0x333333, 0.9)
+    const barBg = this.add.rectangle(w/2, h/2 + 134, PB_W+4, PB_H+4, 0x333333, 0.9)
       .setScrollFactor(0).setDepth(902).setStrokeStyle(2, 0x666666);
-    const bar = this.add.rectangle(w/2 - PB_W/2, h/2 + 130, 0, PB_H, 0xffee88, 1)
+    const bar = this.add.rectangle(w/2 - PB_W/2, h/2 + 134, 0, PB_H, 0xffee88, 1)
       .setOrigin(0, 0.5).setScrollFactor(0).setDepth(903);
-    this._mapLoadingOverlay = { ov, mon, nameTxt, msg, barBg, bar, PB_W };
+    this._mapLoadingOverlay = { ov, mon, nameTxt, elemTxt, msg, barBg, bar, PB_W };
     // 進捗反映
     const onProgress = (v) => {
       const o = this._mapLoadingOverlay;
@@ -6017,7 +6041,7 @@ class GameScene extends Phaser.Scene{
     }
     if(!this._mapLoadingOverlay) return;
     const o = this._mapLoadingOverlay;
-    [o.ov, o.mon, o.nameTxt, o.msg, o.barBg, o.bar].forEach(x => {
+    [o.ov, o.mon, o.nameTxt, o.elemTxt, o.msg, o.barBg, o.bar].forEach(x => {
       try { if(x && x.destroy) x.destroy(); } catch(e) {}
     });
     this._mapLoadingOverlay = null;
