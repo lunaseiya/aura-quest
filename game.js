@@ -5066,8 +5066,12 @@ const STAGE_CONFIG={
       // 下中央: 転職場(寺院・4つの旗・金の炎エンブレム)
       {x:430, y:790, w:380, h:340, label:'✨ 転職場',   type:'jobchange'},
     ],
-    // DUN.2 炭鉱1F へのポータル(セントラルマップ上部 X=620, Y=115)
+    // DUN.2 炭鉱1F へのポータル(ブレイズフォージ北中央 X=620, Y=115)
     portalAlt:{x:620, y:115, to:11, label:'⛏ DUN.2 炭鉱'},
+    // walkZones: 北中央の通路を強制歩行可(DUN.2 入口の出入りで詰まらないように)
+    walkZones:[
+      {x:560, y:200, w:130, h:380},  // 北中央通路(洞窟入口の南〜転職場手前まで)
+    ],
     // ── NPC配置 ──
     npcs:[
       // 武器マスター(鍛冶屋の前) - 覚醒武器の情報
@@ -5457,8 +5461,9 @@ const STAGE_CONFIG={
     portalNextX:1254, portalNextY:2400,  // 下の階段(2Fへ)
     spawnFromBackX:1254, spawnFromBackY:200,
     spawnFromNextX:1254, spawnFromNextY:2280,  // 2Fから戻ってきた時(下端の階段の少し上)
-    // DUN.2 1F から ブレイズフォージに戻る時の着地位置(洞窟入口の少し下)
-    portalBackSpawnX:620, portalBackSpawnY:500,
+    // DUN.2 1F から ブレイズフォージに戻る時の着地位置
+    // 北中央(洞窟入口の南)、宿屋・ギルドの間の通路上で確実に歩行可
+    portalBackSpawnX:620, portalBackSpawnY:460,
     // walkZones: 上下の梯子/階段通路を強制歩行可
     walkZones:[
       {x:1200, y:60,   w:110, h:200},   // 上端の梯子通路
