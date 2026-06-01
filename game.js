@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-05-30-v1'; // 更新日付
+const GAME_VERSION = '2026-06-01-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -25,6 +25,33 @@ function getSaveData(slot){
 }
 function setSaveData(slot,data){
   try{localStorage.setItem(SAVE_KEY+slot,JSON.stringify(data));}catch(e){}
+}
+
+// ══════════════════════════════════════
+//  バグ報告システム(座標だけ録画→後で振り返り)
+// ══════════════════════════════════════
+const BUG_REPORT_KEY = 'aq_bug_reports';
+function loadBugReports(){
+  try{
+    const raw = localStorage.getItem(BUG_REPORT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveBugReports(arr){
+  try{ localStorage.setItem(BUG_REPORT_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function addBugReport(stage, x, y){
+  const arr = loadBugReports();
+  arr.push({
+    ts: Date.now(),
+    stage: stage,
+    x: Math.floor(x),
+    y: Math.floor(y),
+    note: '',           // 後で記入
+    version: GAME_VERSION || 'unknown',
+  });
+  saveBugReports(arr);
+  return arr.length;     // 何件目の報告か
 }
 
 // playerData をセーブ用にクリーンアップ(Phaserオブジェクト・一時状態を除外)
@@ -11308,6 +11335,25 @@ class GameScene extends Phaser.Scene{
       setMute(!muted);
       this._muteTxt.setText(muted?'🔇':'🔊');
     });
+    // 🐛 バグ報告ボタン(ミュートの右)— タップで現在座標を localStorage に記録
+    const bugX = MX + 84;
+    this._bugBtn = this.add.rectangle(bugX, MY, 32, 32, 0x2a1a0a, 0.9)
+      .setStrokeStyle(1, 0xff8844).setScrollFactor(0).setDepth(15)
+      .setInteractive({useHandCursor:true});
+    this.add.text(bugX, MY, '🐛', {fontSize:'14px'}).setOrigin(0.5)
+      .setScrollFactor(0).setDepth(16);
+    this._bugBtn.on('pointerdown', ()=>{
+      if(!this.player) return;
+      try{ SE('click'); }catch(e){}
+      const n = addBugReport(this.stage, this.player.x, this.player.y);
+      this.showFloat(this.player.x, this.player.y - 60,
+        '📝 バグ #'+n+' 記録', '#ffaa44', 'info');
+      // ボタンを一瞬光らせて押下感
+      this._bugBtn.setFillStyle(0xff8844, 0.65);
+      this.time.delayedCall(150, ()=>{
+        if(this._bugBtn && this._bugBtn.active) this._bugBtn.setFillStyle(0x2a1a0a, 0.9);
+      });
+    });
     // skillBtnRefsをリセットしてからupdateHUD（古い参照によるエラー防止）
     this.skillBtnRefs=[];
     this.updateHUD();
@@ -17683,4 +17729,38 @@ window.debug = {
   info: ()=>{const gs=_game.scene.getScene('Game'); console.log({stage:gs.stage, boss:gs.cfg?.boss, killCount:gs.killCount, threshold:gs.cfg?.bossThreshold, bossSpawned:gs.bossSpawned});},
   // スタック脱出: スポーン位置にワープ
   unstick: ()=>{const gs=_game.scene.getScene('Game'); if(gs.player&&gs.cfg){ gs.player.x=gs.cfg.spawnX||100; gs.player.y=gs.cfg.spawnY||100; console.log('スポーン位置にワープしました'); }},
+  // 🐛 バグ報告一覧を表示(コンソール)
+  bugs: ()=>{
+    const arr = loadBugReports();
+    if(!arr.length){ console.log('バグ報告はまだありません'); return arr; }
+    console.log('=== バグ報告 ('+arr.length+'件) ===');
+    arr.forEach((b,i)=>{
+      const d = new Date(b.ts);
+      const ds = d.getMonth()+1+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+      const stageName = (STAGE_CONFIG[b.stage] && STAGE_CONFIG[b.stage].name) || 'stage'+b.stage;
+      console.log('#'+(i+1)+' ['+ds+'] '+stageName+' (X:'+b.x+' Y:'+b.y+')'+(b.note?' — '+b.note:' [未記入]'));
+    });
+    return arr;
+  },
+  // バグ報告にノート追加 (debug.bugNote(1, 'メッセージ'))
+  bugNote: (n, note)=>{
+    const arr = loadBugReports();
+    if(n<1 || n>arr.length){ console.warn('範囲外:', n); return; }
+    arr[n-1].note = note;
+    saveBugReports(arr);
+    console.log('#'+n+' に追記:', note);
+  },
+  // バグ報告を 1 件削除
+  bugDel: (n)=>{
+    const arr = loadBugReports();
+    if(n<1 || n>arr.length){ console.warn('範囲外:', n); return; }
+    arr.splice(n-1, 1);
+    saveBugReports(arr);
+    console.log('#'+n+' を削除');
+  },
+  // バグ報告を全削除
+  bugsClear: ()=>{
+    saveBugReports([]);
+    console.log('バグ報告を全消去しました');
+  },
 };
