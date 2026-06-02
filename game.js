@@ -10,7 +10,16 @@ const TILE=32;
 // ============================================================
 //  BGM / SE
 // ============================================================
-let audioCtx=null,muted=false,testMode=false;
+let audioCtx=null,muted=false;
+// testMode は localStorage に永続化(ブラウザリロード・セーブロードでも保持)
+let testMode = (function(){
+  try { return localStorage.getItem('aq_test_mode') === '1'; }
+  catch(e){ return false; }
+})();
+function _saveTestMode(){
+  try { localStorage.setItem('aq_test_mode', testMode ? '1' : '0'); }
+  catch(e) {}
+}
 
 // ══════════════════════════════════════
 //  セーブ・ロードシステム
@@ -4622,6 +4631,7 @@ class ClassSelectScene extends Phaser.Scene{
     const tmTxt=this.add.text(tmX,tmY,testMode?'🧪 テスト ON':'🧪 テスト OFF',{fontSize:'11px',fontFamily:'Arial',color:testMode?'#44ff44':'#aaaaaa',fontStyle:'bold'}).setOrigin(0.5);
     tmBg.on('pointerdown',()=>{
       testMode=!testMode;
+      _saveTestMode();
       tmBg.setFillStyle(testMode?0x226622:0x222233,0.9).setStrokeStyle(2,testMode?0x44ff44:0x556677);
       tmTxt.setText(testMode?'🧪 テスト ON':'🧪 テスト OFF').setColor(testMode?'#44ff44':'#aaaaaa');
     });
@@ -5169,7 +5179,8 @@ const STAGE_CONFIG={
     portalBackX:470, portalBackY:80,
     spawnFromBackX:470, spawnFromBackY:200,
     spawnFromNextX:470, spawnFromNextY:200,
-    spawnFromSouthX:470, spawnFromSouthY:200,
+    // ST.26(海岸の街道)から戻ってきた時 = 南端の道に着地
+    spawnFromSouthX:464, spawnFromSouthY:1496,
     // 東方向ポータル(右上の橋付近) → south_st3
     portalEast:24, portalEastLabel:'⛏ 鉱山の街道へ', portalEastKey:'portal_st1',
     portalEastX:870, portalEastY:480,  // 右の橋付近
@@ -5177,7 +5188,6 @@ const STAGE_CONFIG={
     // 南方向ポータル(下端の道) → south_st4(海岸エリア)
     portalSouth:26, portalSouthLabel:'🏖 海岸の街道へ', portalSouthKey:'portal_st1',
     portalSouthX:470, portalSouthY:1600,  // 下端の道
-    spawnFromSouth2X:464, spawnFromSouth2Y:1496,  // south_st4(ST.26) から戻ってきた時(指定座標)
     // 橋エリアは強制歩行可(色判定で岩や水と誤判定されないように)
     walkZones:[
       {x:760, y:430, w:180, h:140},  // 右上の橋 + 周囲の通路を覆う矩形
@@ -5286,8 +5296,9 @@ const STAGE_CONFIG={
     ],
     boss:null, bossThreshold:9999,
     portalTo:null, portalToLabel:'',
-    // 北へ戻る = south_st2 (上端のアーチ門から) ※ ST.23のことだが内部はsouth_st2と呼んでいる
+    // 北へ戻る = south_st2(ST.23 南の街道続)。戻り先(ST.23)の南端にスポーンさせる
     portalBack:23, portalBackLabel:'🌲 南の街道(続)へ戻る', portalBackKey:'portal_st1',
+    returnFromSouth:true,                     // ← ST.23 の spawnFromSouth(南端)に着地させる
     // 入口=上端のアーチ門 (新座標)
     spawnX:852, spawnY:180,                  // 入口アーチ通り抜けた直後(ポータルの少し下)
     portalBackX:852, portalBackY:53,         // 上端のアーチ門(戻り・新座標)
@@ -5295,7 +5306,7 @@ const STAGE_CONFIG={
     // 南方向ポータル(下端中央の橋) → town_minato 港町
     portalSouth:27, portalSouthLabel:'⛵ 港町へ', portalSouthKey:'portal_st1',
     portalSouthX:1240, portalSouthY:1857,      // 下端中央の橋への道
-    spawnFromSouth2X:1240, spawnFromSouth2Y:1700, // town_minatoから戻ってきた時
+    spawnFromSouthX:1240, spawnFromSouthY:1700, // town_minato から戻ってきた時(下端の橋付近)
     // walkZones: アーチ門の通路を強制歩行可(新ポータル位置に合わせ移動)
     walkZones:[
       {x:802, y:30, w:100, h:220},  // 上端アーチ通路(X:852中心の縦長エリア)
@@ -13176,7 +13187,7 @@ class GameScene extends Phaser.Scene{
     const w = this.scale.width, h = this.scale.height;
     const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
       .setScrollFactor(0).setDepth(100).setInteractive();
-    const boxW = Math.min(w*0.85, 540), boxH = 280;
+    const boxW = Math.min(w*0.85, 540), boxH = 320;
     const boxX = w/2, boxY = h - boxH/2 - 30;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x0a1a14, 0.96)
       .setScrollFactor(0).setDepth(101)
@@ -13191,38 +13202,67 @@ class GameScene extends Phaser.Scene{
 
     const pd = this.playerData;
     const p = this.player;
-    // ボタン定義: ラベル / 色 / 動作
+    // 次レベルまでに必要な経験値(現Lv に合わせて自動スケール)
+    const expForLv    = Math.max(1, (pd.expNext||100) - (pd.exp||0));
+    const jobExpForLv = Math.max(1, (pd.jobExpNext||80) - (pd.jobExp||0));
+    // ボタン定義: 2 列 × 3 行 (各カテゴリ「固定値小」と「次Lv分」)
     const btnDefs = [
-      {label:'⭐ 経験値 +500',     col:0x4488ff, action:()=>{
+      // ── 経験値(EXP) ──
+      {label:'⭐ EXP +500',     col:0x4488ff, action:()=>{
         pd.exp = (pd.exp||0) + 500;
         this.checkLevelUp();
         this.showFloat(p.x, p.y-50, '+500 EXP', '#88ccff', 'info');
         this.updateHUD();
       }},
-      {label:'💼 JOB経験値 +300',  col:0xff8844, action:()=>{
+      {label:'⭐ EXP +1Lv分 ('+expForLv+')', col:0x66aaff, action:()=>{
+        pd.exp = (pd.exp||0) + expForLv;
+        this.checkLevelUp();
+        this.showFloat(p.x, p.y-50, '+'+expForLv+' EXP (1Lv分)', '#88ccff', 'info');
+        this.updateHUD();
+      }},
+      // ── JOB EXP ──
+      {label:'💼 JOB +300',     col:0xff8844, action:()=>{
         this.addJobExp(300);
         this.showFloat(p.x, p.y-50, '+300 JOB EXP', '#ffaa66', 'info');
-        this.updateHUD();              // JB バー再描画
-        if(this._updateMenuBadge) this._updateMenuBadge();  // pt 増加バッジ
+        this.updateHUD();
+        if(this._updateMenuBadge) this._updateMenuBadge();
       }},
-      {label:'✨ 覚醒ポイント +5', col:0xaa66ff, action:()=>{
+      {label:'💼 JOB +1JLv分 ('+jobExpForLv+')', col:0xffaa66, action:()=>{
+        this.addJobExp(jobExpForLv);
+        this.showFloat(p.x, p.y-50, '+'+jobExpForLv+' JOB EXP (1JLv分)', '#ffaa66', 'info');
+        this.updateHUD();
+        if(this._updateMenuBadge) this._updateMenuBadge();
+      }},
+      // ── 覚醒ポイント ──
+      {label:'✨ 覚醒pt +5',    col:0xaa66ff, action:()=>{
         pd.awakSp = (pd.awakSp||0) + 5;
         pd._awakSpEarned = (pd._awakSpEarned||0) + 5;
-        this.showFloat(p.x, p.y-50, '+5 覚醒ポイント', '#cc99ff', 'info');
-        // 覚醒ボタン横の「✨Npt」表示を即更新
+        this.showFloat(p.x, p.y-50, '+5 覚醒pt', '#cc99ff', 'info');
+        if(this._updateAwakeningButton) this._updateAwakeningButton();
+      }},
+      {label:'✨ 覚醒pt +20',   col:0xcc88ff, action:()=>{
+        pd.awakSp = (pd.awakSp||0) + 20;
+        pd._awakSpEarned = (pd._awakSpEarned||0) + 20;
+        this.showFloat(p.x, p.y-50, '+20 覚醒pt', '#cc99ff', 'info');
         if(this._updateAwakeningButton) this._updateAwakeningButton();
       }},
     ];
-    const btnW = boxW - 60, btnH = 40, gap = 8;
-    const startY = boxY - boxH/2 + 86;
+    // 2 列 × 3 行 配置
+    const COLS = 2;
+    const colGap = 8, btnH = 38, rowGap = 8;
+    const btnW = (boxW - 40 - colGap) / COLS;
+    const startY = boxY - boxH/2 + 90;
+    const startX = boxX - boxW/2 + 20 + btnW/2;
     btnDefs.forEach((bd, i)=>{
-      const by = startY + i*(btnH + gap);
-      const bg = this.add.rectangle(boxX, by, btnW, btnH, bd.col, 0.95)
+      const col = i % COLS, row = Math.floor(i / COLS);
+      const bx = startX + col * (btnW + colGap);
+      const by = startY + row * (btnH + rowGap);
+      const bg = this.add.rectangle(bx, by, btnW, btnH, bd.col, 0.95)
         .setScrollFactor(0).setDepth(102)
         .setStrokeStyle(2, 0xffffff, 0.8)
         .setInteractive({useHandCursor:true});
-      const tx = this.add.text(boxX, by, bd.label, {
-        fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+      const tx = this.add.text(bx, by, bd.label, {
+        fontSize:'12px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
       }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
       bg.on('pointerover', ()=>bg.setFillStyle(bd.col, 1.0));
       bg.on('pointerout',  ()=>bg.setFillStyle(bd.col, 0.95));
