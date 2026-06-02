@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-01-v1'; // 更新日付
+const GAME_VERSION = '2026-06-02-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -12134,13 +12134,15 @@ class GameScene extends Phaser.Scene{
     const skillCont=sf0(this.add.container(0,0));
     const equipCont=sf0(this.add.container(0,0));
     const itemCont=sf0(this.add.container(0,0));
+    const bugCont=sf0(this.add.container(0,0));
     // 全コンテナを最初に非表示
     statCont.setVisible(false);
     skillCont.setVisible(false);
     equipCont.setVisible(false);
     itemCont.setVisible(false);
+    bugCont.setVisible(false);
     statCont.setVisible(false);
-    root.add([statCont,skillCont,equipCont,itemCont]);
+    root.add([statCont,skillCont,equipCont,itemCont,bugCont]);
 
     let _currentTab=null;
     const switchTab=(t)=>{
@@ -12150,8 +12152,10 @@ class GameScene extends Phaser.Scene{
       skillCont.setVisible(t==='skill');
       equipCont.setVisible(t==='equip');
       itemCont.setVisible(t==='item');
-      ['stat','skill','equip','item'].forEach(id=>{
-        const colMap={stat:0x44aaff,skill:0x00e5ff,equip:0xe74c3c,item:0xf39c12};
+      bugCont.setVisible(t==='bug');
+      if(t==='bug'){ try{ buildBugList(); }catch(e){ console.error('buildBugList error:', e); } }
+      ['stat','skill','equip','item','bug'].forEach(id=>{
+        const colMap={stat:0x44aaff,skill:0x00e5ff,equip:0xe74c3c,item:0xf39c12,bug:0xff8844};
         const col=colMap[id]||0x44aaff;
         const on=id===t;
         tabBtns[id].setFillStyle(col,on?0.5:0.08).setStrokeStyle(2,on?col:0x334455);
@@ -12159,9 +12163,9 @@ class GameScene extends Phaser.Scene{
       });
     };
 
-    [['stat','⚡ ステータス',0x44aaff,-PW*0.375],['skill','🎯 スキル',0x00e5ff,-PW*0.125],['equip','🛡 装備',0xe74c3c,PW*0.125],['item','🎒 アイテム',0xf39c12,PW*0.375]].forEach(([id,label,col,ox])=>{
-      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/4-3,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
-      const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'17px',fontFamily:'Arial',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
+    [['stat','⚡ ステ',0x44aaff,-PW*0.4],['skill','🎯 スキル',0x00e5ff,-PW*0.2],['equip','🛡 装備',0xe74c3c,0],['item','🎒 アイテム',0xf39c12,PW*0.2],['bug','🐛 バグ',0xff8844,PW*0.4]].forEach(([id,label,col,ox])=>{
+      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/5-2,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
+      const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'14px',fontFamily:'Arial',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
       btn.on('pointerdown',()=>switchTab(id));
       tabBtns[id]=btn; tabTxts[id]=txt;
     });
@@ -12946,6 +12950,147 @@ class GameScene extends Phaser.Scene{
       if(icol>=ITEM_COLS){icol=0;irow++;}
     });
     }catch(e){console.error('item tab error:',e.message,e.stack);}
+
+    // ════════════════════════════════
+    //  バグ報告タブ
+    // ════════════════════════════════
+    let _bugScrollOffset = 0;
+    const buildBugList = () => {
+      // 既存の中身を全クリア
+      bugCont.removeAll(true);
+      const badd = (o)=>{ o.setScrollFactor(0); bugCont.add(o); return o; };
+      const arr = loadBugReports();
+      const unfilled = arr.filter(b => !b.note).length;
+      // ── ヘッダー ──
+      badd(this.add.text(L+8, ITOP+8,
+        '🐛 バグ報告   '+arr.length+' 件  /  未記入 '+unfilled+' 件',
+        {fontSize:'13px',fontFamily:'Arial',color:'#ffaa44',fontStyle:'bold'}));
+      // 全コピー ボタン
+      if(arr.length > 0){
+        const cbW=90, cbX=R-cbW/2-4, cbY=ITOP+12;
+        const cb = badd(this.add.rectangle(cbX, cbY, cbW, 24, 0x44aaff, 0.3)
+          .setStrokeStyle(1, 0x44aaff).setInteractive({useHandCursor:true}));
+        badd(this.add.text(cbX, cbY, '📋 全コピー',
+          {fontSize:'11px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
+        cb.on('pointerdown', ()=>{ try{ SE('click'); }catch(e){} copyBugReportsToClipboard(); });
+      }
+      // 空メッセージ
+      if(arr.length === 0){
+        badd(this.add.text(PX, PY,
+          '報告はまだありません。\n\nゲーム中の 🐛 ボタンで\n座標を記録してね!',
+          {fontSize:'14px',fontFamily:'Arial',color:'#888888',align:'center'}).setOrigin(0.5));
+        return;
+      }
+      // ── スクロール対応リスト ──
+      const ROW_H = 72;
+      const listTop = ITOP + 38;
+      const listBot = IBOT - 4;
+      const visibleRows = Math.max(1, Math.floor((listBot - listTop) / ROW_H));
+      const maxScroll = Math.max(0, arr.length - visibleRows);
+      if(_bugScrollOffset > maxScroll) _bugScrollOffset = maxScroll;
+      if(_bugScrollOffset < 0) _bugScrollOffset = 0;
+      // Up/Down ボタン(オーバーフロー時のみ右端)
+      if(arr.length > visibleRows){
+        const uBtn = badd(this.add.rectangle(R-16, listTop+14, 28, 24, 0x444444, 0.7)
+          .setStrokeStyle(1, 0x888888).setInteractive({useHandCursor:true}));
+        badd(this.add.text(R-16, listTop+14, '▲',{fontSize:'12px',color:'#ffffff'}).setOrigin(0.5));
+        uBtn.on('pointerdown', ()=>{
+          _bugScrollOffset = Math.max(0, _bugScrollOffset - 1);
+          buildBugList();
+        });
+        const dBtn = badd(this.add.rectangle(R-16, listBot-14, 28, 24, 0x444444, 0.7)
+          .setStrokeStyle(1, 0x888888).setInteractive({useHandCursor:true}));
+        badd(this.add.text(R-16, listBot-14, '▼',{fontSize:'12px',color:'#ffffff'}).setOrigin(0.5));
+        dBtn.on('pointerdown', ()=>{
+          _bugScrollOffset = Math.min(maxScroll, _bugScrollOffset + 1);
+          buildBugList();
+        });
+        // スクロールインジケータ
+        badd(this.add.text(R-16, (listTop+listBot)/2,
+          (_bugScrollOffset+1)+'/'+arr.length,
+          {fontSize:'9px',color:'#888888'}).setOrigin(0.5));
+      }
+      // ── エントリ描画 ──
+      const listRightMargin = (arr.length > visibleRows) ? 40 : 12;
+      const cw = (R - L) - listRightMargin;
+      const cx = L + cw/2 + 4;
+      for(let i = 0; i < visibleRows && (i + _bugScrollOffset) < arr.length; i++){
+        const idx = i + _bugScrollOffset;
+        const bug = arr[idx];
+        const ry = listTop + i * ROW_H;
+        // 背景(未記入は赤枠、記入済みは緑枠)
+        const strokeCol = bug.note ? 0x44ff88 : 0xff4444;
+        badd(this.add.rectangle(cx, ry + ROW_H/2 - 4, cw, ROW_H - 8, 0x1a1a2a, 0.7)
+          .setStrokeStyle(1, strokeCol, 0.75));
+        // 1 行目: #N + ステージ + 座標 + 日時
+        const d = new Date(bug.ts);
+        const ds = (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+        const stageName = (STAGE_CONFIG[bug.stage] && STAGE_CONFIG[bug.stage].name) ? STAGE_CONFIG[bug.stage].name : ('stage'+bug.stage);
+        badd(this.add.text(cx - cw/2 + 8, ry + 8,
+          '#'+(idx+1)+'  '+stageName+'  ('+bug.x+', '+bug.y+')  '+ds,
+          {fontSize:'11px',fontFamily:'Arial',color:'#88ccff',fontStyle:'bold'}));
+        // 2 行目: ノート
+        const noteTxt = bug.note || '[ 未記入 — ✏ で編集 ]';
+        const noteCol = bug.note ? '#ffffff' : '#ff8888';
+        badd(this.add.text(cx - cw/2 + 8, ry + 28, noteTxt,
+          {fontSize:'12px',fontFamily:'Arial',color:noteCol,wordWrap:{width:cw-100}}));
+        // 編集ボタン
+        const ebX = cx + cw/2 - 42;
+        const ebY = ry + ROW_H/2 - 4;
+        const eBtn = badd(this.add.rectangle(ebX, ebY, 36, 24, 0x44aaff, 0.4)
+          .setStrokeStyle(1, 0x88ccff).setInteractive({useHandCursor:true}));
+        badd(this.add.text(ebX, ebY, '✏',{fontSize:'14px'}).setOrigin(0.5));
+        eBtn.on('pointerdown', ()=>{ try{ SE('click'); }catch(e){} editBugNote(idx); });
+        // 削除ボタン
+        const dbX = cx + cw/2 - 12;
+        const dbY = ry + ROW_H/2 - 4;
+        const dBtn = badd(this.add.rectangle(dbX, dbY, 24, 24, 0xff4444, 0.3)
+          .setStrokeStyle(1, 0xff4444).setInteractive({useHandCursor:true}));
+        badd(this.add.text(dbX, dbY, '🗑',{fontSize:'12px'}).setOrigin(0.5));
+        dBtn.on('pointerdown', ()=>{ try{ SE('click'); }catch(e){} confirmDeleteBug(idx); });
+      }
+    };
+    const editBugNote = (idx)=>{
+      const arr = loadBugReports();
+      if(idx<0 || idx>=arr.length) return;
+      const stageName = (STAGE_CONFIG[arr[idx].stage] && STAGE_CONFIG[arr[idx].stage].name) ? STAGE_CONFIG[arr[idx].stage].name : ('stage'+arr[idx].stage);
+      const msg = 'バグ #'+(idx+1)+' のノート編集\n'+stageName+' ('+arr[idx].x+', '+arr[idx].y+')\n\n内容・改善案を入力(空欄で OK 押すと未記入)';
+      const newNote = window.prompt(msg, arr[idx].note || '');
+      if(newNote === null) return;  // キャンセル
+      arr[idx].note = newNote.trim();
+      saveBugReports(arr);
+      buildBugList();
+    };
+    const confirmDeleteBug = (idx)=>{
+      const arr = loadBugReports();
+      if(idx<0 || idx>=arr.length) return;
+      const stageName = (STAGE_CONFIG[arr[idx].stage] && STAGE_CONFIG[arr[idx].stage].name) ? STAGE_CONFIG[arr[idx].stage].name : ('stage'+arr[idx].stage);
+      const ok = window.confirm('バグ #'+(idx+1)+' を削除しますか?\n'+stageName+' ('+arr[idx].x+', '+arr[idx].y+')\n'+(arr[idx].note || '[未記入]'));
+      if(!ok) return;
+      arr.splice(idx, 1);
+      saveBugReports(arr);
+      if(_bugScrollOffset > 0 && _bugScrollOffset >= arr.length) _bugScrollOffset = Math.max(0, arr.length-1);
+      buildBugList();
+    };
+    const copyBugReportsToClipboard = ()=>{
+      const arr = loadBugReports();
+      if(!arr.length){ window.alert('報告がありません'); return; }
+      const lines = arr.map((b, i)=>{
+        const d = new Date(b.ts);
+        const ds = (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+        const stageName = (STAGE_CONFIG[b.stage] && STAGE_CONFIG[b.stage].name) ? STAGE_CONFIG[b.stage].name : ('stage'+b.stage);
+        return '#'+(i+1)+' ['+ds+'] '+stageName+' (X:'+b.x+' Y:'+b.y+') — '+(b.note || '[未記入]');
+      });
+      const text = '=== バグ報告 ('+arr.length+'件) ===\n' + lines.join('\n');
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(
+          ()=> window.alert('クリップボードに '+arr.length+' 件コピーしました。\nClaude に貼り付けて改修依頼できます。'),
+          ()=> window.prompt('コピーしてください(長押し→コピー):', text)
+        );
+      }else{
+        window.prompt('コピーしてください(長押し→コピー):', text);
+      }
+    };
 
     try{switchTab(tab||'stat');}catch(e){console.error('switchTab error:',e);}
   }
