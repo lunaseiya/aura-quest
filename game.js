@@ -707,7 +707,7 @@ class BootScene extends Phaser.Scene{
       'goblin_axe','hornet','lich','mummy','orc_archer','orc_high','orc_lady','orc_warrior',
       'red_oni','rock_golem','sakura','sandman','sandworm','scorpion','seal','skeleton',
       'slime','treant','treasure_hunt','troll','wisp','wolf','zombie',
-      // ST.13 虹の道II 新ザコ(PNG が無ければプレースホルダー描画にフォールバック)
+      // ST.13 虹の道II 新ザコ(画像追加済み)
       'cross_rock','ace_trump','bomb_slime'
     ].forEach(k=>{
       this.load.image('enemy_'+k,       BASE+'enemies/'+k+'.png');
@@ -719,15 +719,12 @@ class BootScene extends Phaser.Scene{
       'boss1','boss2','boss3','boss4',
       'scorpion_king','tomb_guardian','mistress','thunder_god',
       'dark_illusion','goblin_leader',
-      // 新規ボス(画像未提供。後で boss/boss_<id>.png を追加すれば自動反映)
-      'mimic','shell_king'
+      // 新規ボス: 画像追加済み = mimic / big_sakura、未提供 = shell_king(プレースホルダー)
+      'mimic','big_sakura','shell_king'
     ].forEach(k=>{
       this.load.image('enemy_'+k,       BASE+'boss/boss_'+k+'.png');
       this.load.image('enemy_'+k+'_atk',BASE+'boss/boss_'+k+'_atk.png');
     });
-    // big_sakura は専用画像を持たず、sakura のテクスチャを別キーで流用
-    this.load.image('enemy_big_sakura',     BASE+'enemies/sakura.png');
-    this.load.image('enemy_big_sakura_atk', BASE+'enemies/sakura_atk.png');
     // 画像ロード失敗を検出(ファイル不在等)
     this.load.on('loaderror', (file)=>{
       console.warn('画像ロード失敗:', file.key, file.url);
