@@ -4780,10 +4780,10 @@ const STAGE_CONFIG={
         name:'吟遊詩人ライラ',
         dialog: NPC_DIALOGS.lore_npc,
       },
-      // 転職場(ブレイズフォージ)への道案内NPC(南ゲート手前)
+      // 転職場(ブレイズフォージ)への道案内NPC
       {
         id:'job_guide',
-        x:720, y:1080,
+        x:684, y:900,
         sprite:'npc_breize4',
         name:'冒険者アレン',
         dialog: NPC_DIALOGS.job_guide,
@@ -5114,7 +5114,7 @@ const STAGE_CONFIG={
       // 武器マスター(鍛冶屋の前) - 覚醒武器の情報
       {
         id:'weapon_master',
-        x:260, y:780,
+        x:207, y:889,
         sprite:'npc_main_town5',
         name:'武器マスター ガイア',
         dialog: NPC_DIALOGS.weapon_master,
@@ -6515,7 +6515,7 @@ class GameScene extends Phaser.Scene{
         // テクスチャが存在する場合のみsprite作成、なければプレースホルダー
         if(this.textures.exists(npcDef.sprite)){
           sprite = this.add.sprite(npcDef.x, npcDef.y, npcDef.sprite).setDepth(5);
-          sprite.setDisplaySize(60, 60);
+          sprite.setDisplaySize(78, 78);  // プレイヤーキャラより少し大きめ(1.3倍)
         }else{
           // フォールバック: 黄色い円 + ?マーク(テクスチャが見つからない時)
           console.warn('[NPC] Texture not found:', npcDef.sprite);
@@ -16426,6 +16426,12 @@ class GameScene extends Phaser.Scene{
 
       cleanup();
       closeFn(); // 転職屋を閉じる
+      // ── 遷移ガード ──
+      // 転職演出(700ms)中に攻撃・スキル発動で旧クラス状態と新ステータスが
+      // 混ざってフリーズするバグ対策。物理停止+入力遮断+_transitioning フラグ
+      this._transitioning = true;
+      try{ this.physics.pause(); }catch(e){}
+      if(this.input) this.input.enabled = false;
       // 派手な演出
       this.cameras.main.flash(600, 255, 230, 100);
       try{ SE('lvup'); }catch(e){}
