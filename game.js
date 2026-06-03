@@ -626,11 +626,36 @@ class BootScene extends Phaser.Scene{
   preload(){
     const w=this.scale.width,h=this.scale.height;
     this.add.rectangle(0,0,w,h,0x000000).setOrigin(0);
-    const bar=this.add.rectangle(w*0.1,h/2-10,0,20,0xffd700).setOrigin(0);
-    this.add.rectangle(w*0.1,h/2-10,w*0.8,20,0x000000,0).setOrigin(0).setStrokeStyle(1,0x444444);
-    const txt=this.add.text(w/2,h/2+20,'Loading...',{fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
-    this.load.on('progress',v=>bar.setSize(w*0.8*v,20));
-    this.load.on('fileprogress',f=>txt.setText(f.key));
+    // ローディングバーは下寄り(上にスライムを表示するスペース確保)
+    const barY = h/2 + 60;
+    const bar=this.add.rectangle(w*0.1, barY-10, 0, 20, 0xffd700).setOrigin(0);
+    this.add.rectangle(w*0.1, barY-10, w*0.8, 20, 0x000000, 0).setOrigin(0).setStrokeStyle(1,0x444444);
+    const txt=this.add.text(w/2, barY+20, 'Loading...', {fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
+    this.load.on('progress', v => bar.setSize(w*0.8*v, 20));
+    this.load.on('fileprogress', f => txt.setText(f.key));
+    // ── スライムを最優先ロードしてバウンス表示(寂しいローディング画面の演出) ──
+    // 小サイズの PNG なので数十 ms で完了し、すぐに登場する
+    this.load.image('enemy_slime', BASE+'enemies/slime.png');
+    this.load.once('filecomplete-image-enemy_slime', ()=>{
+      const sy = h/2 - 20;  // バーより上、画面中央寄り
+      const slime = this.add.image(w/2, sy, 'enemy_slime').setOrigin(0.5, 1.0);
+      slime.setDisplaySize(96, 96);
+      const baseSY = slime.scaleY, baseSX = slime.scaleX;
+      this.tweens.add({
+        targets: slime,
+        scaleY: baseSY * 0.78,
+        scaleX: baseSX * 1.15,
+        duration: 280,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      // 名前タグ
+      this.add.text(w/2, sy+8, 'スライム', {
+        fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold',
+        stroke:'#000', strokeThickness:2
+      }).setOrigin(0.5);
+    });
     this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:124,frameHeight:124});
     // novice はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_novice', BASE+'players/novice_sprite_sheet.png', {frameWidth:128,frameHeight:128});
@@ -8999,17 +9024,8 @@ class GameScene extends Phaser.Scene{
         }
         pd._bcStreak = Math.min(2, (pd._bcStreak||0));  // 表示用にcap
         const rangeMul = Math.pow(1.2, pd._bcStreak);
-        // 向き取得
-        let targetAng = this._lastAngle || 0;
-        let nearest=null, nd=500;
-        this.enemyDataList.forEach(ed=>{
-          if(ed.dead) return;
-          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-          if(d<nd){nd=d; nearest=ed;}
-        });
-        if(nearest){
-          targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
-        }
+        // 向き = プレイヤーの向き(自動標準を廃止)
+        const targetAng = this.getFacingAngle();
         const beamLen = 700 * rangeMul;
         const beamWidth = 80 * rangeMul;
         const cosA = Math.cos(targetAng);
@@ -9107,14 +9123,8 @@ class GameScene extends Phaser.Scene{
       }
       else if(num===2){
         // ── メガトンキャノン: 多段高火力+広範囲爆発(カプコン風) ──
-        let targetAng = this._lastAngle || 0;
-        let nearest=null, nd=500;
-        this.enemyDataList.forEach(ed=>{
-          if(ed.dead) return;
-          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-          if(d<nd){nd=d; nearest=ed;}
-        });
-        if(nearest) targetAng = Phaser.Math.Angle.Between(p.x,p.y,nearest.sprite.x,nearest.sprite.y);
+        // 向き = プレイヤーの向き(自動標準を廃止)
+        const targetAng = this.getFacingAngle();
         const cosA = Math.cos(targetAng);
         const sinA = Math.sin(targetAng);
         // バスターキャノン3撃目の更に倍くらい
@@ -9224,6 +9234,12 @@ class GameScene extends Phaser.Scene{
             this.time.delayedCall(hit*HIT_INTERVAL, ()=>{
               const targets = this.enemyDataList.filter(ed=>{
                 if(ed.dead || !ed.sprite) return false;
+                // 0距離(密着)対策: プレイヤーから 100px 以内なら方向問わず対象
+                if(this.player){
+                  const dpx = ed.sprite.x - this.player.x;
+                  const dpy = ed.sprite.y - this.player.y;
+                  if((dpx*dpx + dpy*dpy) < 100*100) return true;
+                }
                 const dx = ed.sprite.x - sx;
                 const dy = ed.sprite.y - sy;
                 const fwd = dx*cosA + dy*sinA;
@@ -13204,7 +13220,18 @@ class GameScene extends Phaser.Scene{
     const p = this.player;
     // 次レベルまでに必要な経験値(現Lv に合わせて自動スケール)
     const expForLv    = Math.max(1, (pd.expNext||100) - (pd.exp||0));
-    const jobExpForLv = Math.max(1, (pd.jobExpNext||80) - (pd.jobExp||0));
+    // JOB EXP は 5レベル分まとめてあげる(低Lv時に +300 ボタンより少なくならないように)
+    const jobExpFor5Lv = (()=>{
+      let exp = 0;
+      let curExp = pd.jobExp || 0;
+      let next = pd.jobExpNext || 80;
+      for(let i = 0; i < 5; i++){
+        exp += Math.max(1, next - curExp);
+        curExp = 0;
+        next = Math.floor(next * 1.5);
+      }
+      return exp;
+    })();
     // ボタン定義: 2 列 × 3 行 (各カテゴリ「固定値小」と「次Lv分」)
     const btnDefs = [
       // ── 経験値(EXP) ──
@@ -13227,9 +13254,9 @@ class GameScene extends Phaser.Scene{
         this.updateHUD();
         if(this._updateMenuBadge) this._updateMenuBadge();
       }},
-      {label:'💼 JOB +1JLv分 ('+jobExpForLv+')', col:0xffaa66, action:()=>{
-        this.addJobExp(jobExpForLv);
-        this.showFloat(p.x, p.y-50, '+'+jobExpForLv+' JOB EXP (1JLv分)', '#ffaa66', 'info');
+      {label:'💼 JOB +5JLv分 ('+jobExpFor5Lv+')', col:0xffaa66, action:()=>{
+        this.addJobExp(jobExpFor5Lv);
+        this.showFloat(p.x, p.y-50, '+'+jobExpFor5Lv+' JOB EXP (5JLv分)', '#ffaa66', 'info');
         this.updateHUD();
         if(this._updateMenuBadge) this._updateMenuBadge();
       }},
