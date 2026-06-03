@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-02-v1'; // 更新日付
+const GAME_VERSION = '2026-06-03-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -625,20 +625,25 @@ class BootScene extends Phaser.Scene{
   constructor(){super('Boot')}
   preload(){
     const w=this.scale.width,h=this.scale.height;
-    this.add.rectangle(0,0,w,h,0x000000).setOrigin(0);
+    const bgRect = this.add.rectangle(0,0,w,h,0x000000).setOrigin(0);
     // ローディングバーは下寄り(上にスライムを表示するスペース確保)
     const barY = h/2 + 60;
     const bar=this.add.rectangle(w*0.1, barY-10, 0, 20, 0xffd700).setOrigin(0);
-    this.add.rectangle(w*0.1, barY-10, w*0.8, 20, 0x000000, 0).setOrigin(0).setStrokeStyle(1,0x444444);
+    const frame=this.add.rectangle(w*0.1, barY-10, w*0.8, 20, 0x000000, 0).setOrigin(0).setStrokeStyle(1,0x444444);
     const txt=this.add.text(w/2, barY+20, 'Loading...', {fontSize:'14px',fontFamily:'Arial',color:'#aaaaaa'}).setOrigin(0.5);
-    this.load.on('progress', v => bar.setSize(w*0.8*v, 20));
+    // 進捗値を保持(リサイズ時の再描画用)
+    this._loadProgress = 0;
+    this.load.on('progress', v => {
+      this._loadProgress = v;
+      const cw = this.scale.width;
+      bar.setSize(cw*0.8*v, 20);
+    });
     this.load.on('fileprogress', f => txt.setText(f.key));
     // ── スライムを最優先ロードしてバウンス表示(寂しいローディング画面の演出) ──
-    // 小サイズの PNG なので数十 ms で完了し、すぐに登場する
     this.load.image('enemy_slime', BASE+'enemies/slime.png');
     this.load.once('filecomplete-image-enemy_slime', ()=>{
-      const sy = h/2 - 20;  // バーより上、画面中央寄り
-      const slime = this.add.image(w/2, sy, 'enemy_slime').setOrigin(0.5, 1.0);
+      const sy = this.scale.height/2 - 20;
+      const slime = this.add.image(this.scale.width/2, sy, 'enemy_slime').setOrigin(0.5, 1.0);
       slime.setDisplaySize(96, 96);
       const baseSY = slime.scaleY, baseSX = slime.scaleX;
       this.tweens.add({
@@ -650,12 +655,27 @@ class BootScene extends Phaser.Scene{
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
-      // 名前タグ
-      this.add.text(w/2, sy+8, 'スライム', {
+      const nameTag = this.add.text(this.scale.width/2, sy+8, 'スライム', {
         fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold',
         stroke:'#000', strokeThickness:2
       }).setOrigin(0.5);
+      this._loadingSlime = slime;
+      this._loadingSlimeName = nameTag;
     });
+    // ── リサイズ追従: 画面回転時にバー・スライム位置を再計算 ──
+    const resyncLoadingUI = ()=>{
+      const cw = this.scale.width, ch = this.scale.height;
+      const cbarY = ch/2 + 60;
+      if(bgRect && bgRect.active) bgRect.setSize(cw, ch);
+      if(bar && bar.active) bar.setPosition(cw*0.1, cbarY-10).setSize(cw*0.8*(this._loadProgress||0), 20);
+      if(frame && frame.active) frame.setPosition(cw*0.1, cbarY-10).setSize(cw*0.8, 20);
+      if(txt && txt.active) txt.setPosition(cw/2, cbarY+20);
+      if(this._loadingSlime && this._loadingSlime.active) this._loadingSlime.setPosition(cw/2, ch/2 - 20);
+      if(this._loadingSlimeName && this._loadingSlimeName.active) this._loadingSlimeName.setPosition(cw/2, ch/2 - 20 + 8);
+    };
+    this.scale.on('resize', resyncLoadingUI);
+    // Boot 終了時に listener を外す(GameScene 等での無駄な発火防止)
+    this.events.once('shutdown', ()=>{ try{ this.scale.off('resize', resyncLoadingUI); }catch(e){} });
     this.load.spritesheet('player_warrior', BASE+'players/sprite_sheet_sordman.png', {frameWidth:124,frameHeight:124});
     // novice はスプライトシート (128×128px, 5×3=15コマ)
     this.load.spritesheet('player_novice', BASE+'players/novice_sprite_sheet.png', {frameWidth:128,frameHeight:128});
@@ -5619,6 +5639,11 @@ const STAGE_CONFIG={
     // ST.9 から dungeonGate 経由で来た時のスポーン位置 = 下端中央(rainbow-2 の下端)
     spawnX:940, spawnY:1720,
     spawnFromBackX:940, spawnFromBackY:1720,
+    // 色判定で壁になっている箇所を強制歩行可
+    walkZones:[
+      {x:870, y:1400, w:140, h:160},  // 入口ゲート付近の通路(報告座標 939,1469)
+      {x:850, y:1660, w:900, h:170},  // 下層の道(東に続く)(報告座標 987,1726)
+    ],
   },
 };
 // ══════════════════════════════════════
@@ -13325,9 +13350,9 @@ class GameScene extends Phaser.Scene{
     // 半透明オーバーレイ
     const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.5).setScrollFactor(0).setDepth(100);
     overlay.setInteractive();
-    // ダイアログボックス本体
+    // ダイアログボックス本体(3行ページ表示用に少し縦長)
     const boxW = Math.min(w * 0.85, 540);
-    const boxH = 220;
+    const boxH = 240;
     const boxX = w/2, boxY = h - boxH/2 - 30;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1a2e, 0.95)
       .setScrollFactor(0).setDepth(101)
@@ -13337,15 +13362,20 @@ class GameScene extends Phaser.Scene{
       '👤 ' + npcDef.name,
       {fontSize:'15px', fontFamily:'Arial', color:'#ffd700', fontStyle:'bold'}
     ).setOrigin(0, 0).setScrollFactor(0).setDepth(102);
-    // 会話テキスト(ページ管理)
+    // 会話テキスト(3行ずつ 1 ページにまとめてタップ数削減)
     const dialogList = npcDef.dialog.map(line=>
       line.replace('{price}', npcDef.price||0)
     );
+    const LINES_PER_PAGE = 3;
+    const pages = [];
+    for(let i = 0; i < dialogList.length; i += LINES_PER_PAGE){
+      pages.push(dialogList.slice(i, i + LINES_PER_PAGE).join('\n'));
+    }
     let pageIdx = 0;
     const dialogTxt = this.add.text(boxX, boxY - 10,
-      dialogList[pageIdx],
+      pages[pageIdx],
       {fontSize:'14px', fontFamily:'Arial', color:'#ffffff',
-       wordWrap:{width: boxW - 40}, align:'center'}
+       wordWrap:{width: boxW - 40}, align:'center', lineSpacing: 6}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102);
     // 「タップして続行」アイコン
     const nextHint = this.add.text(boxX, boxY + boxH/2 - 20,
@@ -13446,17 +13476,17 @@ class GameScene extends Phaser.Scene{
     overlay.on('pointerdown', ()=>{
       if(yesBtn) return;  // 選択肢中はタップ無効
       pageIdx++;
-      if(pageIdx < dialogList.length){
-        dialogTxt.setText(dialogList[pageIdx]);
+      if(pageIdx < pages.length){
+        dialogTxt.setText(pages[pageIdx]);
         SE('click');
         // 最後のページなら選択肢を表示
-        if(pageIdx === dialogList.length - 1){
+        if(pageIdx === pages.length - 1){
           this.time.delayedCall(300, showChoiceButtons);
         }
       }
     });
-    // 1ページ目から1行しかない場合、すぐ選択肢
-    if(dialogList.length === 1){
+    // 全ページが 1 ページに収まる場合、すぐ選択肢
+    if(pages.length === 1){
       this.time.delayedCall(500, showChoiceButtons);
     }
   }

@@ -40,9 +40,44 @@
       height:100% !important;
       touch-action:none;
     }
+    /* ── 縦向き(ポートレート)時はゲームを隠して案内表示 ── */
+    /* 横が標準。スマホで縦に持つと「横向きにしてね」と促す */
+    #rotate-prompt{
+      display:none;
+      position:fixed; top:0; left:0; width:100vw; height:100vh; height:100dvh;
+      background:#0a0f1a; color:#ffeebb; z-index:9999;
+      flex-direction:column; justify-content:center; align-items:center;
+      text-align:center; padding:20px;
+      font-family:'Bangers','Orbitron',sans-serif;
+    }
+    #rotate-prompt .icon{
+      font-size:84px; margin-bottom:24px;
+      animation:rotateHint 2s ease-in-out infinite;
+    }
+    #rotate-prompt .msg{
+      font-size:22px; line-height:1.6; letter-spacing:0.05em;
+    }
+    #rotate-prompt .sub{
+      font-size:13px; margin-top:18px; color:#88aabb;
+    }
+    @keyframes rotateHint{
+      0%, 100% { transform: rotate(-12deg); }
+      50%      { transform: rotate(78deg);  }
+    }
+    /* 縦向きの時だけオーバーレイを出してキャンバスを隠す */
+    @media (orientation: portrait){
+      #rotate-prompt{ display:flex; }
+      canvas{ visibility:hidden; }
+    }
   </style>
 </head>
 <body>
+  <!-- 縦向きで開いた時に表示される案内(横向きにすると自動で消える) -->
+  <div id="rotate-prompt">
+    <div class="icon">📱</div>
+    <div class="msg">画面を <strong>横向き</strong> に<br>してください</div>
+    <div class="sub">LUNA FRONTIER は横画面でお楽しみください</div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script>
     // NPC セリフは別ファイル化(編集しやすさのため)
