@@ -17704,11 +17704,19 @@ class GameScene extends Phaser.Scene{
       if(dist<CHASE_RANGE && this._mapMaskCtx){
         canSeePlayer = this._hasLineOfSight(sp.x, sp.y, p.x, p.y);
       }
+      // ── 隣接停止距離: プレイヤー半径 + 敵半径 + バッファ ──
+      // 0 距離まで突っ込まないようにする(「足元を起点として隣接」位置で止まる)
+      const playerR = 32;                       // プレイヤー表示サイズ 64 の半分
+      const enemyR  = (ed.sz || 60) / 2;
+      const standoffDist = playerR + enemyR + 2;
       let vx=0, vy=0;
       if(dist<CHASE_RANGE && canSeePlayer){
-        const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
-        vx=Math.cos(ang)*ed.spd;
-        vy=Math.sin(ang)*ed.spd;
+        if(dist > standoffDist){
+          const ang=Phaser.Math.Angle.Between(sp.x,sp.y,p.x,p.y);
+          vx=Math.cos(ang)*ed.spd;
+          vy=Math.sin(ang)*ed.spd;
+        }
+        // 既に隣接位置にいる: vx=vy=0 のまま停止
       }else{
         ed.wanderTimer-=dt;
         if(ed.wanderTimer<=0){
@@ -17722,9 +17730,10 @@ class GameScene extends Phaser.Scene{
       }
       // ── 壁判定付きで移動 ──
       this._moveEnemyWithCollision(ed, vx, vy, dt);
-      // 攻撃(壁越しでは攻撃もしない)
+      // 攻撃判定: rng と standoff+6 の大きい方を使う(隣接停止しても攻撃発動)
       ed.attackTimer-=dt;
-      if(ed.attackTimer<=0&&dist<ed.rng&&canSeePlayer){
+      const effectiveRng = Math.max(ed.rng, standoffDist + 6);
+      if(ed.attackTimer<=0 && dist < effectiveRng && canSeePlayer){
         ed.attackTimer=ed.acd;
         // ── 遠距離攻撃タイプ: rng>=150 の敵は投射物を撃つ ──
         const rangedIds=['orc_archer','dark_elf','lich','treant'];
