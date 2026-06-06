@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-03-v1'; // 更新日付
+const GAME_VERSION = '2026-06-05-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -4970,7 +4970,7 @@ const STAGE_CONFIG={
       // ── 入口手前(下中央・X=1300〜1700, Y=1500〜1700) ──
       ['cloud_monkey',1400,1500],['giant',1600,1550],
     ],
-    boss:{id:'thunder_god',x:2700,y:200},  // 右上の青ドーム神殿
+    boss:{id:'thunder_god',x:2416,y:463},  // 右上の青ドーム神殿(ユーザー指定座標)
     bossThreshold:14,
     portalTo:null,portalToLabel:'',
     portalBack:null,portalBackLabel:'',
@@ -5639,10 +5639,14 @@ const STAGE_CONFIG={
     // ST.9 から dungeonGate 経由で来た時のスポーン位置 = 下端中央(rainbow-2 の下端)
     spawnX:940, spawnY:1720,
     spawnFromBackX:940, spawnFromBackY:1720,
-    // 色判定で壁になっている箇所を強制歩行可
+    // 色判定が厳しいため、ステージ全体の通行可能エリアを広めに確保
     walkZones:[
-      {x:870, y:1400, w:140, h:160},  // 入口ゲート付近の通路(報告座標 939,1469)
-      {x:850, y:1660, w:900, h:170},  // 下層の道(東に続く)(報告座標 987,1726)
+      // 下層〜中層の縦通路(中央)
+      {x:140, y:1100, w:1640, h:680},  // 下層全域(東西に広い)
+      // 中層の踊り場
+      {x:200, y:700,  w:1500, h:400},
+      // 上層(ボス前)
+      {x:300, y:200,  w:1300, h:500},
     ],
   },
 };
@@ -7193,15 +7197,17 @@ class GameScene extends Phaser.Scene{
       }else{
         // 通常: 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
         const ang=this.getFacingAngle();
-        // プレイヤー手前に着弾するように距離を調整(密着敵に当たる)
-        const dist=35;
-        const tx=p.x+Math.cos(ang)*dist, ty=p.y+Math.sin(ang)*dist;
-        const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
-        const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
+        // ボマーパワー Lv で「投げ距離」が伸びる(0距離は爆発半径でカバー)
+        const bomberPowerLv = pd._hasBomberPower ? (pd.sk4||1) : 0;
+        const distMul   = 1 + bomberPowerLv * 0.18;  // Lv0:1, Lv5:1.9, Lv10:2.8
+        const radiusMul = 1 + bomberPowerLv * 0.10;  // 半径は控えめに(0距離維持のため radius >= dist)
+        const dist = Math.floor(35 * distMul);
+        const tx = p.x + Math.cos(ang)*dist;
+        const ty = p.y + Math.sin(ang)*dist;
         this.throwBomb(p.x,p.y,tx,ty,{
           dmg:Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2))),
           isCrit:Math.random()*100<calcCrit(pd),
-          radius:70*bomberRadiusMult,  // 55→70 に拡大
+          radius:Math.floor(70 * radiusMul),  // Lv10 で 140(投げ距離 98 を包む)
           element:'fire',
         });
         SE('explode');
@@ -9140,8 +9146,15 @@ class GameScene extends Phaser.Scene{
         });
         const streakLabel = ['', '×1.2', '×1.44'][pd._bcStreak] || '';
         this.showFloat(p.x, p.y-80, '🔫 バスターキャノン'+(streakLabel?' '+streakLabel:''), '#ff8844');
-        // CD: 動いた場合はディレイ、連射時はゼロ
-        this[cdKey] = movingNow ? 1.2 : 0.05;
+        // CD 階段制:
+        //   動いてる → 1.5s(従来 1.2 から強化、移動撃ち抑止)
+        //   連打中(streak>=1) → 0.3s(従来 0.05 — 発射完了まで間を空ける)
+        //   単発/連打開始 → 0.7s(従来 0.05 — 連打しないと CD 発生)
+        let _bcCD;
+        if(movingNow) _bcCD = 1.5;
+        else if(pd._bcStreak >= 1) _bcCD = 0.3;
+        else _bcCD = 0.7;
+        this[cdKey] = _bcCD;
       }
       else if(num===2){
         // ── メガトンキャノン: 多段高火力+広範囲爆発(カプコン風) ──
@@ -13573,9 +13586,10 @@ class GameScene extends Phaser.Scene{
   // ══════════════════════════════════════
   _createAwakeningButton(){
     const w=this.scale.width, h=this.scale.height;
-    // 画面右下、攻撃ボタンの上あたりに配置
-    const BX = w - 75;
-    const BY = h - 200;
+    // ミニマップ(右上 w-166〜w-6, y=6〜126)の左隣に配置
+    // セーブ/タイトルボタン(y=152, 186)とのかぶりを回避
+    const BX = w - 220;
+    const BY = 66;
     this._awakBtnBg = this.add.circle(BX, BY, 36, 0xff2244, 0.85)
       .setStrokeStyle(3, 0xff8866).setScrollFactor(0).setDepth(28).setVisible(false)
       .setInteractive({useHandCursor:true});
@@ -14826,11 +14840,13 @@ class GameScene extends Phaser.Scene{
       if(this.joyBase){this.joyBase.destroy();this.joyBase=null;}
       if(this.joyKnob){this.joyKnob.destroy();this.joyKnob=null;}
       if(this.joyLabel){this.joyLabel.destroy();this.joyLabel=null;}
-      // ミニマップ関連の破棄(複雑なのでminimapマーカーも対象)
+      // ミニマップ関連の破棄(全要素対象 — 旧位置に残ると2重描画になる)
       if(this.mmBg){this.mmBg.destroy();this.mmBg=null;}
+      if(this.mmMapImage){this.mmMapImage.destroy();this.mmMapImage=null;}
       if(this.mmStageLabel){this.mmStageLabel.destroy();this.mmStageLabel=null;}
       if(this.mmPlayerDot){this.mmPlayerDot.destroy();this.mmPlayerDot=null;}
       if(this.mmEnemyDots){this.mmEnemyDots.forEach(d=>{try{d.destroy();}catch(e){}});this.mmEnemyDots=[];}
+      if(this.mmStaticObjs){this.mmStaticObjs.forEach(o=>{try{o.destroy();}catch(e){}});this.mmStaticObjs=[];}
       // スキルボタン・攻撃ボタン関連はthis._skillBtnsとthis._atkBtnなど未管理
       // → 破棄しないが、画面回転時は新しいUIが既存の上に重なる
       // 最低限ジョイスティックとミニマップだけは再配置すれば操作性が回復する
@@ -15664,7 +15680,20 @@ class GameScene extends Phaser.Scene{
     const p=this.player;
     if(this.playerData.cls==='bomber'){
       const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-      ed.knockVx=Math.cos(ang)*200;ed.knockVy=Math.sin(ang)*200;ed.knockTimer=0.2;
+      const knockSpd = 200;
+      // ノックバック先(0.2秒分)が ステージ範囲外なら壁にいる扱いでスキップ
+      const futureX = ed.sprite.x + Math.cos(ang) * knockSpd * 0.2;
+      const futureY = ed.sprite.y + Math.sin(ang) * knockSpd * 0.2;
+      const margin = 40;
+      const MW = this.MW || 1200, MH = this.MH || 1000;
+      const inBounds = (futureX >= margin && futureX <= MW - margin
+                     && futureY >= margin && futureY <= MH - margin);
+      if(inBounds){
+        ed.knockVx = Math.cos(ang) * knockSpd;
+        ed.knockVy = Math.sin(ang) * knockSpd;
+        ed.knockTimer = 0.2;
+      }
+      // 隅でノックバックできない場合は何もしない(壁に詰まって貼りつく現象回避)
     }
     const sx=ed.sprite.x, sy=ed.sprite.y;
     // 属性相性によるダメージ数値の装飾:
