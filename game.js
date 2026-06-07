@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-05-v1'; // 更新日付
+const GAME_VERSION = '2026-06-07-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -19,6 +19,41 @@ let testMode = (function(){
 function _saveTestMode(){
   try { localStorage.setItem('aq_test_mode', testMode ? '1' : '0'); }
   catch(e) {}
+}
+
+// ── 音量設定 (ユーザー調整・localStorage 永続化) ──
+// 0.0〜1.0 のスライダー値。実音量に変換する係数は以下:
+//   BGM 実音量 = bgmUserVol * 0.30  (スライダー 100% で 0.30、デフォ 30% で 0.09)
+//   SE  実音量 = seUserVol   * 1.00  (スライダー 100% で 1.00、デフォ 100%)
+const BGM_VOL_MAX = 0.30;
+const SE_VOL_MAX  = 1.00;
+let bgmUserVol = (function(){
+  try {
+    const v = localStorage.getItem('aq_bgm_vol');
+    return v !== null ? Math.max(0, Math.min(1, parseFloat(v))) : 0.30;
+  } catch(e){ return 0.30; }
+})();
+let seUserVol = (function(){
+  try {
+    const v = localStorage.getItem('aq_se_vol');
+    return v !== null ? Math.max(0, Math.min(1, parseFloat(v))) : 1.00;
+  } catch(e){ return 1.00; }
+})();
+function _saveBgmVol(){
+  try { localStorage.setItem('aq_bgm_vol', String(bgmUserVol)); }
+  catch(e) {}
+}
+function _saveSeVol(){
+  try { localStorage.setItem('aq_se_vol', String(seUserVol)); }
+  catch(e) {}
+}
+// 再生中の BGM へ即時反映
+function _applyBgmVolume(){
+  if(_bgmAudio){ try{ _bgmAudio.volume = bgmUserVol * BGM_VOL_MAX; }catch(e){} }
+}
+// SE master gain に即時反映
+function _applySeVolume(){
+  if(_seMasterGain){ try{ _seMasterGain.gain.value = seUserVol * SE_VOL_MAX; }catch(e){} }
 }
 
 // ══════════════════════════════════════
@@ -246,7 +281,7 @@ function startBGM(key){
     try{
       const audio=new Audio(file);
       audio.loop=true;
-      audio.volume=0.10;
+      audio.volume = bgmUserVol * BGM_VOL_MAX;  // ユーザー設定値を反映
       audio.preload='auto';
       // ループ失敗時の保険(端末によってはlooping=trueが効かない場合あり)
       audio.addEventListener('ended', ()=>{
@@ -402,7 +437,7 @@ function getSEMaster(){
   const ac=getAC();if(!ac)return null;
   if(!_seMasterGain){
     _seMasterGain=ac.createGain();
-    _seMasterGain.gain.value=1.0; // SE全体の音量上限(MAX)
+    _seMasterGain.gain.value = seUserVol * SE_VOL_MAX;  // ユーザー設定値を反映
     _seMasterGain.connect(ac.destination);
   }
   return _seMasterGain;
@@ -5544,10 +5579,20 @@ const STAGE_CONFIG={
     // DUN.2 1F から ブレイズフォージに戻る時の着地位置
     // 北中央(洞窟入口の南)、宿屋・ギルドの間の通路上で確実に歩行可
     portalBackSpawnX:620, portalBackSpawnY:460,
-    // walkZones: 上下の梯子/階段通路を強制歩行可
+    // walkZones: 梯子/階段 + 報告された歩きにくい通路を強制歩行可
     walkZones:[
       {x:1200, y:60,   w:110, h:200},   // 上端の梯子通路
       {x:1200, y:2120, w:110, h:380},   // 下端の階段通路(2F着地位置2200もカバー)
+      // 上層〜中層の中央コリドー(報告座標 977,684 周辺)
+      {x:700,  y:550,  w:900, h:400},
+      // 中層〜下層の中央コリドー(同様に色判定で詰まりやすい)
+      {x:700,  y:1300, w:900, h:400},
+      // 左右の通路繋ぎ(上層)
+      {x:300,  y:500,  w:1900, h:200},
+      // 左右の通路繋ぎ(中層)
+      {x:300,  y:1100, w:1900, h:200},
+      // 左右の通路繋ぎ(下層)
+      {x:300,  y:1700, w:1900, h:200},
     ],
   },
   // ── DUN.2 炭鉱2F: 1Fの下端階段から入る・最下層・クリスタル鉱脈 ──
@@ -12197,14 +12242,16 @@ class GameScene extends Phaser.Scene{
     const equipCont=sf0(this.add.container(0,0));
     const itemCont=sf0(this.add.container(0,0));
     const bugCont=sf0(this.add.container(0,0));
+    const cfgCont=sf0(this.add.container(0,0));
     // 全コンテナを最初に非表示
     statCont.setVisible(false);
     skillCont.setVisible(false);
     equipCont.setVisible(false);
     itemCont.setVisible(false);
     bugCont.setVisible(false);
+    cfgCont.setVisible(false);
     statCont.setVisible(false);
-    root.add([statCont,skillCont,equipCont,itemCont,bugCont]);
+    root.add([statCont,skillCont,equipCont,itemCont,bugCont,cfgCont]);
 
     let _currentTab=null;
     const switchTab=(t)=>{
@@ -12215,9 +12262,11 @@ class GameScene extends Phaser.Scene{
       equipCont.setVisible(t==='equip');
       itemCont.setVisible(t==='item');
       bugCont.setVisible(t==='bug');
+      cfgCont.setVisible(t==='cfg');
       if(t==='bug'){ try{ buildBugList(); }catch(e){ console.error('buildBugList error:', e); } }
-      ['stat','skill','equip','item','bug'].forEach(id=>{
-        const colMap={stat:0x44aaff,skill:0x00e5ff,equip:0xe74c3c,item:0xf39c12,bug:0xff8844};
+      if(t==='cfg'){ try{ buildConfigTab(); }catch(e){ console.error('buildConfigTab error:', e); } }
+      ['stat','skill','equip','item','bug','cfg'].forEach(id=>{
+        const colMap={stat:0x44aaff,skill:0x00e5ff,equip:0xe74c3c,item:0xf39c12,bug:0xff8844,cfg:0xaaaaaa};
         const col=colMap[id]||0x44aaff;
         const on=id===t;
         tabBtns[id].setFillStyle(col,on?0.5:0.08).setStrokeStyle(2,on?col:0x334455);
@@ -12225,9 +12274,9 @@ class GameScene extends Phaser.Scene{
       });
     };
 
-    [['stat','⚡ ステ',0x44aaff,-PW*0.4],['skill','🎯 スキル',0x00e5ff,-PW*0.2],['equip','🛡 装備',0xe74c3c,0],['item','🎒 アイテム',0xf39c12,PW*0.2],['bug','🐛 バグ',0xff8844,PW*0.4]].forEach(([id,label,col,ox])=>{
-      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/5-2,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
-      const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'14px',fontFamily:'Arial',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
+    [['stat','⚡ ステ',0x44aaff,-PW*5/12],['skill','🎯 スキル',0x00e5ff,-PW*3/12],['equip','🛡 装備',0xe74c3c,-PW/12],['item','🎒 アイテム',0xf39c12,PW/12],['bug','🐛 バグ',0xff8844,PW*3/12],['cfg','⚙ 設定',0xaaaaaa,PW*5/12]].forEach(([id,label,col,ox])=>{
+      const btn=mk(this.add.rectangle(PX+ox,PY-PH/2+TAB_H/2,PW/6-2,TAB_H,col,0.08).setStrokeStyle(2,col).setInteractive());
+      const txt=mk(this.add.text(PX+ox,PY-PH/2+TAB_H/2,label,{fontSize:'12px',fontFamily:'Arial',color:'#'+col.toString(16).padStart(6,'0')}).setOrigin(0.5));
       btn.on('pointerdown',()=>switchTab(id));
       tabBtns[id]=btn; tabTxts[id]=txt;
     });
@@ -13152,6 +13201,84 @@ class GameScene extends Phaser.Scene{
       }else{
         window.prompt('コピーしてください(長押し→コピー):', text);
       }
+    };
+
+    // ════════════════════════════════
+    //  ⚙ 設定タブ (音量スライダー)
+    // ════════════════════════════════
+    const buildConfigTab = ()=>{
+      cfgCont.removeAll(true);
+      const cadd = (o)=>{ o.setScrollFactor(0); cfgCont.add(o); return o; };
+      // ヘッダー
+      cadd(this.add.text(PX, ITOP+12, '⚙ 設定',
+        {fontSize:'15px',fontFamily:'Arial',color:'#cccccc',fontStyle:'bold'}).setOrigin(0.5));
+
+      // スライダー生成ヘルパ
+      //   label = 表示名 / getVal/setVal = 値の get/set (0〜1) / applyFn = 適用処理 / saveFn = 保存処理
+      const makeSlider = (cy, icon, label, getVal, setVal, applyFn, saveFn)=>{
+        const trackW = Math.min(220, PW*0.45);
+        const trackH = 10;
+        const labelX = PX - PW*0.36;
+        const trackX = PX - 30;
+        const pctX   = PX + PW*0.34;
+        // アイコン
+        cadd(this.add.text(labelX - 24, cy, icon, {fontSize:'20px'}).setOrigin(0.5));
+        // ラベル
+        cadd(this.add.text(labelX, cy, label,
+          {fontSize:'14px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold'}).setOrigin(0,0.5));
+        // トラック背景
+        const track = cadd(this.add.rectangle(trackX, cy, trackW, trackH, 0x333333, 1)
+          .setOrigin(0,0.5).setStrokeStyle(1, 0x666666));
+        // フィル(現在値の可視化)
+        let val = getVal();
+        const fill = cadd(this.add.rectangle(trackX, cy, Math.max(2, trackW*val), trackH, 0x44ddaa, 1)
+          .setOrigin(0,0.5));
+        // ハンドル(つまみ)
+        const handle = cadd(this.add.circle(trackX + trackW*val, cy, 12, 0xffffff, 1)
+          .setStrokeStyle(2, 0x44ddaa));
+        // パーセント表示
+        const pct = cadd(this.add.text(pctX, cy, Math.round(val*100)+'%',
+          {fontSize:'14px',fontFamily:'Arial',color:'#88ddcc',fontStyle:'bold'}).setOrigin(0,0.5));
+        // ヒットエリア(大きめでタップしやすく)
+        const hit = cadd(this.add.rectangle(trackX + trackW/2, cy, trackW + 60, 40, 0x000000, 0)
+          .setOrigin(0.5).setInteractive({useHandCursor:true}));
+        const updateFromPointer = (ptr)=>{
+          // ptr.x はワールド座標。container も scrollFactor 0 なので画面座標と同じ扱い
+          const localX = ptr.x - trackX;
+          val = Math.max(0, Math.min(1, localX / trackW));
+          handle.setX(trackX + trackW*val);
+          fill.width = Math.max(2, trackW*val);
+          pct.setText(Math.round(val*100)+'%');
+          setVal(val);
+          try{ applyFn(); }catch(e){}
+          try{ saveFn(); }catch(e){}
+        };
+        hit.on('pointerdown', updateFromPointer);
+        hit.on('pointermove', (ptr)=>{ if(ptr.isDown) updateFromPointer(ptr); });
+      };
+
+      // ── BGM スライダー ──
+      makeSlider(
+        ITOP + 70, '🎵', 'BGM 音量',
+        ()=> bgmUserVol,
+        (v)=>{ bgmUserVol = v; },
+        ()=> _applyBgmVolume(),
+        ()=> _saveBgmVol()
+      );
+      // ── SE スライダー ──
+      makeSlider(
+        ITOP + 130, '🔊', '効果音',
+        ()=> seUserVol,
+        (v)=>{ seUserVol = v; },
+        ()=> _applySeVolume(),
+        ()=> _saveSeVol()
+      );
+
+      // ヒント
+      cadd(this.add.text(PX, IBOT - 30,
+        'スライダー上をタップ・ドラッグで音量調整。\n変更は自動保存されます。',
+        {fontSize:'11px',fontFamily:'Arial',color:'#778899',align:'center',lineSpacing:4}
+      ).setOrigin(0.5));
     };
 
     try{switchTab(tab||'stat');}catch(e){console.error('switchTab error:',e);}
@@ -14829,6 +14956,8 @@ class GameScene extends Phaser.Scene{
       btnY.on('pointerover',()=>btnY.setFillStyle(0xe74c3c,0.6));btnY.on('pointerout',()=>btnY.setFillStyle(0xe74c3c,0.3));
       btnN.on('pointerover',()=>btnN.setFillStyle(0x44aaff,0.6));btnN.on('pointerout',()=>btnN.setFillStyle(0x44aaff,0.3));
     });
+    // リサイズ時の再配置用に参照保持
+    this._homeBtnObjs = [saveBtn, saveTxt, btn, txt];
   }
 
   _onScreenResize(gameSize){
@@ -14847,11 +14976,20 @@ class GameScene extends Phaser.Scene{
       if(this.mmPlayerDot){this.mmPlayerDot.destroy();this.mmPlayerDot=null;}
       if(this.mmEnemyDots){this.mmEnemyDots.forEach(d=>{try{d.destroy();}catch(e){}});this.mmEnemyDots=[];}
       if(this.mmStaticObjs){this.mmStaticObjs.forEach(o=>{try{o.destroy();}catch(e){}});this.mmStaticObjs=[];}
-      // スキルボタン・攻撃ボタン関連はthis._skillBtnsとthis._atkBtnなど未管理
-      // → 破棄しないが、画面回転時は新しいUIが既存の上に重なる
-      // 最低限ジョイスティックとミニマップだけは再配置すれば操作性が回復する
+      // セーブ/タイトル ボタン
+      if(this._homeBtnObjs){this._homeBtnObjs.forEach(o=>{try{o.destroy();}catch(e){}});this._homeBtnObjs=[];}
+      // 覚醒ボタン関連
+      if(this._awakBtnBg){try{this._awakBtnBg.destroy();}catch(e){} this._awakBtnBg=null;}
+      if(this._awakBtnTxt){try{this._awakBtnTxt.destroy();}catch(e){} this._awakBtnTxt=null;}
+      if(this._awakBtnLabel){try{this._awakBtnLabel.destroy();}catch(e){} this._awakBtnLabel=null;}
+      if(this._awakSpTxt){try{this._awakSpTxt.destroy();}catch(e){} this._awakSpTxt=null;}
+      if(this._awakBtnGauge){try{this._awakBtnGauge.destroy();}catch(e){} this._awakBtnGauge=null;}
+      // 再生成
       this.createMinimap();
       this.createJoystick();
+      this._createHomeButton();
+      this._createAwakeningButton();
+      if(this._updateAwakeningButton) this._updateAwakeningButton();
     }catch(e){
       console.warn('UI再配置エラー:', e);
     }
