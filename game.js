@@ -5812,8 +5812,8 @@ const AWAKENINGS = {
     requiresEquip: 'buster_rifle',
     sprite:'player_buster', animPrefix:'buster',        // 専用スプライト(sprite_sheet_buster.png)
     baseSprite:'player_bomber', baseAnimPrefix:'bomber',
-    auraColor:0xff4422, facingFlip:'right',
-    tintColor:0xff7744,                                 // 赤オレンジに着色
+    auraColor:0xff4422, facingFlip:'left',              // ソース右向き基準(左に動くと反転)
+    // tintColor は削除: 専用スプライトを持つので色付けは不要
     cellBg: 0x3a1408, cellStroke: 0xff7744, cellText: '#ffaa66',
     statMul: {
       spd: 0.7,    // 速度減
