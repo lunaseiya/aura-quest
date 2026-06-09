@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-07-v1'; // 更新日付
+const GAME_VERSION = '2026-06-09-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -718,6 +718,8 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_samurai', BASE+'players/sprite_sheet_samurai.png', {frameWidth:128,frameHeight:128});
     // heavy はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
     this.load.spritesheet('player_heavy', BASE+'players/sprite_sheet_custum.png', {frameWidth:128,frameHeight:128});
+    // buster はバスターズ換装(ボマー覚醒)用スプライトシート (128×128px, 5×3=15コマ)
+    this.load.spritesheet('player_buster', BASE+'players/sprite_sheet_buster.png', {frameWidth:128,frameHeight:128});
     // youma はスプライトシート (128×128px, 5×3=15コマ・覚醒時に使用)
     this.load.spritesheet('player_youma', BASE+'players/sprite_sheet_dark.png', {frameWidth:128,frameHeight:128});
     // elf_form はスプライトシート (128×128px, 5×3=15コマ・アーチャー覚醒時に使用)
@@ -935,6 +937,26 @@ class BootScene extends Phaser.Scene{
       this.anims.create({
         key:a.key,
         frames:a.frames.map(f=>({key:'player_heavy',frame:f})),
+        frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // バスター アニメーション(ボマー覚醒「バスターズ換装」時に使用)
+    const BUA=[
+      {key:'buster_front_idle',frames:[0],     rate:2, rep:-1},
+      {key:'buster_front_walk',frames:[1,2],   rate:8, rep:-1},
+      {key:'buster_front_atk', frames:[3,4],   rate:10,rep:0 },
+      {key:'buster_back_idle', frames:[5],     rate:2, rep:-1},
+      {key:'buster_back_walk', frames:[6,7],   rate:8, rep:-1},
+      {key:'buster_back_atk',  frames:[8,9],   rate:10,rep:0 },
+      {key:'buster_side_idle', frames:[10],    rate:2, rep:-1},
+      {key:'buster_side_walk', frames:[11,12], rate:8, rep:-1},
+      {key:'buster_side_atk',  frames:[13,14], rate:10,rep:0 },
+    ];
+    BUA.forEach(a=>{
+      if(this.anims.exists(a.key)) this.anims.remove(a.key);
+      this.anims.create({
+        key:a.key,
+        frames:a.frames.map(f=>({key:'player_buster',frame:f})),
         frameRate:a.rate, repeat:a.rep,
       });
     });
@@ -5788,7 +5810,7 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'bomber',
     requiresEquip: 'buster_rifle',
-    sprite:'player_heavy', animPrefix:'heavy',          // 仮: ヘヴィスプライト流用
+    sprite:'player_buster', animPrefix:'buster',        // 専用スプライト(sprite_sheet_buster.png)
     baseSprite:'player_bomber', baseAnimPrefix:'bomber',
     auraColor:0xff4422, facingFlip:'right',
     tintColor:0xff7744,                                 // 赤オレンジに着色
@@ -6801,7 +6823,7 @@ class GameScene extends Phaser.Scene{
       const awakSpriteMap = {
         samurai: 'player_samurai',
         heavy:   'player_heavy',
-        busters: 'player_heavy',  // 仮: ヘヴィスプライトを流用、赤tintで差別化
+        busters: 'player_buster',  // 専用スプライト(sprite_sheet_buster.png)
         youma:   'player_youma',
         spirit:  'player_elf',
         abyss:   'player_mage',   // 仮: マジシャンスプライトを流用、青tintで差別化
@@ -6809,7 +6831,7 @@ class GameScene extends Phaser.Scene{
       const awakAnimPrefix = {
         samurai: 'samurai',
         heavy:   'heavy',
-        busters: 'heavy',
+        busters: 'buster',
         youma:   'youma',
         spirit:  'elf',
         abyss:   'mage',
