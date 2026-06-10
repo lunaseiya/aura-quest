@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-09-v1'; // 更新日付
+const GAME_VERSION = '2026-06-10-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -574,12 +574,13 @@ function makePlayerData(cls){
       samurai:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒の習得状況
       heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒(重装兵器)
       busters:{sk1:0,sk2:0,sk3:0},  // ボマー覚醒(バスターズ換装)
-      spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒
+      spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒(エルフ)
+      hawk:   {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒(鷹神弓士)
       youma:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(妖魔)
       abyss:  {sk1:0,sk2:0,sk3:0},  // マジシャン覚醒(アビスウォーロック)
     },
     // ── 各覚醒職で現在「習得中」のスキルID(現在は装備制限のみで参照は廃止)──
-    awakActive:{ samurai:null, heavy:null, busters:null, spirit:null, youma:null, abyss:null },
+    awakActive:{ samurai:null, heavy:null, busters:null, spirit:null, hawk:null, youma:null, abyss:null },
     // ── スキルスロット(覚醒前に戦闘で使うスキル6枠) ──
     // 各要素はスキルキー or null。キー形式:
     //   通常スキル: 'n1','n2','n3','n4'
@@ -3947,6 +3948,7 @@ const EQUIP_DEFS={
   buster_rifle:{name:'バスターライフル',slot:'weapon_main',icon:'🔫', desc:'対獣用大火力ライフル。装備するとバスターズへの換装が可能',stats:{atk:24,hit:3},price:0,col:0xff5522, classOnly:'bomber', awakening:'busters', twoHand:true},
   // ── 精霊の弓(アーチャー専用・覚醒「転生」を発動可能) ──
   spirit_bow:    {name:'精霊の弓',  slot:'weapon_main',icon:'🏹', desc:'精霊が宿る神秘の弓。装備するとエルフ化が可能になる',stats:{atk:20,hit:5},price:0,col:0x88ee88, classOnly:'archer', awakening:'spirit'},
+  hawk_bow:      {name:'鷹神弓',    slot:'weapon_main',icon:'🦅', desc:'鷹の神を宿す霊弓。装備すると鷹神弓士への憑依が可能になる',stats:{atk:22,hit:6},price:0,col:0xffcc44, classOnly:'archer', awakening:'hawk'},
   // ── ダークイリュージョンの杖(マジシャン専用・覚醒「妖魔化」を発動可能) ──
   dark_illusion_staff:{name:'ダークイリュージョンの杖',slot:'weapon_main',icon:'🔮', desc:'闇の力を宿した禁忌の杖。装備すると妖魔化が可能になる',stats:{atk:8,mag:24},price:0,col:0x6622aa, classOnly:'mage', awakening:'youma'},
   // ── リヴァイアリーの杖(マジシャン専用・覚醒「アビスウォーロック」)──
@@ -5847,6 +5849,30 @@ const AWAKENINGS = {
       {id:'sk3', name:'オールクリティカル',cost:40, cd:15, desc:'一定時間100%クリティカル'},
     ],
   },
+  // ── 鷹神弓士(アーチャー・憑依)──
+  hawk: {
+    name: '鷹神弓士',
+    icon: '🦅',
+    activateLabel: '憑依',
+    deactivateLabel: '解除',
+    baseClass: 'archer',
+    requiresEquip: 'hawk_bow',
+    sprite:'player_archer', animPrefix:'archer',        // 仮: アーチャースプライトを流用、金tintで差別化
+    baseSprite:'player_archer', baseAnimPrefix:'archer',
+    auraColor:0xffcc44, facingFlip:'none',
+    tintColor:0xffdd66,                                 // setTint で金色に着色して差別化
+    cellBg: 0x3a2c08, cellStroke: 0xffcc44, cellText: '#ffdd88',
+    statMul: {
+      hit: 1.2,    // 命中 +20%(鷹眼)
+      agi: 1.1,    // 回避 +10%
+      def: 0.9,    // DEF -10%
+    },
+    skills: [
+      {id:'sk1', name:'鷹眼の加護',  cost:0,  cd:0,   desc:'一定確率で鷹が4連撃(LUKで発動率/HITで威力UP・防御無視)。Lv2毎に攻撃回数+1(パッシブ)'},
+      {id:'sk2', name:'神鷹追撃',    cost:8,  cd:1.5, desc:'鷹を意図的に呼んで4連撃。防御無視・低燃費・低CD'},
+      {id:'sk3', name:'天空穿ち',    cost:35, cd:12,  desc:'天空へ飛びオーラ矢5連射+鷹の共撃。滞空中無敵+着弾ノックバック'},
+    ],
+  },
   // ── 妖魔化(マジシャン)──
   youma: {
     name: '妖魔',
@@ -6069,6 +6095,16 @@ class GameScene extends Phaser.Scene{
       }
       if(pd.awakSkillLv && !pd.awakSkillLv.busters){
         pd.awakSkillLv.busters = {sk1:0, sk2:0, sk3:0};
+      }
+      if(pd.awakSkillLv && !pd.awakSkillLv.hawk){
+        pd.awakSkillLv.hawk = {sk1:0, sk2:0, sk3:0};
+      }
+      // アーチャーキャラには hawk_bow を1本配布(まだ持っていなければ)
+      if(pd.cls==='archer'){
+        if(!pd.items) pd.items={};
+        if(!pd.items['hawk_bow']){
+          pd.items['hawk_bow'] = 1;
+        }
       }
       // マジシャンキャラには riviary_staff を1本配布(まだ持っていなければ)
       if(pd.cls==='mage'){
@@ -6826,6 +6862,7 @@ class GameScene extends Phaser.Scene{
         busters: 'player_buster',  // 専用スプライト(sprite_sheet_buster.png)
         youma:   'player_youma',
         spirit:  'player_elf',
+        hawk:    'player_archer',  // 仮: アーチャースプライトを流用、金tintで差別化
         abyss:   'player_mage',   // 仮: マジシャンスプライトを流用、青tintで差別化
       };
       const awakAnimPrefix = {
@@ -6834,6 +6871,7 @@ class GameScene extends Phaser.Scene{
         busters: 'buster',
         youma:   'youma',
         spirit:  'elf',
+        hawk:    'archer',
         abyss:   'mage',
       };
       const tex = awakSpriteMap[pd.awakened];
@@ -7233,10 +7271,52 @@ class GameScene extends Phaser.Scene{
       if(hitCount>1)this.showFloat(p.x,p.y-50,hitCount+'段ヒット！','#27ae60','info');
       this.playSpriteAtk();
       this.atkCooldown=this._calcAtkCD(0.5);
+      // ── 鷹神弓士「鷹眼の加護」(パッシブ): 一定確率で鷹の連続攻撃 ──
+      if(pd.awakened==='hawk'){
+        const hlv = (pd.awakSkillLv && pd.awakSkillLv.hawk && pd.awakSkillLv.hawk.sk1) || 0;
+        const procRate = Math.min(60, 12 + (pd.luk||0)*1.5);  // LUKで発動率UP(上限60%)
+        if(Math.random()*100 < procRate){
+          const count = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
+          this._hawkStrike(count, {label:'🦅 鷹眼の加護'});
+        }
+      }
 
     }else if(cls==='bomber'){
-      // ヘヴィカスタマイズ覚醒中: ホーミングミサイル
-      if(pd.awakened==='heavy'){
+      // バスターズ換装覚醒中: 通常攻撃を蒼白い細ビーム(バスターキャノンの細版)に置換・貫通
+      if(pd.awakened==='busters'){
+        const ang = this.getFacingAngle();
+        const cosA = Math.cos(ang), sinA = Math.sin(ang);
+        const beamLen = 560;
+        const beamWidth = 22;
+        const sx = p.x + cosA * 22;
+        const sy = p.y + sinA * 22;
+        const ex = sx + cosA * beamLen;
+        const ey = sy + sinA * beamLen;
+        // 蒼白い細ビーム発射(エフェクト)
+        this._fireBusterShot(sx, sy, ex, ey, ang, beamWidth, beamLen);
+        SE('magic');
+        // 直線上の敵を貫通ヒット(威力はボマー通常攻撃と同等・fire属性)
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const dx = ed.sprite.x - sx;
+          const dy = ed.sprite.y - sy;
+          const fwd = dx*cosA + dy*sinA;
+          if(fwd < 0 || fwd > beamLen) return;
+          const perp = Math.abs(dx*(-sinA) + dy*cosA);
+          if(perp >= beamWidth/2 + 24) return;  // 細いので当たり判定は少し甘めに
+          let dmg = Math.max(1, Math.floor(pd.atk*3) + Phaser.Math.Between(0, Math.floor(pd.atk*2)));
+          const isCrit = Math.random()*100 < calcCrit(pd);
+          const em = getElementMult('fire', ed.element||'none');
+          if(em.mult!==1.0) dmg = Math.max(1, Math.floor(dmg*em.mult));
+          this.hitEnemy(ed, dmg, isCrit, false, em.label);
+          // 着弾の蒼白い閃光
+          const spark = this.add.circle(ed.sprite.x, ed.sprite.y, 14, 0xaaddff, 0.8).setDepth(20);
+          this.tweens.add({targets:spark, scaleX:2, scaleY:2, alpha:0, duration:250, onComplete:()=>spark.destroy()});
+        });
+        this.cameras.main.shake(80, 0.004);
+        this.atkCooldown = this._calcAtkCD(1.0);
+        this.playBomberAtk();
+      }else if(pd.awakened==='heavy'){
         // 最寄り敵をターゲット(なければ向き方向に直進)
         let target=null, td=600;
         this.enemyDataList.forEach(ed=>{
@@ -7249,7 +7329,8 @@ class GameScene extends Phaser.Scene{
           : this.getFacingAngle();
         const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
         const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
-        const dmg=Math.max(1,Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2)));
+        // 通常攻撃が強すぎたため威力を 2/3(×0.67) に下げる
+        const dmg=Math.max(1,Math.floor((Math.floor(pd.atk*3)+Phaser.Math.Between(0,Math.floor(pd.atk*2)))*0.67));
         const isCrit=Math.random()*100<calcCrit(pd);
         // ミサイル発射(ホーミング処理は this.update 内で対応)
         this._fireHomingMissile(p.x, p.y, initAng, target, {
@@ -7258,7 +7339,7 @@ class GameScene extends Phaser.Scene{
           element: 'fire',
         });
         SE('arrow'); // ミサイル発射音
-        this.atkCooldown=this._calcAtkCD(1.0);
+        this.atkCooldown=this._calcAtkCD(1.3); // ディレイ増(1.0→1.3)
         // 攻撃アニメ
         this.playBomberAtk();
       }else{
@@ -8343,7 +8424,7 @@ class GameScene extends Phaser.Scene{
     }[pd.cls] || ['?','?','?','?'];
     const awakIconMap={
       samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
-      spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+      spirit:['🍃','✨','⭐'], hawk:['🦅','🪶','🏹'], youma:['🕳','🌑','🐉'],
     };
     const getInfo = (key)=>{
       if(key[0]==='n'){
@@ -9696,6 +9777,31 @@ class GameScene extends Phaser.Scene{
         try{SE('boost');SE('crit');}catch(e){}
         this[cdKey]=sk.cd;
       }
+      return;
+    }
+
+    // ─ 覚醒「鷹神弓士」(hawk) ─
+    if(pd.awakened==='hawk'){
+      const hlv = (pd.awakSkillLv && pd.awakSkillLv.hawk && pd.awakSkillLv.hawk['sk'+num]) || 0;
+      if(num===1){
+        // 鷹眼の加護: パッシブ(通常攻撃時に自動発動)。ボタン押下時は説明のみ・SP/CD消費なし
+        this.showFloat(p.x, p.y-60, '🦅 鷹眼の加護(パッシブ)', '#ffdd66', 'info');
+      }else if(num===2){
+        // 神鷹追撃: 鷹を意図的に呼んで連続攻撃(防御無視)
+        const count = 4 + Math.floor(hlv/2);
+        const ok = this._hawkStrike(count, {label:'🦅 神鷹追撃'});
+        if(!ok){
+          // 対象がいなければ不発: SP返却
+          pd.sp += sk.cost; this.updateHUD();
+          return;
+        }
+        this[cdKey] = sk.cd;
+      }else if(num===3){
+        // 天空穿ち: 天空へ飛びオーラ矢連射+鷹の共撃(滞空中無敵)
+        this._skyPierce(hlv);
+        this[cdKey] = sk.cd;
+      }
+      this.updateHUD();
       return;
     }
 
@@ -12487,7 +12593,7 @@ class GameScene extends Phaser.Scene{
     const curAwakKey = (eqDm && eqDm.awakening) ? eqDm.awakening : null;
     const awakIconMap={
       samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
-      spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+      spirit:['🍃','✨','⭐'], hawk:['🦅','🪶','🏹'], youma:['🕳','🌑','🐉'],
     };
     // 全覚醒職のスキルをリスト化(習得済みのもの or 現在装備中の覚醒職)
     Object.keys(AWAKENINGS).forEach(awKey=>{
@@ -13963,6 +14069,7 @@ class GameScene extends Phaser.Scene{
     const isHeavy = (awakKey==='heavy');
     const isBusters = (awakKey==='busters');
     const isSpirit = (awakKey==='spirit');
+    const isHawk = (awakKey==='hawk');
     const isYouma = (awakKey==='youma');
     const isAbyss = (awakKey==='abyss');
     let flashCol, auraCol, ringCol;
@@ -13972,6 +14079,8 @@ class GameScene extends Phaser.Scene{
       flashCol=[255,140,60]; auraCol=0xff5522; ringCol=0xff8844;
     }else if(isSpirit){
       flashCol=[150,255,150]; auraCol=0x66ff88; ringCol=0x88ffaa;
+    }else if(isHawk){
+      flashCol=[255,220,120]; auraCol=0xffcc44; ringCol=0xffdd66;
     }else if(isYouma){
       flashCol=[80,30,120]; auraCol=0x6622aa; ringCol=0x9944ff;
     }else if(isAbyss){
@@ -14015,6 +14124,8 @@ class GameScene extends Phaser.Scene{
       title='🦾 換装・重装兵器 🦾'; titleCol='#66aaff';
     }else if(isSpirit){
       title='🍃 転生・エルフ 🍃'; titleCol='#88ffaa';
+    }else if(isHawk){
+      title='🦅 憑依・鷹神弓士 🦅'; titleCol='#ffdd66';
     }else if(isYouma){
       title='🌑 妖魔化 🌑'; titleCol='#aa66ff';
     }else{
@@ -14067,6 +14178,38 @@ class GameScene extends Phaser.Scene{
           });
         });
       }
+    }
+    // 鷹神弓士 憑依時: 金色の羽根が舞い上がる+鷹が旋回
+    if(isHawk){
+      // 金のオーラ拡散
+      const halo=this.add.circle(p.x, p.y, 50, 0xffcc44, 0.4).setDepth(15);
+      this.tweens.add({targets:halo, scaleX:3, scaleY:3, alpha:0, duration:900, onComplete:()=>halo.destroy()});
+      // 羽根が螺旋を描いて吸い込まれる
+      for(let i=0;i<20;i++){
+        const ang0 = (i/20) * Math.PI * 2;
+        const sx = p.x + Math.cos(ang0) * 70;
+        const sy = p.y + Math.sin(ang0) * 70;
+        const feather = this.add.text(sx, sy, '🪶', {fontSize:'20px'}).setOrigin(0.5).setDepth(16).setTint(0xffdd66);
+        this.tweens.add({
+          targets: feather,
+          x: p.x + (Math.random()-0.5)*15,
+          y: p.y + (Math.random()-0.5)*15,
+          rotation: Math.PI * 4,
+          alpha: 0, scaleX: 0.3, scaleY: 0.3,
+          duration: 700 + i*15,
+          ease: 'Cubic.easeIn',
+          onComplete: ()=>feather.destroy(),
+        });
+      }
+      // 鷹がプレイヤー周囲を旋回して上空へ
+      const hawk0 = this.add.text(p.x+100, p.y-40, '🦅', {fontSize:'42px'}).setOrigin(0.5).setDepth(22);
+      this.tweens.add({
+        targets: hawk0,
+        x: p.x, y: p.y - 220,
+        scaleX: 1.4, scaleY: 1.4, alpha: 0,
+        duration: 800, ease: 'Cubic.easeOut',
+        onComplete: ()=>hawk0.destroy(),
+      });
     }
     // 妖魔化発動時: 雷+ブラックホールに飲まれる演出
     if(isYouma){
@@ -14233,6 +14376,9 @@ class GameScene extends Phaser.Scene{
     if(pd._armorPurgeAura){try{pd._armorPurgeAura.destroy();}catch(e){} pd._armorPurgeAura=null;}
     pd._bcStreak = 0;
     pd._bcLastFire = 0;
+    // 鷹神弓士: 天空穿ち滞空中に解除された場合の安全リセット(無敵解除・透明化解除)
+    pd._skyInvuln = false;
+    if(p && p.setAlpha) p.setAlpha(1);
     this._lockMovement = false;
     // ── 解除演出(覚醒種別ごとに特色を出す)──
     if(this._awakAura){
@@ -14699,6 +14845,226 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  // バスターズ通常攻撃用: 蒼白い細ビーム(貫通・軽量版)
+  _fireBusterShot(sx, sy, ex, ey, ang, width, len){
+    const outer = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*1.2, 0x66aaff, 0.40).setRotation(ang).setDepth(18);
+    const middle = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*0.7, 0x99d4ff, 0.75).setRotation(ang).setDepth(19);
+    const core = this.add.rectangle((sx+ex)/2, (sy+ey)/2, len, width*0.30, 0xeaf6ff, 0.95).setRotation(ang).setDepth(20);
+    [outer, middle, core].forEach(r=>r.setScale(0, 1));
+    this.tweens.add({targets:[outer, middle, core], scaleX:1, duration:60, ease:'Cubic.easeOut'});
+    // 砲口の閃光
+    const muzzle = this.add.circle(sx, sy, 16, 0xeaf6ff, 1).setDepth(21);
+    this.tweens.add({targets:muzzle, scaleX:2.4, scaleY:2.4, alpha:0, duration:260, onComplete:()=>muzzle.destroy()});
+    // ビーム本体フェードアウト
+    this.time.delayedCall(120, ()=>{
+      this.tweens.add({
+        targets: [outer, middle, core],
+        alpha: 0, duration: 180,
+        onComplete: ()=>{
+          try{outer.destroy();}catch(e){}
+          try{middle.destroy();}catch(e){}
+          try{core.destroy();}catch(e){}
+        },
+      });
+    });
+  }
+
+  // 鷹神弓士: 鷹による連続攻撃(防御無視・命中で威力UP)。パッシブ/神鷹追撃で共用
+  // count=攻撃回数。対象がいなければ false を返す(不発)
+  _hawkStrike(count, opt){
+    opt = opt || {};
+    const pd=this.playerData, p=this.player;
+    const pickTarget = ()=>{
+      let t=null, td=720;
+      this.enemyDataList.forEach(ed=>{
+        if(ed.dead) return;
+        const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+        if(d<td){td=d; t=ed;}
+      });
+      return t;
+    };
+    let target = pickTarget();
+    if(!target) return false;  // 対象がいなければ不発
+    if(opt.label) this.showFloat(p.x, p.y-70, opt.label, '#ffdd66');
+    try{SE('arrow');}catch(e){}
+    // 鷹が画面外から飛来
+    const fromAng = Math.random()*Math.PI*2;
+    const startX = target.sprite.x + Math.cos(fromAng)*340;
+    const startY = target.sprite.y + Math.sin(fromAng)*340 - 60;
+    const hawk = this.add.text(startX, startY, '🦅', {fontSize:'40px'}).setOrigin(0.5).setDepth(22).setTint(0xffdd66);
+    hawk.setRotation(Phaser.Math.Angle.Between(startX, startY, target.sprite.x, target.sprite.y));
+    // 各敵ごとの累積ダメージ(合算表示用)
+    const totalsByEnemy = new Map();
+    const lastPos = new Map();
+    const hitInterval = 95;  // 連撃の間隔
+    // 鷹を対象付近へ急降下 → 連続ヒット開始
+    this.tweens.add({
+      targets: hawk, x: target.sprite.x, y: target.sprite.y-10,
+      duration: 170, ease:'Cubic.easeIn',
+      onComplete: ()=>{
+        for(let i=0;i<count;i++){
+          this.time.delayedCall(i*hitInterval, ()=>{
+            // 毎回最寄りの生存敵を再ターゲット(対象が死んでも無駄撃ちしない)
+            const ed = (target && !target.dead) ? target : pickTarget();
+            if(!ed) return;
+            target = ed;
+            // ダメージ: 防御無視(hitEnemyはdefを引かない)・命中で威力UP
+            let dmg = Math.max(1, Math.floor(pd.atk*0.6 + (pd.hit||0)*0.5) + Phaser.Math.Between(0, Math.floor(pd.atk*0.3)));
+            const isCrit = Math.random()*100 < calcCrit(pd);
+            if(isCrit) dmg *= 2;
+            this.hitEnemy(ed, dmg, isCrit, false, '');
+            totalsByEnemy.set(ed, (totalsByEnemy.get(ed)||0) + dmg);
+            lastPos.set(ed, {x:ed.sprite.x, y:ed.sprite.y});
+            // 鷹を敵へ突進させる
+            if(hawk.active){
+              hawk.setRotation(Phaser.Math.Angle.Between(hawk.x, hawk.y, ed.sprite.x, ed.sprite.y));
+              this.tweens.add({targets:hawk, x:ed.sprite.x+(Math.random()-0.5)*40, y:ed.sprite.y-10+(Math.random()-0.5)*30, duration:hitInterval*0.7, ease:'Cubic.easeOut'});
+            }
+            // 風斬りエフェクト
+            const slash = this.add.image(ed.sprite.x, ed.sprite.y, 'fx_slash').setRotation(Math.random()*Math.PI).setDisplaySize(48,48).setDepth(20).setTint(0xffdd66).setAlpha(0.9);
+            this.tweens.add({targets:slash, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash.destroy()});
+            // 金の羽根が散る
+            const feather = this.add.text(ed.sprite.x, ed.sprite.y, '🪶', {fontSize:'16px'}).setOrigin(0.5).setDepth(20).setTint(0xffdd66);
+            this.tweens.add({targets:feather, x:feather.x+(Math.random()-0.5)*40, y:feather.y-20-Math.random()*20, rotation:(Math.random()-0.5)*Math.PI*2, alpha:0, duration:400, onComplete:()=>feather.destroy()});
+            // 最終ヒット後: 合算表示+鷹フェードアウト
+            if(i===count-1){
+              this.time.delayedCall(180, ()=>{
+                totalsByEnemy.forEach((tot, e2)=>{
+                  const pos = lastPos.get(e2) || {x:p.x, y:p.y};
+                  if(tot>0) this.showTotalDamage(pos.x, pos.y, tot);
+                });
+                if(hawk.active){
+                  this.tweens.add({targets:hawk, alpha:0, y:hawk.y-60, scaleX:1.3, scaleY:1.3, duration:300, onComplete:()=>hawk.destroy()});
+                }
+              });
+            }
+          });
+        }
+      },
+    });
+    return true;
+  }
+
+  // 鷹神弓士: 鷹が天空から急降下して1撃(天空穿ちの共撃用)
+  _hawkDive(){
+    const pd=this.playerData, p=this.player;
+    let t=null, td=900;
+    this.enemyDataList.forEach(ed=>{ if(ed.dead) return; const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y); if(d<td){td=d;t=ed;} });
+    if(!t) return;
+    const sx = t.sprite.x + (Math.random()-0.5)*60;
+    const sy = t.sprite.y - 520;
+    const hawk = this.add.text(sx, sy, '🦅', {fontSize:'44px'}).setOrigin(0.5).setDepth(22).setTint(0xffdd66).setRotation(Math.PI/2);
+    this.tweens.add({
+      targets:hawk, x:t.sprite.x, y:t.sprite.y, duration:240, ease:'Cubic.easeIn',
+      onComplete:()=>{
+        if(t && !t.dead){
+          let dmg = Math.max(1, Math.floor(pd.atk*0.8 + (pd.hit||0)*0.6));
+          const isCrit = Math.random()*100 < calcCrit(pd);
+          if(isCrit) dmg *= 2;
+          this.hitEnemy(t, dmg, isCrit, false, '');
+        }
+        const slash=this.add.image(hawk.x, hawk.y, 'fx_slash').setDisplaySize(60,60).setDepth(20).setTint(0xffdd66).setRotation(Math.random()*Math.PI);
+        this.tweens.add({targets:slash, alpha:0, scaleX:1.6, scaleY:1.6, duration:220, onComplete:()=>slash.destroy()});
+        this.tweens.add({targets:hawk, x:hawk.x+(Math.random()-0.5)*80, y:hawk.y-120, alpha:0, duration:320, onComplete:()=>hawk.destroy()});
+      },
+    });
+  }
+
+  // 鷹神弓士「天空穿ち」(sk3): 天空へ飛びオーラ矢を連射+鷹の共撃。滞空中は無敵+着弾ノックバック
+  _skyPierce(lv){
+    const pd=this.playerData, p=this.player;
+    const px=p.x, py=p.y;
+    const arrowCount = 5 + Math.floor((lv||0)/3);  // 基本5発、Lv3毎+1
+    // 滞空: 移動ロック+無敵
+    this._lockMovement = true;
+    pd._skyInvuln = true;
+    this.showFloat(px, py-80, '🦅 天空穿ち', '#ffdd66');
+    try{SE('skill');}catch(e){}
+    // プレイヤーは透明化し、上空へ飛ぶ分身を表示(本体はカメラ追従のため動かさない)
+    p.setAlpha(0);
+    const ghost = this.add.sprite(px, py, 'player_archer').setDisplaySize(p.displayWidth, p.displayHeight).setDepth(22).setTint(0xffdd66);
+    this.tweens.add({targets:ghost, y:py-300, alpha:0, scaleX:ghost.scaleX*0.7, scaleY:ghost.scaleY*0.7, duration:380, ease:'Cubic.easeOut', onComplete:()=>ghost.destroy()});
+    // 鷹も上空へ
+    const hawkUp = this.add.text(px+60, py-20, '🦅', {fontSize:'40px'}).setOrigin(0.5).setDepth(22).setTint(0xffdd66);
+    this.tweens.add({targets:hawkUp, x:px, y:py-320, alpha:0, duration:420, ease:'Cubic.easeOut', onComplete:()=>hawkUp.destroy()});
+    // オーラ矢を順番に降らせる
+    const hitEnemies = new Set();
+    const fireOne = (idx)=>{
+      const alive = this.enemyDataList.filter(ed=>!ed.dead);
+      let tx, ty, targetEd=null;
+      if(alive.length>0){
+        targetEd = alive[idx % alive.length];
+        tx = targetEd.sprite.x; ty = targetEd.sprite.y;
+      }else{
+        const ang=this.getFacingAngle();
+        tx = px + Math.cos(ang)*200; ty = py + Math.sin(ang)*200;
+      }
+      const sx = tx + (Math.random()-0.5)*40;
+      const sy = ty - 560;
+      const arrow = this.add.text(sx, sy, '🏹', {fontSize:'34px'}).setOrigin(0.5).setDepth(21).setTint(0xffdd66).setRotation(Math.PI/2);
+      const aura = this.add.circle(sx, sy, 16, 0xffdd66, 0.5).setDepth(20);
+      // 予告マーカー
+      const marker = this.add.circle(tx, ty, 26, 0xffcc44, 0).setStrokeStyle(3, 0xffdd66, 0.8).setDepth(6);
+      this.tweens.add({targets:marker, alpha:0.6, scaleX:1.2, scaleY:1.2, duration:200, yoyo:true, repeat:1, onComplete:()=>marker.destroy()});
+      const follow = this.time.addEvent({delay:16, loop:true, callback:()=>{ if(aura.active && arrow.active){ aura.x=arrow.x; aura.y=arrow.y; } }});
+      // 着弾先は対象の最新位置(自動ターゲッティング)
+      const destX = (targetEd && !targetEd.dead) ? targetEd.sprite.x : tx;
+      const destY = (targetEd && !targetEd.dead) ? targetEd.sprite.y : ty;
+      this.tweens.add({
+        targets:[arrow, aura], x:destX, y:destY,
+        duration: 220, ease:'Cubic.easeIn',
+        onComplete: ()=>{
+          follow.remove();
+          try{aura.destroy();}catch(e){}
+          const fx = arrow.x, fy = arrow.y;
+          this.tweens.add({targets:arrow, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>arrow.destroy()});
+          const burst = this.add.circle(fx, fy, 30, 0xffdd66, 0.7).setDepth(20);
+          this.tweens.add({targets:burst, scaleX:2.4, scaleY:2.4, alpha:0, duration:350, onComplete:()=>burst.destroy()});
+          try{SE('arrow');}catch(e){}
+          this.cameras.main.shake(120, 0.006);
+          // ダメージ(オーラ矢: 防御無視・命中で威力UP)
+          if(targetEd && !targetEd.dead){
+            let dmg = Math.max(1, Math.floor(pd.atk*1.2 + (pd.hit||0)*0.8) + Phaser.Math.Between(0, Math.floor(pd.atk*0.5)));
+            const isCrit = Math.random()*100 < calcCrit(pd);
+            if(isCrit) dmg *= 2;
+            this.hitEnemy(targetEd, dmg, isCrit, true, '');
+            hitEnemies.add(targetEd);
+          }
+        },
+      });
+    };
+    for(let i=0;i<arrowCount;i++){
+      this.time.delayedCall(380 + i*130, ()=>fireOne(i));
+    }
+    // 鷹の共撃(矢の合間に2回急降下)
+    this.time.delayedCall(520, ()=>{ this._hawkDive(); });
+    this.time.delayedCall(780, ()=>{ this._hawkDive(); });
+    // 着地: 無敵解除+ノックバック
+    const landDelay = 380 + arrowCount*130 + 260;
+    this.time.delayedCall(landDelay, ()=>{
+      if(!this.player) return;
+      p.setAlpha(1);
+      const dust = this.add.circle(p.x, p.y+10, 24, 0xffdd66, 0.5).setDepth(6);
+      this.tweens.add({targets:dust, scaleX:3, scaleY:3, alpha:0, duration:400, onComplete:()=>dust.destroy()});
+      this.cameras.main.shake(200, 0.01);
+      // 命中した敵をノックバック
+      const MW=this.MW||1200, MH=this.MH||1000, margin=40;
+      hitEnemies.forEach(ed=>{
+        if(ed.dead) return;
+        const ka = Phaser.Math.Angle.Between(p.x, p.y, ed.sprite.x, ed.sprite.y);
+        const ks = 360;
+        const fx2 = ed.sprite.x + Math.cos(ka)*ks*0.25;
+        const fy2 = ed.sprite.y + Math.sin(ka)*ks*0.25;
+        if(fx2>=margin && fx2<=MW-margin && fy2>=margin && fy2<=MH-margin){
+          ed.knockVx = Math.cos(ka)*ks; ed.knockVy = Math.sin(ka)*ks; ed.knockTimer = 0.25;
+        }
+      });
+      // ロック・無敵解除
+      this._lockMovement = false;
+      pd._skyInvuln = false;
+    });
+  }
+
   // エルフ用: 葉っぱエフェクト
   _spawnLeaf(x, y){
     const leaf = this.add.text(x+(Math.random()-0.5)*20, y+(Math.random()-0.5)*15, '🍃', {fontSize:'14px'}).setOrigin(0.5).setDepth(15);
@@ -15057,7 +15423,7 @@ class GameScene extends Phaser.Scene{
       }
       const awakIconMap={
         samurai:['🗡','🌀','👹'], heavy:['💥','🔫','❄'],
-        spirit:['🍃','✨','⭐'], youma:['🕳','🌑','🐉'],
+        spirit:['🍃','✨','⭐'], hawk:['🦅','🪶','🏹'], youma:['🕳','🌑','🐉'],
       };
       const ic = (awakIconMap[awKey]||['✨','✨','✨'])[idx-1] || '✨';
       return {
@@ -16654,10 +17020,11 @@ class GameScene extends Phaser.Scene{
         pd.items['heavy_customize'] = (pd.items['heavy_customize']||0) + 1;
         pd.items['buster_rifle'] = (pd.items['buster_rifle']||0) + 1;
       }
-      // アーチャーに転職した時、精霊の弓を自動取得
+      // アーチャーに転職した時、精霊の弓+鷹神弓を自動取得
       if(newCls==='archer'){
         if(!pd.items) pd.items={};
         pd.items['spirit_bow'] = (pd.items['spirit_bow']||0) + 1;
+        pd.items['hawk_bow'] = (pd.items['hawk_bow']||0) + 1;
       }
       // マジシャンに転職した時、ダークイリュージョンの杖を自動取得
       if(newCls==='mage'){
@@ -17396,6 +17763,7 @@ class GameScene extends Phaser.Scene{
   _enemyMelee(ed, pd, p){
     // 攻撃モーション再生
     this._playEnemyAttackAnim(ed);
+    if(pd._skyInvuln) return;  // 天空穿ち滞空中は無敵
     if(pd._parry){
       this.showFloat(p.x,p.y-40,'PARRY!','#ffd700','info');
       pd._parry=false;
@@ -17595,7 +17963,7 @@ class GameScene extends Phaser.Scene{
         const pd=this.playerData, pl=this.player;
         if(pl && pl.active){
           const d=Phaser.Math.Distance.Between(tx, ty, pl.x, pl.y);
-          if(d<80){
+          if(d<80 && !pd._skyInvuln){  // 天空穿ち滞空中は無敵
             // ── メテオは魔法攻撃: 必中(回避・パリィ不可)・MAGで耐性 ──
             const intResist=Math.min(0.80, (pd.intPts||0)*0.02);
             const baseDmg=Math.max(1, Math.floor(ed.atk*1.4)-(pd.def||0)+Phaser.Math.Between(0,5));
@@ -17652,6 +18020,13 @@ class GameScene extends Phaser.Scene{
       // プレイヤーとの当たり判定
       const d=Phaser.Math.Distance.Between(b.x, b.y, p.x, p.y);
       if(d<26){
+        // 天空穿ち滞空中は無敵: 弾を消費して被弾なし
+        if(pd._skyInvuln){
+          const halo=b.getData('halo'); if(halo && halo.active) halo.destroy();
+          const core=b.getData('core'); if(core && core.active) core.destroy();
+          b.destroy();
+          return;
+        }
         const dmg=b.getData('dmg')||10;
         const isMagic=b.getData('magic');
         // パリィは物理のみ(魔法はパリィ不可)
