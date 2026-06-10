@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-10-v1'; // 更新日付
+const GAME_VERSION = '2026-06-10-v2'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -5859,7 +5859,7 @@ const AWAKENINGS = {
     requiresEquip: 'hawk_bow',
     sprite:'player_archer', animPrefix:'archer',        // 仮: アーチャースプライトを流用、金tintで差別化
     baseSprite:'player_archer', baseAnimPrefix:'archer',
-    auraColor:0xffcc44, facingFlip:'none',
+    auraColor:0xffcc44, facingFlip:'right',             // アーチャースプライト流用のため通常アーチャーと同基準(vx>0で反転)
     tintColor:0xffdd66,                                 // setTint で金色に着色して差別化
     cellBg: 0x3a2c08, cellStroke: 0xffcc44, cellText: '#ffdd88',
     statMul: {
@@ -13508,20 +13508,7 @@ class GameScene extends Phaser.Scene{
 
     const pd = this.playerData;
     const p = this.player;
-    // 次レベルまでに必要な経験値(現Lv に合わせて自動スケール)
-    const expForLv    = Math.max(1, (pd.expNext||100) - (pd.exp||0));
-    // JOB EXP は 5レベル分まとめてあげる(低Lv時に +300 ボタンより少なくならないように)
-    const jobExpFor5Lv = (()=>{
-      let exp = 0;
-      let curExp = pd.jobExp || 0;
-      let next = pd.jobExpNext || 80;
-      for(let i = 0; i < 5; i++){
-        exp += Math.max(1, next - curExp);
-        curExp = 0;
-        next = Math.floor(next * 1.5);
-      }
-      return exp;
-    })();
+    // 注: EXP/JOB の必要量は各ボタンの action 内で押下時に再計算する(陳腐化防止)
     // ボタン定義: 2 列 × 3 行 (各カテゴリ「固定値小」と「次Lv分」)
     const btnDefs = [
       // ── 経験値(EXP) ──
@@ -13531,10 +13518,12 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x, p.y-50, '+500 EXP', '#88ccff', 'info');
         this.updateHUD();
       }},
-      {label:'⭐ EXP +1Lv分 ('+expForLv+')', col:0x66aaff, action:()=>{
-        pd.exp = (pd.exp||0) + expForLv;
+      {label:'⭐ 次のLvへ', col:0x66aaff, action:()=>{
+        // 押下時点の必要経験値を毎回再計算 → 押すたびに確実に1レベル上がる
+        const need = Math.max(1, (pd.expNext||100) - (pd.exp||0));
+        pd.exp = (pd.exp||0) + need;
         this.checkLevelUp();
-        this.showFloat(p.x, p.y-50, '+'+expForLv+' EXP (1Lv分)', '#88ccff', 'info');
+        this.showFloat(p.x, p.y-50, '+'+need+' EXP (1Lv分)', '#88ccff', 'info');
         this.updateHUD();
       }},
       // ── JOB EXP ──
@@ -13544,9 +13533,12 @@ class GameScene extends Phaser.Scene{
         this.updateHUD();
         if(this._updateMenuBadge) this._updateMenuBadge();
       }},
-      {label:'💼 JOB +5JLv分 ('+jobExpFor5Lv+')', col:0xffaa66, action:()=>{
-        this.addJobExp(jobExpFor5Lv);
-        this.showFloat(p.x, p.y-50, '+'+jobExpFor5Lv+' JOB EXP (5JLv分)', '#ffaa66', 'info');
+      {label:'💼 JOB +5JLv分', col:0xffaa66, action:()=>{
+        // 押下時点で5JLv分を毎回再計算
+        let need = 0, curExp = pd.jobExp || 0, next = pd.jobExpNext || 80;
+        for(let i = 0; i < 5; i++){ need += Math.max(1, next - curExp); curExp = 0; next = Math.floor(next * 1.5); }
+        this.addJobExp(need);
+        this.showFloat(p.x, p.y-50, '+'+need+' JOB EXP (5JLv分)', '#ffaa66', 'info');
         this.updateHUD();
         if(this._updateMenuBadge) this._updateMenuBadge();
       }},
@@ -14883,8 +14875,12 @@ class GameScene extends Phaser.Scene{
       });
       return t;
     };
-    let target = pickTarget();
+    const target = pickTarget();
     if(!target) return false;  // 対象がいなければ不発
+    // ── 1体のみをロックして狙い続ける(敵を跨がない) ──
+    const lockTarget = target;
+    // 最後の一撃まで倒さない(全段ヒットしてから撃破)
+    lockTarget._noDie = true;
     if(opt.label) this.showFloat(p.x, p.y-70, opt.label, '#ffdd66');
     try{SE('arrow');}catch(e){}
     // 鷹が画面外から飛来
@@ -14893,10 +14889,10 @@ class GameScene extends Phaser.Scene{
     const startY = target.sprite.y + Math.sin(fromAng)*340 - 60;
     const hawk = this.add.text(startX, startY, '🦅', {fontSize:'40px'}).setOrigin(0.5).setDepth(22).setTint(0xffdd66);
     hawk.setRotation(Phaser.Math.Angle.Between(startX, startY, target.sprite.x, target.sprite.y));
-    // 各敵ごとの累積ダメージ(合算表示用)
-    const totalsByEnemy = new Map();
-    const lastPos = new Map();
+    let total = 0;  // 合算ダメージ(単体)
     const hitInterval = 95;  // 連撃の間隔
+    // ロックを必ず解除する保険(対象が消えた/コンボ中断時)
+    const releaseLock = ()=>{ if(lockTarget) lockTarget._noDie = false; };
     // 鷹を対象付近へ急降下 → 連続ヒット開始
     this.tweens.add({
       targets: hawk, x: target.sprite.x, y: target.sprite.y-10,
@@ -14904,35 +14900,39 @@ class GameScene extends Phaser.Scene{
       onComplete: ()=>{
         for(let i=0;i<count;i++){
           this.time.delayedCall(i*hitInterval, ()=>{
-            // 毎回最寄りの生存敵を再ターゲット(対象が死んでも無駄撃ちしない)
-            const ed = (target && !target.dead) ? target : pickTarget();
-            if(!ed) return;
-            target = ed;
+            const ed = lockTarget;
+            const isLast = (i===count-1);
+            // 対象が(他要因で)消滅していたらロック解除して終了
+            if(!ed || ed.dead || !ed.sprite || !ed.sprite.active){
+              releaseLock();
+              if(hawk.active){ this.tweens.add({targets:hawk, alpha:0, y:hawk.y-60, duration:300, onComplete:()=>hawk.destroy()}); }
+              return;
+            }
+            // 最後の一撃では撃破を許可(直前に _noDie を解放)
+            if(isLast) ed._noDie = false;
             // ダメージ: 防御無視(hitEnemyはdefを引かない)・命中で威力UP
             let dmg = Math.max(1, Math.floor(pd.atk*0.6 + (pd.hit||0)*0.5) + Phaser.Math.Between(0, Math.floor(pd.atk*0.3)));
             const isCrit = Math.random()*100 < calcCrit(pd);
             if(isCrit) dmg *= 2;
             this.hitEnemy(ed, dmg, isCrit, false, '');
-            totalsByEnemy.set(ed, (totalsByEnemy.get(ed)||0) + dmg);
-            lastPos.set(ed, {x:ed.sprite.x, y:ed.sprite.y});
+            total += dmg;
+            const lastX = ed.sprite ? ed.sprite.x : p.x, lastY = ed.sprite ? ed.sprite.y : p.y;
             // 鷹を敵へ突進させる
-            if(hawk.active){
+            if(hawk.active && ed.sprite){
               hawk.setRotation(Phaser.Math.Angle.Between(hawk.x, hawk.y, ed.sprite.x, ed.sprite.y));
               this.tweens.add({targets:hawk, x:ed.sprite.x+(Math.random()-0.5)*40, y:ed.sprite.y-10+(Math.random()-0.5)*30, duration:hitInterval*0.7, ease:'Cubic.easeOut'});
             }
             // 風斬りエフェクト
-            const slash = this.add.image(ed.sprite.x, ed.sprite.y, 'fx_slash').setRotation(Math.random()*Math.PI).setDisplaySize(48,48).setDepth(20).setTint(0xffdd66).setAlpha(0.9);
+            const slash = this.add.image(lastX, lastY, 'fx_slash').setRotation(Math.random()*Math.PI).setDisplaySize(48,48).setDepth(20).setTint(0xffdd66).setAlpha(0.9);
             this.tweens.add({targets:slash, alpha:0, scaleX:1.5, scaleY:1.5, duration:200, onComplete:()=>slash.destroy()});
             // 金の羽根が散る
-            const feather = this.add.text(ed.sprite.x, ed.sprite.y, '🪶', {fontSize:'16px'}).setOrigin(0.5).setDepth(20).setTint(0xffdd66);
+            const feather = this.add.text(lastX, lastY, '🪶', {fontSize:'16px'}).setOrigin(0.5).setDepth(20).setTint(0xffdd66);
             this.tweens.add({targets:feather, x:feather.x+(Math.random()-0.5)*40, y:feather.y-20-Math.random()*20, rotation:(Math.random()-0.5)*Math.PI*2, alpha:0, duration:400, onComplete:()=>feather.destroy()});
             // 最終ヒット後: 合算表示+鷹フェードアウト
-            if(i===count-1){
+            if(isLast){
+              releaseLock();  // 念のためロック解除
               this.time.delayedCall(180, ()=>{
-                totalsByEnemy.forEach((tot, e2)=>{
-                  const pos = lastPos.get(e2) || {x:p.x, y:p.y};
-                  if(tot>0) this.showTotalDamage(pos.x, pos.y, tot);
-                });
+                if(total>0) this.showTotalDamage(lastX, lastY, total);
                 if(hawk.active){
                   this.tweens.add({targets:hawk, alpha:0, y:hawk.y-60, scaleX:1.3, scaleY:1.3, duration:300, onComplete:()=>hawk.destroy()});
                 }
@@ -16278,7 +16278,16 @@ class GameScene extends Phaser.Scene{
       onStop:     ()=>{ if(ed.sprite && ed.sprite.active) ed.sprite.setAlpha(1.0); ed._hitTween=null; },
     });
     if(ed.isBoss)this.updateBossHP(ed);
-    if(ed.hp<=0)this.killEnemy(ed);
+    if(ed.hp<=0){
+      if(ed._noDie){
+        // 多段コンボ中(神鷹など): 最後の一撃まで倒さず、HP1で踏みとどまらせる
+        ed.hp = 1;
+        const pct2 = Math.max(0, ed.hp/ed.mhp);
+        ed.hpBar.setSize(ed.hpBarBg.width*pct2,5).setFillStyle(0xe74c3c);
+      }else{
+        this.killEnemy(ed);
+      }
+    }
   }
 
   killEnemy(ed){
