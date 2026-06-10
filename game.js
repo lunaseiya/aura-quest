@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-10-v2'; // 更新日付
+const GAME_VERSION = '2026-06-10-v3'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13509,7 +13509,7 @@ class GameScene extends Phaser.Scene{
     const pd = this.playerData;
     const p = this.player;
     // 注: EXP/JOB の必要量は各ボタンの action 内で押下時に再計算する(陳腐化防止)
-    // ボタン定義: 2 列 × 3 行 (各カテゴリ「固定値小」と「次Lv分」)
+    // ボタン定義: 2 列 × 4 行 (EXP/JOB/覚醒pt の各2種 + 覚醒ゲージMAX)
     const btnDefs = [
       // ── 経験値(EXP) ──
       {label:'⭐ EXP +500',     col:0x4488ff, action:()=>{
@@ -13553,6 +13553,13 @@ class GameScene extends Phaser.Scene{
         pd.awakSp = (pd.awakSp||0) + 20;
         pd._awakSpEarned = (pd._awakSpEarned||0) + 20;
         this.showFloat(p.x, p.y-50, '+20 覚醒pt', '#cc99ff', 'info');
+        if(this._updateAwakeningButton) this._updateAwakeningButton();
+      }},
+      // ── 覚醒ゲージ ──
+      {label:'🔥 覚醒ゲージMAX',  col:0xff66aa, action:()=>{
+        pd.awakGauge = pd.awakGaugeMax || 100;
+        pd._awakReadyShown = true;
+        this.showFloat(p.x, p.y-50, '✨ 覚醒準備完了 ✨', '#ffeecc', 'boost');
         if(this._updateAwakeningButton) this._updateAwakeningButton();
       }},
     ];
