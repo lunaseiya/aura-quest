@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-10-v4'; // 更新日付
+const GAME_VERSION = '2026-06-11-v2'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -496,6 +496,7 @@ function SE(type){
     vortex:   [[440,'sine',0.14,0.08],[660,'sine',0.14,0.10],[880,'sine',0.12,0.12],[1320,'sine',0.10,0.16]], // 渦巻き：ヒュルル
     multishot:[[1100,'sine',0.12,0.05],[990,'sine',0.10,0.05],[880,'sine',0.10,0.06],[770,'sine',0.10,0.06],[660,'sine',0.10,0.06]], // 多方向：シュシュッ
     boost:    [[440,'sine',0.16,0.10],[660,'sine',0.16,0.12],[880,'sine',0.18,0.20]],             // バフ：キーン
+    whip:     [[2600,'sawtooth',0.22,0.09]],                                                     // 鞭：シュパッ(下降スイープ・鷹の連撃用)
     bell:     [[523,'sine',0.30,0.40],[1047,'sine',0.20,0.50],[1568,'sine',0.10,0.60],[2093,'sine',0.06,0.80]], // 鐘：カーン
     // ── プレイヤー被弾 ──
     hurt:     [[180,'sawtooth',0.22,0.10],[120,'square',0.18,0.12]],                              // ガッ
@@ -512,6 +513,7 @@ function SE(type){
   };
   const cfg=C[type];if(!cfg)return;
   const isCritSE=(type==='crit');
+  const isWhip=(type==='whip');
   cfg.forEach(([f,w,v,d],i)=>{try{
     const o=ac.createOscillator(),g=ac.createGain();
     o.type=w;o.frequency.value=f;
@@ -519,6 +521,11 @@ function SE(type){
     if(isCritSE&&i>=2){
       o.frequency.setValueAtTime(f*0.7,now+i*0.05);
       o.frequency.exponentialRampToValueAtTime(f,now+i*0.05+0.06);
+    }
+    // 鞭(whip): 高音から低音へ急降下スイープして「シュパッ」という鞭撃感を出す
+    if(isWhip){
+      o.frequency.setValueAtTime(f,now+i*0.05);
+      o.frequency.exponentialRampToValueAtTime(240,now+i*0.05+Math.min(d,0.06));
     }
     o.connect(g);
     g.connect(mg);
@@ -7043,29 +7050,9 @@ class GameScene extends Phaser.Scene{
     this.input.keyboard.on('keydown-Q',()=>this.useSkill(1));
     this.input.keyboard.on('keydown-E',()=>this.useSkill(2)); // スキル2
     this.input.keyboard.on('keydown-R',()=>this.useSkill(3));
-    // タッチ/クリック
-    // タップはターゲット選択のみ（攻撃はボタンで手動）
-    this.input.on('pointerdown',ptr=>{
-      const w=this.scale.width,h=this.scale.height;
-      // ジョイスティック領域（左下）
-      if(ptr.x<w*0.3&&ptr.y>h*0.35)return;
-      // ボタン領域（右下・下部全体）は完全除外
-      if(ptr.y>h*0.65)return;
-      // HUD領域（左上）
-      if(ptr.x<290&&ptr.y<120)return;
-      // ゲームオブジェクト（interactive）のタップはphaser側で処理済みのためスキップ
-      if(ptr.downElement&&ptr.downElement!==this.game.canvas)return;
-      // ターゲット選択のみ（攻撃はボタンで手動）
-      const wx=ptr.worldX,wy=ptr.worldY;
-      let closest=null,cd=120;
-      this.enemyDataList.forEach(ed=>{
-        if(ed.dead)return;
-        const d=Phaser.Math.Distance.Between(wx,wy,ed.sprite.x,ed.sprite.y);
-        if(d<cd){cd=d;closest=ed;}
-      });
-      if(closest) this.target=closest;
-    });
-    this.atkCooldown=0.5;this.skillCooldown=0;this.target=null; // 初期CDを0.5秒に設定（誤発防止）
+    // タッチ/クリックによる敵ロックオンは createJoystick 内の pointerdown で一括処理
+    // (ジョイスティック起動との競合を避けるため統合)
+    this.atkCooldown=0.5;this.skillCooldown=0;this.target=null;this._lockedTarget=null;this._lockMarker=null; // 初期CDを0.5秒に設定（誤発防止）
     // 攻撃向き
     this.facingAngle=0;
     this.input.on('pointermove',ptr=>{
@@ -7104,9 +7091,12 @@ class GameScene extends Phaser.Scene{
         const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
         if(d<cd){cd=d;closest=ed;}
       });
+      // ロック中で射程内ならロック敵を優先
+      const lt=this.getPreferredTarget();
+      if(lt && Phaser.Math.Distance.Between(p.x,p.y,lt.sprite.x,lt.sprite.y)<=66) closest=lt;
       const ang=closest
         ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
-        : (this._lastAngle||0);
+        : this.getAimAngle();
       const slashX=p.x+Math.cos(ang)*42, slashY=p.y+Math.sin(ang)*42;
       const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(42,42).setDepth(20).setAlpha(0.85);
       this.tweens.add({targets:slash,alpha:0,scaleX:1.4,scaleY:1.4,duration:200,onComplete:()=>slash.destroy()});
@@ -7131,11 +7121,17 @@ class GameScene extends Phaser.Scene{
         });
         // 距離順ソートで近い2体を選ぶ
         inRange.sort((a,b)=>a.d-b.d);
+        // ロック中で射程内ならロック敵を先頭に
+        const ltS=this.getPreferredTarget();
+        if(ltS){
+          const idx=inRange.findIndex(t=>t.ed===ltS);
+          if(idx>0){ const it=inRange.splice(idx,1)[0]; inRange.unshift(it); }
+        }
         const targets = inRange.slice(0, 2);
         // 攻撃方向(最寄り敵 or 直前の向き)
         const ang = targets.length>0
           ? Phaser.Math.Angle.Between(p.x,p.y,targets[0].ed.sprite.x,targets[0].ed.sprite.y)
-          : (this._lastAngle||0);
+          : this.getAimAngle();
         const slashX = p.x + Math.cos(ang)*50;
         const slashY = p.y + Math.sin(ang)*50;
         // 1段目: 横一文字の大きな赤い斬撃
@@ -7178,10 +7174,13 @@ class GameScene extends Phaser.Scene{
           const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
           if(d<cd){cd=d;closest=ed;}
         });
+        // ロック中で射程内ならロック敵を優先
+        const ltW=this.getPreferredTarget();
+        if(ltW && Phaser.Math.Distance.Between(p.x,p.y,ltW.sprite.x,ltW.sprite.y)<=72) closest=ltW;
         // スラッシュエフェクト（対象がいなくても必ず表示）
         const ang=closest
           ? Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y)
-          : (this._lastAngle||0);
+          : this.getAimAngle();
         const slashX=p.x+Math.cos(ang)*44, slashY=p.y+Math.sin(ang)*44;
         const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(48,48).setDepth(20).setAlpha(0.9);
         this.tweens.add({targets:slash,alpha:0,scaleX:1.5,scaleY:1.5,duration:200,onComplete:()=>slash.destroy()});
@@ -7204,7 +7203,7 @@ class GameScene extends Phaser.Scene{
         // 妖魔化覚醒中: 闇属性の回転球
         if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
         pd.sp-=3;
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
         const isCrit = Math.random()*100 < calcCrit(pd);
         this._fireDarkOrb(p.x, p.y, ang, {
@@ -7218,7 +7217,7 @@ class GameScene extends Phaser.Scene{
         // リヴァイアリーの杖装備中: 水属性の青い回転球(覚醒前後問わず)
         if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
         pd.sp-=3;
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
         const isCrit = Math.random()*100 < calcCrit(pd);
         this._fireWaterOrb(p.x, p.y, ang, {
@@ -7232,7 +7231,7 @@ class GameScene extends Phaser.Scene{
         // 通常マジシャン: 炎の回転球(火属性のかっこいいオーブ)
         if(pd.sp<3){this.showFloat(p.x,p.y-40,'SP不足','#3498db','info');return;}
         pd.sp-=3;
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         const dmg = Math.max(1,Math.floor(pd.mag*2)+Phaser.Math.Between(0,pd.mag));
         const isCrit = Math.random()*100 < calcCrit(pd);
         this._fireFlameOrb(p.x, p.y, ang, {
@@ -7247,7 +7246,7 @@ class GameScene extends Phaser.Scene{
     }else if(cls==='archer'){
       // 矢は1本だけ発射。ブーストアタックの多段判定/鷹眼の加護は「命中後」に
       // 弾衝突ハンドラ側で判定する(archerNormalフラグ付き弾)
-      const ang=this.getFacingAngle();
+      const ang=this.getAimAngle();
       const res=rollAttack(pd,0,this._nearestEnemyEva());
       const baseDmg=res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk));
       this.fireBullet(p.x,p.y,ang,'proj_arrow',{
@@ -7265,7 +7264,7 @@ class GameScene extends Phaser.Scene{
     }else if(cls==='bomber'){
       // バスターズ換装覚醒中: 通常攻撃を蒼白い細ビーム(バスターキャノンの細版)に置換・貫通
       if(pd.awakened==='busters'){
-        const ang = this.getFacingAngle();
+        const ang = this.getAimAngle();
         const cosA = Math.cos(ang), sinA = Math.sin(ang);
         const beamLen = 560;
         const beamWidth = 22;
@@ -7298,16 +7297,18 @@ class GameScene extends Phaser.Scene{
         this.atkCooldown = this._calcAtkCD(1.0);
         this.playBomberAtk();
       }else if(pd.awakened==='heavy'){
-        // 最寄り敵をターゲット(なければ向き方向に直進)
-        let target=null, td=600;
-        this.enemyDataList.forEach(ed=>{
-          if(ed.dead) return;
-          const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
-          if(d<td){td=d; target=ed;}
-        });
+        // ロック敵を優先、なければ最寄り敵をターゲット(なければ向き方向に直進)
+        let target=this.getPreferredTarget(), td=600;
+        if(!target){
+          this.enemyDataList.forEach(ed=>{
+            if(ed.dead) return;
+            const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
+            if(d<td){td=d; target=ed;}
+          });
+        }
         const initAng = target
           ? Phaser.Math.Angle.Between(p.x,p.y,target.sprite.x,target.sprite.y)
-          : this.getFacingAngle();
+          : this.getAimAngle();
         const bomberPowerLv=pd._hasBomberPower?(pd.sk4||1):0;
         const bomberRadiusMult=bomberPowerLv>=10?3:bomberPowerLv>0?2:1;
         // 通常攻撃が強すぎたため威力を 2/3(×0.67) に下げる
@@ -7325,7 +7326,7 @@ class GameScene extends Phaser.Scene{
         this.playBomberAtk();
       }else{
         // 通常: 爆弾投擲（放物線）→ 着弾時に範囲ダメージ
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         // ボマーパワー Lv で「投げ距離」が伸びる(0距離は爆発半径でカバー)
         const bomberPowerLv = pd._hasBomberPower ? (pd.sk4||1) : 0;
         const distMul   = 1 + bomberPowerLv * 0.18;  // Lv0:1, Lv5:1.9, Lv10:2.8
@@ -7887,6 +7888,59 @@ class GameScene extends Phaser.Scene{
     if(vx!==0||vy!==0) return Math.atan2(vy,vx);
     // どちらもなければ最後に動いた向き（_lastAngle）
     return this._lastAngle||0;
+  }
+
+  // ── タップ・ロックオン(ターゲット指定) ────────────────
+  // 敵をロック: 同じ敵なら解除、別の敵なら付け替え
+  _lockOnEnemy(ed){
+    if(!ed || ed.dead || !ed.sprite) return;
+    this._lockedTarget = ed;
+    this.target = ed;  // 後方互換(doAttack等)
+    if(!this._lockMarker || !this._lockMarker.active){
+      this._lockMarker = this.add.text(ed.sprite.x, ed.sprite.y, '🎯', {fontSize:'30px'}).setOrigin(0.5).setDepth(24);
+    }
+    this._lockMarker.setVisible(true).setPosition(ed.sprite.x, ed.sprite.y - ed.sprite.displayHeight*0.5 - 6);
+    try{SE('click');}catch(e){}
+    this.showFloat(ed.sprite.x, ed.sprite.y - ed.sprite.displayHeight*0.5 - 30, '🎯 ロックオン', '#ffdd44', 'info');
+  }
+  // ロック解除
+  _releaseLock(){
+    this._lockedTarget = null;
+    this.target = null;
+    if(this._lockMarker) this._lockMarker.setVisible(false);
+  }
+  // ロックが有効か(死亡/画面外で自動解除)
+  _isLockValid(){
+    const ed = this._lockedTarget;
+    if(!ed || ed.dead || !ed.sprite || !ed.sprite.active){ if(ed) this._releaseLock(); return false; }
+    // 画面外に大きく外れたら自動解除(照準が画面外へ飛ぶのを防止)
+    const wv = this.cameras.main.worldView, m = 90;
+    if(ed.sprite.x < wv.x - m || ed.sprite.x > wv.right + m
+       || ed.sprite.y < wv.y - m || ed.sprite.y > wv.bottom + m){
+      this._releaseLock(); return false;
+    }
+    return true;
+  }
+  // 攻撃の照準角度: ロック中はロック敵へ、それ以外は入力方向(従来通り)
+  getAimAngle(){
+    if(this._isLockValid()){
+      const ed = this._lockedTarget, p = this.player;
+      return Phaser.Math.Angle.Between(p.x, p.y, ed.sprite.x, ed.sprite.y);
+    }
+    return this.getFacingAngle();
+  }
+  // 自動狙い系の優先ターゲット: ロック中はロック敵、それ以外は null(呼び出し側が最寄りを使う)
+  getPreferredTarget(){
+    return this._isLockValid() ? this._lockedTarget : null;
+  }
+  // ロックマーカーを敵に追従(update から毎フレーム呼ぶ)
+  _updateLockMarker(){
+    if(!this._lockedTarget) return;
+    if(!this._isLockValid()) return;  // 無効なら _isLockValid 内で解除済み
+    const ed = this._lockedTarget;
+    if(this._lockMarker){
+      this._lockMarker.setVisible(true).setPosition(ed.sprite.x, ed.sprite.y - ed.sprite.displayHeight*0.5 - 6);
+    }
   }
 
   fireBullet(x,y,ang,texture,opt){
@@ -8997,10 +9051,10 @@ class GameScene extends Phaser.Scene{
         this.showFloat(p.x, p.y-80, '🔫 マシンガン', '#ffdd44');
         this[cdKey]=sk.cd;
       }else if(num===3){ // プリザーブドバスター: 正面に放つ氷属性のメガ粒子砲
-        // 向きを取得(最寄り敵の方向か、最後の向き)
-        let targetAng = this._lastAngle || 0;
-        let nearest=null, nd=500;
-        this.enemyDataList.forEach(ed=>{
+        // 向きを取得(ロック敵→最寄り敵→照準方向)
+        let targetAng = this.getAimAngle();
+        let nearest=this.getPreferredTarget(), nd=500;
+        if(!nearest) this.enemyDataList.forEach(ed=>{
           if(ed.dead) return;
           const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
           if(d<nd){nd=d; nearest=ed;}
@@ -9183,7 +9237,7 @@ class GameScene extends Phaser.Scene{
         pd._bcStreak = Math.min(2, (pd._bcStreak||0));  // 表示用にcap
         const rangeMul = Math.pow(1.2, pd._bcStreak);
         // 向き = プレイヤーの向き(自動標準を廃止)
-        const targetAng = this.getFacingAngle();
+        const targetAng = this.getAimAngle();
         const beamLen = 700 * rangeMul;
         const beamWidth = 80 * rangeMul;
         const cosA = Math.cos(targetAng);
@@ -9289,7 +9343,7 @@ class GameScene extends Phaser.Scene{
       else if(num===2){
         // ── メガトンキャノン: 多段高火力+広範囲爆発(カプコン風) ──
         // 向き = プレイヤーの向き(自動標準を廃止)
-        const targetAng = this.getFacingAngle();
+        const targetAng = this.getAimAngle();
         const cosA = Math.cos(targetAng);
         const sinA = Math.sin(targetAng);
         // バスターキャノン3撃目の更に倍くらい
@@ -9508,10 +9562,10 @@ class GameScene extends Phaser.Scene{
     // ─ 覚醒「エルフ」(spirit) ─
     if(pd.awakened==='spirit'){
       if(num===1){ // ウインドカッター: 正面広範囲に飛ぶ風属性攻撃の一撃
-        // 向き判定(最寄り敵の方向、なければ_lastAngle)
-        let targetAng = this._lastAngle || 0;
-        let nearest=null, nd=600;
-        this.enemyDataList.forEach(ed=>{
+        // 向き判定(ロック敵→最寄り敵→照準方向)
+        let targetAng = this.getAimAngle();
+        let nearest=this.getPreferredTarget(), nd=600;
+        if(!nearest) this.enemyDataList.forEach(ed=>{
           if(ed.dead) return;
           const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
           if(d<nd){nd=d; nearest=ed;}
@@ -10041,10 +10095,10 @@ class GameScene extends Phaser.Scene{
           this._casting=false;
           try{castBar.destroy();}catch(e){}
           try{castFill.destroy();}catch(e){}
-          // 向き判定
-          let targetAng = this._lastAngle || 0;
-          let nearest=null, nd=600;
-          this.enemyDataList.forEach(ed=>{
+          // 向き判定(ロック敵→最寄り敵→照準方向)
+          let targetAng = this.getAimAngle();
+          let nearest=this.getPreferredTarget(), nd=600;
+          if(!nearest) this.enemyDataList.forEach(ed=>{
             if(ed.dead) return;
             const d = Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
             if(d<nd){nd=d; nearest=ed;}
@@ -11046,7 +11100,7 @@ class GameScene extends Phaser.Scene{
           SE('freeze');
         });
       }else if(num===3){ // ボルテックスボール（貫通）
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         const sz=28+pd.sk3*13;
         const bull=this.fireBullet(p.x,p.y,ang,'proj_vortexball',{
           spd:400,maxDist:700,
@@ -11160,7 +11214,7 @@ class GameScene extends Phaser.Scene{
     // ─ アーチャー ─
     else if(pd.cls==='archer'){
       if(num===1){ // 5方向射撃
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         // ── 緑の弧の軌跡(放たれる方向を可視化) ──
         // 1. プレイヤー前方に薄い緑の扇形(矢の通り道)
         const arcG=this.add.graphics().setDepth(22);
@@ -11274,7 +11328,7 @@ class GameScene extends Phaser.Scene{
         this.showBuffTimer('⭐ グロリアスショット','#ffd700',dur);
       }else if(num===3){ // バルカンショット（連射・TOTAL対応）
         const shots=2+pd.sk3;
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         // 連射全弾の累積管理(各敵ごとにダメ蓄積)
         const accumulator = {
           totalsByEnemy: new Map(),
@@ -11394,7 +11448,7 @@ class GameScene extends Phaser.Scene{
         // CDなし・SPのみ消費（CDを0にしておく）
         this[cdKey]=0;
       }else if(num===2){ // ボーリングボムス: 直線貫通弾→着弾で6方向クラスター爆撃
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         // 直線上に飛ぶ貫通弾（敵または最大距離400pxで爆発）
         const clusterDmg=(sk1Lv)=>Math.max(1,Math.floor(pd.atk*(0.8+sk1Lv*0.15)));
         const clusterRadius=40;
@@ -11418,7 +11472,7 @@ class GameScene extends Phaser.Scene{
         this.playBomberAtk();
         SE('vortex');
       }else if(num===3){ // ハイパーボム（sk3）: 投擲100px 半径100×(1+Lv×0.2)
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         const radius=100*(1+pd.sk3*0.2);
         const tx=p.x+Math.cos(ang)*100,ty=p.y+Math.sin(ang)*100;
         this.throwBomb(p.x,p.y,tx,ty,{
@@ -14856,6 +14910,9 @@ class GameScene extends Phaser.Scene{
     opt = opt || {};
     const pd=this.playerData, p=this.player;
     const pickTarget = ()=>{
+      // ロック中はロック敵を優先
+      const pref = this.getPreferredTarget();
+      if(pref) return pref;
       let t=null, td=720;
       this.enemyDataList.forEach(ed=>{
         if(ed.dead) return;
@@ -14871,7 +14928,7 @@ class GameScene extends Phaser.Scene{
     // 最後の一撃まで倒さない(全段ヒットしてから撃破)
     lockTarget._noDie = true;
     if(opt.label) this.showFloat(p.x, p.y-70, opt.label, '#ffdd66');
-    try{SE('arrow');}catch(e){}
+    try{SE('whip');}catch(e){}
     // 鷹が画面外から飛来
     const fromAng = Math.random()*Math.PI*2;
     const startX = target.sprite.x + Math.cos(fromAng)*340;
@@ -14879,7 +14936,7 @@ class GameScene extends Phaser.Scene{
     const hawk = this.add.text(startX, startY, '🦅', {fontSize:'40px'}).setOrigin(0.5).setDepth(22).setTint(0xffdd66);
     hawk.setRotation(Phaser.Math.Angle.Between(startX, startY, target.sprite.x, target.sprite.y));
     let total = 0;  // 合算ダメージ(単体)
-    const hitInterval = 95;  // 連撃の間隔
+    const hitInterval = 160;  // 連撃の間隔(鞭のように1発ずつ間を空ける)
     // ロックを必ず解除する保険(対象が消えた/コンボ中断時)
     const releaseLock = ()=>{ if(lockTarget) lockTarget._noDie = false; };
     // 鷹を対象付近へ急降下 → 連続ヒット開始
@@ -14904,6 +14961,7 @@ class GameScene extends Phaser.Scene{
             const isCrit = Math.random()*100 < calcCrit(pd);
             if(isCrit) dmg *= 2;
             this.hitEnemy(ed, dmg, isCrit, false, '');
+            try{SE('whip');}catch(e){}  // 1撃ごとに鞭の効果音
             total += dmg;
             const lastX = ed.sprite ? ed.sprite.x : p.x, lastY = ed.sprite ? ed.sprite.y : p.y;
             // 鷹を敵へ突進させる
@@ -14985,7 +15043,7 @@ class GameScene extends Phaser.Scene{
         targetEd = alive[idx % alive.length];
         tx = targetEd.sprite.x; ty = targetEd.sprite.y;
       }else{
-        const ang=this.getFacingAngle();
+        const ang=this.getAimAngle();
         tx = px + Math.cos(ang)*200; ty = py + Math.sin(ang)*200;
       }
       const sx = tx + (Math.random()-0.5)*40;
@@ -15938,7 +15996,6 @@ class GameScene extends Phaser.Scene{
 
     // タッチ開始
     this.input.on('pointerdown',(ptr)=>{
-      if(this.joyPointerId!==null)return;
       // まずptr.x/yを使い、念のためgetGameXYも試す
       let x=ptr.x, y=ptr.y;
       // iOSでずれる場合の補正
@@ -15946,6 +16003,24 @@ class GameScene extends Phaser.Scene{
         const g=getGameXY(ptr);
         if(g.x>=0&&g.x<=w&&g.y>=0&&g.y<=h){x=g.x;y=g.y;}
       }
+      // ── 敵タップでロックオン(ジョイスティック起動より優先・移動中の2本目指でも可) ──
+      // UI領域(下部ボタンバー/左上HUD)のタップは除外し、誤ロックを防ぐ
+      const inUI = (y > h*0.65) || (x < 290 && y < 120);
+      if(!inUI && !this._menuOpen && !this._gameOver && this.enemyDataList){
+        const wp = this.cameras.main.getWorldPoint(x, y);
+        let hit=null, hd=60;  // 敵中心からこの範囲内のタップでロック
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead || !ed.sprite) return;
+          const d=Phaser.Math.Distance.Between(wp.x, wp.y, ed.sprite.x, ed.sprite.y);
+          if(d<hd){hd=d; hit=ed;}
+        });
+        if(hit){
+          if(this._lockedTarget===hit) this._releaseLock();  // 同じ敵を再タップで解除
+          else this._lockOnEnemy(hit);
+          return;  // ロック操作時はジョイスティックを起動しない
+        }
+      }
+      if(this.joyPointerId!==null)return;
       // 反応エリア: 左45% かつ ボタンバーより上 かつ 画面上35%より下
       if(x < w*0.45 && y > h*0.30 && y < h-50){
         this.joyActive=true;
@@ -16376,6 +16451,7 @@ class GameScene extends Phaser.Scene{
       }
     }});
     if(this.target===ed)this.target=null;
+    if(this._lockedTarget===ed)this._releaseLock();  // ロック対象が死んだら解除
     if(ed.isBoss){
       this.bossData=null;this.updateBossHP(null);
       // BGM 切り替えはフラッシュ後に少し遅らせる(レース防止)
@@ -18133,6 +18209,8 @@ class GameScene extends Phaser.Scene{
     this._updateAwakening(dt);
     // 敵弾のライフサイクル管理
     this._updateEnemyBullets(dt);
+    // ロックオンマーカーを対象に追従(死亡/画面外で自動解除)
+    this._updateLockMarker();
     // スペースキーで通常攻撃(押しっぱで連射対応・atkCooldownで自動的にクール調整)
     if(this.spaceKey.isDown && !pd._paralyzed && !this._casting)this.normalAttack();
     if(this.atkCooldown>0)this.atkCooldown-=dt;
