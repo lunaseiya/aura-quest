@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-10-v3'; // 更新日付
+const GAME_VERSION = '2026-06-10-v4'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -6912,29 +6912,12 @@ class GameScene extends Phaser.Scene{
       const dmg=bull.getData('dmg')||1;
       const isCrit=bull.getData('isCrit')||false;
 
-      // ブーストアタック：多段ヒット処理
-      const boostHits=bull.getData('boostHits')||1;
-      // バルカン/ブースト累積(連射全弾・多段ヒットの合計用)
+      // バルカン累積(連射全弾の合計用)
       const vulcanAcc = bull.getData('vulcanAcc');
       // 1段目を累積に加算(死亡前の最後のダメージなのでmiss判定後でも入る)
       if(vulcanAcc && !bull.getData('miss')){
         vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + dmg);
         if(ed.sprite) vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
-      }
-      if(boostHits>1&&!ed.dead){
-        // 1段目は通常通り下で処理、2段目以降を遅延で追加
-        for(let h=1;h<boostHits;h++){
-          this.time.delayedCall(h*120,()=>{
-            if(ed.dead)return;
-            this.hitEnemy(ed,dmg,isCrit,true); // isSkill=trueでスキルダメージ表示
-            SE('arrow');
-            // 累積に2段目以降も加算
-            if(vulcanAcc){
-              vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + dmg);
-              if(ed.sprite) vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
-            }
-          });
-        }
       }
 
       if(bowling){
@@ -6984,6 +6967,47 @@ class GameScene extends Phaser.Scene{
       if(vulcanAcc && !bull.getData('miss')){
         vulcanAcc.totalsByEnemy.set(ed, (vulcanAcc.totalsByEnemy.get(ed)||0) + finalDmg);
         vulcanAcc.lastPosByEnemy.set(ed, {x: ed.sprite.x, y: ed.sprite.y});
+      }
+
+      // ── アーチャー通常矢: 命中後にブースト多段/鷹眼の加護を判定(矢が当たってから発動) ──
+      if(bull.getData('archerNormal') && !bull.getData('miss') && !bull.getData('_archerProc')){
+        bull.setData('_archerProc', true);  // 1本につき1回だけ
+        const pdA=this.playerData;
+        // ブーストアタック(命中時に多段判定): 1段目は下の通常ヒットで処理、2段目以降を追加
+        const boostLv = pdA._hasBoostAtk ? (pdA.sk4||1) : 0;
+        if(boostLv>0 && !ed.dead){
+          const roll = Math.random()*100;
+          const tripleChance = boostLv>=6?30:0;
+          const doubleChance = 30;
+          let extra = 0;
+          if(roll < tripleChance) extra = 2;                       // 3段ヒット
+          else if(roll < tripleChance+doubleChance) extra = 1;     // 2段ヒット
+          if(extra>0){
+            this.showFloat(ed.sprite.x, ed.sprite.y-50, (extra+1)+'段ヒット！', '#27ae60', 'info');
+            let total = finalDmg;  // 1段目(このあと適用される)
+            const lastPos = {x: ed.sprite.x, y: ed.sprite.y};
+            for(let h=0; h<extra; h++){
+              this.time.delayedCall((h+1)*120, ()=>{
+                if(ed.dead) return;
+                this.hitEnemy(ed, finalDmg, isCrit, true); // isSkill表示
+                SE('arrow');
+                total += finalDmg;
+                lastPos.x = ed.sprite.x; lastPos.y = ed.sprite.y;
+              });
+            }
+            // 合算ダメージ表示
+            this.time.delayedCall(extra*120 + 200, ()=>{ this.showTotalDamage(lastPos.x, lastPos.y, total); });
+          }
+        }
+        // 鷹神弓士「鷹眼の加護」(命中時に確率発動)
+        if(pdA.awakened==='hawk'){
+          const hlv = (pdA.awakSkillLv && pdA.awakSkillLv.hawk && pdA.awakSkillLv.hawk.sk1) || 0;
+          const procRate = Math.min(60, 12 + (pdA.luk||0)*1.5);  // LUKで発動率UP(上限60%)
+          if(Math.random()*100 < procRate){
+            const cnt = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
+            this._hawkStrike(cnt, {label:'🦅 鷹眼の加護'});
+          }
+        }
       }
 
       if(pierce){
@@ -7221,65 +7245,22 @@ class GameScene extends Phaser.Scene{
       }
 
     }else if(cls==='archer'){
-      // ブーストアタック判定（パッシブ）
-      const boostLv=pd._hasBoostAtk?(pd.sk4||1):0;
-      const boostRoll=Math.random()*100;
-      const tripleChance=boostLv>=6?30:0;
-      const doubleChance=boostLv>=1?30:0;
-      let hitCount=1;
-      if(boostLv>0){
-        if(boostRoll<tripleChance) hitCount=3;
-        else if(boostRoll<tripleChance+doubleChance) hitCount=2;
-      }
-      // 矢は1本だけ発射
+      // 矢は1本だけ発射。ブーストアタックの多段判定/鷹眼の加護は「命中後」に
+      // 弾衝突ハンドラ側で判定する(archerNormalフラグ付き弾)
       const ang=this.getFacingAngle();
       const res=rollAttack(pd,0,this._nearestEnemyEva());
       const baseDmg=res.miss?0:Math.max(1,Math.floor(pd.atk*1.5)+Phaser.Math.Between(0,pd.atk));
-      // 多段ヒット時はTOTAL累積を準備
-      let boostAcc = null;
-      if(hitCount > 1){
-        boostAcc = {
-          totalsByEnemy: new Map(),
-          lastPosByEnemy: new Map(),
-        };
-        // hitCount * 120ms + 余裕で TOTAL 表示
-        this.time.delayedCall(hitCount*120 + 500, ()=>{
-          boostAcc.totalsByEnemy.forEach((total, ed)=>{
-            const pos = boostAcc.lastPosByEnemy.get(ed) || {x:p.x,y:p.y};
-            this.showTotalDamage(pos.x, pos.y, total);
-          });
-        });
-      }
-      const b = this.fireBullet(p.x,p.y,ang,'proj_arrow',{
+      this.fireBullet(p.x,p.y,ang,'proj_arrow',{
         spd:540,maxDist:650,
         dmg:baseDmg,
         isCrit:!res.miss&&res.isCrit,
         miss:res.miss,
         sz:14,
-        // 多段ヒット情報を弾に持たせる
-        boostHits:hitCount,
-        boostScene:this,
-        boostPd:pd,
+        archerNormal:true,   // 命中時にブースト多段/鷹眼の加護を判定する目印
       });
-      // ブーストアタックの累積を弾に紐付け(vulcanAccと同じ仕組みを流用)
-      if(b && boostAcc){
-        b.setData('vulcanAcc', boostAcc);
-      }
       SE('arrow');
-      // 2段・3段の追加ヒットは弾着弾時に処理（hitBullet内で対応）
-      // フロートテキスト
-      if(hitCount>1)this.showFloat(p.x,p.y-50,hitCount+'段ヒット！','#27ae60','info');
       this.playSpriteAtk();
       this.atkCooldown=this._calcAtkCD(0.5);
-      // ── 鷹神弓士「鷹眼の加護」(パッシブ): 一定確率で鷹の連続攻撃 ──
-      if(pd.awakened==='hawk'){
-        const hlv = (pd.awakSkillLv && pd.awakSkillLv.hawk && pd.awakSkillLv.hawk.sk1) || 0;
-        const procRate = Math.min(60, 12 + (pd.luk||0)*1.5);  // LUKで発動率UP(上限60%)
-        if(Math.random()*100 < procRate){
-          const count = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
-          this._hawkStrike(count, {label:'🦅 鷹眼の加護'});
-        }
-      }
 
     }else if(cls==='bomber'){
       // バスターズ換装覚醒中: 通常攻撃を蒼白い細ビーム(バスターキャノンの細版)に置換・貫通
@@ -7920,6 +7901,7 @@ class GameScene extends Phaser.Scene{
     b.setData('vx',Math.cos(ang)*opt.spd);
     b.setData('vy',Math.sin(ang)*opt.spd);
     b.setData('boostHits',opt.boostHits||1); // ブーストアタック多段数
+    b.setData('archerNormal',opt.archerNormal||false); // アーチャー通常矢(命中後にブースト多段/鷹眼の加護を判定)
     b.setData('pierce',opt.pierce||false);
     b.setData('element',opt.element||'none'); // 弾の属性
     b.rotation=ang;
