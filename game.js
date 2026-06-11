@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-11-v2'; // 更新日付
+const GAME_VERSION = '2026-06-11-v3'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -4977,7 +4977,7 @@ const STAGE_CONFIG={
     // 東側にゴブリン集落への分岐ポータル(踏むとダイアログなしで即遷移)
     sidePortal:{x:1400, y:540, to:20, returnX:200, returnY:540},
   },
-  6:{name:'ST.6 砂漠の果て',bgmKey:'desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',400,300],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',600,200],['bone_dragon',1000,600]],boss:{id:'tomb_guardian',x:290,y:420},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:650,spawnY:200,portalNextX:650,portalNextY:1000,portalBackX:650,portalBackY:50,spawnFromBackX:650,spawnFromBackY:200,spawnFromNextX:650,spawnFromNextY:860,dungeonGate:{x:251,y:400,to:10,label:'DUN.1 忘れられし地下迷宮'}},
+  6:{name:'ST.6 砂漠の果て',bgmKey:'desert',mapImage:'map_st6',mapW:1448,mapH:1086,tiles:['tile_sand_desert','tile_sand_beach','tile_oasis_grass'],tileWeights:[80,15,5],objects:[],objPos:[],enemies:[['skeleton',320,430],['skeleton',600,500],['skeleton',900,700],['mummy',300,600],['mummy',800,300],['mummy',1100,500],['scorpion',500,700],['scorpion',880,680],['scorpion',1200,300],['sandworm',300,400],['sandworm',900,400],['sandworm',1100,700],['bone_dragon',980,150],['bone_dragon',1000,600]],boss:{id:'tomb_guardian',x:290,y:420},bossThreshold:16,portalTo:7,portalToLabel:'⛰ ST.7へ',portalToKey:'portal_st4',portalBack:5,portalBackLabel:'🏜 ST.5へ',portalBackKey:'portal_st4',spawnX:650,spawnY:200,portalNextX:650,portalNextY:1000,portalBackX:650,portalBackY:50,spawnFromBackX:650,spawnFromBackY:200,spawnFromNextX:650,spawnFromNextY:860,dungeonGate:{x:251,y:400,to:10,label:'DUN.1 忘れられし地下迷宮'}},
   7:{name:'ST.7 天空への路',bgmKey:'sky',
     mapImage:'map_st7', mapType:'sky', mapW:949, mapH:1658,
     tiles:[],tileWeights:[],objects:[],objPos:[],
@@ -9314,7 +9314,8 @@ class GameScene extends Phaser.Scene{
           });
           const lv = (pd.awakSkillLv && pd.awakSkillLv.busters && pd.awakSkillLv.busters.sk1) || 1;
           targets.forEach(ed=>{
-            const baseDmg = Math.max(1, Math.floor((pd.atk*2.2 + lv*8) * rangeMul));
+            // 通常攻撃(平均atk×4)より明確に強く: atk×2.2→×4 に増強
+            const baseDmg = Math.max(1, Math.floor((pd.atk*4 + lv*12) * rangeMul));
             const isCrit = Math.random()*100 < calcCrit(pd);
             const em = getElementMult('fire', ed.element||'none');
             const dmg = Math.max(1, Math.floor((isCrit ? baseDmg*2 : baseDmg) * em.mult));
@@ -9445,8 +9446,8 @@ class GameScene extends Phaser.Scene{
           }
           // ── 多段ヒット(10連続) ──
           const lv = (pd.awakSkillLv && pd.awakSkillLv.busters && pd.awakSkillLv.busters.sk2) || 1;
-          // 3hit→10hit に変更したのでダメージは少し抑えてバランス
-          const baseDmg = Math.max(1, Math.floor(pd.atk*1.4 + lv*7));
+          // 10hit合計で通常攻撃の5倍超を狙う: atk×1.4→×2.2 に増強(合計 約atk×22)
+          const baseDmg = Math.max(1, Math.floor(pd.atk*2.2 + lv*10));
           const HIT_COUNT = 10;
           const HIT_INTERVAL = 90;  // 90ms 間隔 = 約 900ms で全段
           for(let hit=0; hit<HIT_COUNT; hit++){
@@ -14938,7 +14939,7 @@ class GameScene extends Phaser.Scene{
     let total = 0;  // 合算ダメージ(単体)
     const hitInterval = 160;  // 連撃の間隔(鞭のように1発ずつ間を空ける)
     // ロックを必ず解除する保険(対象が消えた/コンボ中断時)
-    const releaseLock = ()=>{ if(lockTarget) lockTarget._noDie = false; };
+    const releaseLock = ()=>{ if(lockTarget){ lockTarget._noDie = false; lockTarget._doomed = false; } };
     // 鷹を対象付近へ急降下 → 連続ヒット開始
     this.tweens.add({
       targets: hawk, x: target.sprite.x, y: target.sprite.y-10,
@@ -14955,7 +14956,7 @@ class GameScene extends Phaser.Scene{
               return;
             }
             // 最後の一撃では撃破を許可(直前に _noDie を解放)
-            if(isLast) ed._noDie = false;
+            if(isLast){ ed._noDie = false; ed._doomed = false; }
             // ダメージ: 防御無視(hitEnemyはdefを引かない)・命中で威力UP
             let dmg = Math.max(1, Math.floor(pd.atk*0.6 + (pd.hit||0)*0.5) + Phaser.Math.Between(0, Math.floor(pd.atk*0.3)));
             const isCrit = Math.random()*100 < calcCrit(pd);
@@ -16172,9 +16173,34 @@ class GameScene extends Phaser.Scene{
   // bomber後方互換
   _updateBomberAnim(vx,vy){ this._updateSpriteAnim(vx,vy); }
 
+  // 指定角度の方向を向く(_updateSpriteAnim と同じ向き/反転ルール)
+  _setFacingByAngle(ang){
+    const p=this.player, cls=this.playerData.cls;
+    const vx=Math.cos(ang), vy=Math.sin(ang);
+    let facing, flip;
+    if(Math.abs(vy)>Math.abs(vx)*0.5){facing=vy<0?'back':'front';flip=false;}
+    else{
+      facing='side';
+      flip=(cls==='archer'||cls==='warrior'||cls==='novice')?vx>0:vx<0;
+      const awD=this.playerData.awakened?AWAKENINGS[this.playerData.awakened]:null;
+      if(awD && awD.facingFlip){
+        if(awD.facingFlip==='left') flip=vx<0;
+        else if(awD.facingFlip==='right') flip=vx>0;
+        else if(awD.facingFlip==='none') flip=vx<0;
+      }
+    }
+    this._facing=facing; this._facingFlip=flip;
+    p.setFlipX(flip);
+  }
+
   playSpriteAtk(){
     const p=this.player,cls=this.playerData.cls;
     if(cls!=='bomber'&&cls!=='mage'&&cls!=='archer'&&cls!=='warrior'&&cls!=='novice') return;
+    // ロックオン中はロック敵の方向を向いて攻撃(逃げ撃ちで後ろ向きにならない)
+    if(this._isLockValid()){
+      const ed=this._lockedTarget;
+      this._setFacingByAngle(Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y));
+    }
     // 覚醒中は専用アニメ(AWAKENINGSのanimPrefix参照)
     let prefix=cls;
     const awD1 = this.playerData.awakened ? AWAKENINGS[this.playerData.awakened] : null;
@@ -16266,9 +16292,9 @@ class GameScene extends Phaser.Scene{
     ed.hp-=dmg;
     // 攻撃を受けたらaggro（ST1の受動的AI解除）
     ed.aggro=true;
-    // ノックバック（bomberのみ）
+    // ノックバック（bomberのみ。ヘヴィ換装中の通常攻撃は除外）
     const p=this.player;
-    if(this.playerData.cls==='bomber'){
+    if(this.playerData.cls==='bomber' && !(this.playerData.awakened==='heavy' && !isSkill)){
       const ang=Phaser.Math.Angle.Between(p.x,p.y,ed.sprite.x,ed.sprite.y);
       const knockSpd = 200;
       // ノックバック先(0.2秒分)が ステージ範囲外なら壁にいる扱いでスキップ
@@ -16346,6 +16372,8 @@ class GameScene extends Phaser.Scene{
       if(ed._noDie){
         // 多段コンボ中(神鷹など): 最後の一撃まで倒さず、HP1で踏みとどまらせる
         ed.hp = 1;
+        // 撃破確定: 残りの連撃を待つ間は移動/攻撃を停止(死に体)
+        ed._doomed = true;
         const pct2 = Math.max(0, ed.hp/ed.mhp);
         ed.hpBar.setSize(ed.hpBarBg.width*pct2,5).setFillStyle(0xe74c3c);
       }else{
@@ -18266,6 +18294,15 @@ class GameScene extends Phaser.Scene{
       if(ed.dead)return;
       const sp=ed.sprite;
       const dist=Phaser.Math.Distance.Between(p.x,p.y,sp.x,sp.y);
+
+      // 多段コンボで撃破確定(鷹連撃など): 最後の一撃まで行動停止
+      if(ed._doomed){
+        sp.setVelocity(0,0);
+        ed.hpBarBg.setPosition(sp.x,sp.y-sp.displayHeight/2-6);
+        ed.hpBar.setPosition(sp.x-sp.displayWidth/2,sp.y-sp.displayHeight/2-6);
+        if(ed.nameLabel)ed.nameLabel.setPosition(sp.x,sp.y-sp.displayHeight/2-14);
+        return;
+      }
 
       // 凍結中
       if(ed.frozen){
