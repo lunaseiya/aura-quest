@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v5'; // 更新日付
+const GAME_VERSION = '2026-06-13-v6'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13699,7 +13699,7 @@ class GameScene extends Phaser.Scene{
     const w = this.scale.width, h = this.scale.height;
     const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
       .setScrollFactor(0).setDepth(100).setInteractive();
-    const boxW = Math.min(w*0.85, 540), boxH = 260;
+    const boxW = Math.min(w*0.85, 540), boxH = 280;
     const boxX = w/2, boxY = h - boxH/2 - 30;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1208, 0.96)
       .setScrollFactor(0).setDepth(101)
@@ -13712,7 +13712,8 @@ class GameScene extends Phaser.Scene{
       '『私は試作魔導機兵パワーインパクト。\n換装して模擬戦闘訓練を行うかい?』\n\n'+
       '⚔ 左右タップ: パンチ\n'+
       '💨 攻撃と逆へスワイプ: 回避(成功で反撃チャンス)\n'+
-      '⚡ ゲージMAXで必殺技ボタン出現',
+      '🛡 下へスワイプ: ガード(被ダメージ1/4)\n'+
+      '⚡ ゲージMAXで赤い必殺ボタン点灯',
       {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:5,
        wordWrap:{width: boxW - 40}}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
@@ -18741,6 +18742,7 @@ class ImpactScene extends Phaser.Scene{
     this.state = 'fight';        // fight / win / lose
     this.enemyState = 'idle';    // idle / telegraph / attack / stagger / down
     this.dodge = null;           // null / 'left' / 'right'
+    this.guard = false;          // 下スワイプで両腕ガード(被ダメージ1/4)
     this.gauge = 0;              // 必殺ゲージ 0〜100
     this._punchBusy = {left:false, right:false};
     this._specialActive = false;
@@ -18787,6 +18789,8 @@ class ImpactScene extends Phaser.Scene{
     this.pArmR = this.add.image(ax2, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(armW, armH).setFlipX(true);
     if(this._enemyMask){ this.pArmL.setMask(this._enemyMask); this.pArmR.setMask(this._enemyMask); }
     this._armH = armH; // パンチの突き出し先計算用
+    this._armW = armW;
+    this._armHomeXL = ax1; this._armHomeXR = ax2; // ガード解除時の戻り先
     // 構え位置(起動シーケンス完了後に上げる): 窓の下端から拳が覗く高さ
     this._armHomeY = awin ? (awin.bottom - armH*0.55) : (h - 170);
 
@@ -19121,7 +19125,7 @@ class ImpactScene extends Phaser.Scene{
     });
     // 操作ヒント(開幕数秒だけ)
     const hint=this.add.text(w/2, h*0.62,
-      '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避', {
+      '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避\n🛡 下へスワイプ: ガード', {
       fontSize:'14px', fontFamily:'Arial', color:'#ffffaa', fontStyle:'bold', align:'center',
       stroke:'#000', strokeThickness:4, lineSpacing:6
     }).setOrigin(0.5).setDepth(35);
@@ -19153,9 +19157,12 @@ class ImpactScene extends Phaser.Scene{
     this.input.on('pointermove', p=>{
       if(this._booting) return;
       if(!p.isDown || this.state!=='fight') return;
-      const dx=p.x-p.downX;
-      if(!this.dodge && !this._specialActive && Math.abs(dx)>55){
-        this._doDodge(dx<0?'left':'right');
+      if(this.dodge || this.guard || this._specialActive) return;
+      const dx=p.x-p.downX, dy=p.y-p.downY;
+      if(Math.abs(dx)>55 && Math.abs(dx)>=Math.abs(dy)){
+        this._doDodge(dx<0?'left':'right');     // 横スワイプ: 回避
+      }else if(dy>55 && dy>Math.abs(dx)){
+        this._doGuard();                         // 下スワイプ: ガード
       }
     });
     this.input.on('pointerup', p=>{
@@ -19177,7 +19184,7 @@ class ImpactScene extends Phaser.Scene{
   // プレイヤー: パンチ
   // ─────────────────────────────────────────
   _punch(side){
-    if(this.state!=='fight' || this.dodge || this._punchBusy[side]) return;
+    if(this.state!=='fight' || this.dodge || this.guard || this._punchBusy[side]) return;
     this._punchBusy[side]=true;
     const fist = side==='left' ? this.pArmL : this.pArmR;
     try{SE('slash');}catch(e){}
@@ -19243,10 +19250,29 @@ class ImpactScene extends Phaser.Scene{
   }
 
   // ─────────────────────────────────────────
+  // プレイヤー: ガード(下スワイプ・両腕を中央に揃えて被ダメージ1/4)
+  // ─────────────────────────────────────────
+  _doGuard(){
+    if(this.state!=='fight' || this.dodge || this.guard || this._specialActive) return;
+    this.guard=true;
+    try{SE('guard');}catch(e){}
+    // 両腕を中央に寄せて顔の前で揃える
+    const gx=this.W/2, gy=this._armHomeY - this._armH*0.12;
+    this.tweens.add({targets:this.pArmL, x:gx-this._armW*0.45, y:gy, angle:-8, duration:90, ease:'Quad.easeOut'});
+    this.tweens.add({targets:this.pArmR, x:gx+this._armW*0.45, y:gy, angle:8,  duration:90, ease:'Quad.easeOut'});
+    this.time.delayedCall(650, ()=>{
+      this.guard=false;
+      if(this.state!=='fight' || this._specialActive) return;
+      this.tweens.add({targets:this.pArmL, x:this._armHomeXL, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
+      this.tweens.add({targets:this.pArmR, x:this._armHomeXR, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
+    });
+  }
+
+  // ─────────────────────────────────────────
   // 必殺技: 烈火連撃(高速ラッシュ→フィニッシュ)
   // ─────────────────────────────────────────
   _doSpecial(){
-    if(this.state!=='fight' || this._specialActive || this.gauge<100) return;
+    if(this.state!=='fight' || this._specialActive || this.guard || this.gauge<100) return;
     this._specialActive=true;
     this.gauge=0;
     this._updateBars();
@@ -19388,6 +19414,18 @@ class ImpactScene extends Phaser.Scene{
       try{SE('dodge');}catch(e){}
       this._float(this.W/2, this.H*0.62, '回避!', '#88ffcc');
       this._enemyStagger();
+      return;
+    }
+    // ガード判定: ダメージを1/4に軽減
+    if(this.guard){
+      const dmg=Math.max(1, Math.ceil(this.enemyDmg/4));
+      this.pHp=Math.max(0, this.pHp-dmg);
+      try{SE('parry');}catch(e){}
+      this._float(this.W/2, this.H*0.60, '🛡 ガード! -'+dmg, '#aaccff');
+      this.cameras.main.shake(90, 0.005); // 被弾よりかなり控えめ
+      this._updateBars();
+      if(this.pHp<=0){ this._lose(); return; }
+      this._enemyThink();
       return;
     }
     // 被弾
