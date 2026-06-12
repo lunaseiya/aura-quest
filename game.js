@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v4'; // 更新日付
+const GAME_VERSION = '2026-06-13-v5'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -19075,16 +19075,27 @@ class ImpactScene extends Phaser.Scene{
     this.add.rectangle(w/2, pby+18, pbw+4, 12, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x886622, 1);
     this.gaugeBar=this.add.rectangle(w/2-pbw/2, pby+18, 0, 8, 0xffcc33, 1).setOrigin(0,0.5).setDepth(31);
     // 必殺ボタン(ゲージMAX時のみ表示)
-    const spY=this.winRect ? (this.winRect.bottom-40) : (h-120); // 窓がある時はスクリーン内の下端(画面内アラート風)
-    this.spBtn=this.add.rectangle(w/2, spY, 210, 46, 0xcc3311, 0.95)
-      .setDepth(32).setStrokeStyle(3, 0xffee88, 1)
-      .setInteractive({useHandCursor:true}).setVisible(false);
-    this.spBtnTx=this.add.text(w/2, spY, '⚡ 必殺・烈火連撃', {
-      fontSize:'16px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
-    }).setOrigin(0.5).setDepth(33).setVisible(false);
+    // 必殺ボタン(コンソールの赤い物理ボタン・ゲージMAX時のみ点灯)
+    const spX=Math.min(w/2+pbw/2+46, w-42);
+    const spY=pby+9;
+    this.spBtn=this.add.container(spX, spY).setDepth(32).setVisible(false);
+    const spG=this.add.graphics();
+    spG.fillStyle(0x222226,1); spG.fillCircle(0,0,34);   // 台座
+    spG.fillStyle(0x550000,1); spG.fillCircle(0,0,28);   // 外輪
+    spG.fillStyle(0xdd2211,1); spG.fillCircle(0,0,24);   // 赤ボタン本体
+    spG.fillStyle(0xff6655,0.9); spG.fillCircle(-7,-9,8); // ハイライト
+    const spLabel=this.add.text(0,0,'⚡',{fontSize:'20px'}).setOrigin(0.5);
+    const spCap=this.add.text(0,44,'必殺',{
+      fontSize:'11px', fontFamily:'Arial', color:'#ffaaaa', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5);
+    this.spBtn.add([spG, spLabel, spCap]);
+    this.spBtn.setInteractive(new Phaser.Geom.Circle(0,0,38), Phaser.Geom.Circle.Contains);
     this.spBtn.on('pointerdown', ()=>{
       this._uiLock=this.time.now+400;
-      this._doSpecial();
+      // 押し込みアニメ → 発動
+      this.tweens.add({targets:this.spBtn, scaleX:0.85, scaleY:0.85, duration:70, yoyo:true});
+      this.time.delayedCall(90, ()=>this._doSpecial());
     });
     // 退却ボタン(右上・誤タップ防止の2度押し式)
     this.fleeBtn=this.add.rectangle(w-54, 20, 92, 30, 0x223344, 0.9)
@@ -19121,16 +19132,16 @@ class ImpactScene extends Phaser.Scene{
     if(this.eHpBar) this.eHpBar.width=Math.max(0, this._eBarW*(this.eHp/this.eMaxHp));
     if(this.pHpBar) this.pHpBar.width=Math.max(0, this._pBarW*(this.pHp/this.pMaxHp));
     if(this.gaugeBar) this.gaugeBar.width=this._pBarW*(Math.min(100,this.gauge)/100);
-    // ゲージMAXで必殺ボタン表示
+    // ゲージMAXで必殺ボタン点灯
     const ready=(this.gauge>=100 && this.state==='fight' && !this._specialActive);
     if(this.spBtn && this.spBtn.visible!==ready){
-      this.spBtn.setVisible(ready); this.spBtnTx.setVisible(ready);
+      this.spBtn.setVisible(ready);
       if(ready){
         try{SE('boost');}catch(e){}
-        this.tweens.add({targets:[this.spBtn,this.spBtnTx], scaleX:1.06, scaleY:1.06, duration:400, yoyo:true, repeat:-1});
+        this.tweens.add({targets:this.spBtn, scaleX:1.12, scaleY:1.12, duration:400, yoyo:true, repeat:-1});
       }else{
-        this.tweens.killTweensOf([this.spBtn,this.spBtnTx]);
-        this.spBtn.setScale(1); this.spBtnTx.setScale(1);
+        this.tweens.killTweensOf(this.spBtn);
+        this.spBtn.setScale(1);
       }
     }
   }
@@ -19241,10 +19252,17 @@ class ImpactScene extends Phaser.Scene{
     this._updateBars();
     // 敵の行動を止める
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
+    this._clearWarn();
     this._clearEnemyTint();
     this.enemyState='stagger';
     try{SE('berserk');}catch(e){}
-    this._banner('⚡ 必殺・烈火連撃!!', '#ffee66', 1000);
+    // 技名表示(繰り出している間ずっと出す)
+    const ny=this.winRect ? (this.winRect.y+54) : (this.H*0.22);
+    this._spName=this.add.text(this.W/2, ny, '⚡ 必殺・烈火連撃 ⚡', {
+      fontSize:'30px', fontFamily:'Arial', color:'#ffee66', fontStyle:'bold',
+      stroke:'#aa2200', strokeThickness:6
+    }).setOrigin(0.5).setDepth(37).setScale(0.2);
+    this.tweens.add({targets:this._spName, scaleX:1, scaleY:1, duration:220, ease:'Back.easeOut'});
     const RUSH=8, INTERVAL=130;
     for(let i=0;i<RUSH;i++){
       this.time.delayedCall(500+i*INTERVAL, ()=>{
@@ -19269,6 +19287,7 @@ class ImpactScene extends Phaser.Scene{
     }
     // フィニッシュ(両拳同時・大ダメージ)
     this.time.delayedCall(500+RUSH*INTERVAL+250, ()=>{
+      this._hideSpName();
       if(this.state!=='fight'){ this._specialActive=false; return; }
       try{SE('meteor');}catch(e){}
       const cy=this.enemy.y-this._armH*0.2;
@@ -19311,15 +19330,37 @@ class ImpactScene extends Phaser.Scene{
     // 拳を振りかぶる
     this.tweens.add({targets:arm, y:this._eArmHome.ly-70, scaleX:arm.scaleX*1.25, scaleY:arm.scaleY*1.25,
       duration:this.telegraphMs, ease:'Quad.easeOut'});
-    // 警告表示(⚠を攻撃側に)
-    const wx=(this.atkSide==='left')?this.W*0.22:this.W*0.78;
-    const warn=this.add.text(wx, this.H*0.55, '⚠', {fontSize:'42px'}).setOrigin(0.5).setDepth(25);
-    this.tweens.add({targets:warn, alpha:0.2, scaleX:1.3, scaleY:1.3, duration:160, yoyo:true, repeat:3,
-      onComplete:()=>warn.destroy()});
+    // 警告表示: 攻撃側の縁が赤く光る + 大きな⚠ + 回避方向の矢印ガイド
+    this._clearWarn();
+    const win=this.winRect;
+    const edgeW=56;
+    const edgeX=(this.atkSide==='left') ? (win?win.x+edgeW/2:edgeW/2) : (win?win.right-edgeW/2:this.W-edgeW/2);
+    const edgeY=win?win.centerY:this.H*0.40;
+    const edgeH=win?win.height:this.H*0.6;
+    const edge=this.add.rectangle(edgeX, edgeY, edgeW, edgeH, 0xff2200, 0.40).setDepth(24);
+    const wx=(this.atkSide==='left') ? (win?win.x+58:this.W*0.16) : (win?win.right-58:this.W*0.84);
+    const warn=this.add.text(wx, edgeY-20, '⚠', {fontSize:'72px'}).setOrigin(0.5).setDepth(25);
+    // 回避方向(攻撃と逆側へスワイプ)を矢印で明示
+    const dir=(this.atkSide==='left')?'➡':'⬅';
+    const guide=this.add.text(this.W/2, (win?win.bottom-70:this.H*0.58), dir+' 回避 '+dir, {
+      fontSize:'30px', fontFamily:'Arial', color:'#ffdd44', fontStyle:'bold',
+      stroke:'#aa0000', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    this._warnEls=[edge, warn, guide];
+    this.tweens.add({targets:this._warnEls, alpha:0.25, duration:140, yoyo:true, repeat:-1});
     this._eTimer=this.time.delayedCall(this.telegraphMs+80, ()=>this._enemyAttack());
   }
 
+  _clearWarn(){
+    if(this._warnEls){
+      this.tweens.killTweensOf(this._warnEls);
+      this._warnEls.forEach(o=>{ try{o.destroy();}catch(e){} });
+      this._warnEls=null;
+    }
+  }
+
   _enemyAttack(){
+    this._clearWarn(); // 拳が飛んでくる瞬間に警告を消す
     if(this.state!=='fight'){ return; }
     this.enemyState='attack';
     const side=this.atkSide;
@@ -19380,6 +19421,12 @@ class ImpactScene extends Phaser.Scene{
     [this.eBody,this.eHead,this.eArmL,this.eArmR].forEach(s=>{ if(s) s.clearTint(); });
   }
 
+  _hideSpName(){
+    if(!this._spName) return;
+    const t=this._spName; this._spName=null;
+    this.tweens.add({targets:t, alpha:0, duration:350, delay:250, onComplete:()=>{try{t.destroy();}catch(e){}}});
+  }
+
   // ─────────────────────────────────────────
   // 勝敗
   // ─────────────────────────────────────────
@@ -19389,6 +19436,7 @@ class ImpactScene extends Phaser.Scene{
     this.enemyState='down';
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
     if(this._idleTween) this._idleTween.stop();
+    this._clearWarn();
     this._clearEnemyTint();
     try{SE('kill_boss');}catch(e){}
     this.cameras.main.shake(400, 0.01);
@@ -19408,6 +19456,7 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight') return;
     this.state='lose';
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
+    this._clearWarn();
     this._clearEnemyTint();
     try{SE('explode');}catch(e){}
     this.cameras.main.shake(500, 0.015);
