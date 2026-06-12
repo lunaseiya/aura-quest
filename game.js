@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v1'; // 更新日付
+const GAME_VERSION = '2026-06-13-v2'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18755,12 +18755,24 @@ class ImpactScene extends Phaser.Scene{
     this._hasCockpit = this.textures.exists('impact_cockpit');
     this.world = this.add.container(0, 0);
     this._drawBackground();
+    this.winRect = null; // コックピットのスクリーン(窓)領域(画面座標)
     if(this._hasCockpit){
       const src=this.textures.get('impact_cockpit').getSourceImage();
       const sc=Math.max(w/src.width, h/src.height); // cover(はみ出し分は左右/上下クロップ)
       this.add.image(w/2, h/2, 'impact_cockpit').setScale(sc).setDepth(6);
+      // 画像内のスクリーン(窓)のピクセル領域(1536x1024 基準)→ 画面座標へ変換し画面内にクランプ
+      const WIN={x1:228, y1:60, x2:1308, y2:565};
+      const ix=w/2-src.width*sc/2, iy=h/2-src.height*sc/2;
+      const win=new Phaser.Geom.Rectangle(ix+WIN.x1*sc, iy+WIN.y1*sc, (WIN.x2-WIN.x1)*sc, (WIN.y2-WIN.y1)*sc);
+      this.winRect=Phaser.Geom.Rectangle.Intersection(win, new Phaser.Geom.Rectangle(0,0,w,h));
+      // 敵をスクリーン内だけに描画するマスク(窓からはみ出た部分は映らない)
+      const mg=this.make.graphics({add:false});
+      mg.fillStyle(0xffffff,1);
+      mg.fillRect(this.winRect.x, this.winRect.y, this.winRect.width, this.winRect.height);
+      this._enemyMask=mg.createGeometryMask();
     }
     this.enemyLayer = this.add.container(0, 0).setDepth(10);
+    if(this._enemyMask) this.enemyLayer.setMask(this._enemyMask);
     this._buildEnemy();
 
     // ── プレイヤーの両腕(コックピット視点・画面下) ──
@@ -19000,7 +19012,15 @@ class ImpactScene extends Phaser.Scene{
   // ─────────────────────────────────────────
   _buildEnemy(){
     const w=this.W, h=this.H;
-    this.enemy = this.add.container(w/2, h*0.40);
+    // スクリーン(窓)がある時は窓の中に収まる位置・サイズへ、無ければ従来の配置
+    const win=this.winRect;
+    const cy = win ? (win.centerY + win.height*0.10) : h*0.40;
+    this.enemy = this.add.container(w/2, cy);
+    this._enemyHomeY = cy;
+    if(win){
+      const designH=360; // scale1 時の敵のおおよその全高(頭頂〜胴体下端)
+      this.enemy.setScale(Phaser.Math.Clamp((win.height*0.95)/designH, 0.35, 1.2));
+    }
     // 影(コックピット画像がある時は窓の外に影が落ちると不自然なので省略)
     if(!this._hasCockpit){
       const shadow=this.add.ellipse(0, h*0.34, 320, 60, 0x000000, 0.35);
@@ -19032,9 +19052,9 @@ class ImpactScene extends Phaser.Scene{
     this.add.rectangle(w/2, 38, ebw+4, 18, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x884444, 1);
     this.eHpBar=this.add.rectangle(w/2-ebw/2, 38, ebw, 12, 0xff4444, 1).setOrigin(0,0.5).setDepth(31);
     this._eBarW=ebw;
-    // 機体HPバー(下部・腕の上)
+    // 機体HPバー(画面最下部・コンソールパネルの上に重ねる)
     const pbw=Math.min(w*0.62, 330);
-    const pby=h-210;
+    const pby=h-64;
     this.add.text(w/2, pby-16, '🤖 パワーインパクト', {
       fontSize:'12px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold',
       stroke:'#000', strokeThickness:3
@@ -19046,10 +19066,10 @@ class ImpactScene extends Phaser.Scene{
     this.add.rectangle(w/2, pby+18, pbw+4, 12, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x886622, 1);
     this.gaugeBar=this.add.rectangle(w/2-pbw/2, pby+18, 0, 8, 0xffcc33, 1).setOrigin(0,0.5).setDepth(31);
     // 必殺ボタン(ゲージMAX時のみ表示)
-    this.spBtn=this.add.rectangle(w/2, h-250, 210, 46, 0xcc3311, 0.95)
+    this.spBtn=this.add.rectangle(w/2, h-120, 210, 46, 0xcc3311, 0.95)
       .setDepth(32).setStrokeStyle(3, 0xffee88, 1)
       .setInteractive({useHandCursor:true}).setVisible(false);
-    this.spBtnTx=this.add.text(w/2, h-250, '⚡ 必殺・烈火連撃', {
+    this.spBtnTx=this.add.text(w/2, h-120, '⚡ 必殺・烈火連撃', {
       fontSize:'16px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
     }).setOrigin(0.5).setDepth(33).setVisible(false);
     this.spBtn.on('pointerdown', ()=>{
@@ -19297,8 +19317,10 @@ class ImpactScene extends Phaser.Scene{
     const home=(side==='left')?{x:this._eArmHome.lx,y:this._eArmHome.ly}:{x:this._eArmHome.rx,y:this._eArmHome.ry};
     try{SE('whip');}catch(e){}
     // 拳が画面手前(プレイヤーの顔)へ向かって伸びてくる
+    // 窓がある時は窓の下端あたりまで(マスクで消え切らない位置)
     const tx=((side==='left')?this.W*0.30:this.W*0.70)-this.enemy.x;
-    const ty=this.H*0.80-this.enemy.y;
+    const tyAbs=this.winRect ? (this.winRect.bottom+50) : this.H*0.80;
+    const ty=tyAbs-this.enemy.y;
     this.tweens.add({targets:arm, x:tx, y:ty, scaleX:arm.scaleX*2.1, scaleY:arm.scaleY*2.1,
       duration:230, ease:'Cubic.easeIn',
       onComplete:()=>{
@@ -19339,7 +19361,7 @@ class ImpactScene extends Phaser.Scene{
     this._eTimer=this.time.delayedCall(1600, ()=>{
       if(this.state!=='fight') return;
       this._clearEnemyTint();
-      this.tweens.add({targets:this.enemy, angle:0, y:this.H*0.40, duration:200});
+      this.tweens.add({targets:this.enemy, angle:0, y:this._enemyHomeY, duration:200});
       this._enemyThink();
     });
   }
