@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-12-v1'; // 更新日付
+const GAME_VERSION = '2026-06-12-v2'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18747,9 +18747,8 @@ class ImpactScene extends Phaser.Scene{
     // ── プレイヤーの両腕(コックピット視点・画面下) ──
     this.pArmL = this.add.image(w*0.18, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250);
     this.pArmR = this.add.image(w*0.82, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250).setFlipX(true);
-    // 構え位置まで上げる登場演出
+    // 構え位置(起動シーケンス完了後に上げる)
     this._armHomeY = h - 170;
-    this.tweens.add({targets:[this.pArmL, this.pArmR], y:this._armHomeY, duration:500, ease:'Back.easeOut', delay:200});
 
     this._buildHUD();
     this._bindInput();
@@ -18757,9 +18756,15 @@ class ImpactScene extends Phaser.Scene{
     // BGM(ボス戦曲を流用)
     try{ startBGM('boss'); }catch(e){}
 
-    // 開幕メッセージ → 敵AI開始
-    this._banner('🤖 換装完了!モード・インパクト起動', '#ffcc88', 1400);
-    this.time.delayedCall(1500, ()=>{ if(this.state==='fight') this._enemyThink(); });
+    // 起動シーケンス(BIG IMPACT システムブート) → 完了後に腕が上がって戦闘開始
+    this._booting = true;
+    this._bootSequence(()=>{
+      this._booting = false;
+      this._uiLock = this.time.now + 500; // スキップタップがパンチ化しないように
+      this.tweens.add({targets:[this.pArmL, this.pArmR], y:this._armHomeY, duration:500, ease:'Back.easeOut'});
+      this._banner('🤖 換装完了!モード・インパクト起動', '#ffcc88', 1200);
+      this.time.delayedCall(1300, ()=>{ if(this.state==='fight') this._enemyThink(); });
+    });
 
     // 画面回転・リサイズはレイアウトが崩れるのでシーンを組み直す
     this._onResize = ()=>{
@@ -18769,6 +18774,97 @@ class ImpactScene extends Phaser.Scene{
     };
     this.scale.on('resize', this._onResize);
     this.events.once('shutdown', ()=>{ this.scale.off('resize', this._onResize); });
+  }
+
+  // ─────────────────────────────────────────
+  // 起動シーケンス(BIG IMPACT システムブート演出・タップでスキップ可)
+  // ─────────────────────────────────────────
+  _bootSequence(done){
+    const w=this.W, h=this.H;
+    const ui=this.add.container(0,0).setDepth(60);
+    const bg=this.add.rectangle(w/2, h/2, w, h, 0x000508, 1);
+    ui.add(bg);
+    // 走査線(ブラウン管風)
+    const scan=this.add.graphics();
+    scan.lineStyle(1, 0x113322, 0.45);
+    for(let sy=0; sy<h; sy+=4) scan.lineBetween(0, sy, w, sy);
+    ui.add(scan);
+    // ターミナル風テキスト(全て非表示で用意 → 順番に点灯)
+    const mono='Courier New, monospace';
+    const txt=(yRate, str, size, color)=>{
+      const t=this.add.text(w/2, h*yRate, str, {
+        fontSize:size+'px', fontFamily:mono, color:color, fontStyle:'bold', align:'center'
+      }).setOrigin(0.5).setAlpha(0);
+      ui.add(t); return t;
+    };
+    const line1 =txt(0.16, '━━━━━━━━━━', 14, '#22ddaa');
+    const title =txt(0.24, 'BIG IMPACT', 40, '#ffcc44');
+    const sub   =txt(0.31, 'ANCIENT TITAN SYSTEM', 15, '#88ffdd');
+    const boot  =txt(0.39, 'BOOTING', 16, '#44ff88');
+    const line2 =txt(0.48, '━━━━━━━━━━', 14, '#22ddaa');
+    const pilotL=txt(0.55, 'PILOT', 13, '#88ffdd');
+    const pilot =txt(0.60, 'LUNA FRONTIER UNIT', 18, '#ffffff');
+    const sync  =txt(0.69, 'SYNC   0%', 22, '#44ff88');
+    const line3 =txt(0.77, '━━━━━━━━━━', 14, '#22ddaa');
+    const skip  =txt(0.90, 'TAP TO SKIP', 11, '#557766');
+    skip.setAlpha(0.7);
+
+    let finished=false;
+    const timers=[];
+    const at=(ms,fn)=>{ timers.push(this.time.delayedCall(ms,fn)); };
+    const show=(t)=>{ t.setAlpha(1); try{SE('tab');}catch(e){} };
+
+    at(150, ()=>show(line1));
+    at(400, ()=>{
+      show(title);
+      try{SE('boost');}catch(e){}
+      // タイトルがズームインしながら出る
+      title.setScale(1.4);
+      this.tweens.add({targets:title, scaleX:1, scaleY:1, duration:250, ease:'Back.easeOut'});
+    });
+    at(750, ()=>show(sub));
+    at(1050, ()=>{
+      show(boot);
+      // BOOTING のドット点滅
+      let dots=0;
+      this._bootDotsEv=this.time.addEvent({delay:240, repeat:11, callback:()=>{
+        dots=(dots+1)%4;
+        boot.setText('BOOTING'+'.'.repeat(dots));
+      }});
+    });
+    at(1650, ()=>show(line2));
+    at(1900, ()=>show(pilotL));
+    at(2150, ()=>show(pilot));
+    at(2500, ()=>{
+      show(sync); show(line3);
+      // SYNC 0% → 100% カウントアップ
+      let v=0;
+      this._syncEv=this.time.addEvent({delay:16, repeat:99, callback:()=>{
+        v++;
+        sync.setText('SYNC '+String(v).padStart(3,' ')+'%');
+        if(v%25===0){ try{SE('click');}catch(e){} }
+        if(v>=100){
+          sync.setColor('#ffee66');
+          sync.setText('SYNC 100%  -  ALL GREEN');
+          try{SE('exp');}catch(e){}
+        }
+      }});
+    });
+    const finish=()=>{
+      if(finished) return;
+      finished=true;
+      timers.forEach(t=>{ try{t.remove(false);}catch(e){} });
+      if(this._bootDotsEv){ this._bootDotsEv.remove(false); this._bootDotsEv=null; }
+      if(this._syncEv){ this._syncEv.remove(false); this._syncEv=null; }
+      try{SE('boost');}catch(e){}
+      this.cameras.main.flash(280, 150, 255, 200);
+      this.tweens.add({targets:ui, alpha:0, duration:350, onComplete:()=>ui.destroy()});
+      done();
+    };
+    at(4600, finish);
+    // タップで即スキップ
+    bg.setInteractive();
+    bg.on('pointerdown', ()=>finish());
   }
 
   // ─────────────────────────────────────────
@@ -18992,6 +19088,7 @@ class ImpactScene extends Phaser.Scene{
   // ─────────────────────────────────────────
   _bindInput(){
     this.input.on('pointermove', p=>{
+      if(this._booting) return;
       if(!p.isDown || this.state!=='fight') return;
       const dx=p.x-p.downX;
       if(!this.dodge && !this._specialActive && Math.abs(dx)>55){
@@ -18999,6 +19096,7 @@ class ImpactScene extends Phaser.Scene{
       }
     });
     this.input.on('pointerup', p=>{
+      if(this._booting) return;
       if(this.state==='win'||this.state==='lose'){
         if(this._canLeave) this._return();
         return;
