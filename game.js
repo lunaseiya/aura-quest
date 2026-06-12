@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v11'; // 更新日付
+const GAME_VERSION = '2026-06-13-v12'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13748,7 +13748,7 @@ class GameScene extends Phaser.Scene{
     refreshSel();
     // 操作説明(コンパクト)
     elements.push(this.add.text(boxX, boxY - boxH/2 + 196,
-      '⚔ 左右タップ:パンチ / 💨 横スワイプ:回避\n🛡 下スワイプ:ガード(1/4) / ⚡ ゲージMAXで必殺',
+      '⚔ 左右タップ:パンチ / 💨 横スワイプ:回避\n🛡 下スワイプ:ガード(押しっぱなしで持続・1/4)\n🔫 青ボタン長押し:連射 / ⚡ ゲージMAXで必殺',
       {fontSize:'11px', fontFamily:'Arial', color:'#bbbbbb', align:'center', lineSpacing:4}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
     // 出撃ボタン
@@ -19247,7 +19247,7 @@ class ImpactScene extends Phaser.Scene{
     });
     // 操作ヒント(開幕数秒だけ)
     const hint=this.add.text(w/2, h*0.62,
-      '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避\n🛡 下へスワイプ: ガード', {
+      '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避\n🛡 下へスワイプ: ガード(押しっぱなしで持続)', {
       fontSize:'14px', fontFamily:'Arial', color:'#ffffaa', fontStyle:'bold', align:'center',
       stroke:'#000', strokeThickness:4, lineSpacing:6
     }).setOrigin(0.5).setDepth(35);
@@ -19284,7 +19284,7 @@ class ImpactScene extends Phaser.Scene{
       if(Math.abs(dx)>55 && Math.abs(dx)>=Math.abs(dy)){
         this._doDodge(dx<0?'left':'right');     // 横スワイプ: 回避
       }else if(dy>55 && dy>Math.abs(dx)){
-        this._doGuard();                         // 下スワイプ: ガード
+        this._doGuard(p);                        // 下スワイプ: ガード(押しっぱなしで持続)
       }
     });
     this.input.on('pointerup', p=>{
@@ -19292,6 +19292,11 @@ class ImpactScene extends Phaser.Scene{
       if(this._mgFiring){ this._mgStop(); return; } // 連射ボタンを離した
       if(this.state==='win'||this.state==='lose'){
         if(this._canLeave) this._return();
+        return;
+      }
+      // ガード中の指を離したらガード解除
+      if(this.guard && this._guardPtrId!==null && p.id===this._guardPtrId){
+        this._endGuard(false);
         return;
       }
       if(this.state!=='fight' || this._specialActive) return;
@@ -19587,20 +19592,50 @@ class ImpactScene extends Phaser.Scene{
   // ─────────────────────────────────────────
   // プレイヤー: ガード(下スワイプ・両腕を中央に揃えて被ダメージ1/4)
   // ─────────────────────────────────────────
-  _doGuard(){
+  _doGuard(p){
     if(this.state!=='fight' || this.dodge || this.guard || this._specialActive) return;
+    if(this.time.now < (this._guardCdUntil||0)) return; // 張り直し防止のクールダウン
     this.guard=true;
+    this._guardPtrId = p ? p.id : null;
+    this._guardStart = this.time.now;
     try{SE('guard');}catch(e){}
     // 両腕を中央に寄せて顔の前で揃える
     const gx=this.W/2, gy=this._armHomeY - this._armH*0.12;
     this.tweens.add({targets:this.pArmL, x:gx-this._armW*0.45, y:gy, angle:-8, duration:90, ease:'Quad.easeOut'});
     this.tweens.add({targets:this.pArmR, x:gx+this._armW*0.45, y:gy, angle:8,  duration:90, ease:'Quad.easeOut'});
-    this.time.delayedCall(650, ()=>{
-      this.guard=false;
-      if(this.state!=='fight' || this._specialActive) return;
-      this.tweens.add({targets:this.pArmL, x:this._armHomeXL, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
-      this.tweens.add({targets:this.pArmR, x:this._armHomeXR, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
+    // 押しっぱなしで持続できるが限界あり: 2.0秒で腕が震え出し、2.6秒でガードブレイク
+    this._guardWarnTimer=this.time.delayedCall(2000, ()=>{
+      if(!this.guard) return;
+      this.tweens.add({targets:[this.pArmL,this.pArmR], x:'+=3', duration:50, yoyo:true, repeat:11});
     });
+    this._guardMaxTimer=this.time.delayedCall(2600, ()=>{
+      if(this.guard) this._endGuard(true);
+    });
+  }
+
+  _endGuard(broken){
+    if(!this.guard) return;
+    // フリック(すぐ離した)でも最低450msは持続を保証
+    const held=this.time.now-(this._guardStart||0);
+    const MIN=450;
+    if(!broken && held<MIN){
+      this._guardPtrId=null; // 以後の指離しでは処理しない
+      this.time.delayedCall(MIN-held, ()=>this._endGuard(false));
+      return;
+    }
+    this.guard=false;
+    this._guardPtrId=null;
+    if(this._guardWarnTimer){ this._guardWarnTimer.remove(false); this._guardWarnTimer=null; }
+    if(this._guardMaxTimer){ this._guardMaxTimer.remove(false); this._guardMaxTimer=null; }
+    // ブレイク時は長め、通常解除は短めのクールダウン(ずっと張りっぱなし防止)
+    this._guardCdUntil=this.time.now+(broken?1200:350);
+    if(broken){
+      try{SE('miss');}catch(e){}
+      this._float(this.W/2, this.H*0.58, 'ガード限界!', '#ffaa66');
+    }
+    if(this.state!=='fight' || this._specialActive) return;
+    this.tweens.add({targets:this.pArmL, x:this._armHomeXL, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
+    this.tweens.add({targets:this.pArmR, x:this._armHomeXR, y:this._armHomeY, angle:0, duration:150, ease:'Quad.easeOut'});
   }
 
   // ─────────────────────────────────────────
