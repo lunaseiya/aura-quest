@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v6'; // 更新日付
+const GAME_VERSION = '2026-06-13-v7'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13699,7 +13699,7 @@ class GameScene extends Phaser.Scene{
     const w = this.scale.width, h = this.scale.height;
     const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
       .setScrollFactor(0).setDepth(100).setInteractive();
-    const boxW = Math.min(w*0.85, 540), boxH = 280;
+    const boxW = Math.min(w*0.85, 540), boxH = 340;
     const boxX = w/2, boxY = h - boxH/2 - 30;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1208, 0.96)
       .setScrollFactor(0).setDepth(101)
@@ -13708,14 +13708,48 @@ class GameScene extends Phaser.Scene{
     elements.push(this.add.text(boxX, boxY - boxH/2 + 22, '🤖 パワーインパクト', {
       fontSize:'16px', fontFamily:'Arial', color:'#ffaa55', fontStyle:'bold'
     }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
-    elements.push(this.add.text(boxX, boxY - 38,
-      '『私は試作魔導機兵パワーインパクト。\n換装して模擬戦闘訓練を行うかい?』\n\n'+
-      '⚔ 左右タップ: パンチ\n'+
-      '💨 攻撃と逆へスワイプ: 回避(成功で反撃チャンス)\n'+
-      '🛡 下へスワイプ: ガード(被ダメージ1/4)\n'+
-      '⚡ ゲージMAXで赤い必殺ボタン点灯',
-      {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:5,
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 46,
+      '『換装して模擬戦闘訓練を行うかい?相手を選んでくれ』',
+      {fontSize:'12px', fontFamily:'Arial', color:'#ffffff', align:'center',
        wordWrap:{width: boxW - 40}}
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    // ── 対戦相手の選択(タップで選択 → 出撃ボタンで確定) ──
+    let selId = this._impactSelEnemy || 'test'; // 前回の選択を記憶
+    const monDefs=[
+      {id:'test',   label:'訓練用ゴーレム G-1号', sub:'標準的な訓練相手'},
+      {id:'gigant', label:'ギガントクロス',       sub:'岩の巨人・手強い(報酬1.5倍)'},
+    ];
+    const monBtns=[];
+    const refreshSel=()=>{
+      monBtns.forEach(mb=>{
+        const on=(mb.id===selId);
+        mb.bg.setFillStyle(on?0x5a3a18:0x2a2218, 0.95);
+        mb.bg.setStrokeStyle(on?3:2, on?0xffdd66:0x886644, 1);
+      });
+    };
+    monDefs.forEach((md,i)=>{
+      const by=boxY - boxH/2 + 84 + i*48;
+      const bg=this.add.rectangle(boxX, by, boxW-40, 42, 0x2a2218, 0.95)
+        .setScrollFactor(0).setDepth(102).setInteractive({useHandCursor:true});
+      const tx=this.add.text(boxX, by-9, md.label, {
+        fontSize:'13px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+      const sub=this.add.text(boxX, by+10, md.sub, {
+        fontSize:'10px', fontFamily:'Arial', color:'#ccaa88'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+      bg.on('pointerdown', ()=>{
+        try{SE('click');}catch(e){}
+        selId=md.id; this._impactSelEnemy=md.id;
+        refreshSel();
+      });
+      monBtns.push({id:md.id, bg});
+      elements.push(bg, tx, sub);
+    });
+    refreshSel();
+    // 操作説明(コンパクト)
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 196,
+      '⚔ 左右タップ:パンチ / 💨 横スワイプ:回避\n🛡 下スワイプ:ガード(1/4) / ⚡ ゲージMAXで必殺',
+      {fontSize:'11px', fontFamily:'Arial', color:'#bbbbbb', align:'center', lineSpacing:4}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
     // 出撃ボタン
     const goY = boxY + boxH/2 - 28;
@@ -13735,6 +13769,7 @@ class GameScene extends Phaser.Scene{
         currentSlot: this.currentSlot,
         returnStage: this.stage,
         returnX: npcX, returnY: npcY + 90,
+        enemyId: selId,
       });
     });
     // やめるボタン
@@ -18702,19 +18737,43 @@ class GameScene extends Phaser.Scene{
 // 敵はパーツ(胴体/頭/両腕)を Container に組んで tween でポーズを付けている。
 // 差し替え時は _makeImpactTextures のテクスチャ生成を画像ロードに置き換えればよい。
 //
-// 操作: 画面左右タップ=パンチ / 攻撃と逆方向へスワイプ=回避 / ゲージMAXで必殺ボタン
+// 操作: 画面左右タップ=パンチ / 攻撃と逆方向へスワイプ=回避 / 下スワイプ=ガード / ゲージMAXで必殺ボタン
+
+// ── インパクト戦で選べる敵の定義 ──
+//   type:'proc' = コード描画(パーツ組み立て) / type:'img' = 一枚絵差し替え式
+//   img は idle(待機)/tele(振りかぶり)/atk(パンチ) の3ポーズを impact/ から読む
+const IMPACT_ENEMIES={
+  test:{
+    name:'訓練用ゴーレム G-1号', type:'proc',
+    hpMul:1.0, dmgMul:1.0, goldMul:1.0,
+  },
+  gigant:{
+    name:'ギガントクロス', type:'img',
+    hpMul:1.4, dmgMul:1.3, goldMul:1.5,
+    texIdle:'imp_gig_idle', texTele:'imp_gig_tele', texAtk:'imp_gig_atk',
+    files:[['imp_gig_idle','gigant_idle.webp'],['imp_gig_tele','gigant_tele.webp'],['imp_gig_atk','gigant_atk.webp']],
+  },
+};
+
 class ImpactScene extends Phaser.Scene{
   constructor(){super('Impact')}
   preload(){
-    // コックピット画像(初回のみロード・失敗してもコード描画背景で動く)
-    if(this.textures.exists('impact_cockpit')) return;
+    // コックピット+画像タイプの敵スプライト(未ロード分のみ・失敗してもフォールバックで動く)
+    const toLoad=[];
+    if(!this.textures.exists('impact_cockpit')) toLoad.push(['impact_cockpit','cockpit.webp']);
+    if(this.enemyDef && this.enemyDef.files){
+      this.enemyDef.files.forEach(f=>{ if(!this.textures.exists(f[0])) toLoad.push(f); });
+    }
+    if(!toLoad.length) return;
     const t=this.add.text(this.scale.width/2, this.scale.height/2, 'LOADING...', {
       fontSize:'16px', fontFamily:'Courier New, monospace', color:'#44ff88', fontStyle:'bold'
     }).setOrigin(0.5);
-    this.load.image('impact_cockpit', BASE+'impact/cockpit.webp');
+    toLoad.forEach(f=>this.load.image(f[0], BASE+'impact/'+f[1]));
     this.load.once('complete', ()=>{ try{t.destroy();}catch(e){} });
   }
   init(data){
+    this.enemyId = data.enemyId || 'test';
+    this.enemyDef = IMPACT_ENEMIES[this.enemyId] || IMPACT_ENEMIES.test;
     this.playerData  = data.playerData;
     this.currentSlot = data.currentSlot!==undefined ? data.currentSlot : null;
     this.returnStage = data.returnStage!==undefined ? data.returnStage : 0;
@@ -18732,10 +18791,10 @@ class ImpactScene extends Phaser.Scene{
     // ── 戦闘パラメータ(プレイヤーのレベルに連動) ──
     this.pMaxHp  = pd.mhp || 100;          // 機体HP = プレイヤー最大HP(本体のHPは減らさない)
     this.pHp     = this.pMaxHp;
-    this.eMaxHp  = 250 + lv * 25;          // 敵HP
+    this.eMaxHp  = Math.round((250 + lv * 25) * (this.enemyDef.hpMul||1)); // 敵HP(敵ごとの倍率)
     this.eHp     = this.eMaxHp;
     this.punchDmg = Math.max(5, Math.round((pd.atk||10) * 1.2 + lv));
-    this.enemyDmg = Math.max(5, Math.round(10 + lv * 1.6 - (pd.def||0) * 0.2));
+    this.enemyDmg = Math.max(5, Math.round((10 + lv * 1.6 - (pd.def||0) * 0.2) * (this.enemyDef.dmgMul||1)));
     this.telegraphMs = Math.max(450, 750 - lv * 5);  // 高Lvほど予備動作が短い
 
     // ── ステート ──
@@ -19030,22 +19089,30 @@ class ImpactScene extends Phaser.Scene{
     const cy = win ? (win.centerY + win.height*0.10) : h*0.40;
     this.enemy = this.add.container(w/2, cy);
     this._enemyHomeY = cy;
-    if(win){
-      const designH=360; // scale1 時の敵のおおよその全高(頭頂〜胴体下端)
-      this.enemy.setScale(Phaser.Math.Clamp((win.height*0.95)/designH, 0.35, 1.2));
-    }
+    const designH=360; // scale1 時の敵のおおよその全高
+    this._enemyScale = win ? Phaser.Math.Clamp((win.height*0.95)/designH, 0.35, 1.2) : 1;
+    this.enemy.setScale(this._enemyScale);
     // 影(コックピット画像がある時は窓の外に影が落ちると不自然なので省略)
     if(!this._hasCockpit){
       const shadow=this.add.ellipse(0, h*0.34, 320, 60, 0x000000, 0.35);
       this.enemy.add(shadow);
     }
-    this.eBody = this.add.image(0, 50, 'imp_e_body').setDisplaySize(300, 260);
-    this.eHead = this.add.image(0, -105, 'imp_e_head').setDisplaySize(155, 125);
-    // 拳の定位置(ホーム)を覚えておく(攻撃後に戻すため)
-    this._eArmHome = {lx:-185, ly:60, rx:185, ry:60};
-    this.eArmL = this.add.image(this._eArmHome.lx, this._eArmHome.ly, 'imp_e_arm').setDisplaySize(135, 135);
-    this.eArmR = this.add.image(this._eArmHome.rx, this._eArmHome.ry, 'imp_e_arm').setDisplaySize(135, 135);
-    this.enemy.add([this.eArmL, this.eArmR, this.eBody, this.eHead]);
+    // 一枚絵タイプの敵(ロード失敗時はコード描画ゴーレムにフォールバック)
+    const useImg = this.enemyDef.type==='img' && this.textures.exists(this.enemyDef.texIdle);
+    if(useImg){
+      const srcImg=this.textures.get(this.enemyDef.texIdle).getSourceImage();
+      const dispH=390, dispW=dispH*srcImg.width/srcImg.height;
+      this.eImg=this.add.image(0, 10, this.enemyDef.texIdle).setDisplaySize(dispW, dispH);
+      this.enemy.add(this.eImg);
+    }else{
+      this.eBody = this.add.image(0, 50, 'imp_e_body').setDisplaySize(300, 260);
+      this.eHead = this.add.image(0, -105, 'imp_e_head').setDisplaySize(155, 125);
+      // 拳の定位置(ホーム)を覚えておく(攻撃後に戻すため)
+      this._eArmHome = {lx:-185, ly:60, rx:185, ry:60};
+      this.eArmL = this.add.image(this._eArmHome.lx, this._eArmHome.ly, 'imp_e_arm').setDisplaySize(135, 135);
+      this.eArmR = this.add.image(this._eArmHome.rx, this._eArmHome.ry, 'imp_e_arm').setDisplaySize(135, 135);
+      this.enemy.add([this.eArmL, this.eArmR, this.eBody, this.eHead]);
+    }
     this.enemyLayer.add(this.enemy);
     // 待機の上下ゆれ
     this._idleTween = this.tweens.add({targets:this.enemy, y:this.enemy.y-10, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
@@ -19057,7 +19124,7 @@ class ImpactScene extends Phaser.Scene{
   _buildHUD(){
     const w=this.W, h=this.H;
     // 敵HPバー(上部)
-    this.add.text(w/2, 16, '訓練用ゴーレム G-1号', {
+    this.add.text(w/2, 16, this.enemyDef.name, {
       fontSize:'14px', fontFamily:'Arial', color:'#ffdddd', fontStyle:'bold',
       stroke:'#000', strokeThickness:3
     }).setOrigin(0.5).setDepth(30);
@@ -19349,13 +19416,21 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight' || this._specialActive) return;
     this.enemyState='telegraph';
     this.atkSide=Math.random()<0.5?'left':'right'; // 攻撃が飛んでくる側(プレイヤーから見て)
-    const arm=(this.atkSide==='left')?this.eArmL:this.eArmR;
-    arm.setTint(0xff5555);
-    this.eHead.setTint(0xff8888);
     try{SE('guard');}catch(e){}
-    // 拳を振りかぶる
-    this.tweens.add({targets:arm, y:this._eArmHome.ly-70, scaleX:arm.scaleX*1.25, scaleY:arm.scaleY*1.25,
-      duration:this.telegraphMs, ease:'Quad.easeOut'});
+    if(this.eImg){
+      // 一枚絵: 振りかぶりポーズに差し替え+赤味+小刻みな震え
+      this.eImg.setTexture(this.enemyDef.texTele);
+      this.eImg.setTint(0xffbbbb);
+      this.tweens.add({targets:this.enemy, x:this.W/2+5, duration:70, yoyo:true,
+        repeat:Math.max(2, Math.floor(this.telegraphMs/140))});
+    }else{
+      const arm=(this.atkSide==='left')?this.eArmL:this.eArmR;
+      arm.setTint(0xff5555);
+      this.eHead.setTint(0xff8888);
+      // 拳を振りかぶる
+      this.tweens.add({targets:arm, y:this._eArmHome.ly-70, scaleX:arm.scaleX*1.25, scaleY:arm.scaleY*1.25,
+        duration:this.telegraphMs, ease:'Quad.easeOut'});
+    }
     // 警告表示: 攻撃側の縁が赤く光る + 大きな⚠ + 回避方向の矢印ガイド
     this._clearWarn();
     const win=this.winRect;
@@ -19390,9 +19465,28 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight'){ return; }
     this.enemyState='attack';
     const side=this.atkSide;
+    try{SE('whip');}catch(e){}
+    if(this.eImg){
+      // 一枚絵: パンチポーズに差し替えて本体ごと突っ込んでくる
+      this.eImg.setTexture(this.enemyDef.texAtk);
+      const s=this._enemyScale||1;
+      const tox=(side==='left')?this.W*0.34:this.W*0.66;
+      const toy=this._enemyHomeY+(this.winRect?this.winRect.height*0.22:this.H*0.18);
+      this.tweens.add({targets:this.enemy, x:tox, y:toy, scaleX:s*1.35, scaleY:s*1.35,
+        duration:240, ease:'Cubic.easeIn',
+        onComplete:()=>{
+          if(this.state==='fight') this._resolveEnemyHit(side);
+          // 元の位置・ポーズへ戻る
+          this.tweens.add({targets:this.enemy, x:this.W/2, y:this._enemyHomeY, scaleX:s, scaleY:s,
+            duration:280, ease:'Quad.easeOut',
+            onComplete:()=>{
+              if(this.eImg && this.enemyState!=='down') this.eImg.setTexture(this.enemyDef.texIdle);
+            }});
+        }});
+      return;
+    }
     const arm=(side==='left')?this.eArmL:this.eArmR;
     const home=(side==='left')?{x:this._eArmHome.lx,y:this._eArmHome.ly}:{x:this._eArmHome.rx,y:this._eArmHome.ry};
-    try{SE('whip');}catch(e){}
     // 拳が画面手前(プレイヤーの顔)へ向かって伸びてくる
     // 窓がある時は窓の下端あたりまで(マスクで消え切らない位置)
     const tx=((side==='left')?this.W*0.30:this.W*0.70)-this.enemy.x;
@@ -19443,7 +19537,8 @@ class ImpactScene extends Phaser.Scene{
     // 回避成功後の反撃チャンス(この間のパンチは2倍&ガード不能)
     this.enemyState='stagger';
     this._clearEnemyTint();
-    this.eBody.setTint(0xffee88); this.eHead.setTint(0xffee88);
+    if(this.eImg){ this.eImg.setTint(0xffee88); }
+    else{ this.eBody.setTint(0xffee88); this.eHead.setTint(0xffee88); }
     this._banner('チャンス!連打だ!!', '#ffee66', 900);
     // 前のめりによろける
     this.tweens.add({targets:this.enemy, angle:3, y:this.enemy.y+18, duration:160, yoyo:false});
@@ -19456,7 +19551,7 @@ class ImpactScene extends Phaser.Scene{
   }
 
   _clearEnemyTint(){
-    [this.eBody,this.eHead,this.eArmL,this.eArmR].forEach(s=>{ if(s) s.clearTint(); });
+    [this.eBody,this.eHead,this.eArmL,this.eArmR,this.eImg].forEach(s=>{ if(s) s.clearTint(); });
   }
 
   _hideSpName(){
@@ -19482,7 +19577,7 @@ class ImpactScene extends Phaser.Scene{
     this.tweens.add({targets:this.enemy, angle:14, y:this.enemy.y+260, alpha:0.25, duration:1100, ease:'Quad.easeIn'});
     // 報酬(仮: ゴールドのみ。部品ドロップはクエスト実装時に追加)
     const pd=this.playerData||{};
-    const reward=300+(pd.lv||1)*20;
+    const reward=Math.round((300+(pd.lv||1)*20)*(this.enemyDef.goldMul||1));
     pd.gold=(pd.gold||0)+reward;
     this.time.delayedCall(900, ()=>{
       try{SE('clear');}catch(e){}
@@ -19633,8 +19728,8 @@ window.game = _game;
 // よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
 window.debug = {
   warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
-  // インパクト戦(パワーインパクト)を直接起動
-  impact: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
+  // インパクト戦(パワーインパクト)を直接起動: debug.impact('gigant') で敵指定
+  impact: (enemyId)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined,enemyId:enemyId||'test'});},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
