@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v3'; // 更新日付
+const GAME_VERSION = '2026-06-13-v4'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -19061,9 +19061,9 @@ class ImpactScene extends Phaser.Scene{
     this.add.rectangle(w/2, 38, ebw+4, 18, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x884444, 1);
     this.eHpBar=this.add.rectangle(w/2-ebw/2, 38, ebw, 12, 0xff4444, 1).setOrigin(0,0.5).setDepth(31);
     this._eBarW=ebw;
-    // 機体HPバー(画面最下部・コンソールパネルの上に重ねる)
+    // 機体HPバー(コックピット側=スクリーン下端のすぐ下・コンソール上端に重ねる)
     const pbw=Math.min(w*0.62, 330);
-    const pby=h-64;
+    const pby=this.winRect ? (this.winRect.bottom+30) : (h-64);
     this.add.text(w/2, pby-16, '🤖 パワーインパクト', {
       fontSize:'12px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold',
       stroke:'#000', strokeThickness:3
@@ -19075,10 +19075,11 @@ class ImpactScene extends Phaser.Scene{
     this.add.rectangle(w/2, pby+18, pbw+4, 12, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x886622, 1);
     this.gaugeBar=this.add.rectangle(w/2-pbw/2, pby+18, 0, 8, 0xffcc33, 1).setOrigin(0,0.5).setDepth(31);
     // 必殺ボタン(ゲージMAX時のみ表示)
-    this.spBtn=this.add.rectangle(w/2, h-120, 210, 46, 0xcc3311, 0.95)
+    const spY=this.winRect ? (this.winRect.bottom-40) : (h-120); // 窓がある時はスクリーン内の下端(画面内アラート風)
+    this.spBtn=this.add.rectangle(w/2, spY, 210, 46, 0xcc3311, 0.95)
       .setDepth(32).setStrokeStyle(3, 0xffee88, 1)
       .setInteractive({useHandCursor:true}).setVisible(false);
-    this.spBtnTx=this.add.text(w/2, h-120, '⚡ 必殺・烈火連撃', {
+    this.spBtnTx=this.add.text(w/2, spY, '⚡ 必殺・烈火連撃', {
       fontSize:'16px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
     }).setOrigin(0.5).setDepth(33).setVisible(false);
     this.spBtn.on('pointerdown', ()=>{
