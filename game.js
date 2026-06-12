@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v10'; // 更新日付
+const GAME_VERSION = '2026-06-13-v11'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -19404,69 +19404,83 @@ class ImpactScene extends Phaser.Scene{
     const win=this.winRect;
     const x1=win?win.x+50:this.W*0.15, x2=win?win.right-50:this.W*0.85;
     const y1=win?win.y+50:this.H*0.15, y2=win?win.y+win.height*0.6:this.H*0.45;
-    this._banner('⚠ 敵編隊接近!!🔫で迎撃しろ!!', '#ffcc66', 1800);
+    this._banner('⚠ 自爆ドローン接近!!🔫で撃ち落とせ!!', '#ffcc66', 1800);
     try{SE('boss');}catch(e){}
     for(let i=0;i<n;i++){
       const mx=Phaser.Math.Between(x1,x2), my=Phaser.Math.Between(y1,y2);
       const spr=this.add.sprite(mx,my,'imp_minion');
-      const sc=(this._enemyScale||1)*Phaser.Math.FloatBetween(0.75,1.0);
+      const sc=(this._enemyScale||1)*Phaser.Math.FloatBetween(0.70,0.9);
       spr.setScale(sc).setAlpha(0);
       this.enemyLayer.add(spr);
       this.tweens.add({targets:spr, alpha:1, duration:400, delay:i*120});
       this.tweens.add({targets:spr, y:my-8, duration:Phaser.Math.Between(800,1300), yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
-      this.minions.push({spr, hp:(wave.hp||3), homeX:mx, homeY:my, baseScale:sc, busy:false});
+      this.minions.push({spr, hp:(wave.hp||3), baseScale:sc});
     }
-    // ドローンの突撃ループ
-    this._minionTimer=this.time.addEvent({delay:1600, loop:true, callback:()=>this._minionDive()});
-  }
-
-  _minionDive(){
-    if(this.state!=='fight' || this.phase!=='wave') return;
-    const alive=this.minions.filter(m=>m.hp>0 && !m.busy);
-    if(!alive.length) return;
-    const m=Phaser.Utils.Array.GetRandom(alive);
-    m.busy=true;
-    m.spr.setTint(0xff6666);
-    const side=(m.spr.x < this.W/2)?'left':'right';
-    // 個体の頭上に小さめの⚠
-    const warn=this.add.text(m.spr.x+this.enemyLayer.x, m.spr.y-40, '⚠', {fontSize:'30px'}).setOrigin(0.5).setDepth(25);
-    this.tweens.add({targets:warn, alpha:0.2, duration:130, yoyo:true, repeat:2, onComplete:()=>warn.destroy()});
-    this.time.delayedCall(550, ()=>{
-      if(this.state!=='fight' || m.hp<=0){ if(m.spr.active) m.spr.clearTint(); m.busy=false; return; }
-      try{SE('whip');}catch(e){}
-      const tx=(side==='left')?this.W*0.35-this.enemyLayer.x:this.W*0.65-this.enemyLayer.x;
-      const ty=this.winRect?this.winRect.bottom+20:this.H*0.72;
-      this.tweens.add({targets:m.spr, x:tx, y:ty, scale:m.baseScale*1.8, duration:260, ease:'Cubic.easeIn',
-        onComplete:()=>{
-          if(this.state==='fight' && m.hp>0) this._resolveMinionHit(side);
-          this.tweens.add({targets:m.spr, x:m.homeX, y:m.homeY, scale:m.baseScale, duration:300, ease:'Quad.easeOut',
-            onComplete:()=>{ if(m.spr.active) m.spr.clearTint(); m.busy=false; }});
-        }});
+    // ランダムな順番で1体ずつ特攻を開始(撃ち漏らすと手前で自爆)
+    const order=Phaser.Utils.Array.Shuffle(this.minions.slice());
+    order.forEach((m,i)=>{
+      this.time.delayedCall(1500+i*1900, ()=>this._minionApproach(m));
     });
   }
 
-  _resolveMinionHit(side){
-    const base=Math.max(1, Math.round(this.enemyDmg*0.5)); // 雑魚なので軽め
-    if(this.dodge && this.dodge!==side){
-      try{SE('dodge');}catch(e){}
-      this._float(this.W/2, this.H*0.62, '回避!', '#88ffcc');
-      return;
-    }
+  _minionApproach(m){
+    if(this.state!=='fight' || this.phase!=='wave' || m.hp<=0) return;
+    try{SE('whip');}catch(e){}
+    const win=this.winRect;
+    // 接近目標: 画面下中央付近(少しばらける)
+    const tx=this.W/2+Phaser.Math.Between(-70,70)-this.enemyLayer.x;
+    const ty=(win?win.bottom-30:this.H*0.62);
+    this.tweens.killTweensOf(m.spr); // ふわふわ停止
+    // 第1段階: 迫りながら巨大化(この間に撃ち落とすチャンス)
+    this.tweens.add({targets:m.spr, x:tx, y:ty, scale:m.baseScale*2.4, duration:3000, ease:'Quad.easeIn',
+      onComplete:()=>{
+        if(this.state!=='fight' || m.hp<=0) return;
+        // 第2段階: 自爆直前(赤点滅・1秒の猶予)
+        m.spr.setTint(0xff4444);
+        this.tweens.add({targets:m.spr, alpha:0.5, duration:120, yoyo:true, repeat:4});
+        try{SE('boss');}catch(e){}
+        this.time.delayedCall(1000, ()=>{
+          if(this.state==='fight' && m.hp>0) this._minionExplode(m);
+        });
+      }});
+  }
+
+  _minionExplode(m){
+    m.hp=0;
+    const sx=m.spr.x+this.enemyLayer.x, sy=m.spr.y;
+    try{SE('explode');}catch(e){}
+    // 爆発演出
+    const boom=this.add.circle(sx, sy, 30, 0xff8830, 0.95).setDepth(23);
+    this.tweens.add({targets:boom, scaleX:2.6, scaleY:2.6, alpha:0, duration:350, onComplete:()=>boom.destroy()});
+    const boom2=this.add.circle(sx, sy, 16, 0xffee99, 0.95).setDepth(23);
+    this.tweens.add({targets:boom2, scaleX:1.8, scaleY:1.8, alpha:0, duration:250, onComplete:()=>boom2.destroy()});
+    this.tweens.killTweensOf(m.spr);
+    m.spr.destroy();
+    // 自爆ダメージ(爆発なので回避は無効・ガードで1/4)
+    const base=Math.max(1, Math.round(this.enemyDmg*0.6));
     if(this.guard){
       const d=Math.max(1, Math.ceil(base/4));
       this.pHp=Math.max(0, this.pHp-d);
       try{SE('parry');}catch(e){}
       this._float(this.W/2, this.H*0.60, '🛡 -'+d, '#aaccff');
-      this._updateBars();
-      if(this.pHp<=0) this._lose();
-      return;
+    }else{
+      this.pHp=Math.max(0, this.pHp-base);
+      try{SE('hurt');}catch(e){}
+      this._float(this.W/2, this.H*0.64, '-'+base, '#ff6666');
+      this.cameras.main.shake(180, 0.010);
+      this.cameras.main.flash(120, 255, 90, 30);
     }
-    try{SE('hurt');}catch(e){}
-    this.pHp=Math.max(0, this.pHp-base);
-    this._float(this.W/2, this.H*0.66, '-'+base, '#ff6666');
-    this.cameras.main.shake(120, 0.008);
     this._updateBars();
-    if(this.pHp<=0) this._lose();
+    if(this.pHp<=0){ this._lose(); return; }
+    this._afterMinionRemoved();
+  }
+
+  _afterMinionRemoved(){
+    const aliveN=this.minions.filter(x=>x.hp>0).length;
+    if(this.eNameTxt && this.phase==='wave'){
+      this.eNameTxt.setText('⚠ '+((this.enemyDef.wave&&this.enemyDef.wave.name)||'敵編隊')+' 残り'+aliveN+'体');
+    }
+    if(aliveN<=0) this._waveClear();
   }
 
   _nearestMinion(side){
@@ -19490,11 +19504,7 @@ class ImpactScene extends Phaser.Scene{
       const spr=m.spr;
       this.tweens.killTweensOf(spr);
       this.tweens.add({targets:spr, alpha:0, scale:spr.scale*0.3, angle:90, duration:250, onComplete:()=>spr.destroy()});
-      const aliveN=this.minions.filter(x=>x.hp>0).length;
-      if(this.eNameTxt && this.phase==='wave'){
-        this.eNameTxt.setText('⚠ '+((this.enemyDef.wave&&this.enemyDef.wave.name)||'敵編隊')+' 残り'+aliveN+'体');
-      }
-      if(aliveN<=0) this._waveClear();
+      this._afterMinionRemoved();
     }else{
       try{SE('hit');}catch(e){}
     }
@@ -19504,7 +19514,6 @@ class ImpactScene extends Phaser.Scene{
   _waveClear(){
     if(this.phase!=='wave') return;
     this.phase='boss';
-    if(this._minionTimer){ this._minionTimer.remove(false); this._minionTimer=null; }
     try{SE('clear');}catch(e){}
     if(this.eNameTxt) this.eNameTxt.setText(this.enemyDef.name);
     this._banner('💥 '+this.enemyDef.name+' 出現!!', '#ff8866', 1500);
