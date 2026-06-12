@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v7'; // 更新日付
+const GAME_VERSION = '2026-06-13-v8'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18751,7 +18751,13 @@ const IMPACT_ENEMIES={
     name:'ギガントクロス', type:'img',
     hpMul:1.4, dmgMul:1.3, goldMul:1.5,
     texIdle:'imp_gig_idle', texTele:'imp_gig_tele', texAtk:'imp_gig_atk',
-    files:[['imp_gig_idle','gigant_idle.webp'],['imp_gig_tele','gigant_tele.webp'],['imp_gig_atk','gigant_atk.webp']],
+    // 敵必殺技: HP70%以下で通常攻撃3回ごとに発動。どちらかへ回避で完全回避/ガードは半減止まり
+    special:{
+      name:'ギガドリル', dmgMul:2.5,
+      texCharge:'imp_gig_sp1', texAim:'imp_gig_sp2', texAtk:'imp_gig_sp3',
+    },
+    files:[['imp_gig_idle','gigant_idle.webp'],['imp_gig_tele','gigant_tele.webp'],['imp_gig_atk','gigant_atk.webp'],
+           ['imp_gig_sp1','gigant_sp1.webp'],['imp_gig_sp2','gigant_sp2.webp'],['imp_gig_sp3','gigant_sp3.webp']],
   },
 };
 
@@ -19409,7 +19415,106 @@ class ImpactScene extends Phaser.Scene{
     this.enemyState='idle';
     this._clearEnemyTint();
     const delay=Phaser.Math.Between(900, 1700);
-    this._eTimer=this.time.delayedCall(delay, ()=>this._enemyTelegraph());
+    this._eTimer=this.time.delayedCall(delay, ()=>{
+      // 敵必殺技: 定義あり+HP70%以下+通常攻撃3回ごと(画像が無ければ通常攻撃)
+      const sp=this.enemyDef.special;
+      if(sp && this.eImg && this.eHp<=this.eMaxHp*0.7 && (this._eAtkCount||0)>=3){
+        this._enemySpecial();
+      }else{
+        this._eAtkCount=(this._eAtkCount||0)+1;
+        this._enemyTelegraph();
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 敵必殺技(ギガドリル等): チャージ → 構え → 突進
+  //   どちらかへ回避=完全回避+長スタッガー / ガード=半減止まり / 棒立ち=大ダメージ
+  // ─────────────────────────────────────────
+  _enemySpecial(){
+    if(this.state!=='fight' || this._specialActive){ this._enemyThink(); return; }
+    const sp=this.enemyDef.special;
+    this.enemyState='telegraph';
+    this._eAtkCount=0;
+    try{SE('berserk');}catch(e){}
+    this.eImg.setTexture(sp.texCharge);
+    this.eImg.setTint(0xffaaaa);
+    // 全面警告(通常攻撃の片側警告より派手に)
+    this._clearWarn();
+    const win=this.winRect;
+    const glow=this.add.rectangle(this.W/2, win?win.centerY:this.H*0.35,
+      win?win.width:this.W, win?win.height:this.H*0.6, 0xff2200, 0.18).setDepth(24);
+    const t1=this.add.text(this.W/2, (win?win.y:20)+30, '⚠ '+sp.name+' ⚠', {
+      fontSize:'28px', fontFamily:'Arial', color:'#ff6644', fontStyle:'bold',
+      stroke:'#000', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    const t2=this.add.text(this.W/2, win?win.bottom-70:this.H*0.58, '⬅ ➡ どちらかへ回避!!', {
+      fontSize:'26px', fontFamily:'Arial', color:'#ffdd44', fontStyle:'bold',
+      stroke:'#aa0000', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    this._warnEls=[glow, t1, t2];
+    this.tweens.add({targets:this._warnEls, alpha:0.3, duration:160, yoyo:true, repeat:-1});
+    // チャージの震え
+    this.tweens.add({targets:this.enemy, x:this.W/2+7, duration:60, yoyo:true, repeat:12});
+    // チャージ(900ms) → 構え(450ms) → 突き
+    this._eTimer=this.time.delayedCall(900, ()=>{
+      if(this.state!=='fight') return;
+      this.eImg.setTexture(sp.texAim);
+      try{SE('boost');}catch(e){}
+      this._eTimer=this.time.delayedCall(450, ()=>this._enemySpecialStrike());
+    });
+  }
+
+  _enemySpecialStrike(){
+    this._clearWarn();
+    if(this.state!=='fight') return;
+    this.enemyState='attack';
+    const sp=this.enemyDef.special;
+    this.eImg.setTexture(sp.texAtk);
+    try{SE('meteor');}catch(e){}
+    const s=this._enemyScale||1;
+    const toy=this._enemyHomeY+(this.winRect?this.winRect.height*0.30:this.H*0.22);
+    this.tweens.add({targets:this.enemy, y:toy, scaleX:s*1.6, scaleY:s*1.6,
+      duration:260, ease:'Cubic.easeIn',
+      onComplete:()=>{
+        if(this.state==='fight') this._resolveEnemySpecialHit();
+        this.tweens.add({targets:this.enemy, x:this.W/2, y:this._enemyHomeY, scaleX:s, scaleY:s,
+          duration:320, ease:'Quad.easeOut',
+          onComplete:()=>{
+            if(this.eImg && this.enemyState!=='down') this.eImg.setTexture(this.enemyDef.texIdle);
+          }});
+      }});
+  }
+
+  _resolveEnemySpecialHit(){
+    const sp=this.enemyDef.special;
+    const base=Math.max(1, Math.round(this.enemyDmg*(sp.dmgMul||2.5)));
+    // 必殺は中央突きなので、どちらの方向でも回避成功
+    if(this.dodge){
+      try{SE('dodge');}catch(e){}
+      this._float(this.W/2, this.H*0.62, '回避!!', '#88ffcc');
+      this._enemyStagger(2400); // 通常より長い反撃チャンス
+      return;
+    }
+    if(this.guard){
+      const dmg=Math.max(1, Math.round(base/2)); // 必殺はガードでも半減止まり
+      this.pHp=Math.max(0, this.pHp-dmg);
+      try{SE('guard');}catch(e){}
+      this._float(this.W/2, this.H*0.60, '🛡 ガード! -'+dmg, '#aaccff');
+      this.cameras.main.shake(220, 0.010);
+      this._updateBars();
+      if(this.pHp<=0){ this._lose(); return; }
+      this._enemyThink();
+      return;
+    }
+    try{SE('hurt');}catch(e){}
+    this.pHp=Math.max(0, this.pHp-base);
+    this._float(this.W/2, this.H*0.66, '-'+base, '#ff4444');
+    this.cameras.main.shake(350, 0.018);
+    this.cameras.main.flash(250, 255, 30, 30);
+    this._updateBars();
+    if(this.pHp<=0){ this._lose(); return; }
+    this._enemyThink();
   }
 
   _enemyTelegraph(){
@@ -19533,7 +19638,7 @@ class ImpactScene extends Phaser.Scene{
     this._enemyThink();
   }
 
-  _enemyStagger(){
+  _enemyStagger(ms){
     // 回避成功後の反撃チャンス(この間のパンチは2倍&ガード不能)
     this.enemyState='stagger';
     this._clearEnemyTint();
@@ -19542,7 +19647,7 @@ class ImpactScene extends Phaser.Scene{
     this._banner('チャンス!連打だ!!', '#ffee66', 900);
     // 前のめりによろける
     this.tweens.add({targets:this.enemy, angle:3, y:this.enemy.y+18, duration:160, yoyo:false});
-    this._eTimer=this.time.delayedCall(1600, ()=>{
+    this._eTimer=this.time.delayedCall(ms||1600, ()=>{
       if(this.state!=='fight') return;
       this._clearEnemyTint();
       this.tweens.add({targets:this.enemy, angle:0, y:this._enemyHomeY, duration:200});
