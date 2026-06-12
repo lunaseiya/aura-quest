@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v8'; // 更新日付
+const GAME_VERSION = '2026-06-13-v9'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18756,8 +18756,15 @@ const IMPACT_ENEMIES={
       name:'ギガドリル', dmgMul:2.5,
       texCharge:'imp_gig_sp1', texAim:'imp_gig_sp2', texAtk:'imp_gig_sp3',
     },
+    // 体当たり: 回避不能・ガードのみ有効(ガード成功で弾き返してスタッガー)
+    tackle:{
+      name:'体当たり', dmgMul:1.6, chance:0.3,
+      texTele:'imp_gig_tk1', texAtk:'imp_gig_tk2',
+    },
+    texDown:'imp_gig_down', // 撃破後の倒れシーン(窓いっぱいに表示)
     files:[['imp_gig_idle','gigant_idle.webp'],['imp_gig_tele','gigant_tele.webp'],['imp_gig_atk','gigant_atk.webp'],
-           ['imp_gig_sp1','gigant_sp1.webp'],['imp_gig_sp2','gigant_sp2.webp'],['imp_gig_sp3','gigant_sp3.webp']],
+           ['imp_gig_sp1','gigant_sp1.webp'],['imp_gig_sp2','gigant_sp2.webp'],['imp_gig_sp3','gigant_sp3.webp'],
+           ['imp_gig_tk1','gigant_tk1.webp'],['imp_gig_tk2','gigant_tk2.webp'],['imp_gig_down','gigant_down.webp']],
   },
 };
 
@@ -19418,13 +19425,100 @@ class ImpactScene extends Phaser.Scene{
     this._eTimer=this.time.delayedCall(delay, ()=>{
       // 敵必殺技: 定義あり+HP70%以下+通常攻撃3回ごと(画像が無ければ通常攻撃)
       const sp=this.enemyDef.special;
+      const tk=this.enemyDef.tackle;
       if(sp && this.eImg && this.eHp<=this.eMaxHp*0.7 && (this._eAtkCount||0)>=3){
         this._enemySpecial();
       }else{
         this._eAtkCount=(this._eAtkCount||0)+1;
-        this._enemyTelegraph();
+        // 体当たり: 一定確率で通常攻撃の代わりに(回避不能・ガード推奨)
+        if(tk && this.eImg && Math.random()<(tk.chance||0.3)){
+          this._enemyTackle();
+        }else{
+          this._enemyTelegraph();
+        }
       }
     });
+  }
+
+  // ─────────────────────────────────────────
+  // 敵: 体当たり(回避不能・ガードのみ有効)
+  //   ガード成功 → 弾き返して反撃チャンス / 回避やタップでは防げない
+  // ─────────────────────────────────────────
+  _enemyTackle(){
+    if(this.state!=='fight') return;
+    this.enemyState='telegraph';
+    const tk=this.enemyDef.tackle;
+    try{SE('boss');}catch(e){}
+    this.eImg.setTexture(tk.texTele);
+    this.eImg.setTint(0xffcc88);
+    // 黄色の全面警告+ガード指示
+    this._clearWarn();
+    const win=this.winRect;
+    const glow=this.add.rectangle(this.W/2, win?win.centerY:this.H*0.35,
+      win?win.width:this.W, win?win.height:this.H*0.6, 0xffaa00, 0.15).setDepth(24);
+    const t1=this.add.text(this.W/2, (win?win.y:20)+30, '⚠ '+(tk.name||'体当たり')+' ⚠', {
+      fontSize:'28px', fontFamily:'Arial', color:'#ffaa44', fontStyle:'bold',
+      stroke:'#000', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    const t2=this.add.text(this.W/2, win?win.bottom-70:this.H*0.58, '⬇ ガードしろ!!(回避不能)', {
+      fontSize:'24px', fontFamily:'Arial', color:'#88ddff', fontStyle:'bold',
+      stroke:'#003366', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    this._warnEls=[glow, t1, t2];
+    this.tweens.add({targets:this._warnEls, alpha:0.3, duration:160, yoyo:true, repeat:-1});
+    // 突進前の足踏み(縦ゆれ)
+    this.tweens.add({targets:this.enemy, y:this._enemyHomeY+8, duration:90, yoyo:true, repeat:8});
+    this._eTimer=this.time.delayedCall(this.telegraphMs+350, ()=>this._enemyTackleStrike());
+  }
+
+  _enemyTackleStrike(){
+    this._clearWarn();
+    if(this.state!=='fight') return;
+    this.enemyState='attack';
+    const tk=this.enemyDef.tackle;
+    this.eImg.setTexture(tk.texAtk);
+    try{SE('kill_heavy');}catch(e){}
+    const s=this._enemyScale||1;
+    const toy=this._enemyHomeY+(this.winRect?this.winRect.height*0.28:this.H*0.20);
+    this.tweens.add({targets:this.enemy, y:toy, scaleX:s*1.5, scaleY:s*1.5,
+      duration:300, ease:'Cubic.easeIn',
+      onComplete:()=>{
+        if(this.state==='fight') this._resolveTackleHit();
+        this.tweens.add({targets:this.enemy, x:this.W/2, y:this._enemyHomeY, scaleX:s, scaleY:s,
+          duration:300, ease:'Quad.easeOut',
+          onComplete:()=>{
+            if(this.eImg && this.enemyState!=='down') this.eImg.setTexture(this.enemyDef.texIdle);
+          }});
+      }});
+  }
+
+  _resolveTackleHit(){
+    const tk=this.enemyDef.tackle;
+    const base=Math.max(1, Math.round(this.enemyDmg*(tk.dmgMul||1.6)));
+    // ガード成功: 大幅軽減+弾き返して反撃チャンス
+    if(this.guard){
+      const dmg=Math.max(1, Math.ceil(base/4));
+      this.pHp=Math.max(0, this.pHp-dmg);
+      try{SE('parry');}catch(e){}
+      this._float(this.W/2, this.H*0.58, '🛡 ガード成功! -'+dmg, '#88ddff');
+      this.cameras.main.shake(120, 0.006);
+      this._updateBars();
+      if(this.pHp<=0){ this._lose(); return; }
+      this._enemyStagger(1300); // 弾き返してチャンス
+      return;
+    }
+    // 回避していても当たる(回避不能)
+    if(this.dodge){
+      this._float(this.W/2, this.H*0.54, '回避不能!!', '#ffaa44');
+    }
+    try{SE('hurt');}catch(e){}
+    this.pHp=Math.max(0, this.pHp-base);
+    this._float(this.W/2, this.H*0.66, '-'+base, '#ff6666');
+    this.cameras.main.shake(280, 0.015);
+    this.cameras.main.flash(200, 255, 60, 30);
+    this._updateBars();
+    if(this.pHp<=0){ this._lose(); return; }
+    this._enemyThink();
   }
 
   // ─────────────────────────────────────────
@@ -19679,7 +19773,20 @@ class ImpactScene extends Phaser.Scene{
     try{SE('kill_boss');}catch(e){}
     this.cameras.main.shake(400, 0.01);
     // 倒れる演出
-    this.tweens.add({targets:this.enemy, angle:14, y:this.enemy.y+260, alpha:0.25, duration:1100, ease:'Quad.easeIn'});
+    const downTex=this.enemyDef.texDown;
+    if(this.eImg && downTex && this.textures.exists(downTex)){
+      // 倒れシーン一枚絵: 敵が沈んだあと、スクリーンいっぱいに表示
+      this.tweens.add({targets:this.enemy, y:this.enemy.y+200, alpha:0, duration:700, ease:'Quad.easeIn'});
+      const win=this.winRect;
+      const dx=win?win.centerX:this.W/2, dy=win?win.centerY:this.H*0.40;
+      const src=this.textures.get(downTex).getSourceImage();
+      const sc=win?Math.max(win.width/src.width, win.height/src.height):Math.min(this.W/src.width, 1);
+      const img=this.add.image(dx, dy, downTex).setScale(sc).setDepth(11).setAlpha(0);
+      if(this._enemyMask) img.setMask(this._enemyMask);
+      this.tweens.add({targets:img, alpha:1, duration:600, delay:500});
+    }else{
+      this.tweens.add({targets:this.enemy, angle:14, y:this.enemy.y+260, alpha:0.25, duration:1100, ease:'Quad.easeIn'});
+    }
     // 報酬(仮: ゴールドのみ。部品ドロップはクエスト実装時に追加)
     const pd=this.playerData||{};
     const reward=Math.round((300+(pd.lv||1)*20)*(this.enemyDef.goldMul||1));
