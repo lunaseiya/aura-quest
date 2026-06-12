@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-11-v3'; // 更新日付
+const GAME_VERSION = '2026-06-12-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -1405,6 +1405,27 @@ class BootScene extends Phaser.Scene{
       g.fillRect(38,18,20,6);
       // ハイライト
       g.fillStyle(0xeeffee,0.6); g.fillCircle(36,36,8);
+    });
+
+    // ── パワーインパクト NPC スプライト (96x96・魔導機兵の胸像/仮素材) ──
+    mk2('npc_impact',96,96,g=>{
+      // 背景のオレンジ円
+      g.fillStyle(0xcc5522,0.95); g.fillCircle(48,48,42);
+      g.lineStyle(3,0x772a11,1);  g.strokeCircle(48,48,42);
+      // 胴体(肩のライン)
+      g.fillStyle(0x55606e,1); g.fillRect(20,62,56,24);
+      g.fillStyle(0x3a434e,1); g.fillRect(20,62,56,6);
+      // 頭部(角ばったメカ頭)
+      g.fillStyle(0x6a7686,1); g.fillRoundedRect(26,20,44,40,8);
+      g.lineStyle(2,0x2a323c,1); g.strokeRoundedRect(26,20,44,40,8);
+      // バイザー(シアン発光)
+      g.fillStyle(0x113344,1); g.fillRect(30,34,36,12);
+      g.fillStyle(0x44eeff,1); g.fillRect(33,37,30,6);
+      // アンテナ
+      g.fillStyle(0xffaa33,1); g.fillRect(46,10,4,12); g.fillCircle(48,9,4);
+      // 胸のコア
+      g.fillStyle(0xff8830,1); g.fillCircle(48,74,7);
+      g.fillStyle(0xffdd88,0.9); g.fillCircle(48,74,3);
     });
 
     // ── ファイアボール ──
@@ -6719,6 +6740,7 @@ class GameScene extends Phaser.Scene{
     // ── テストモード専用 NPC: セントラルにのみ出現 ──
     if(testMode && this.stage === 0){
       this._spawnTestNpc();
+      this._spawnImpactNpc(); // パワーインパクト(インパクト戦ミニゲーム入口)
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -13644,6 +13666,94 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  // ─────────────────────────────────────────
+  // パワーインパクト NPC(インパクト戦ミニゲーム入口・テストモード時にセントラルへ出現)
+  // ─────────────────────────────────────────
+  _spawnImpactNpc(){
+    const x = 928, y = 377;  // テスト助手の右隣・道沿い
+    const sprite = this.add.sprite(x, y, 'npc_impact').setDepth(5).setDisplaySize(96, 96);
+    sprite.setInteractive({useHandCursor:true});
+    // 機械らしくカタカタ小刻みに揺れるアニメ
+    this.tweens.add({targets:sprite, y:y-4, duration:1400, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    const nameTag = this.add.text(x, y-60, '🤖 パワーインパクト', {
+      fontSize:'13px', fontFamily:'Arial', color:'#ffaa55', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6);
+    const promptTxt = this.add.text(x, y+60, '💬 タップで話す', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6).setVisible(false);
+    this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
+    sprite.on('pointerdown', ()=>{
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+      if(dist < 120) this._openImpactNpcDialog(x, y);
+    });
+    this.npcs.push({def:{id:'impact_npc', x, y, name:'🤖 パワーインパクト'}, sprite, nameTag, promptTxt});
+  }
+
+  _openImpactNpcDialog(npcX, npcY){
+    if(this._npcDialogOpen) return;
+    this._npcDialogOpen = true;
+    try{SE('open');}catch(e){}
+    if(this.player && this.player.body) this.player.body.setVelocity(0,0);
+    const w = this.scale.width, h = this.scale.height;
+    const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(100).setInteractive();
+    const boxW = Math.min(w*0.85, 540), boxH = 260;
+    const boxX = w/2, boxY = h - boxH/2 - 30;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1208, 0.96)
+      .setScrollFactor(0).setDepth(101)
+      .setStrokeStyle(3, 0xffaa55, 1);
+    const elements = [overlay, box];
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 22, '🤖 パワーインパクト', {
+      fontSize:'16px', fontFamily:'Arial', color:'#ffaa55', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    elements.push(this.add.text(boxX, boxY - 38,
+      '『私は試作魔導機兵パワーインパクト。\n換装して模擬戦闘訓練を行うかい?』\n\n'+
+      '⚔ 左右タップ: パンチ\n'+
+      '💨 攻撃と逆へスワイプ: 回避(成功で反撃チャンス)\n'+
+      '⚡ ゲージMAXで必殺技ボタン出現',
+      {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:5,
+       wordWrap:{width: boxW - 40}}
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    // 出撃ボタン
+    const goY = boxY + boxH/2 - 28;
+    const goBg = this.add.rectangle(boxX - boxW/4 + 6, goY, boxW/2 - 28, 40, 0xcc5522, 0.95)
+      .setScrollFactor(0).setDepth(102)
+      .setStrokeStyle(2, 0xffcc88, 0.9)
+      .setInteractive({useHandCursor:true});
+    const goTx = this.add.text(goBg.x, goY, '🤖 換装して出撃', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    goBg.on('pointerdown', ()=>{
+      try{SE('boost');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+      // 帰還位置 = NPCの少し下(再タップで即ダイアログにならない距離)
+      this.scene.start('Impact', {
+        playerData: this.playerData,
+        currentSlot: this.currentSlot,
+        returnStage: this.stage,
+        returnX: npcX, returnY: npcY + 90,
+      });
+    });
+    // やめるボタン
+    const noBg = this.add.rectangle(boxX + boxW/4 - 6, goY, boxW/2 - 28, 40, 0x223344, 0.95)
+      .setScrollFactor(0).setDepth(102)
+      .setStrokeStyle(2, 0x88aacc, 0.8)
+      .setInteractive({useHandCursor:true});
+    const noTx = this.add.text(noBg.x, goY, 'やめておく', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    noBg.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+    });
+    overlay.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+    });
+  }
+
   _openNpcDialog(npcDef){
     if(this._npcDialogOpen) return;
     this._npcDialogOpen = true;
@@ -18584,6 +18694,636 @@ class GameScene extends Phaser.Scene{
 //  SkillTree Scene（ジョブスキルツリー）④
 // ============================================================
 // ============================================================
+//  Impact Scene（パワーインパクト戦・一人称ロボ格闘ミニゲーム）
+// ============================================================
+// ゴエモンインパクト風のパンチアウト型バトル。
+// 【仮素材版】敵・腕・背景は全てコード描画。後で画像素材に差し替える前提で、
+// 敵はパーツ(胴体/頭/両腕)を Container に組んで tween でポーズを付けている。
+// 差し替え時は _makeImpactTextures のテクスチャ生成を画像ロードに置き換えればよい。
+//
+// 操作: 画面左右タップ=パンチ / 攻撃と逆方向へスワイプ=回避 / ゲージMAXで必殺ボタン
+class ImpactScene extends Phaser.Scene{
+  constructor(){super('Impact')}
+  init(data){
+    this.playerData  = data.playerData;
+    this.currentSlot = data.currentSlot!==undefined ? data.currentSlot : null;
+    this.returnStage = data.returnStage!==undefined ? data.returnStage : 0;
+    this.returnX = data.returnX;
+    this.returnY = data.returnY;
+    this._initData = data; // リサイズ再起動用に保持
+  }
+
+  create(){
+    const w = this.scale.width, h = this.scale.height;
+    this.W = w; this.H = h;
+    const pd = this.playerData || {};
+    const lv = pd.lv || 1;
+
+    // ── 戦闘パラメータ(プレイヤーのレベルに連動) ──
+    this.pMaxHp  = pd.mhp || 100;          // 機体HP = プレイヤー最大HP(本体のHPは減らさない)
+    this.pHp     = this.pMaxHp;
+    this.eMaxHp  = 250 + lv * 25;          // 敵HP
+    this.eHp     = this.eMaxHp;
+    this.punchDmg = Math.max(5, Math.round((pd.atk||10) * 1.2 + lv));
+    this.enemyDmg = Math.max(5, Math.round(10 + lv * 1.6 - (pd.def||0) * 0.2));
+    this.telegraphMs = Math.max(450, 750 - lv * 5);  // 高Lvほど予備動作が短い
+
+    // ── ステート ──
+    this.state = 'fight';        // fight / win / lose
+    this.enemyState = 'idle';    // idle / telegraph / attack / stagger / down
+    this.dodge = null;           // null / 'left' / 'right'
+    this.gauge = 0;              // 必殺ゲージ 0〜100
+    this._punchBusy = {left:false, right:false};
+    this._specialActive = false;
+    this._uiLock = 0;            // UIボタンタップ直後はパンチ判定を抑止
+
+    this._makeImpactTextures();
+
+    // ── 背景+敵 をまとめる world コンテナ(回避時にこれを振ってカメラ移動風に) ──
+    this.world = this.add.container(0, 0);
+    this._drawBackground();
+    this._buildEnemy();
+
+    // ── プレイヤーの両腕(コックピット視点・画面下) ──
+    this.pArmL = this.add.image(w*0.18, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250);
+    this.pArmR = this.add.image(w*0.82, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250).setFlipX(true);
+    // 構え位置まで上げる登場演出
+    this._armHomeY = h - 170;
+    this.tweens.add({targets:[this.pArmL, this.pArmR], y:this._armHomeY, duration:500, ease:'Back.easeOut', delay:200});
+
+    this._buildHUD();
+    this._bindInput();
+
+    // BGM(ボス戦曲を流用)
+    try{ startBGM('boss'); }catch(e){}
+
+    // 開幕メッセージ → 敵AI開始
+    this._banner('🤖 換装完了!モード・インパクト起動', '#ffcc88', 1400);
+    this.time.delayedCall(1500, ()=>{ if(this.state==='fight') this._enemyThink(); });
+
+    // 画面回転・リサイズはレイアウトが崩れるのでシーンを組み直す
+    this._onResize = ()=>{
+      if(this._resizing) return;
+      this._resizing = true;
+      this.time.delayedCall(150, ()=>{ this.scene.restart(this._initData); });
+    };
+    this.scale.on('resize', this._onResize);
+    this.events.once('shutdown', ()=>{ this.scale.off('resize', this._onResize); });
+  }
+
+  // ─────────────────────────────────────────
+  // 仮素材テクスチャ生成(画像差し替え時はここを画像ロードに置換)
+  // ─────────────────────────────────────────
+  _makeImpactTextures(){
+    const mk=(key,wd,ht,fn)=>{
+      if(this.textures.exists(key)) return;
+      const g=this.make.graphics({add:false});
+      fn(g); g.generateTexture(key,wd,ht); g.destroy();
+    };
+    // 敵: 胴体(鋼鉄ゴーレム)
+    mk('imp_e_body',280,240,g=>{
+      g.fillStyle(0x4a5568,1); g.fillRoundedRect(20,30,240,190,26);
+      g.lineStyle(4,0x2a323e,1); g.strokeRoundedRect(20,30,240,190,26);
+      // 肩アーマー
+      g.fillStyle(0x5a6678,1); g.fillRoundedRect(4,40,60,70,14); g.fillRoundedRect(216,40,60,70,14);
+      g.lineStyle(3,0x2a323e,1); g.strokeRoundedRect(4,40,60,70,14); g.strokeRoundedRect(216,40,60,70,14);
+      // 腹部の装甲ライン
+      g.lineStyle(3,0x39424f,1);
+      g.lineBetween(50,160,230,160); g.lineBetween(60,190,220,190);
+      // 胸のコア(弱点っぽい発光)
+      g.fillStyle(0x331100,1); g.fillCircle(140,110,40);
+      g.fillStyle(0xff8830,1); g.fillCircle(140,110,32);
+      g.fillStyle(0xffdd88,0.95); g.fillCircle(140,110,16);
+      // リベット
+      g.fillStyle(0x778294,1);
+      [[40,50],[240,50],[40,200],[240,200]].forEach(p=>g.fillCircle(p[0],p[1],5));
+    });
+    // 敵: 頭部
+    mk('imp_e_head',150,120,g=>{
+      g.fillStyle(0x5a6678,1); g.fillRoundedRect(25,18,100,90,16);
+      g.lineStyle(3,0x2a323e,1); g.strokeRoundedRect(25,18,100,90,16);
+      // バイザー
+      g.fillStyle(0x16181c,1); g.fillRoundedRect(35,46,80,26,8);
+      // 目(赤発光・2つ)
+      g.fillStyle(0xff4444,1); g.fillCircle(57,59,8); g.fillCircle(93,59,8);
+      g.fillStyle(0xffaaaa,0.9); g.fillCircle(57,59,3); g.fillCircle(93,59,3);
+      // 角(アンテナ)
+      g.fillStyle(0xffaa33,1); g.fillTriangle(75,2, 64,20, 86,20);
+      // あごの装甲
+      g.fillStyle(0x495362,1); g.fillRect(45,90,60,14);
+    });
+    // 敵: 拳
+    mk('imp_e_arm',130,130,g=>{
+      g.fillStyle(0x556070,1); g.fillCircle(65,65,54);
+      g.lineStyle(4,0x2a323e,1); g.strokeCircle(65,65,54);
+      // ナックル(4連スタッド)
+      g.fillStyle(0x99a4b4,1);
+      [[38,38],[63,30],[88,38],[103,58]].forEach(p=>g.fillCircle(p[0],p[1],9));
+      // 手首の装甲
+      g.fillStyle(0x495362,1); g.fillRoundedRect(30,98,70,28,10);
+    });
+    // プレイヤー: 籠手(オレンジ×鋼・ボマー覚醒カラー)
+    mk('imp_p_arm',190,250,g=>{
+      // 前腕(下に向かって広がる台形)
+      g.fillStyle(0x8a4a22,1); g.fillTriangle(45,110, 145,110, 175,250); g.fillTriangle(45,110, 175,250, 15,250);
+      g.fillStyle(0xa85826,1); g.fillRect(45,110,100,140);
+      // 拳(上部の丸い籠手)
+      g.fillStyle(0xcc5522,1); g.fillRoundedRect(30,20,130,110,34);
+      g.lineStyle(4,0x6e2c10,1); g.strokeRoundedRect(30,20,130,110,34);
+      // ナックルプレート
+      g.fillStyle(0xe8e0d8,1); g.fillRoundedRect(48,32,94,30,12);
+      g.fillStyle(0xb8b0a8,1); g.fillRect(48,54,94,8);
+      // 発光ライン(魔導エネルギー)
+      g.fillStyle(0x44eeff,0.9); g.fillRect(86,76,18,44);
+      g.fillStyle(0xaaffff,0.9); g.fillRect(92,80,6,36);
+      // 腕の装甲リング
+      g.lineStyle(5,0x6e2c10,1); g.lineBetween(40,150,150,150); g.lineBetween(32,200,160,200);
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 背景(闘技場・コード描画)
+  // ─────────────────────────────────────────
+  _drawBackground(){
+    const w=this.W, h=this.H;
+    const g=this.add.graphics();
+    // 夜空のグラデーション(帯で近似)
+    const top={r:0x0c,g:0x0a,b:0x1e}, bot={r:0x3a,g:0x28,b:0x40};
+    const bands=14, horizon=h*0.55;
+    for(let i=0;i<bands;i++){
+      const t=i/(bands-1);
+      const c=Phaser.Display.Color.GetColor(
+        Math.round(top.r+(bot.r-top.r)*t),
+        Math.round(top.g+(bot.g-top.g)*t),
+        Math.round(top.b+(bot.b-top.b)*t));
+      g.fillStyle(c,1); g.fillRect(-200, (horizon/bands)*i, w+400, horizon/bands+1);
+    }
+    // 月
+    g.fillStyle(0xfff4cc,0.9); g.fillCircle(w*0.78, h*0.13, 34);
+    g.fillStyle(0xe8dcb0,0.5); g.fillCircle(w*0.76, h*0.12, 28);
+    // 遠景の柱(闘技場)
+    g.fillStyle(0x1e1830,1);
+    for(let i=0;i<6;i++){
+      const px=-150+i*(w+300)/5;
+      g.fillRect(px, horizon-150, 36, 150);
+      g.fillRect(px-8, horizon-160, 52, 14);
+    }
+    // 地面
+    g.fillStyle(0x2e2438,1); g.fillRect(-200, horizon, w+400, h-horizon);
+    // 地面の遠近ライン
+    g.lineStyle(2,0x453858,0.8);
+    for(let i=0;i<5;i++){
+      const ly=horizon+(h-horizon)*(i/5)*(i/5);
+      g.lineBetween(-200, ly, w+200, ly);
+    }
+    this.world.add(g);
+  }
+
+  // ─────────────────────────────────────────
+  // 敵(訓練用ゴーレム)組み立て
+  // ─────────────────────────────────────────
+  _buildEnemy(){
+    const w=this.W, h=this.H;
+    this.enemy = this.add.container(w/2, h*0.40);
+    // 影
+    const shadow=this.add.ellipse(0, h*0.34, 320, 60, 0x000000, 0.35);
+    this.enemy.add(shadow);
+    this.eBody = this.add.image(0, 50, 'imp_e_body').setDisplaySize(300, 260);
+    this.eHead = this.add.image(0, -105, 'imp_e_head').setDisplaySize(155, 125);
+    // 拳の定位置(ホーム)を覚えておく(攻撃後に戻すため)
+    this._eArmHome = {lx:-185, ly:60, rx:185, ry:60};
+    this.eArmL = this.add.image(this._eArmHome.lx, this._eArmHome.ly, 'imp_e_arm').setDisplaySize(135, 135);
+    this.eArmR = this.add.image(this._eArmHome.rx, this._eArmHome.ry, 'imp_e_arm').setDisplaySize(135, 135);
+    this.enemy.add([this.eArmL, this.eArmR, this.eBody, this.eHead]);
+    this.world.add(this.enemy);
+    // 待機の上下ゆれ
+    this._idleTween = this.tweens.add({targets:this.enemy, y:this.enemy.y-10, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+  }
+
+  // ─────────────────────────────────────────
+  // HUD
+  // ─────────────────────────────────────────
+  _buildHUD(){
+    const w=this.W, h=this.H;
+    // 敵HPバー(上部)
+    this.add.text(w/2, 16, '訓練用ゴーレム G-1号', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffdddd', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(30);
+    const ebw=Math.min(w*0.8, 420);
+    this.add.rectangle(w/2, 38, ebw+4, 18, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x884444, 1);
+    this.eHpBar=this.add.rectangle(w/2-ebw/2, 38, ebw, 12, 0xff4444, 1).setOrigin(0,0.5).setDepth(31);
+    this._eBarW=ebw;
+    // 機体HPバー(下部・腕の上)
+    const pbw=Math.min(w*0.62, 330);
+    const pby=h-210;
+    this.add.text(w/2, pby-16, '🤖 パワーインパクト', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(30);
+    this.add.rectangle(w/2, pby, pbw+4, 16, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x447744, 1);
+    this.pHpBar=this.add.rectangle(w/2-pbw/2, pby, pbw, 10, 0x44dd66, 1).setOrigin(0,0.5).setDepth(31);
+    this._pBarW=pbw;
+    // 必殺ゲージ(機体HPの下)
+    this.add.rectangle(w/2, pby+18, pbw+4, 12, 0x000000, 0.7).setDepth(30).setStrokeStyle(2, 0x886622, 1);
+    this.gaugeBar=this.add.rectangle(w/2-pbw/2, pby+18, 0, 8, 0xffcc33, 1).setOrigin(0,0.5).setDepth(31);
+    // 必殺ボタン(ゲージMAX時のみ表示)
+    this.spBtn=this.add.rectangle(w/2, h-250, 210, 46, 0xcc3311, 0.95)
+      .setDepth(32).setStrokeStyle(3, 0xffee88, 1)
+      .setInteractive({useHandCursor:true}).setVisible(false);
+    this.spBtnTx=this.add.text(w/2, h-250, '⚡ 必殺・烈火連撃', {
+      fontSize:'16px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(33).setVisible(false);
+    this.spBtn.on('pointerdown', ()=>{
+      this._uiLock=this.time.now+400;
+      this._doSpecial();
+    });
+    // 退却ボタン(右上・誤タップ防止の2度押し式)
+    this.fleeBtn=this.add.rectangle(w-54, 20, 92, 30, 0x223344, 0.9)
+      .setDepth(32).setStrokeStyle(2, 0x88aacc, 0.8).setInteractive({useHandCursor:true});
+    this.fleeTx=this.add.text(w-54, 20, '🏳 退却', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(33);
+    this._fleeArmed=false;
+    this.fleeBtn.on('pointerdown', ()=>{
+      this._uiLock=this.time.now+400;
+      try{SE('click');}catch(e){}
+      if(this._fleeArmed){ this._return(); return; }
+      this._fleeArmed=true;
+      this.fleeTx.setText('本当に?');
+      this.fleeBtn.setFillStyle(0x884422, 0.95);
+      this.time.delayedCall(2000, ()=>{
+        if(this._fleeArmed && this.fleeTx && this.fleeTx.active){
+          this._fleeArmed=false;
+          this.fleeTx.setText('🏳 退却');
+          this.fleeBtn.setFillStyle(0x223344, 0.9);
+        }
+      });
+    });
+    // 操作ヒント(開幕数秒だけ)
+    const hint=this.add.text(w/2, h*0.62,
+      '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffaa', fontStyle:'bold', align:'center',
+      stroke:'#000', strokeThickness:4, lineSpacing:6
+    }).setOrigin(0.5).setDepth(35);
+    this.tweens.add({targets:hint, alpha:0, delay:3500, duration:600, onComplete:()=>hint.destroy()});
+  }
+
+  _updateBars(){
+    if(this.eHpBar) this.eHpBar.width=Math.max(0, this._eBarW*(this.eHp/this.eMaxHp));
+    if(this.pHpBar) this.pHpBar.width=Math.max(0, this._pBarW*(this.pHp/this.pMaxHp));
+    if(this.gaugeBar) this.gaugeBar.width=this._pBarW*(Math.min(100,this.gauge)/100);
+    // ゲージMAXで必殺ボタン表示
+    const ready=(this.gauge>=100 && this.state==='fight' && !this._specialActive);
+    if(this.spBtn && this.spBtn.visible!==ready){
+      this.spBtn.setVisible(ready); this.spBtnTx.setVisible(ready);
+      if(ready){
+        try{SE('boost');}catch(e){}
+        this.tweens.add({targets:[this.spBtn,this.spBtnTx], scaleX:1.06, scaleY:1.06, duration:400, yoyo:true, repeat:-1});
+      }else{
+        this.tweens.killTweensOf([this.spBtn,this.spBtnTx]);
+        this.spBtn.setScale(1); this.spBtnTx.setScale(1);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // 入力(タップ=パンチ / スワイプ=回避)
+  // ─────────────────────────────────────────
+  _bindInput(){
+    this.input.on('pointermove', p=>{
+      if(!p.isDown || this.state!=='fight') return;
+      const dx=p.x-p.downX;
+      if(!this.dodge && !this._specialActive && Math.abs(dx)>55){
+        this._doDodge(dx<0?'left':'right');
+      }
+    });
+    this.input.on('pointerup', p=>{
+      if(this.state==='win'||this.state==='lose'){
+        if(this._canLeave) this._return();
+        return;
+      }
+      if(this.state!=='fight' || this._specialActive) return;
+      if(this.time.now < this._uiLock) return; // ボタン操作の直後は無視
+      const dx=p.x-p.downX, dy=p.y-p.downY;
+      if(Math.hypot(dx,dy) < 28){
+        this._punch(p.x < this.W/2 ? 'left' : 'right');
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // プレイヤー: パンチ
+  // ─────────────────────────────────────────
+  _punch(side){
+    if(this.state!=='fight' || this.dodge || this._punchBusy[side]) return;
+    this._punchBusy[side]=true;
+    const fist = side==='left' ? this.pArmL : this.pArmR;
+    try{SE('slash');}catch(e){}
+    const tx = this.enemy.x + this.world.x + (side==='left'?-50:50);
+    const ty = this.enemy.y + 40;
+    const homeX=fist.x;
+    this.tweens.add({targets:fist, x:tx, y:ty, scaleX:fist.scaleX*0.5, scaleY:fist.scaleY*0.5,
+      duration:110, ease:'Cubic.easeIn',
+      onComplete:()=>{
+        this._resolvePunch(side, tx, ty);
+        // 構えに戻す
+        this.tweens.add({targets:fist, x:homeX, y:this._armHomeY, scaleX:fist.scaleX*2, scaleY:fist.scaleY*2,
+          duration:150, ease:'Quad.easeOut',
+          onComplete:()=>{ this._punchBusy[side]=false; }});
+      }});
+  }
+
+  _resolvePunch(side, hx, hy){
+    if(this.state!=='fight') return;
+    const stagger=(this.enemyState==='stagger');
+    // 通常時は一定確率でガードされる(スタッガー中は必ず入る)
+    if(!stagger && this.enemyState==='idle' && Math.random()<0.25){
+      try{SE('guard');}catch(e){}
+      this._float(hx, hy-30, 'ガード!', '#aaccff');
+      // ガードモーション(体を少し引く)
+      this.tweens.add({targets:this.enemy, x:this.W/2+(side==='left'?8:-8), duration:60, yoyo:true});
+      return;
+    }
+    let dmg=this.punchDmg;
+    const crit=Math.random()<0.1;
+    if(crit) dmg=Math.round(dmg*1.5);
+    if(stagger) dmg*=2;
+    this.eHp=Math.max(0, this.eHp-dmg);
+    this.gauge=Math.min(100, this.gauge+(stagger?12:6));
+    try{SE(stagger||crit?'crit':'hit');}catch(e){}
+    this._float(hx, hy-30, dmg+(crit?'!':''), stagger?'#ffee66':(crit?'#ffaa33':'#ffffff'));
+    this._hitFlash(hx, hy);
+    // のけぞり
+    this.tweens.add({targets:this.enemy, x:this.W/2+(side==='left'?14:-14), angle:(side==='left'?1.5:-1.5),
+      duration:70, yoyo:true, onComplete:()=>{ this.enemy.x=this.W/2; this.enemy.angle=0; }});
+    this.cameras.main.shake(60, 0.004);
+    this._updateBars();
+    if(this.eHp<=0) this._enemyDown();
+  }
+
+  // ─────────────────────────────────────────
+  // プレイヤー: 回避
+  // ─────────────────────────────────────────
+  _doDodge(dir){
+    if(this.state!=='fight' || this.dodge || this._specialActive) return;
+    this.dodge=dir;
+    try{SE('dodge');}catch(e){}
+    // 世界を逆へ振る=自分が左右へ動いた風(カメラ演出)
+    const off=(dir==='left')?130:-130;
+    this.tweens.add({targets:this.world, x:off, angle:(dir==='left'?1.5:-1.5), duration:110, ease:'Quad.easeOut'});
+    this.tweens.add({targets:[this.pArmL,this.pArmR], y:this._armHomeY+50, duration:110});
+    this.time.delayedCall(430, ()=>{
+      this.dodge=null;
+      if(this.state!=='fight') return;
+      this.tweens.add({targets:this.world, x:0, angle:0, duration:160, ease:'Quad.easeOut'});
+      if(!this._specialActive) this.tweens.add({targets:[this.pArmL,this.pArmR], y:this._armHomeY, duration:160});
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 必殺技: 烈火連撃(高速ラッシュ→フィニッシュ)
+  // ─────────────────────────────────────────
+  _doSpecial(){
+    if(this.state!=='fight' || this._specialActive || this.gauge<100) return;
+    this._specialActive=true;
+    this.gauge=0;
+    this._updateBars();
+    // 敵の行動を止める
+    if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
+    this._clearEnemyTint();
+    this.enemyState='stagger';
+    try{SE('berserk');}catch(e){}
+    this._banner('⚡ 必殺・烈火連撃!!', '#ffee66', 1000);
+    const RUSH=8, INTERVAL=130;
+    for(let i=0;i<RUSH;i++){
+      this.time.delayedCall(500+i*INTERVAL, ()=>{
+        if(this.state!=='fight') return;
+        const side=(i%2===0)?'left':'right';
+        const fist=side==='left'?this.pArmL:this.pArmR;
+        const tx=this.enemy.x+this.world.x+Phaser.Math.Between(-70,70);
+        const ty=this.enemy.y+Phaser.Math.Between(-20,80);
+        const homeX=fist.x;
+        try{SE('hit');}catch(e){}
+        this.tweens.add({targets:fist, x:tx, y:ty, duration:55, yoyo:true,
+          onYoyo:()=>{ fist.x=homeX; fist.y=this._armHomeY; }});
+        const dmg=Math.round(this.punchDmg*0.7);
+        this.eHp=Math.max(0,this.eHp-dmg);
+        this._float(tx,ty-20,dmg,'#ffcc66');
+        this._hitFlash(tx,ty);
+        this.cameras.main.shake(40,0.003);
+        this._updateBars();
+        // ラッシュ中に撃破したらフィニッシュを待たずダウンへ
+        if(this.eHp<=0){ this._specialActive=false; this._enemyDown(); }
+      });
+    }
+    // フィニッシュ(両拳同時・大ダメージ)
+    this.time.delayedCall(500+RUSH*INTERVAL+250, ()=>{
+      if(this.state!=='fight'){ this._specialActive=false; return; }
+      try{SE('meteor');}catch(e){}
+      const cy=this.enemy.y+30;
+      [this.pArmL,this.pArmR].forEach(f=>{
+        const hx=f.x;
+        this.tweens.add({targets:f, x:this.enemy.x+this.world.x, y:cy, duration:120, yoyo:true,
+          onYoyo:()=>{ f.x=hx; f.y=this._armHomeY; }});
+      });
+      const big=Math.round(this.punchDmg*5);
+      this.eHp=Math.max(0,this.eHp-big);
+      this._float(this.enemy.x+this.world.x, cy-40, big+'!!', '#ff6633');
+      this.cameras.main.shake(250, 0.012);
+      this.cameras.main.flash(200, 255, 200, 120);
+      this._updateBars();
+      this._specialActive=false;
+      if(this.eHp<=0){ this._enemyDown(); return; }
+      this._enemyThink();
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 敵AI: 待機 → 予備動作 → 攻撃 のループ
+  // ─────────────────────────────────────────
+  _enemyThink(){
+    if(this.state!=='fight') return;
+    this.enemyState='idle';
+    this._clearEnemyTint();
+    const delay=Phaser.Math.Between(900, 1700);
+    this._eTimer=this.time.delayedCall(delay, ()=>this._enemyTelegraph());
+  }
+
+  _enemyTelegraph(){
+    if(this.state!=='fight' || this._specialActive) return;
+    this.enemyState='telegraph';
+    this.atkSide=Math.random()<0.5?'left':'right'; // 攻撃が飛んでくる側(プレイヤーから見て)
+    const arm=(this.atkSide==='left')?this.eArmL:this.eArmR;
+    arm.setTint(0xff5555);
+    this.eHead.setTint(0xff8888);
+    try{SE('guard');}catch(e){}
+    // 拳を振りかぶる
+    this.tweens.add({targets:arm, y:this._eArmHome.ly-70, scaleX:arm.scaleX*1.25, scaleY:arm.scaleY*1.25,
+      duration:this.telegraphMs, ease:'Quad.easeOut'});
+    // 警告表示(⚠を攻撃側に)
+    const wx=(this.atkSide==='left')?this.W*0.22:this.W*0.78;
+    const warn=this.add.text(wx, this.H*0.55, '⚠', {fontSize:'42px'}).setOrigin(0.5).setDepth(25);
+    this.tweens.add({targets:warn, alpha:0.2, scaleX:1.3, scaleY:1.3, duration:160, yoyo:true, repeat:3,
+      onComplete:()=>warn.destroy()});
+    this._eTimer=this.time.delayedCall(this.telegraphMs+80, ()=>this._enemyAttack());
+  }
+
+  _enemyAttack(){
+    if(this.state!=='fight'){ return; }
+    this.enemyState='attack';
+    const side=this.atkSide;
+    const arm=(side==='left')?this.eArmL:this.eArmR;
+    const home=(side==='left')?{x:this._eArmHome.lx,y:this._eArmHome.ly}:{x:this._eArmHome.rx,y:this._eArmHome.ry};
+    try{SE('whip');}catch(e){}
+    // 拳が画面手前(プレイヤーの顔)へ向かって伸びてくる
+    const tx=((side==='left')?this.W*0.30:this.W*0.70)-this.enemy.x;
+    const ty=this.H*0.80-this.enemy.y;
+    this.tweens.add({targets:arm, x:tx, y:ty, scaleX:arm.scaleX*2.1, scaleY:arm.scaleY*2.1,
+      duration:230, ease:'Cubic.easeIn',
+      onComplete:()=>{
+        if(this.state==='fight') this._resolveEnemyHit(side);
+        // 拳を定位置へ戻す
+        this.tweens.add({targets:arm, x:home.x, y:home.y,
+          scaleX:135/arm.width, scaleY:135/arm.height, duration:260, ease:'Quad.easeOut'});
+      }});
+  }
+
+  _resolveEnemyHit(side){
+    // 回避判定: 攻撃と逆方向へスワイプしていれば回避成功
+    if(this.dodge && this.dodge!==side){
+      try{SE('dodge');}catch(e){}
+      this._float(this.W/2, this.H*0.62, '回避!', '#88ffcc');
+      this._enemyStagger();
+      return;
+    }
+    // 被弾
+    try{SE('hurt');}catch(e){}
+    this.pHp=Math.max(0, this.pHp-this.enemyDmg);
+    this._float(this.W/2, this.H*0.66, '-'+this.enemyDmg, '#ff6666');
+    this.cameras.main.shake(180, 0.012);
+    this.cameras.main.flash(150, 255, 40, 40);
+    this._updateBars();
+    if(this.pHp<=0){ this._lose(); return; }
+    this._enemyThink();
+  }
+
+  _enemyStagger(){
+    // 回避成功後の反撃チャンス(この間のパンチは2倍&ガード不能)
+    this.enemyState='stagger';
+    this._clearEnemyTint();
+    this.eBody.setTint(0xffee88); this.eHead.setTint(0xffee88);
+    this._banner('チャンス!連打だ!!', '#ffee66', 900);
+    // 前のめりによろける
+    this.tweens.add({targets:this.enemy, angle:3, y:this.enemy.y+18, duration:160, yoyo:false});
+    this._eTimer=this.time.delayedCall(1600, ()=>{
+      if(this.state!=='fight') return;
+      this._clearEnemyTint();
+      this.tweens.add({targets:this.enemy, angle:0, y:this.H*0.40, duration:200});
+      this._enemyThink();
+    });
+  }
+
+  _clearEnemyTint(){
+    [this.eBody,this.eHead,this.eArmL,this.eArmR].forEach(s=>{ if(s) s.clearTint(); });
+  }
+
+  // ─────────────────────────────────────────
+  // 勝敗
+  // ─────────────────────────────────────────
+  _enemyDown(){
+    if(this.state!=='fight') return;
+    this.state='win';
+    this.enemyState='down';
+    if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
+    if(this._idleTween) this._idleTween.stop();
+    this._clearEnemyTint();
+    try{SE('kill_boss');}catch(e){}
+    this.cameras.main.shake(400, 0.01);
+    // 倒れる演出
+    this.tweens.add({targets:this.enemy, angle:14, y:this.enemy.y+260, alpha:0.25, duration:1100, ease:'Quad.easeIn'});
+    // 報酬(仮: ゴールドのみ。部品ドロップはクエスト実装時に追加)
+    const pd=this.playerData||{};
+    const reward=300+(pd.lv||1)*20;
+    pd.gold=(pd.gold||0)+reward;
+    this.time.delayedCall(900, ()=>{
+      try{SE('clear');}catch(e){}
+      this._resultBanner('🏆 WIN!', '#ffee66', '報酬: 💰 '+reward+' G');
+    });
+  }
+
+  _lose(){
+    if(this.state!=='fight') return;
+    this.state='lose';
+    if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
+    this._clearEnemyTint();
+    try{SE('explode');}catch(e){}
+    this.cameras.main.shake(500, 0.015);
+    // 画面が赤く染まり腕が落ちる
+    this.add.rectangle(this.W/2, this.H/2, this.W, this.H, 0x550000, 0.45).setDepth(38);
+    this.tweens.add({targets:[this.pArmL,this.pArmR], y:this.H+80, angle:20, duration:700, ease:'Quad.easeIn'});
+    this.time.delayedCall(800, ()=>{
+      this._resultBanner('💥 大破...', '#ff8888', '修理して再挑戦しよう(ペナルティなし)');
+    });
+  }
+
+  _resultBanner(title, color, sub){
+    this.add.rectangle(this.W/2, this.H*0.42, Math.min(this.W*0.9,460), 150, 0x000000, 0.75)
+      .setDepth(40).setStrokeStyle(3, 0xffffff, 0.5);
+    this.add.text(this.W/2, this.H*0.42-30, title, {
+      fontSize:'34px', fontFamily:'Arial', color:color, fontStyle:'bold',
+      stroke:'#000', strokeThickness:5
+    }).setOrigin(0.5).setDepth(41);
+    this.add.text(this.W/2, this.H*0.42+14, sub, {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffff',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(41);
+    const tap=this.add.text(this.W/2, this.H*0.42+46, '▼ タップで帰還', {
+      fontSize:'13px', fontFamily:'Arial', color:'#aaddff'
+    }).setOrigin(0.5).setDepth(41);
+    this.tweens.add({targets:tap, alpha:0.4, duration:500, yoyo:true, repeat:-1});
+    // 演出を見せてから帰還タップを受付
+    this._canLeave=false;
+    this.time.delayedCall(600, ()=>{ this._canLeave=true; });
+  }
+
+  _return(){
+    try{stopBGM();}catch(e){}
+    this.scene.start('Game', {
+      playerData: this.playerData,
+      stage: this.returnStage,
+      currentSlot: this.currentSlot,
+      customSpawnX: this.returnX,
+      customSpawnY: this.returnY,
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // 汎用演出
+  // ─────────────────────────────────────────
+  _float(x, y, txt, color){
+    const t=this.add.text(x, y, ''+txt, {
+      fontSize:'22px', fontFamily:'Arial', color:color, fontStyle:'bold',
+      stroke:'#000', strokeThickness:4
+    }).setOrigin(0.5).setDepth(36);
+    this.tweens.add({targets:t, y:y-50, alpha:0, duration:700, ease:'Quad.easeOut', onComplete:()=>t.destroy()});
+  }
+
+  _hitFlash(x, y){
+    const fl=this.add.circle(x, y, 26, 0xffffaa, 0.9).setDepth(35);
+    this.tweens.add({targets:fl, scaleX:1.8, scaleY:1.8, alpha:0, duration:160, onComplete:()=>fl.destroy()});
+  }
+
+  _banner(txt, color, ms){
+    const b=this.add.text(this.W/2, this.H*0.30, txt, {
+      fontSize:'22px', fontFamily:'Arial', color:color, fontStyle:'bold', align:'center',
+      stroke:'#000', strokeThickness:5
+    }).setOrigin(0.5).setDepth(36).setAlpha(0);
+    this.tweens.add({targets:b, alpha:1, duration:150, yoyo:true, hold:ms, onComplete:()=>b.destroy()});
+  }
+}
+
+// ============================================================
 //  起動
 // ============================================================
 const _game=new Phaser.Game({
@@ -18600,7 +19340,7 @@ const _game=new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene]
+  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene,ImpactScene]
 });
 
 // 画面回転・リサイズ時にUIシーンを再起動
@@ -18654,6 +19394,8 @@ window.game = _game;
 // よく使うデバッグ関数(コンソールから debug.xxx() で呼べる)
 window.debug = {
   warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
+  // インパクト戦(パワーインパクト)を直接起動
+  impact: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
