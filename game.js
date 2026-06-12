@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-12-v2'; // 更新日付
+const GAME_VERSION = '2026-06-13-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18704,6 +18704,15 @@ class GameScene extends Phaser.Scene{
 // 操作: 画面左右タップ=パンチ / 攻撃と逆方向へスワイプ=回避 / ゲージMAXで必殺ボタン
 class ImpactScene extends Phaser.Scene{
   constructor(){super('Impact')}
+  preload(){
+    // コックピット画像(初回のみロード・失敗してもコード描画背景で動く)
+    if(this.textures.exists('impact_cockpit')) return;
+    const t=this.add.text(this.scale.width/2, this.scale.height/2, 'LOADING...', {
+      fontSize:'16px', fontFamily:'Courier New, monospace', color:'#44ff88', fontStyle:'bold'
+    }).setOrigin(0.5);
+    this.load.image('impact_cockpit', BASE+'impact/cockpit.webp');
+    this.load.once('complete', ()=>{ try{t.destroy();}catch(e){} });
+  }
   init(data){
     this.playerData  = data.playerData;
     this.currentSlot = data.currentSlot!==undefined ? data.currentSlot : null;
@@ -18739,9 +18748,19 @@ class ImpactScene extends Phaser.Scene{
 
     this._makeImpactTextures();
 
-    // ── 背景+敵 をまとめる world コンテナ(回避時にこれを振ってカメラ移動風に) ──
+    // ── レイヤー構成 ──
+    //   world(コード描画背景・depth0) → コックピット画像(depth6) →
+    //   enemyLayer(敵・depth10) → プレイヤーの腕(depth20) → HUD(depth30+)
+    //   敵をコックピットより手前に置くことで「窓の奥にいる」ように見せる
+    this._hasCockpit = this.textures.exists('impact_cockpit');
     this.world = this.add.container(0, 0);
     this._drawBackground();
+    if(this._hasCockpit){
+      const src=this.textures.get('impact_cockpit').getSourceImage();
+      const sc=Math.max(w/src.width, h/src.height); // cover(はみ出し分は左右/上下クロップ)
+      this.add.image(w/2, h/2, 'impact_cockpit').setScale(sc).setDepth(6);
+    }
+    this.enemyLayer = this.add.container(0, 0).setDepth(10);
     this._buildEnemy();
 
     // ── プレイヤーの両腕(コックピット視点・画面下) ──
@@ -18941,6 +18960,7 @@ class ImpactScene extends Phaser.Scene{
   // 背景(闘技場・コード描画)
   // ─────────────────────────────────────────
   _drawBackground(){
+    if(this._hasCockpit) return; // コックピット画像がある時は不要(画像の窓内に空が描かれている)
     const w=this.W, h=this.H;
     const g=this.add.graphics();
     // 夜空のグラデーション(帯で近似)
@@ -18981,9 +19001,11 @@ class ImpactScene extends Phaser.Scene{
   _buildEnemy(){
     const w=this.W, h=this.H;
     this.enemy = this.add.container(w/2, h*0.40);
-    // 影
-    const shadow=this.add.ellipse(0, h*0.34, 320, 60, 0x000000, 0.35);
-    this.enemy.add(shadow);
+    // 影(コックピット画像がある時は窓の外に影が落ちると不自然なので省略)
+    if(!this._hasCockpit){
+      const shadow=this.add.ellipse(0, h*0.34, 320, 60, 0x000000, 0.35);
+      this.enemy.add(shadow);
+    }
     this.eBody = this.add.image(0, 50, 'imp_e_body').setDisplaySize(300, 260);
     this.eHead = this.add.image(0, -105, 'imp_e_head').setDisplaySize(155, 125);
     // 拳の定位置(ホーム)を覚えておく(攻撃後に戻すため)
@@ -18991,7 +19013,7 @@ class ImpactScene extends Phaser.Scene{
     this.eArmL = this.add.image(this._eArmHome.lx, this._eArmHome.ly, 'imp_e_arm').setDisplaySize(135, 135);
     this.eArmR = this.add.image(this._eArmHome.rx, this._eArmHome.ry, 'imp_e_arm').setDisplaySize(135, 135);
     this.enemy.add([this.eArmL, this.eArmR, this.eBody, this.eHead]);
-    this.world.add(this.enemy);
+    this.enemyLayer.add(this.enemy);
     // 待機の上下ゆれ
     this._idleTween = this.tweens.add({targets:this.enemy, y:this.enemy.y-10, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
   }
@@ -19118,7 +19140,7 @@ class ImpactScene extends Phaser.Scene{
     this._punchBusy[side]=true;
     const fist = side==='left' ? this.pArmL : this.pArmR;
     try{SE('slash');}catch(e){}
-    const tx = this.enemy.x + this.world.x + (side==='left'?-50:50);
+    const tx = this.enemy.x + this.enemyLayer.x + (side==='left'?-50:50);
     const ty = this.enemy.y + 40;
     const homeX=fist.x;
     this.tweens.add({targets:fist, x:tx, y:ty, scaleX:fist.scaleX*0.5, scaleY:fist.scaleY*0.5,
@@ -19167,14 +19189,14 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight' || this.dodge || this._specialActive) return;
     this.dodge=dir;
     try{SE('dodge');}catch(e){}
-    // 世界を逆へ振る=自分が左右へ動いた風(カメラ演出)
+    // 世界(背景+敵)を逆へ振る=自分が左右へ動いた風(カメラ演出)
     const off=(dir==='left')?130:-130;
-    this.tweens.add({targets:this.world, x:off, angle:(dir==='left'?1.5:-1.5), duration:110, ease:'Quad.easeOut'});
+    this.tweens.add({targets:[this.world,this.enemyLayer], x:off, angle:(dir==='left'?1.5:-1.5), duration:110, ease:'Quad.easeOut'});
     this.tweens.add({targets:[this.pArmL,this.pArmR], y:this._armHomeY+50, duration:110});
     this.time.delayedCall(430, ()=>{
       this.dodge=null;
       if(this.state!=='fight') return;
-      this.tweens.add({targets:this.world, x:0, angle:0, duration:160, ease:'Quad.easeOut'});
+      this.tweens.add({targets:[this.world,this.enemyLayer], x:0, angle:0, duration:160, ease:'Quad.easeOut'});
       if(!this._specialActive) this.tweens.add({targets:[this.pArmL,this.pArmR], y:this._armHomeY, duration:160});
     });
   }
@@ -19199,7 +19221,7 @@ class ImpactScene extends Phaser.Scene{
         if(this.state!=='fight') return;
         const side=(i%2===0)?'left':'right';
         const fist=side==='left'?this.pArmL:this.pArmR;
-        const tx=this.enemy.x+this.world.x+Phaser.Math.Between(-70,70);
+        const tx=this.enemy.x+this.enemyLayer.x+Phaser.Math.Between(-70,70);
         const ty=this.enemy.y+Phaser.Math.Between(-20,80);
         const homeX=fist.x;
         try{SE('hit');}catch(e){}
@@ -19222,12 +19244,12 @@ class ImpactScene extends Phaser.Scene{
       const cy=this.enemy.y+30;
       [this.pArmL,this.pArmR].forEach(f=>{
         const hx=f.x;
-        this.tweens.add({targets:f, x:this.enemy.x+this.world.x, y:cy, duration:120, yoyo:true,
+        this.tweens.add({targets:f, x:this.enemy.x+this.enemyLayer.x, y:cy, duration:120, yoyo:true,
           onYoyo:()=>{ f.x=hx; f.y=this._armHomeY; }});
       });
       const big=Math.round(this.punchDmg*5);
       this.eHp=Math.max(0,this.eHp-big);
-      this._float(this.enemy.x+this.world.x, cy-40, big+'!!', '#ff6633');
+      this._float(this.enemy.x+this.enemyLayer.x, cy-40, big+'!!', '#ff6633');
       this.cameras.main.shake(250, 0.012);
       this.cameras.main.flash(200, 255, 200, 120);
       this._updateBars();
