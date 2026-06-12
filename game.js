@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v2'; // 更新日付
+const GAME_VERSION = '2026-06-13-v3'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18758,11 +18758,12 @@ class ImpactScene extends Phaser.Scene{
     this.winRect = null; // コックピットのスクリーン(窓)領域(画面座標)
     if(this._hasCockpit){
       const src=this.textures.get('impact_cockpit').getSourceImage();
-      const sc=Math.max(w/src.width, h/src.height); // cover(はみ出し分は左右/上下クロップ)
-      this.add.image(w/2, h/2, 'impact_cockpit').setScale(sc).setDepth(6);
+      const sc=Math.max(w/src.width, h/src.height); // cover(はみ出し分はクロップ)
+      // 上端基準で配置: スクリーン(窓)側を優先して画面に収め、クロップは下の運転席側に寄せる
+      this.add.image(w/2, 0, 'impact_cockpit').setOrigin(0.5, 0).setScale(sc).setDepth(6);
       // 画像内のスクリーン(窓)のピクセル領域(1536x1024 基準)→ 画面座標へ変換し画面内にクランプ
       const WIN={x1:228, y1:60, x2:1308, y2:565};
-      const ix=w/2-src.width*sc/2, iy=h/2-src.height*sc/2;
+      const ix=w/2-src.width*sc/2, iy=0;
       const win=new Phaser.Geom.Rectangle(ix+WIN.x1*sc, iy+WIN.y1*sc, (WIN.x2-WIN.x1)*sc, (WIN.y2-WIN.y1)*sc);
       this.winRect=Phaser.Geom.Rectangle.Intersection(win, new Phaser.Geom.Rectangle(0,0,w,h));
       // 敵をスクリーン内だけに描画するマスク(窓からはみ出た部分は映らない)
@@ -18775,11 +18776,19 @@ class ImpactScene extends Phaser.Scene{
     if(this._enemyMask) this.enemyLayer.setMask(this._enemyMask);
     this._buildEnemy();
 
-    // ── プレイヤーの両腕(コックピット視点・画面下) ──
-    this.pArmL = this.add.image(w*0.18, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250);
-    this.pArmR = this.add.image(w*0.82, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(190, 250).setFlipX(true);
-    // 構え位置(起動シーケンス完了後に上げる)
-    this._armHomeY = h - 170;
+    // ── プレイヤーの両腕(スクリーン越しの一人称視点) ──
+    // 窓がある時は窓の下端から拳が覗く配置+マスクで「パンチがスクリーンから出ている」ように見せる
+    const awin=this.winRect;
+    const as=awin ? Phaser.Math.Clamp((awin.height*0.95)/360, 0.35, 1.2) : 1;
+    const armW=190*as, armH=250*as;
+    const ax1=awin ? (awin.x+awin.width*0.20) : w*0.18;
+    const ax2=awin ? (awin.x+awin.width*0.80) : w*0.82;
+    this.pArmL = this.add.image(ax1, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(armW, armH);
+    this.pArmR = this.add.image(ax2, h+40, 'imp_p_arm').setOrigin(0.5, 0).setDepth(20).setDisplaySize(armW, armH).setFlipX(true);
+    if(this._enemyMask){ this.pArmL.setMask(this._enemyMask); this.pArmR.setMask(this._enemyMask); }
+    this._armH = armH; // パンチの突き出し先計算用
+    // 構え位置(起動シーケンス完了後に上げる): 窓の下端から拳が覗く高さ
+    this._armHomeY = awin ? (awin.bottom - armH*0.55) : (h - 170);
 
     this._buildHUD();
     this._bindInput();
@@ -19161,7 +19170,7 @@ class ImpactScene extends Phaser.Scene{
     const fist = side==='left' ? this.pArmL : this.pArmR;
     try{SE('slash');}catch(e){}
     const tx = this.enemy.x + this.enemyLayer.x + (side==='left'?-50:50);
-    const ty = this.enemy.y + 40;
+    const ty = this.enemy.y - this._armH*0.25; // 拳の中心が敵のコア付近に届く高さ
     const homeX=fist.x;
     this.tweens.add({targets:fist, x:tx, y:ty, scaleX:fist.scaleX*0.5, scaleY:fist.scaleY*0.5,
       duration:110, ease:'Cubic.easeIn',
@@ -19242,7 +19251,7 @@ class ImpactScene extends Phaser.Scene{
         const side=(i%2===0)?'left':'right';
         const fist=side==='left'?this.pArmL:this.pArmR;
         const tx=this.enemy.x+this.enemyLayer.x+Phaser.Math.Between(-70,70);
-        const ty=this.enemy.y+Phaser.Math.Between(-20,80);
+        const ty=this.enemy.y-this._armH*0.25+Phaser.Math.Between(-30,50);
         const homeX=fist.x;
         try{SE('hit');}catch(e){}
         this.tweens.add({targets:fist, x:tx, y:ty, duration:55, yoyo:true,
@@ -19261,7 +19270,7 @@ class ImpactScene extends Phaser.Scene{
     this.time.delayedCall(500+RUSH*INTERVAL+250, ()=>{
       if(this.state!=='fight'){ this._specialActive=false; return; }
       try{SE('meteor');}catch(e){}
-      const cy=this.enemy.y+30;
+      const cy=this.enemy.y-this._armH*0.2;
       [this.pArmL,this.pArmR].forEach(f=>{
         const hx=f.x;
         this.tweens.add({targets:f, x:this.enemy.x+this.enemyLayer.x, y:cy, duration:120, yoyo:true,
