@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v12'; // 更新日付
+const GAME_VERSION = '2026-06-13-v13'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18822,6 +18822,9 @@ class ImpactScene extends Phaser.Scene{
     this.gauge = 0;              // 必殺ゲージ 0〜100
     this._punchBusy = {left:false, right:false};
     this._specialActive = false;
+    this._cannonActive = false;  // 裏技・インパクトキャノン発動中
+    this._spDownAt = -9999;      // 裏技コンボ判定用(ボタン押下時刻)
+    this._mgDownAt = -9999;
     this._uiLock = 0;            // UIボタンタップ直後はパンチ判定を抑止
 
     this._makeImpactTextures();
@@ -19185,7 +19188,8 @@ class ImpactScene extends Phaser.Scene{
     // 必殺ボタン(コンソールの赤い物理ボタン・ゲージMAX時のみ点灯)
     const spX=Math.min(w/2+pbw/2+46, w-42);
     const spY=pby+9;
-    this.spBtn=this.add.container(spX, spY).setDepth(32).setVisible(false);
+    this.spBtn=this.add.container(spX, spY).setDepth(32).setAlpha(0.45); // 常時表示・MAXで点灯
+    this._spReady=false;
     const spG=this.add.graphics();
     spG.fillStyle(0x222226,1); spG.fillCircle(0,0,34);   // 台座
     spG.fillStyle(0x550000,1); spG.fillCircle(0,0,28);   // 外輪
@@ -19200,6 +19204,8 @@ class ImpactScene extends Phaser.Scene{
     this.spBtn.setInteractive(new Phaser.Geom.Circle(0,0,38), Phaser.Geom.Circle.Contains);
     this.spBtn.on('pointerdown', ()=>{
       this._uiLock=this.time.now+400;
+      this._spDownAt=this.time.now;
+      if(this._checkHiddenCombo()) return; // 裏技判定(ガード中に🔫と同時押し)
       // 押し込みアニメ → 発動
       this.tweens.add({targets:this.spBtn, scaleX:0.85, scaleY:0.85, duration:70, yoyo:true});
       this.time.delayedCall(90, ()=>this._doSpecial());
@@ -19221,6 +19227,8 @@ class ImpactScene extends Phaser.Scene{
     this.mgBtn.setInteractive(new Phaser.Geom.Circle(0,0,38), Phaser.Geom.Circle.Contains);
     this.mgBtn.on('pointerdown', ()=>{
       this._uiLock=this.time.now+400;
+      this._mgDownAt=this.time.now;
+      if(this._checkHiddenCombo()) return; // 裏技判定(ガード中に⚡と同時押し)
       this._mgStart();
     });
     // 退却ボタン(右上・誤タップ防止の2度押し式)
@@ -19258,16 +19266,17 @@ class ImpactScene extends Phaser.Scene{
     if(this.eHpBar) this.eHpBar.width=Math.max(0, this._eBarW*(this.eHp/this.eMaxHp));
     if(this.pHpBar) this.pHpBar.width=Math.max(0, this._pBarW*(this.pHp/this.pMaxHp));
     if(this.gaugeBar) this.gaugeBar.width=this._pBarW*(Math.min(100,this.gauge)/100);
-    // ゲージMAXで必殺ボタン点灯(本体戦のみ)
+    // ゲージMAXで必殺ボタン点灯(本体戦のみ・暗い時も裏技用に押せる)
     const ready=(this.gauge>=100 && this.state==='fight' && this.phase==='boss' && !this._specialActive);
-    if(this.spBtn && this.spBtn.visible!==ready){
-      this.spBtn.setVisible(ready);
+    if(this.spBtn && this._spReady!==ready){
+      this._spReady=ready;
       if(ready){
+        this.spBtn.setAlpha(1);
         try{SE('boost');}catch(e){}
         this.tweens.add({targets:this.spBtn, scaleX:1.12, scaleY:1.12, duration:400, yoyo:true, repeat:-1});
       }else{
         this.tweens.killTweensOf(this.spBtn);
-        this.spBtn.setScale(1);
+        this.spBtn.setScale(1).setAlpha(0.45);
       }
     }
   }
@@ -19312,7 +19321,7 @@ class ImpactScene extends Phaser.Scene{
   // プレイヤー: パンチ
   // ─────────────────────────────────────────
   _punch(side){
-    if(this.state!=='fight' || this.dodge || this.guard || this._punchBusy[side]) return;
+    if(this.state!=='fight' || this.dodge || this.guard || this._cannonActive || this._punchBusy[side]) return;
     this._punchBusy[side]=true;
     const fist = side==='left' ? this.pArmL : this.pArmR;
     try{SE('slash');}catch(e){}
@@ -19385,7 +19394,7 @@ class ImpactScene extends Phaser.Scene{
   // プレイヤー: 回避
   // ─────────────────────────────────────────
   _doDodge(dir){
-    if(this.state!=='fight' || this.dodge || this._specialActive) return;
+    if(this.state!=='fight' || this.dodge || this._specialActive || this._cannonActive) return;
     this.dodge=dir;
     try{SE('dodge');}catch(e){}
     // 世界(背景+敵)を逆へ振る=自分が左右へ動いた風(カメラ演出)
@@ -19534,10 +19543,81 @@ class ImpactScene extends Phaser.Scene{
   }
 
   // ─────────────────────────────────────────
+  // 裏技・インパクトキャノン(隠しコマンド)
+  //   ガード中に 🔫連射ボタン+⚡必殺ボタン を同時押し(400ms以内)で発動
+  //   ゲージ50消費 → 揃えた両拳の間からチャージビーム
+  //   ボス: パンチ4発分 / 前座戦: ドローン全滅
+  // ─────────────────────────────────────────
+  _checkHiddenCombo(){
+    if(!this.guard) return false;
+    const now=this.time.now;
+    if(now-this._spDownAt<400 && now-this._mgDownAt<400){
+      this._spDownAt=this._mgDownAt=-9999;
+      this._doCannon();
+      return true;
+    }
+    return false;
+  }
+
+  _doCannon(){
+    if(this.state!=='fight' || this._cannonActive || this._specialActive) return;
+    if(this.gauge<50){
+      try{SE('miss');}catch(e){}
+      this._float(this.W/2, this.H*0.60, 'エネルギー不足…(ゲージ50必要)', '#88ccff');
+      return;
+    }
+    this._cannonActive=true;
+    this._mgStop();
+    this.gauge-=50;
+    this._updateBars();
+    // ガード状態を終了(ブレイク扱いにはしない)・腕は揃えたまま砲身にする
+    if(this._guardWarnTimer){ this._guardWarnTimer.remove(false); this._guardWarnTimer=null; }
+    if(this._guardMaxTimer){ this._guardMaxTimer.remove(false); this._guardMaxTimer=null; }
+    this.guard=false; this._guardPtrId=null;
+    this._guardCdUntil=this.time.now+600;
+    try{SE('boost');}catch(e){}
+    this._banner('🔵 裏技・インパクトキャノン!!', '#88eeff', 1300);
+    // チャージ: 揃えた両拳の間に光球が膨らむ
+    const cx=this.W/2, cy=this._armHomeY - this._armH*0.05;
+    const orb=this.add.circle(cx, cy, 8, 0x66eeff, 0.95).setDepth(23);
+    this.tweens.add({targets:orb, scaleX:4.5, scaleY:4.5, duration:650, ease:'Quad.easeIn'});
+    this.cameras.main.shake(650, 0.002);
+    this.time.delayedCall(700, ()=>{
+      if(this.state!=='fight'){ orb.destroy(); this._cannonActive=false; return; }
+      orb.destroy();
+      // 発射!!
+      try{SE('meteor');}catch(e){}
+      const ty=(this.phase==='boss')?this.enemy.y:(this.winRect?this.winRect.centerY:this.H*0.35);
+      const beamG=this.add.graphics().setDepth(23);
+      beamG.fillStyle(0x44ccee,0.55); beamG.fillRect(cx-44, ty-20, 88, cy-ty+20);
+      beamG.fillStyle(0xaaf6ff,0.95); beamG.fillRect(cx-26, ty-20, 52, cy-ty+20);
+      beamG.fillStyle(0xffffff,0.9);  beamG.fillRect(cx-10, ty-20, 20, cy-ty+20);
+      this.tweens.add({targets:beamG, alpha:0, duration:420, delay:120, onComplete:()=>beamG.destroy()});
+      this.cameras.main.flash(220, 150, 240, 255);
+      this.cameras.main.shake(300, 0.012);
+      // 命中処理
+      if(this.phase==='wave'){
+        (this.minions||[]).forEach(m=>{ if(m.hp>0) this._damageMinion(m, 999); }); // 薙ぎ払い
+      }else if(this.enemyState!=='down'){
+        const dmg=Math.round(this.punchDmg*4);
+        this.eHp=Math.max(0, this.eHp-dmg);
+        this._float(this.enemy.x+this.enemyLayer.x, ty-40, dmg+'!!', '#88eeff');
+        this._hitFlash(this.enemy.x+this.enemyLayer.x, ty);
+        this._updateBars();
+        if(this.eHp<=0) this._enemyDown();
+      }
+      // 腕を構えに戻す
+      this.tweens.add({targets:this.pArmL, x:this._armHomeXL, y:this._armHomeY, angle:0, duration:200, ease:'Quad.easeOut'});
+      this.tweens.add({targets:this.pArmR, x:this._armHomeXR, y:this._armHomeY, angle:0, duration:200, ease:'Quad.easeOut'});
+      this._cannonActive=false;
+    });
+  }
+
+  // ─────────────────────────────────────────
   // マシンガン(長押しで連射): 雑魚掃討用・ボスには豆鉄砲
   // ─────────────────────────────────────────
   _mgStart(){
-    if(this.state!=='fight' || this._specialActive || this._mgFiring || this._booting) return;
+    if(this.state!=='fight' || this._specialActive || this._cannonActive || this._mgFiring || this._booting) return;
     this._mgFiring=true;
     this.tweens.add({targets:this.mgBtn, scaleX:0.9, scaleY:0.9, duration:60});
     this._mgEvent=this.time.addEvent({delay:90, loop:true, callback:()=>this._mgShot()});
@@ -19593,7 +19673,7 @@ class ImpactScene extends Phaser.Scene{
   // プレイヤー: ガード(下スワイプ・両腕を中央に揃えて被ダメージ1/4)
   // ─────────────────────────────────────────
   _doGuard(p){
-    if(this.state!=='fight' || this.dodge || this.guard || this._specialActive) return;
+    if(this.state!=='fight' || this.dodge || this.guard || this._specialActive || this._cannonActive) return;
     if(this.time.now < (this._guardCdUntil||0)) return; // 張り直し防止のクールダウン
     this.guard=true;
     this._guardPtrId = p ? p.id : null;
@@ -19642,7 +19722,7 @@ class ImpactScene extends Phaser.Scene{
   // 必殺技: 烈火連撃(高速ラッシュ→フィニッシュ)
   // ─────────────────────────────────────────
   _doSpecial(){
-    if(this.state!=='fight' || this.phase!=='boss' || this._specialActive || this.guard || this.gauge<100) return;
+    if(this.state!=='fight' || this.phase!=='boss' || this._specialActive || this.guard || this._cannonActive || this.gauge<100) return;
     this._specialActive=true;
     this.gauge=0;
     this._updateBars();
