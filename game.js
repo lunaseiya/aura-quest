@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v9'; // 更新日付
+const GAME_VERSION = '2026-06-13-v10'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -18762,6 +18762,8 @@ const IMPACT_ENEMIES={
       texTele:'imp_gig_tk1', texAtk:'imp_gig_tk2',
     },
     texDown:'imp_gig_down', // 撃破後の倒れシーン(窓いっぱいに表示)
+    // 前座ウェーブ: ボス出現前に雑魚が複数出る(マシンガン推奨・パンチでも倒せるが非効率)
+    wave:{ count:7, hp:3, name:'クリスタルドローン' },
     files:[['imp_gig_idle','gigant_idle.webp'],['imp_gig_tele','gigant_tele.webp'],['imp_gig_atk','gigant_atk.webp'],
            ['imp_gig_sp1','gigant_sp1.webp'],['imp_gig_sp2','gigant_sp2.webp'],['imp_gig_sp3','gigant_sp3.webp'],
            ['imp_gig_tk1','gigant_tk1.webp'],['imp_gig_tk2','gigant_tk2.webp'],['imp_gig_down','gigant_down.webp']],
@@ -18812,6 +18814,8 @@ class ImpactScene extends Phaser.Scene{
 
     // ── ステート ──
     this.state = 'fight';        // fight / win / lose
+    this.phase = this.enemyDef.wave ? 'wave' : 'boss'; // wave=前座戦 / boss=本体戦
+    this.minions = [];
     this.enemyState = 'idle';    // idle / telegraph / attack / stagger / down
     this.dodge = null;           // null / 'left' / 'right'
     this.guard = false;          // 下スワイプで両腕ガード(被ダメージ1/4)
@@ -18849,6 +18853,7 @@ class ImpactScene extends Phaser.Scene{
     this.enemyLayer = this.add.container(0, 0).setDepth(10);
     if(this._enemyMask) this.enemyLayer.setMask(this._enemyMask);
     this._buildEnemy();
+    if(this.phase==='wave') this.enemy.setAlpha(0); // 前座戦の間ボスは隠す
 
     // ── プレイヤーの両腕(スクリーン越しの一人称視点) ──
     // 窓がある時は窓の下端から拳が覗く配置+マスクで「パンチがスクリーンから出ている」ように見せる
@@ -18879,7 +18884,10 @@ class ImpactScene extends Phaser.Scene{
       this._uiLock = this.time.now + 500; // スキップタップがパンチ化しないように
       this.tweens.add({targets:[this.pArmL, this.pArmR], y:this._armHomeY, duration:500, ease:'Back.easeOut'});
       this._banner('🤖 換装完了!モード・インパクト起動', '#ffcc88', 1200);
-      this.time.delayedCall(1300, ()=>{ if(this.state==='fight') this._enemyThink(); });
+      this.time.delayedCall(1300, ()=>{
+        if(this.state!=='fight') return;
+        if(this.phase==='wave') this._startWave(); else this._enemyThink();
+      });
     });
 
     // 画面回転・リサイズはレイアウトが崩れるのでシーンを組み直す
@@ -19034,6 +19042,18 @@ class ImpactScene extends Phaser.Scene{
       // 手首の装甲
       g.fillStyle(0x495362,1); g.fillRoundedRect(30,98,70,28,10);
     });
+    // 前座ミニオン(岩のドローン・仮素材)
+    mk('imp_minion',80,80,g=>{
+      g.fillStyle(0x5a5248,1); g.fillCircle(40,44,26);
+      g.lineStyle(3,0x2e2a24,1); g.strokeCircle(40,44,26);
+      // 頭のクリスタル
+      g.fillStyle(0x4488ff,1); g.fillTriangle(40,4, 30,28, 50,28);
+      g.fillStyle(0x88bbff,0.9); g.fillTriangle(40,9, 35,26, 45,26);
+      // 目(赤2つ)
+      g.fillStyle(0xff4444,1); g.fillCircle(31,42,5); g.fillCircle(49,42,5);
+      // 小さな拳
+      g.fillStyle(0x4a443c,1); g.fillCircle(14,50,9); g.fillCircle(66,50,9);
+    });
     // プレイヤー: 籠手(オレンジ×鋼・ボマー覚醒カラー)
     mk('imp_p_arm',190,250,g=>{
       // 前腕(下に向かって広がる台形)
@@ -19136,8 +19156,11 @@ class ImpactScene extends Phaser.Scene{
   // ─────────────────────────────────────────
   _buildHUD(){
     const w=this.W, h=this.H;
-    // 敵HPバー(上部)
-    this.add.text(w/2, 16, this.enemyDef.name, {
+    // 敵HPバー(上部)・前座戦中は残数表示
+    const initName=(this.phase==='wave')
+      ? '⚠ '+((this.enemyDef.wave&&this.enemyDef.wave.name)||'敵編隊')+' 残り'+((this.enemyDef.wave&&this.enemyDef.wave.count)||0)+'体'
+      : this.enemyDef.name;
+    this.eNameTxt=this.add.text(w/2, 16, initName, {
       fontSize:'14px', fontFamily:'Arial', color:'#ffdddd', fontStyle:'bold',
       stroke:'#000', strokeThickness:3
     }).setOrigin(0.5).setDepth(30);
@@ -19181,6 +19204,25 @@ class ImpactScene extends Phaser.Scene{
       this.tweens.add({targets:this.spBtn, scaleX:0.85, scaleY:0.85, duration:70, yoyo:true});
       this.time.delayedCall(90, ()=>this._doSpecial());
     });
+    // マシンガンボタン(左下コンソール・長押しで連射)
+    const mgX=Math.max(w/2-pbw/2-46, 42);
+    this.mgBtn=this.add.container(mgX, spY).setDepth(32);
+    const mgG=this.add.graphics();
+    mgG.fillStyle(0x222226,1); mgG.fillCircle(0,0,34);   // 台座
+    mgG.fillStyle(0x14304a,1); mgG.fillCircle(0,0,28);   // 外輪
+    mgG.fillStyle(0x2277cc,1); mgG.fillCircle(0,0,24);   // 青ボタン本体
+    mgG.fillStyle(0x66bbff,0.9); mgG.fillCircle(-7,-9,8); // ハイライト
+    const mgLabel=this.add.text(0,0,'🔫',{fontSize:'18px'}).setOrigin(0.5);
+    const mgCap=this.add.text(0,44,'連射(長押し)',{
+      fontSize:'10px', fontFamily:'Arial', color:'#aaddff', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5);
+    this.mgBtn.add([mgG, mgLabel, mgCap]);
+    this.mgBtn.setInteractive(new Phaser.Geom.Circle(0,0,38), Phaser.Geom.Circle.Contains);
+    this.mgBtn.on('pointerdown', ()=>{
+      this._uiLock=this.time.now+400;
+      this._mgStart();
+    });
     // 退却ボタン(右上・誤タップ防止の2度押し式)
     this.fleeBtn=this.add.rectangle(w-54, 20, 92, 30, 0x223344, 0.9)
       .setDepth(32).setStrokeStyle(2, 0x88aacc, 0.8).setInteractive({useHandCursor:true});
@@ -19216,8 +19258,8 @@ class ImpactScene extends Phaser.Scene{
     if(this.eHpBar) this.eHpBar.width=Math.max(0, this._eBarW*(this.eHp/this.eMaxHp));
     if(this.pHpBar) this.pHpBar.width=Math.max(0, this._pBarW*(this.pHp/this.pMaxHp));
     if(this.gaugeBar) this.gaugeBar.width=this._pBarW*(Math.min(100,this.gauge)/100);
-    // ゲージMAXで必殺ボタン点灯
-    const ready=(this.gauge>=100 && this.state==='fight' && !this._specialActive);
+    // ゲージMAXで必殺ボタン点灯(本体戦のみ)
+    const ready=(this.gauge>=100 && this.state==='fight' && this.phase==='boss' && !this._specialActive);
     if(this.spBtn && this.spBtn.visible!==ready){
       this.spBtn.setVisible(ready);
       if(ready){
@@ -19235,7 +19277,7 @@ class ImpactScene extends Phaser.Scene{
   // ─────────────────────────────────────────
   _bindInput(){
     this.input.on('pointermove', p=>{
-      if(this._booting) return;
+      if(this._booting || this._mgFiring) return;
       if(!p.isDown || this.state!=='fight') return;
       if(this.dodge || this.guard || this._specialActive) return;
       const dx=p.x-p.downX, dy=p.y-p.downY;
@@ -19247,6 +19289,7 @@ class ImpactScene extends Phaser.Scene{
     });
     this.input.on('pointerup', p=>{
       if(this._booting) return;
+      if(this._mgFiring){ this._mgStop(); return; } // 連射ボタンを離した
       if(this.state==='win'||this.state==='lose'){
         if(this._canLeave) this._return();
         return;
@@ -19268,8 +19311,17 @@ class ImpactScene extends Phaser.Scene{
     this._punchBusy[side]=true;
     const fist = side==='left' ? this.pArmL : this.pArmR;
     try{SE('slash');}catch(e){}
-    const tx = this.enemy.x + this.enemyLayer.x + (side==='left'?-50:50);
-    const ty = this.enemy.y - this._armH*0.25; // 拳の中心が敵のコア付近に届く高さ
+    let tx, ty;
+    if(this.phase==='wave'){
+      // 前座戦: その側に近いドローンを狙う
+      const m=this._nearestMinion(side);
+      this._punchTargetMinion=m;
+      tx=m ? (m.spr.x+this.enemyLayer.x) : (this.W/2+(side==='left'?-60:60));
+      ty=m ? (m.spr.y - this._armH*0.20) : (this.winRect?this.winRect.centerY:this.H*0.40);
+    }else{
+      tx = this.enemy.x + this.enemyLayer.x + (side==='left'?-50:50);
+      ty = this.enemy.y - this._armH*0.25; // 拳の中心が敵のコア付近に届く高さ
+    }
     const homeX=fist.x;
     this.tweens.add({targets:fist, x:tx, y:ty, scaleX:fist.scaleX*0.5, scaleY:fist.scaleY*0.5,
       duration:110, ease:'Cubic.easeIn',
@@ -19284,6 +19336,20 @@ class ImpactScene extends Phaser.Scene{
 
   _resolvePunch(side, hx, hy){
     if(this.state!=='fight') return;
+    // 前座戦: ドローンを殴る(倒せるが1体ずつなので非効率)
+    if(this.phase==='wave'){
+      const m=this._punchTargetMinion;
+      this._punchTargetMinion=null;
+      if(m && m.hp>0){
+        this._float(hx, hy-30, this.punchDmg, '#ffffff');
+        this.gauge=Math.min(100, this.gauge+4);
+        this._damageMinion(m, this.punchDmg);
+      }else{
+        this._float(hx, hy-30, 'ミス', '#999999');
+      }
+      this._updateBars();
+      return;
+    }
     const stagger=(this.enemyState==='stagger');
     // 通常時は一定確率でガードされる(スタッガー中は必ず入る)
     if(!stagger && this.enemyState==='idle' && Math.random()<0.25){
@@ -19330,6 +19396,186 @@ class ImpactScene extends Phaser.Scene{
   }
 
   // ─────────────────────────────────────────
+  // 前座ウェーブ戦: 雑魚ドローンの編隊(マシンガン推奨)
+  // ─────────────────────────────────────────
+  _startWave(){
+    const wave=this.enemyDef.wave||{};
+    const n=wave.count||7;
+    const win=this.winRect;
+    const x1=win?win.x+50:this.W*0.15, x2=win?win.right-50:this.W*0.85;
+    const y1=win?win.y+50:this.H*0.15, y2=win?win.y+win.height*0.6:this.H*0.45;
+    this._banner('⚠ 敵編隊接近!!🔫で迎撃しろ!!', '#ffcc66', 1800);
+    try{SE('boss');}catch(e){}
+    for(let i=0;i<n;i++){
+      const mx=Phaser.Math.Between(x1,x2), my=Phaser.Math.Between(y1,y2);
+      const spr=this.add.sprite(mx,my,'imp_minion');
+      const sc=(this._enemyScale||1)*Phaser.Math.FloatBetween(0.75,1.0);
+      spr.setScale(sc).setAlpha(0);
+      this.enemyLayer.add(spr);
+      this.tweens.add({targets:spr, alpha:1, duration:400, delay:i*120});
+      this.tweens.add({targets:spr, y:my-8, duration:Phaser.Math.Between(800,1300), yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+      this.minions.push({spr, hp:(wave.hp||3), homeX:mx, homeY:my, baseScale:sc, busy:false});
+    }
+    // ドローンの突撃ループ
+    this._minionTimer=this.time.addEvent({delay:1600, loop:true, callback:()=>this._minionDive()});
+  }
+
+  _minionDive(){
+    if(this.state!=='fight' || this.phase!=='wave') return;
+    const alive=this.minions.filter(m=>m.hp>0 && !m.busy);
+    if(!alive.length) return;
+    const m=Phaser.Utils.Array.GetRandom(alive);
+    m.busy=true;
+    m.spr.setTint(0xff6666);
+    const side=(m.spr.x < this.W/2)?'left':'right';
+    // 個体の頭上に小さめの⚠
+    const warn=this.add.text(m.spr.x+this.enemyLayer.x, m.spr.y-40, '⚠', {fontSize:'30px'}).setOrigin(0.5).setDepth(25);
+    this.tweens.add({targets:warn, alpha:0.2, duration:130, yoyo:true, repeat:2, onComplete:()=>warn.destroy()});
+    this.time.delayedCall(550, ()=>{
+      if(this.state!=='fight' || m.hp<=0){ if(m.spr.active) m.spr.clearTint(); m.busy=false; return; }
+      try{SE('whip');}catch(e){}
+      const tx=(side==='left')?this.W*0.35-this.enemyLayer.x:this.W*0.65-this.enemyLayer.x;
+      const ty=this.winRect?this.winRect.bottom+20:this.H*0.72;
+      this.tweens.add({targets:m.spr, x:tx, y:ty, scale:m.baseScale*1.8, duration:260, ease:'Cubic.easeIn',
+        onComplete:()=>{
+          if(this.state==='fight' && m.hp>0) this._resolveMinionHit(side);
+          this.tweens.add({targets:m.spr, x:m.homeX, y:m.homeY, scale:m.baseScale, duration:300, ease:'Quad.easeOut',
+            onComplete:()=>{ if(m.spr.active) m.spr.clearTint(); m.busy=false; }});
+        }});
+    });
+  }
+
+  _resolveMinionHit(side){
+    const base=Math.max(1, Math.round(this.enemyDmg*0.5)); // 雑魚なので軽め
+    if(this.dodge && this.dodge!==side){
+      try{SE('dodge');}catch(e){}
+      this._float(this.W/2, this.H*0.62, '回避!', '#88ffcc');
+      return;
+    }
+    if(this.guard){
+      const d=Math.max(1, Math.ceil(base/4));
+      this.pHp=Math.max(0, this.pHp-d);
+      try{SE('parry');}catch(e){}
+      this._float(this.W/2, this.H*0.60, '🛡 -'+d, '#aaccff');
+      this._updateBars();
+      if(this.pHp<=0) this._lose();
+      return;
+    }
+    try{SE('hurt');}catch(e){}
+    this.pHp=Math.max(0, this.pHp-base);
+    this._float(this.W/2, this.H*0.66, '-'+base, '#ff6666');
+    this.cameras.main.shake(120, 0.008);
+    this._updateBars();
+    if(this.pHp<=0) this._lose();
+  }
+
+  _nearestMinion(side){
+    const refX=(side==='left'?this.W*0.35:this.W*0.65)-this.enemyLayer.x;
+    let best=null, bd=Infinity;
+    (this.minions||[]).forEach(m=>{
+      if(m.hp<=0) return;
+      const d=Math.abs(m.spr.x-refX);
+      if(d<bd){ bd=d; best=m; }
+    });
+    return best;
+  }
+
+  _damageMinion(m, dmg){
+    if(m.hp<=0) return;
+    m.hp-=dmg;
+    this._hitFlash(m.spr.x+this.enemyLayer.x, m.spr.y);
+    if(m.hp<=0){
+      try{SE('kill_pop');}catch(e){}
+      this.gauge=Math.min(100, this.gauge+4);
+      const spr=m.spr;
+      this.tweens.killTweensOf(spr);
+      this.tweens.add({targets:spr, alpha:0, scale:spr.scale*0.3, angle:90, duration:250, onComplete:()=>spr.destroy()});
+      const aliveN=this.minions.filter(x=>x.hp>0).length;
+      if(this.eNameTxt && this.phase==='wave'){
+        this.eNameTxt.setText('⚠ '+((this.enemyDef.wave&&this.enemyDef.wave.name)||'敵編隊')+' 残り'+aliveN+'体');
+      }
+      if(aliveN<=0) this._waveClear();
+    }else{
+      try{SE('hit');}catch(e){}
+    }
+    this._updateBars();
+  }
+
+  _waveClear(){
+    if(this.phase!=='wave') return;
+    this.phase='boss';
+    if(this._minionTimer){ this._minionTimer.remove(false); this._minionTimer=null; }
+    try{SE('clear');}catch(e){}
+    if(this.eNameTxt) this.eNameTxt.setText(this.enemyDef.name);
+    this._banner('💥 '+this.enemyDef.name+' 出現!!', '#ff8866', 1500);
+    // ボス登場(奥からズームイン)
+    const s=this._enemyScale||1;
+    this.enemy.setScale(s*1.6).setAlpha(0);
+    this.time.delayedCall(500, ()=>{
+      try{SE('boss');}catch(e){}
+      this.cameras.main.shake(300, 0.008);
+      this.tweens.add({targets:this.enemy, alpha:1, scaleX:s, scaleY:s, duration:800, ease:'Quad.easeOut'});
+    });
+    this.time.delayedCall(1800, ()=>{ if(this.state==='fight') this._enemyThink(); });
+  }
+
+  // ─────────────────────────────────────────
+  // マシンガン(長押しで連射): 雑魚掃討用・ボスには豆鉄砲
+  // ─────────────────────────────────────────
+  _mgStart(){
+    if(this.state!=='fight' || this._specialActive || this._mgFiring || this._booting) return;
+    this._mgFiring=true;
+    this.tweens.add({targets:this.mgBtn, scaleX:0.9, scaleY:0.9, duration:60});
+    this._mgEvent=this.time.addEvent({delay:90, loop:true, callback:()=>this._mgShot()});
+    this._mgShot();
+  }
+
+  _mgStop(){
+    if(!this._mgFiring) return;
+    this._mgFiring=false;
+    if(this._mgEvent){ this._mgEvent.remove(false); this._mgEvent=null; }
+    if(this.mgBtn) this.tweens.add({targets:this.mgBtn, scaleX:1, scaleY:1, duration:80});
+  }
+
+  _mgShot(){
+    if(this.state!=='fight' || this._specialActive){ this._mgStop(); return; }
+    // ターゲット選定
+    let tx, ty, hitMinion=null;
+    if(this.phase==='wave'){
+      const alive=(this.minions||[]).filter(m=>m.hp>0);
+      if(!alive.length) return;
+      hitMinion=Phaser.Utils.Array.GetRandom(alive);
+      tx=hitMinion.spr.x+this.enemyLayer.x+Phaser.Math.Between(-8,8);
+      ty=hitMinion.spr.y+Phaser.Math.Between(-8,8);
+    }else{
+      if(this.enemyState==='down') return;
+      tx=this.enemy.x+this.enemyLayer.x+Phaser.Math.Between(-50,50);
+      ty=this.enemy.y+Phaser.Math.Between(-40,40);
+    }
+    // 銃口(マシンガンボタンの上)からのトレーサー+マズルフラッシュ
+    const gx=this.mgBtn.x, gy=this.mgBtn.y-36;
+    const lineG=this.add.graphics().setDepth(22);
+    lineG.lineStyle(2, 0xffee88, 0.9);
+    lineG.lineBetween(gx, gy, tx, ty);
+    this.tweens.add({targets:lineG, alpha:0, duration:80, onComplete:()=>lineG.destroy()});
+    const mf=this.add.circle(gx, gy, 7, 0xffcc44, 0.9).setDepth(22);
+    this.tweens.add({targets:mf, alpha:0, scaleX:1.6, scaleY:1.6, duration:70, onComplete:()=>mf.destroy()});
+    try{SE('arrow');}catch(e){}
+    // 命中処理
+    if(hitMinion){
+      this._damageMinion(hitMinion, 1); // 雑魚はサクサク削れる
+    }else{
+      // ボスへは豆鉄砲(チップダメージのみ・ゲージも溜まらない)
+      const dmg=Math.max(1, Math.round(this.punchDmg*0.05));
+      this.eHp=Math.max(0, this.eHp-dmg);
+      this._hitFlash(tx, ty);
+      if(Math.random()<0.25) this._float(tx, ty-16, dmg, '#bbbbbb');
+      this._updateBars();
+      if(this.eHp<=0) this._enemyDown();
+    }
+  }
+
+  // ─────────────────────────────────────────
   // プレイヤー: ガード(下スワイプ・両腕を中央に揃えて被ダメージ1/4)
   // ─────────────────────────────────────────
   _doGuard(){
@@ -19352,7 +19598,7 @@ class ImpactScene extends Phaser.Scene{
   // 必殺技: 烈火連撃(高速ラッシュ→フィニッシュ)
   // ─────────────────────────────────────────
   _doSpecial(){
-    if(this.state!=='fight' || this._specialActive || this.guard || this.gauge<100) return;
+    if(this.state!=='fight' || this.phase!=='boss' || this._specialActive || this.guard || this.gauge<100) return;
     this._specialActive=true;
     this.gauge=0;
     this._updateBars();
