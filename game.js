@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v14'; // 更新日付
+const GAME_VERSION = '2026-06-13-v15'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -19255,6 +19255,11 @@ class ImpactScene extends Phaser.Scene{
         }
       });
     });
+    // 低HPアラート(機体HP20%以下で画面が赤くゆっくり点滅する常駐オーバーレイ)
+    // depth28: コックピット(6)/敵(10)の上、HPバー(30,31)・ボタン(32)の下
+    this.lowHpOverlay=this.add.rectangle(w/2, h/2, w, h, 0xff0000, 1)
+      .setDepth(28).setAlpha(0).setVisible(false);
+    this._lowHpOn=false;
     // 操作ヒント(開幕数秒だけ)
     const hint=this.add.text(w/2, h*0.62,
       '⚔ 左右タップ: パンチ\n💨 攻撃と逆へスワイプ: 回避\n🛡 下へスワイプ: ガード(押しっぱなしで持続)', {
@@ -19280,6 +19285,23 @@ class ImpactScene extends Phaser.Scene{
         this.tweens.killTweensOf(this.spBtn);
         this.spBtn.setScale(1).setAlpha(0.45);
       }
+    }
+    this._checkLowHp();
+  }
+
+  // 機体HP20%以下で赤い画面オーバーレイをゆっくり点滅(状態変化時のみ切替)
+  _checkLowHp(){
+    if(!this.lowHpOverlay) return;
+    const low=(this.state==='fight' && this.pHp>0 && this.pHp<=this.pMaxHp*0.2);
+    if(low===this._lowHpOn) return;
+    this._lowHpOn=low;
+    this.tweens.killTweensOf(this.lowHpOverlay);
+    if(low){
+      this.lowHpOverlay.setVisible(true).setAlpha(0);
+      this.tweens.add({targets:this.lowHpOverlay, alpha:0.34, duration:650,
+        yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    }else{
+      this.lowHpOverlay.setVisible(false).setAlpha(0);
     }
   }
 
@@ -20138,6 +20160,7 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight') return;
     this.state='win';
     this.enemyState='down';
+    this._checkLowHp(); // 低HPアラート停止
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
     if(this._idleTween) this._idleTween.stop();
     this._clearWarn();
@@ -20172,6 +20195,7 @@ class ImpactScene extends Phaser.Scene{
   _lose(){
     if(this.state!=='fight') return;
     this.state='lose';
+    this._checkLowHp(); // 低HPアラート停止(敗北の赤演出と重複させない)
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
     this._clearWarn();
     this._clearEnemyTint();
