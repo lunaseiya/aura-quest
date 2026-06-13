@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v15'; // 更新日付
+const GAME_VERSION = '2026-06-13-v16'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13701,7 +13701,7 @@ class GameScene extends Phaser.Scene{
     const w = this.scale.width, h = this.scale.height;
     const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
       .setScrollFactor(0).setDepth(100).setInteractive();
-    const boxW = Math.min(w*0.85, 540), boxH = 340;
+    const boxW = Math.min(w*0.85, 540), boxH = 396;
     const boxX = w/2, boxY = h - boxH/2 - 30;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x1a1208, 0.96)
       .setScrollFactor(0).setDepth(101)
@@ -13720,6 +13720,7 @@ class GameScene extends Phaser.Scene{
     const monDefs=[
       {id:'test',   label:'訓練用ゴーレム G-1号', sub:'標準的な訓練相手'},
       {id:'gigant', label:'ギガントクロス',       sub:'岩の巨人・手強い(報酬1.5倍)'},
+      {id:'crab',   label:'カニキング',           sub:'水砲ブレスを撃つ甲殻獣(報酬1.7倍)'},
     ];
     const monBtns=[];
     const refreshSel=()=>{
@@ -13749,7 +13750,7 @@ class GameScene extends Phaser.Scene{
     });
     refreshSel();
     // 操作説明(コンパクト)
-    elements.push(this.add.text(boxX, boxY - boxH/2 + 196,
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 248,
       '⚔ 左右タップ:パンチ / 💨 横スワイプ:回避\n🛡 下スワイプ:ガード(押しっぱなしで持続・1/4)\n🔫 青ボタン長押し:連射 / ⚡ ゲージMAXで必殺',
       {fontSize:'11px', fontFamily:'Arial', color:'#bbbbbb', align:'center', lineSpacing:4}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
@@ -18770,6 +18771,19 @@ const IMPACT_ENEMIES={
            ['imp_gig_sp1','gigant_sp1.webp'],['imp_gig_sp2','gigant_sp2.webp'],['imp_gig_sp3','gigant_sp3.webp'],
            ['imp_gig_tk1','gigant_tk1.webp'],['imp_gig_tk2','gigant_tk2.webp'],['imp_gig_down','gigant_down.webp']],
   },
+  crab:{
+    name:'カニキング', type:'img',
+    hpMul:1.6, dmgMul:1.2, goldMul:1.7,
+    texIdle:'imp_crab_idle', texTele:'imp_crab_atk', texAtk:'imp_crab_atk',
+    texDown:'imp_crab_down',
+    // 必殺: 水砲ブレス(回避不能・ガードのみ有効)。窓いっぱいの水エフェクトで表現
+    special:{
+      type:'breath', name:'水砲ブレス', dmgMul:2.2,
+      texCharge:'imp_crab_breath1', texAtk:'imp_crab_breath2',
+    },
+    files:[['imp_crab_idle','crab_idle.webp'],['imp_crab_atk','crab_atk.webp'],['imp_crab_down','crab_down.webp'],
+           ['imp_crab_breath1','crab_breath1.webp'],['imp_crab_breath2','crab_breath2.webp']],
+  },
 };
 
 class ImpactScene extends Phaser.Scene{
@@ -19922,6 +19936,7 @@ class ImpactScene extends Phaser.Scene{
   _enemySpecial(){
     if(this.state!=='fight' || this._specialActive){ this._enemyThink(); return; }
     const sp=this.enemyDef.special;
+    if(sp && sp.type==='breath'){ this._enemyWaterBreath(); return; } // 水砲ブレス系
     this.enemyState='telegraph';
     this._eAtkCount=0;
     try{SE('berserk');}catch(e){}
@@ -20003,6 +20018,107 @@ class ImpactScene extends Phaser.Scene{
     this._updateBars();
     if(this.pHp<=0){ this._lose(); return; }
     this._enemyThink();
+  }
+
+  // ─────────────────────────────────────────
+  // 敵必殺技: 水砲ブレス(カニキング等・回避不能/ガードのみ有効)
+  //   溜め(全画面に水チャージ)→ 発射(水ブレス画像をバーンと表示)
+  // ─────────────────────────────────────────
+  _enemyWaterBreath(){
+    if(this.state!=='fight') return;
+    this.enemyState='telegraph';
+    this._eAtkCount=0;
+    const sp=this.enemyDef.special;
+    const win=this.winRect;
+    try{SE('boss');}catch(e){}
+    // 警告(青系・回避不能なのでガード指示)
+    this._clearWarn();
+    const glow=this.add.rectangle(this.W/2, win?win.centerY:this.H*0.35,
+      win?win.width:this.W, win?win.height:this.H*0.6, 0x2299ff, 0.16).setDepth(24);
+    const t1=this.add.text(this.W/2, (win?win.y:20)+30, '⚠ '+(sp.name||'必殺')+' ⚠', {
+      fontSize:'28px', fontFamily:'Arial', color:'#66ccff', fontStyle:'bold',
+      stroke:'#000', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    const t2=this.add.text(this.W/2, win?win.bottom-70:this.H*0.58, '⬇ ガードしろ!!(回避不能)', {
+      fontSize:'24px', fontFamily:'Arial', color:'#88ddff', fontStyle:'bold',
+      stroke:'#003366', strokeThickness:6
+    }).setOrigin(0.5).setDepth(25);
+    this._warnEls=[glow, t1, t2];
+    this.tweens.add({targets:this._warnEls, alpha:0.3, duration:160, yoyo:true, repeat:-1});
+    // 敵が少し引いて水を溜める + チャージ画像フェードイン
+    this.tweens.add({targets:this.enemy, y:this._enemyHomeY-14, duration:this.telegraphMs, yoyo:true});
+    this._showBreathImg(sp.texCharge, 0.55, this.telegraphMs);
+    this._eTimer=this.time.delayedCall(this.telegraphMs+450, ()=>this._waterBreathStrike());
+  }
+
+  _waterBreathStrike(){
+    this._clearWarn();
+    if(this.state!=='fight'){ this._destroyBreathImg(false); return; }
+    this.enemyState='attack';
+    const sp=this.enemyDef.special;
+    try{SE('meteor');}catch(e){}
+    // 発射画像にバーンと切替
+    this._showBreathImg(sp.texAtk, 0.95, 0);
+    this.cameras.main.flash(220, 80, 180, 255);
+    this.cameras.main.shake(320, 0.014);
+    this._resolveEnemyBreathHit();
+    // フェードアウト → 待機へ
+    this.time.delayedCall(520, ()=>{
+      this._destroyBreathImg(true);
+      if(this.state==='fight') this._enemyThink();
+    });
+  }
+
+  // 水ブレス画像を窓いっぱいに表示(coverスケール・マスクで窓内にクリップ)
+  _showBreathImg(tex, alpha, fadeMs){
+    if(!tex || !this.textures.exists(tex)) return;
+    const win=this.winRect;
+    const src=this.textures.get(tex).getSourceImage();
+    const cx=win?win.centerX:this.W/2, cy=win?win.centerY:this.H*0.4;
+    const sc=win?Math.max(win.width/src.width, win.height/src.height):Math.max(this.W/src.width,this.H/src.height);
+    if(!this._breathImg){
+      this._breathImg=this.add.image(cx, cy, tex).setDepth(12).setScale(sc);
+      if(this._enemyMask) this._breathImg.setMask(this._enemyMask);
+    }else{
+      this._breathImg.setTexture(tex).setScale(sc);
+    }
+    if(fadeMs>0){
+      this._breathImg.setAlpha(0);
+      this.tweens.add({targets:this._breathImg, alpha:alpha, duration:fadeMs, ease:'Quad.easeIn'});
+    }else{
+      this._breathImg.setAlpha(alpha);
+    }
+  }
+
+  _destroyBreathImg(fade){
+    if(!this._breathImg) return;
+    const img=this._breathImg; this._breathImg=null;
+    this.tweens.killTweensOf(img);
+    if(fade){
+      this.tweens.add({targets:img, alpha:0, duration:350, onComplete:()=>{try{img.destroy();}catch(e){}}});
+    }else{
+      try{img.destroy();}catch(e){}
+    }
+  }
+
+  _resolveEnemyBreathHit(){
+    const sp=this.enemyDef.special;
+    const base=Math.max(1, Math.round(this.enemyDmg*(sp.dmgMul||2.2)));
+    if(this.guard){
+      const dmg=Math.max(1, Math.round(base/2)); // 必殺はガードでも半減止まり
+      this.pHp=Math.max(0, this.pHp-dmg);
+      try{SE('parry');}catch(e){}
+      this._float(this.W/2, this.H*0.60, '🛡 ガード! -'+dmg, '#aaccff');
+      this.cameras.main.shake(200, 0.010);
+    }else{
+      if(this.dodge) this._float(this.W/2, this.H*0.54, '回避不能!!', '#66ccff');
+      this.pHp=Math.max(0, this.pHp-base);
+      try{SE('hurt');}catch(e){}
+      this._float(this.W/2, this.H*0.66, '-'+base, '#ff5555');
+    }
+    this._updateBars();
+    if(this.pHp<=0){ this._lose(); return; }
+    // 続行は _waterBreathStrike の delayedCall で _enemyThink
   }
 
   _enemyTelegraph(){
@@ -20161,6 +20277,7 @@ class ImpactScene extends Phaser.Scene{
     this.state='win';
     this.enemyState='down';
     this._checkLowHp(); // 低HPアラート停止
+    this._destroyBreathImg && this._destroyBreathImg(true); // 水ブレス演出を片付け
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
     if(this._idleTween) this._idleTween.stop();
     this._clearWarn();
@@ -20196,6 +20313,7 @@ class ImpactScene extends Phaser.Scene{
     if(this.state!=='fight') return;
     this.state='lose';
     this._checkLowHp(); // 低HPアラート停止(敗北の赤演出と重複させない)
+    this._destroyBreathImg && this._destroyBreathImg(false);
     if(this._eTimer){ this._eTimer.remove(false); this._eTimer=null; }
     this._clearWarn();
     this._clearEnemyTint();
