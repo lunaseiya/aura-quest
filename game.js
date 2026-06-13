@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v17'; // 更新日付
+const GAME_VERSION = '2026-06-14-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20091,8 +20091,10 @@ class ImpactScene extends Phaser.Scene{
     if(!tex || !this.textures.exists(tex)) return;
     const win=this.winRect;
     const src=this.textures.get(tex).getSourceImage();
-    const cx=win?win.centerX:this.W/2, cy=win?win.centerY:this.H*0.4;
-    const sc=win?Math.max(win.width/src.width, win.height/src.height):Math.max(this.W/src.width,this.H/src.height);
+    const cx=win?win.centerX:this.W/2, cy=win?(win.centerY+win.height*0.06):this.H*0.42;
+    // cover基準を敵ごとの係数で縮小(画面いっぱいだと大きすぎるため)
+    const cover=win?Math.max(win.width/src.width, win.height/src.height):Math.max(this.W/src.width,this.H/src.height);
+    const sc=cover*((this.enemyDef.special&&this.enemyDef.special.fxScale)||0.62);
     if(!this._breathImg){
       this._breathImg=this.add.image(cx, cy, tex).setDepth(12).setScale(sc);
       if(this._enemyMask) this._breathImg.setMask(this._enemyMask);
