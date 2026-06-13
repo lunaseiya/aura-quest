@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v16'; // 更新日付
+const GAME_VERSION = '2026-06-13-v17'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13721,6 +13721,7 @@ class GameScene extends Phaser.Scene{
       {id:'test',   label:'訓練用ゴーレム G-1号', sub:'標準的な訓練相手'},
       {id:'gigant', label:'ギガントクロス',       sub:'岩の巨人・手強い(報酬1.5倍)'},
       {id:'crab',   label:'カニキング',           sub:'水砲ブレスを撃つ甲殻獣(報酬1.7倍)'},
+      {id:'golden', label:'ゴールデンニャイト',     sub:'十万両アタックの招き猫ロボ(報酬2.5倍)'},
     ];
     const monBtns=[];
     const refreshSel=()=>{
@@ -13731,7 +13732,7 @@ class GameScene extends Phaser.Scene{
       });
     };
     monDefs.forEach((md,i)=>{
-      const by=boxY - boxH/2 + 84 + i*48;
+      const by=boxY - boxH/2 + 80 + i*44;
       const bg=this.add.rectangle(boxX, by, boxW-40, 42, 0x2a2218, 0.95)
         .setScrollFactor(0).setDepth(102).setInteractive({useHandCursor:true});
       const tx=this.add.text(boxX, by-9, md.label, {
@@ -13750,7 +13751,7 @@ class GameScene extends Phaser.Scene{
     });
     refreshSel();
     // 操作説明(コンパクト)
-    elements.push(this.add.text(boxX, boxY - boxH/2 + 248,
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 268,
       '⚔ 左右タップ:パンチ / 💨 横スワイプ:回避\n🛡 下スワイプ:ガード(押しっぱなしで持続・1/4)\n🔫 青ボタン長押し:連射 / ⚡ ゲージMAXで必殺',
       {fontSize:'11px', fontFamily:'Arial', color:'#bbbbbb', align:'center', lineSpacing:4}
     ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
@@ -18784,6 +18785,20 @@ const IMPACT_ENEMIES={
     files:[['imp_crab_idle','crab_idle.webp'],['imp_crab_atk','crab_atk.webp'],['imp_crab_down','crab_down.webp'],
            ['imp_crab_breath1','crab_breath1.webp'],['imp_crab_breath2','crab_breath2.webp']],
   },
+  golden:{
+    name:'ゴールデンニャイト', type:'img',
+    hpMul:1.8, dmgMul:1.3, goldMul:2.5, // 金運の招き猫ロボ・報酬激高
+    texIdle:'imp_gold_idle', texTele:'imp_gold_idle', texAtk:'imp_gold_idle',
+    texDown:'imp_gold_down',
+    // 必殺「十万両アタック」: 回避不能・ガードのみ有効。金色の全画面エフェクト
+    special:{
+      type:'breath', name:'十万両アタック', dmgMul:2.4,
+      texCharge:'imp_gold_charge', texAtk:'imp_gold_atk',
+      glowColor:0xffcc00, warnColor:'#ffdd44', flash:[255,210,80],
+    },
+    files:[['imp_gold_idle','golden_idle.webp'],['imp_gold_charge','golden_charge.webp'],
+           ['imp_gold_atk','golden_atk.webp'],['imp_gold_down','golden_down.webp']],
+  },
 };
 
 class ImpactScene extends Phaser.Scene{
@@ -20030,13 +20045,14 @@ class ImpactScene extends Phaser.Scene{
     this._eAtkCount=0;
     const sp=this.enemyDef.special;
     const win=this.winRect;
+    const glowC=sp.glowColor||0x2299ff, warnC=sp.warnColor||'#66ccff'; // 敵ごとの必殺カラー
     try{SE('boss');}catch(e){}
-    // 警告(青系・回避不能なのでガード指示)
+    // 警告(回避不能なのでガード指示)
     this._clearWarn();
     const glow=this.add.rectangle(this.W/2, win?win.centerY:this.H*0.35,
-      win?win.width:this.W, win?win.height:this.H*0.6, 0x2299ff, 0.16).setDepth(24);
+      win?win.width:this.W, win?win.height:this.H*0.6, glowC, 0.16).setDepth(24);
     const t1=this.add.text(this.W/2, (win?win.y:20)+30, '⚠ '+(sp.name||'必殺')+' ⚠', {
-      fontSize:'28px', fontFamily:'Arial', color:'#66ccff', fontStyle:'bold',
+      fontSize:'28px', fontFamily:'Arial', color:warnC, fontStyle:'bold',
       stroke:'#000', strokeThickness:6
     }).setOrigin(0.5).setDepth(25);
     const t2=this.add.text(this.W/2, win?win.bottom-70:this.H*0.58, '⬇ ガードしろ!!(回避不能)', {
@@ -20059,7 +20075,8 @@ class ImpactScene extends Phaser.Scene{
     try{SE('meteor');}catch(e){}
     // 発射画像にバーンと切替
     this._showBreathImg(sp.texAtk, 0.95, 0);
-    this.cameras.main.flash(220, 80, 180, 255);
+    const fl=sp.flash||[80,180,255];
+    this.cameras.main.flash(220, fl[0], fl[1], fl[2]);
     this.cameras.main.shake(320, 0.014);
     this._resolveEnemyBreathHit();
     // フェードアウト → 待機へ
