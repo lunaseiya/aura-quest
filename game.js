@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-13-v13'; // 更新日付
+const GAME_VERSION = '2026-06-13-v14'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -188,6 +188,8 @@ const BGM_FILES={
   sakura_dun:  BASE+'bgm/bgm_sakuradun.mp3',   // 桜の城
   // ボス戦
   boss:        BASE+'bgm/bgm_boss.mp3',
+  // インパクト戦(ロボ格闘ミニゲーム)
+  impact:      BASE+'bgm/big_impact.mp3',
 };
 
 // ============================================================
@@ -18877,8 +18879,8 @@ class ImpactScene extends Phaser.Scene{
     this._buildHUD();
     this._bindInput();
 
-    // BGM(ボス戦曲を流用)
-    try{ startBGM('boss'); }catch(e){}
+    // BGM(インパクト戦専用曲)
+    try{ startBGM('impact'); }catch(e){}
 
     // 起動シーケンス(BIG IMPACT システムブート) → 完了後に腕が上がって戦闘開始
     this._booting = true;
