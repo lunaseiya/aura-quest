@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-14-v4'; // 更新日付
+const GAME_VERSION = '2026-06-14-v6'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20519,7 +20519,12 @@ class ShooterScene extends Phaser.Scene{
     const w=this.scale.width, h=this.scale.height;
     this.W=w; this.H=h;
     const pd=this.playerData||{}; const lv=pd.lv||1;
+    // 本編は横画面前提で index.html の #rotate-prompt が縦向き時に画面を覆う。
+    // 射撃訓練は縦推奨なので、このシーンの間だけ HTML 警告を抑制する(shutdownで復元)。
+    this._rotatePromptEl=(typeof document!=='undefined')?document.getElementById('rotate-prompt'):null;
+    if(this._rotatePromptEl) this._rotatePromptEl.style.display='none';
     // ── ステート/パラメータ ──
+    this._resizing=false; // restartロック(回転検知が詰まらないよう毎create必ずリセット)
     this.state='play';
     this.mhp=8; this.hp=this.mhp;
     this.shots=1;            // 矢の本数(🟡で増える)
@@ -20567,10 +20572,21 @@ class ShooterScene extends Phaser.Scene{
     // 縦持ちならゲーム開始、横持ちなら「縦にして」案内(回転で自動的にrestart→開始)
     if(this.H >= this.W){ this._startGame(); }
     else{ this._showRotateNotice(); }
-    // リサイズはレイアウトが崩れるのでシーン再構築
-    this._onResize=()=>{ if(this._resizing)return; this._resizing=true; this.time.delayedCall(150,()=>this.scene.restart(this._initData)); };
+    // リサイズ/回転でレイアウトを作り直す
+    this._onResize=()=>this._restartOnce();
     this.scale.on('resize', this._onResize);
-    this.events.once('shutdown', ()=>this.scale.off('resize', this._onResize));
+    this.events.once('shutdown', ()=>{
+      this.scale.off('resize', this._onResize);
+      // HTML の縦持ち警告を復元(本編は横画面前提なので元に戻す)
+      if(this._rotatePromptEl) this._rotatePromptEl.style.display='';
+    });
+  }
+
+  // 多重防止つきの再構築(resize/回転ポーリングの両方からここを呼ぶ)
+  _restartOnce(){
+    if(this._resizing) return;
+    this._resizing=true;
+    this.time.delayedCall(140, ()=>{ if(this.scene&&this.scene.restart) this.scene.restart(this._initData); });
   }
 
   _startGame(){
@@ -20593,12 +20609,27 @@ class ShooterScene extends Phaser.Scene{
       fontSize:'18px',fontFamily:'Arial',color:'#aaffcc',fontStyle:'bold',
       align:'center',lineSpacing:6,stroke:'#000',strokeThickness:4
     }).setOrigin(0.5));
+    // 今のまま(横持ち)始める — 回転ロック中などで縦にできない場合の逃げ道
+    const sy=H-92;
+    const sbg=this.add.rectangle(W/2,sy,200,38,0x2e8b57,0.95).setStrokeStyle(2,0x99ffcc,0.85).setInteractive({useHandCursor:true});
+    const stx=this.add.text(W/2,sy,'▶ 今のまま始める',{fontSize:'13px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
+    sbg.on('pointerdown',()=>{
+      try{SE('click');}catch(e){}
+      if(this._orientWatch){ this._orientWatch.remove(false); this._orientWatch=null; }
+      if(this._rotateUI){ this._rotateUI.destroy(); this._rotateUI=null; }
+      this._startGame();
+    });
+    // セントラルへ戻る
     const by=H-46;
-    const bg=this.add.rectangle(W/2,by,180,38,0x223344,0.95).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
+    const bg=this.add.rectangle(W/2,by,200,38,0x223344,0.95).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
     const tx=this.add.text(W/2,by,'🏳 セントラルへ戻る',{fontSize:'13px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
     bg.on('pointerdown',()=>{ try{SE('click');}catch(e){} this._return(); });
-    c.add([bg,tx]);
+    c.add([sbg,stx,bg,tx]);
     this._rotateUI=c;
+    // 縦に回したら自動で開始。resizeイベントの取りこぼしに備え向きをポーリング監視
+    this._orientWatch=this.time.addEvent({delay:250, loop:true, callback:()=>{
+      if(this.scale.height >= this.scale.width) this._restartOnce();
+    }});
   }
 
   _startFire(){
