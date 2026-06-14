@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-14-v3'; // 更新日付
+const GAME_VERSION = '2026-06-14-v4'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20563,14 +20563,42 @@ class ShooterScene extends Phaser.Scene{
       if(this.state!=='play' && this._canLeave) this._return();
     });
     this._buildHUD();
-    this._startFire();
-    this._enemyTimer=this.time.addEvent({delay:760, loop:true, callback:()=>this._spawnEnemy()});
     try{startBGM('east');}catch(e){}
-    this._banner('🎯 射撃訓練 開始!', '#aaffcc', 1200);
+    // 縦持ちならゲーム開始、横持ちなら「縦にして」案内(回転で自動的にrestart→開始)
+    if(this.H >= this.W){ this._startGame(); }
+    else{ this._showRotateNotice(); }
     // リサイズはレイアウトが崩れるのでシーン再構築
     this._onResize=()=>{ if(this._resizing)return; this._resizing=true; this.time.delayedCall(150,()=>this.scene.restart(this._initData)); };
     this.scale.on('resize', this._onResize);
     this.events.once('shutdown', ()=>this.scale.off('resize', this._onResize));
+  }
+
+  _startGame(){
+    this.state='play';
+    this._startFire();
+    this._enemyTimer=this.time.addEvent({delay:760, loop:true, callback:()=>this._spawnEnemy()});
+    this._banner('🎯 射撃訓練 開始!', '#aaffcc', 1200);
+  }
+
+  // 横持ち時の「縦にして」案内(回転すると_onResize→restartで自動的に開始へ)
+  _showRotateNotice(){
+    this.state='rotate';
+    const W=this.W, H=this.H;
+    const c=this.add.container(0,0).setDepth(60);
+    c.add(this.add.rectangle(W/2,H/2,W,H,0x05140d,0.97));
+    const ph=this.add.text(W/2,H/2-46,'📱',{fontSize:'56px'}).setOrigin(0.5);
+    this.tweens.add({targets:ph, angle:-90, duration:1000, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    c.add(ph);
+    c.add(this.add.text(W/2,H/2+30,'スマホを縦にして\nプレイしてください',{
+      fontSize:'18px',fontFamily:'Arial',color:'#aaffcc',fontStyle:'bold',
+      align:'center',lineSpacing:6,stroke:'#000',strokeThickness:4
+    }).setOrigin(0.5));
+    const by=H-46;
+    const bg=this.add.rectangle(W/2,by,180,38,0x223344,0.95).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
+    const tx=this.add.text(W/2,by,'🏳 セントラルへ戻る',{fontSize:'13px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
+    bg.on('pointerdown',()=>{ try{SE('click');}catch(e){} this._return(); });
+    c.add([bg,tx]);
+    this._rotateUI=c;
   }
 
   _startFire(){
