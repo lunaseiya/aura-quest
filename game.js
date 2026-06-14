@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-14-v2'; // 更新日付
+const GAME_VERSION = '2026-06-14-v3'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20545,13 +20545,23 @@ class ShooterScene extends Phaser.Scene{
     this.physics.add.overlap(this.player, this.enemies, this._playerHitEnemy, null, this);
     this.physics.add.overlap(this.player, this.ebullets, this._playerHitBullet, null, this);
     this.physics.add.overlap(this.player, this.items, this._getItem, null, this);
-    // 入力(なぞって移動)
-    this.input.on('pointermove', p=>{
-      if(this.state!=='play' || !p.isDown) return;
-      this.player.x=Phaser.Math.Clamp(p.x, 30, this.W-30);
-      this.player.y=Phaser.Math.Clamp(p.y-50, 70, this.H-40);
+    // 入力(相対ドラッグ): タッチ位置を基準に、動かした分だけ自機が動く。
+    // 指を離して別の場所を触っても基準が更新されるだけでワープしない。
+    this._minX=30; this._maxX=this.W-30; this._minY=70; this._maxY=this.H-40;
+    this._dragSens=1.15;
+    this.input.on('pointerdown', p=>{
+      if(this.state!=='play') return;
+      this._drag={px:p.x, py:p.y, sx:this.player.x, sy:this.player.y};
     });
-    this.input.on('pointerup', ()=>{ if(this.state!=='play' && this._canLeave) this._return(); });
+    this.input.on('pointermove', p=>{
+      if(this.state!=='play' || !p.isDown || !this._drag) return;
+      this.player.x=Phaser.Math.Clamp(this._drag.sx+(p.x-this._drag.px)*this._dragSens, this._minX, this._maxX);
+      this.player.y=Phaser.Math.Clamp(this._drag.sy+(p.y-this._drag.py)*this._dragSens, this._minY, this._maxY);
+    });
+    this.input.on('pointerup', ()=>{
+      this._drag=null;
+      if(this.state!=='play' && this._canLeave) this._return();
+    });
     this._buildHUD();
     this._startFire();
     this._enemyTimer=this.time.addEvent({delay:760, loop:true, callback:()=>this._spawnEnemy()});
