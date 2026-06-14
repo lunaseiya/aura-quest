@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-14-v1'; // 更新日付
+const GAME_VERSION = '2026-06-14-v2'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -1428,6 +1428,22 @@ class BootScene extends Phaser.Scene{
       // 胸のコア
       g.fillStyle(0xff8830,1); g.fillCircle(48,74,7);
       g.fillStyle(0xffdd88,0.9); g.fillCircle(48,74,3);
+    });
+
+    // ── 射撃訓練 NPC スプライト (96x96・的+弓) ──
+    mk2('npc_shooter',96,96,g=>{
+      // 背景の緑円
+      g.fillStyle(0x2e8b57,0.95); g.fillCircle(48,48,42);
+      g.lineStyle(3,0x14502f,1);  g.strokeCircle(48,48,42);
+      // 的(同心円)
+      g.fillStyle(0xffffff,1); g.fillCircle(48,44,26);
+      g.fillStyle(0xdd2222,1); g.fillCircle(48,44,20);
+      g.fillStyle(0xffffff,1); g.fillCircle(48,44,13);
+      g.fillStyle(0xdd2222,1); g.fillCircle(48,44,6);
+      // 刺さった矢
+      g.lineStyle(4,0x8b5a2b,1); g.lineBetween(70,22,46,44);
+      g.fillStyle(0xffcc33,1); g.fillTriangle(46,44,54,30,58,40);
+      g.fillStyle(0xeeeeee,1); g.fillTriangle(70,22,74,18,76,26);
     });
 
     // ── ファイアボール ──
@@ -6743,6 +6759,7 @@ class GameScene extends Phaser.Scene{
     if(testMode && this.stage === 0){
       this._spawnTestNpc();
       this._spawnImpactNpc(); // パワーインパクト(インパクト戦ミニゲーム入口)
+      this._spawnShooterNpc(); // 射撃訓練(縦シューティングミニゲーム入口)
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -13794,6 +13811,86 @@ class GameScene extends Phaser.Scene{
     });
   }
 
+  // ─────────────────────────────────────────
+  // 射撃訓練場 NPC(縦シューティングミニゲーム入口・テストモード時にセントラルへ出現)
+  // ─────────────────────────────────────────
+  _spawnShooterNpc(){
+    const x = 1048, y = 377;  // パワーインパクトの右隣
+    const sprite = this.add.sprite(x, y, 'npc_shooter').setDepth(5).setDisplaySize(96, 96);
+    sprite.setInteractive({useHandCursor:true});
+    this.tweens.add({targets:sprite, y:y-5, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    const nameTag = this.add.text(x, y-60, '🎯 射撃訓練場', {
+      fontSize:'13px', fontFamily:'Arial', color:'#88ffaa', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6);
+    const promptTxt = this.add.text(x, y+60, '💬 タップで話す', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6).setVisible(false);
+    this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
+    sprite.on('pointerdown', ()=>{
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+      if(dist < 120) this._openShooterNpcDialog(x, y);
+    });
+    this.npcs.push({def:{id:'shooter_npc', x, y, name:'🎯 射撃訓練場'}, sprite, nameTag, promptTxt});
+  }
+
+  _openShooterNpcDialog(npcX, npcY){
+    if(this._npcDialogOpen) return;
+    this._npcDialogOpen = true;
+    try{SE('open');}catch(e){}
+    if(this.player && this.player.body) this.player.body.setVelocity(0,0);
+    const w = this.scale.width, h = this.scale.height;
+    const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(100).setInteractive();
+    const boxW = Math.min(w*0.85, 540), boxH = 280;
+    const boxX = w/2, boxY = h - boxH/2 - 30;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x0a1a14, 0.96)
+      .setScrollFactor(0).setDepth(101).setStrokeStyle(3, 0x88ffaa, 1);
+    const elements = [overlay, box];
+    elements.push(this.add.text(boxX, boxY - boxH/2 + 22, '🎯 射撃訓練場', {
+      fontSize:'16px', fontFamily:'Arial', color:'#88ffaa', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    elements.push(this.add.text(boxX, boxY - 34,
+      '『弓の修練場だ。迫る魔物を射抜け!\n落とした宝玉を拾うと機体が強化される』\n\n'+
+      '📲 画面をなぞって移動・矢は自動連射\n'+
+      '🔵 速度UP / 🟡 矢が増える / 🔴 ビーム',
+      {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:5,
+       wordWrap:{width: boxW - 40}}
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(102));
+    const goY = boxY + boxH/2 - 28;
+    const goBg = this.add.rectangle(boxX - boxW/4 + 6, goY, boxW/2 - 28, 40, 0x2e8b57, 0.95)
+      .setScrollFactor(0).setDepth(102).setStrokeStyle(2, 0x99ffcc, 0.9)
+      .setInteractive({useHandCursor:true});
+    const goTx = this.add.text(goBg.x, goY, '🎯 訓練を始める', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    goBg.on('pointerdown', ()=>{
+      try{SE('boost');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+      this.scene.start('Shooter', {
+        playerData: this.playerData,
+        currentSlot: this.currentSlot,
+        returnStage: this.stage,
+        returnX: npcX, returnY: npcY + 90,
+      });
+    });
+    const noBg = this.add.rectangle(boxX + boxW/4 - 6, goY, boxW/2 - 28, 40, 0x223344, 0.95)
+      .setScrollFactor(0).setDepth(102).setStrokeStyle(2, 0x88aacc, 0.8)
+      .setInteractive({useHandCursor:true});
+    const noTx = this.add.text(noBg.x, goY, 'やめておく', {
+      fontSize:'14px', fontFamily:'Arial', color:'#ffffff', fontStyle:'bold'
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    noBg.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+    });
+    overlay.on('pointerdown', ()=>{
+      try{SE('click');}catch(e){}
+      this._closeNpcDialog(elements.concat([goBg, goTx, noBg, noTx]));
+    });
+  }
+
   _openNpcDialog(npcDef){
     if(this._npcDialogOpen) return;
     this._npcDialogOpen = true;
@@ -20403,6 +20500,300 @@ class ImpactScene extends Phaser.Scene{
 }
 
 // ============================================================
+//  Shooter Scene（アーチャー縦シューティング・ミニゲーム）
+// ============================================================
+// ツインビー風の縦STG。空ではなく「自動スクロールで前進(歩行)」する設定。
+// 自機=アーチャー(奥向き歩行)、矢は自動連射。敵撃破で宝玉ドロップ→拾うと強化。
+// 操作: 画面をなぞって自機移動 / 🔵速度UP・🟡矢が増える・🔴ビーム
+class ShooterScene extends Phaser.Scene{
+  constructor(){super('Shooter')}
+  init(data){
+    this.playerData=data.playerData;
+    this.currentSlot=data.currentSlot!==undefined?data.currentSlot:null;
+    this.returnStage=data.returnStage!==undefined?data.returnStage:0;
+    this.returnX=data.returnX; this.returnY=data.returnY;
+    this._initData=data;
+  }
+
+  create(){
+    const w=this.scale.width, h=this.scale.height;
+    this.W=w; this.H=h;
+    const pd=this.playerData||{}; const lv=pd.lv||1;
+    // ── ステート/パラメータ ──
+    this.state='play';
+    this.mhp=8; this.hp=this.mhp;
+    this.shots=1;            // 矢の本数(🟡で増える)
+    this.fireRate=260;       // 連射間隔ms(🔵で短縮)
+    this.beamUntil=0;        // ビーム終了時刻(🔴)
+    this.invUntil=0;         // 被弾後の無敵終了時刻
+    this.score=0;
+    this.dist=0; this.distGoal=45000; // 45秒踏破でクリア
+    this._makeShooterTex();
+    // 背景(草地タイル・下へ流れて前進感)
+    this.bg=this.add.tileSprite(w/2, h/2, w, h, 'sht_grass').setDepth(-10);
+    // 物理グループ
+    this.arrows=this.physics.add.group();
+    this.enemies=this.physics.add.group();
+    this.ebullets=this.physics.add.group();
+    this.items=this.physics.add.group();
+    // 自機(アーチャー・奥向き歩行)
+    this.player=this.physics.add.sprite(w/2, h*0.78, 'player_archer').setDepth(6).setDisplaySize(72,72);
+    if(this.anims.exists('archer_back_walk')) this.player.play('archer_back_walk');
+    this.player.body.setSize(40,40).setImmovable(true);
+    // 当たり判定
+    this.physics.add.overlap(this.arrows, this.enemies, this._hitEnemy, null, this);
+    this.physics.add.overlap(this.player, this.enemies, this._playerHitEnemy, null, this);
+    this.physics.add.overlap(this.player, this.ebullets, this._playerHitBullet, null, this);
+    this.physics.add.overlap(this.player, this.items, this._getItem, null, this);
+    // 入力(なぞって移動)
+    this.input.on('pointermove', p=>{
+      if(this.state!=='play' || !p.isDown) return;
+      this.player.x=Phaser.Math.Clamp(p.x, 30, this.W-30);
+      this.player.y=Phaser.Math.Clamp(p.y-50, 70, this.H-40);
+    });
+    this.input.on('pointerup', ()=>{ if(this.state!=='play' && this._canLeave) this._return(); });
+    this._buildHUD();
+    this._startFire();
+    this._enemyTimer=this.time.addEvent({delay:760, loop:true, callback:()=>this._spawnEnemy()});
+    try{startBGM('east');}catch(e){}
+    this._banner('🎯 射撃訓練 開始!', '#aaffcc', 1200);
+    // リサイズはレイアウトが崩れるのでシーン再構築
+    this._onResize=()=>{ if(this._resizing)return; this._resizing=true; this.time.delayedCall(150,()=>this.scene.restart(this._initData)); };
+    this.scale.on('resize', this._onResize);
+    this.events.once('shutdown', ()=>this.scale.off('resize', this._onResize));
+  }
+
+  _startFire(){
+    if(this._fireTimer) this._fireTimer.remove(false);
+    this._fireTimer=this.time.addEvent({delay:this.fireRate, loop:true, callback:()=>this._fire()});
+  }
+
+  update(t, dt){
+    if(this.state==='play'){
+      this.bg.tilePositionY -= dt*0.18; // 景色が下へ流れる=前進
+      this.dist += dt;
+      if(this._distBar) this._distBar.width=this._distBarW*Math.min(1, this.dist/this.distGoal);
+      if(this.dist>=this.distGoal){ this._win(); return; }
+      // 敵の射撃
+      this.enemies.children.iterate(e=>{
+        if(!e||!e.active) return;
+        if(e.shootP && Math.random()<e.shootP) this._enemyShoot(e);
+      });
+    }
+    // 画面外の掃除
+    const H=this.H, W=this.W;
+    this.arrows.children.iterate(a=>{ if(a&&a.active&&(a.y<-40||a.x<-40||a.x>W+40)) a.destroy(); });
+    this.enemies.children.iterate(e=>{ if(e&&e.active&&e.y>H+50) e.destroy(); });
+    this.ebullets.children.iterate(b=>{ if(b&&b.active&&(b.y>H+40||b.y<-50||b.x<-50||b.x>W+50)) b.destroy(); });
+    this.items.children.iterate(it=>{ if(it&&it.active&&it.y>H+50) it.destroy(); });
+  }
+
+  // ── 発射 ──
+  _fire(){
+    if(this.state!=='play') return;
+    const beam=this.time.now<this.beamUntil;
+    if(beam){
+      this._spawnArrow(this.player.x, this.player.y-26, 0, true);
+    }else{
+      const n=this.shots, spread=13;
+      for(let i=0;i<n;i++){
+        const off=(i-(n-1)/2)*spread;
+        this._spawnArrow(this.player.x, this.player.y-26, off, false);
+      }
+      try{SE('arrow');}catch(e){}
+    }
+  }
+  _spawnArrow(x,y,angleDeg,beam){
+    const a=this.arrows.create(x,y,beam?'sht_beam':'sht_arrow');
+    if(!a) return;
+    a.pierce=beam; a.dmg=beam?3:1; a.setDepth(4);
+    const spd=beam?1000:640;
+    const rad=Phaser.Math.DegToRad(angleDeg-90); // -90°=真上
+    a.setVelocity(Math.cos(rad)*spd, Math.sin(rad)*spd);
+    a.body.setSize(beam?14:6, beam?40:18);
+    if(beam) a.setBlendMode(Phaser.BlendModes.ADD);
+  }
+
+  // ── 敵 ──
+  _spawnEnemy(){
+    if(this.state!=='play') return;
+    const t=Math.min(1, this.dist/this.distGoal);
+    const r=Math.random();
+    let d;
+    if(r < 0.58 - t*0.25) d={tex:'sht_enemy0',hp:1,spd:140,score:10,shoot:0,touch:2};
+    else if(r < 0.86 - t*0.12) d={tex:'sht_enemy1',hp:3,spd:104,score:25,shoot:0.008,touch:2};
+    else d={tex:'sht_enemy2',hp:6,spd:80,score:50,shoot:0.014,touch:3};
+    const x=Phaser.Math.Between(38, this.W-38);
+    const e=this.enemies.create(x, -40, d.tex);
+    if(!e) return;
+    e.hp=d.hp; e.score=d.score; e.shootP=d.shoot; e.touchDmg=d.touch;
+    e.setVelocityY(d.spd); e.setDepth(5);
+  }
+  _enemyShoot(e){
+    const b=this.ebullets.create(e.x, e.y+14, 'sht_ebullet');
+    if(!b) return;
+    const ang=Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
+    const spd=235;
+    b.setVelocity(Math.cos(ang)*spd, Math.sin(ang)*spd); b.setDepth(4); b.dmg=1;
+  }
+
+  // ── 当たり処理 ──
+  _hitEnemy(arrow, enemy){
+    if(!enemy.active) return;
+    enemy.hp -= (arrow.dmg||1);
+    if(!arrow.pierce && arrow.active) arrow.destroy();
+    enemy.setTint(0xffffff);
+    this.time.delayedCall(40, ()=>{ if(enemy.active) enemy.clearTint(); });
+    if(enemy.hp<=0){
+      this.score += enemy.score||10;
+      this._float(enemy.x, enemy.y, '+'+(enemy.score||10), '#ffee88');
+      this._boom(enemy.x, enemy.y);
+      try{SE('kill_pop');}catch(e){}
+      if(Math.random()<0.18) this._dropItem(enemy.x, enemy.y);
+      enemy.destroy();
+      this._updateHUD();
+    }
+  }
+  _playerHitEnemy(player, enemy){
+    if(this.time.now<this.invUntil || !enemy.active) return;
+    const dmg=enemy.touchDmg||2;
+    this._boom(enemy.x, enemy.y); enemy.destroy();
+    this._damagePlayer(dmg);
+  }
+  _playerHitBullet(player, b){
+    if(this.time.now<this.invUntil || !b.active) return;
+    const dmg=b.dmg||1; b.destroy(); this._damagePlayer(dmg);
+  }
+  _damagePlayer(dmg){
+    this.hp=Math.max(0, this.hp-dmg);
+    this.invUntil=this.time.now+1100;
+    try{SE('hurt');}catch(e){}
+    this.cameras.main.shake(150,0.01); this.cameras.main.flash(120,255,60,60);
+    this.tweens.add({targets:this.player, alpha:0.3, duration:120, yoyo:true, repeat:4, onComplete:()=>{ if(this.player) this.player.setAlpha(1); }});
+    this._updateHUD();
+    if(this.hp<=0) this._lose();
+  }
+
+  // ── アイテム ──
+  _dropItem(x,y){
+    const kinds=['speed','multi','beam'];
+    const k=kinds[Phaser.Math.Between(0,2)];
+    const it=this.items.create(x,y,'sht_item_'+k);
+    if(!it) return;
+    it.kind=k; it.setVelocityY(95); it.setDepth(5);
+    this.tweens.add({targets:it, angle:360, duration:1600, repeat:-1});
+  }
+  _getItem(player, item){
+    if(!item.active) return;
+    const k=item.kind; item.destroy();
+    try{SE('potion');}catch(e){}
+    if(k==='speed'){ this.fireRate=Math.max(110, this.fireRate-35); this._startFire(); this._float(player.x,player.y-40,'🔵 連射速度UP!','#66ccff'); }
+    else if(k==='multi'){ this.shots=Math.min(5,this.shots+1); this._float(player.x,player.y-40,'🟡 矢 +1!','#ffee66'); }
+    else if(k==='beam'){ this.beamUntil=this.time.now+6000; this._float(player.x,player.y-40,'🔴 ビーム!','#ff6688'); }
+    this._updateHUD();
+  }
+
+  // ── HUD ──
+  _buildHUD(){
+    const w=this.W;
+    this.add.text(w/2, 12, 'ゴールまで', {fontSize:'11px',fontFamily:'Arial',color:'#ddffdd',stroke:'#000',strokeThickness:2}).setOrigin(0.5).setDepth(20);
+    const dbw=Math.min(w*0.7, 360);
+    this.add.rectangle(w/2,30,dbw+4,12,0x000000,0.6).setDepth(20).setStrokeStyle(1,0x88ffaa,1);
+    this._distBar=this.add.rectangle(w/2-dbw/2,30,0,8,0x66dd88,1).setOrigin(0,0.5).setDepth(21);
+    this._distBarW=dbw;
+    this.hpTxt=this.add.text(10, 46, '', {fontSize:'14px',fontFamily:'Arial',color:'#ff8888',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setDepth(20);
+    this.scoreTxt=this.add.text(w-10, 46, '', {fontSize:'14px',fontFamily:'Arial',color:'#ffee88',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(1,0).setDepth(20);
+    this.powTxt=this.add.text(w/2, this.H-14, '', {fontSize:'12px',fontFamily:'Arial',color:'#aaddff',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(20);
+    // 退却(2度押し)
+    this.fleeBtn=this.add.rectangle(w-50,68,84,26,0x223344,0.9).setDepth(22).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
+    this.fleeTx=this.add.text(w-50,68,'🏳 退却',{fontSize:'11px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(23);
+    this._fleeArmed=false;
+    this.fleeBtn.on('pointerdown',()=>{
+      try{SE('click');}catch(e){}
+      if(this._fleeArmed){ this._return(); return; }
+      this._fleeArmed=true; this.fleeTx.setText('本当に?'); this.fleeBtn.setFillStyle(0x884422,0.95);
+      this.time.delayedCall(2000,()=>{ if(this.fleeTx&&this.fleeTx.active){ this._fleeArmed=false; this.fleeTx.setText('🏳 退却'); this.fleeBtn.setFillStyle(0x223344,0.9); } });
+    });
+    this._updateHUD();
+  }
+  _updateHUD(){
+    if(this.hpTxt) this.hpTxt.setText('❤ '+this.hp+'/'+this.mhp);
+    if(this.scoreTxt) this.scoreTxt.setText('SCORE '+this.score);
+    if(this.powTxt){
+      const beam=this.time.now<this.beamUntil;
+      this.powTxt.setText('矢x'+this.shots+'  連射'+Math.round(1000/this.fireRate)+'/s'+(beam?'  🔴ビーム':''));
+    }
+  }
+
+  // ── 演出 ──
+  _boom(x,y){
+    const c=this.add.circle(x,y,16,0xffcc66,0.9).setDepth(7);
+    this.tweens.add({targets:c, scaleX:2, scaleY:2, alpha:0, duration:220, onComplete:()=>c.destroy()});
+  }
+  _float(x,y,txt,color){
+    const t=this.add.text(x,y,''+txt,{fontSize:'18px',fontFamily:'Arial',color:color,fontStyle:'bold',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setDepth(36);
+    this.tweens.add({targets:t, y:y-44, alpha:0, duration:650, ease:'Quad.easeOut', onComplete:()=>t.destroy()});
+  }
+  _banner(txt,color,ms){
+    const b=this.add.text(this.W/2, this.H*0.32, txt, {fontSize:'22px',fontFamily:'Arial',color:color,fontStyle:'bold',align:'center',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setDepth(36).setAlpha(0);
+    this.tweens.add({targets:b, alpha:1, duration:150, yoyo:true, hold:ms, onComplete:()=>b.destroy()});
+  }
+
+  // ── 勝敗 ──
+  _win(){
+    if(this.state!=='play')return;
+    this.state='win';
+    if(this._fireTimer)this._fireTimer.remove(false);
+    if(this._enemyTimer)this._enemyTimer.remove(false);
+    try{SE('clear');}catch(e){}
+    const pd=this.playerData||{};
+    const reward=150+Math.floor(this.score*0.5);
+    pd.gold=(pd.gold||0)+reward;
+    this._resultBanner('🎯 踏破!', '#aaffcc', 'SCORE '+this.score+'   報酬 💰'+reward+'G');
+  }
+  _lose(){
+    if(this.state!=='play')return;
+    this.state='lose';
+    if(this._fireTimer)this._fireTimer.remove(false);
+    if(this._enemyTimer)this._enemyTimer.remove(false);
+    try{SE('explode');}catch(e){}
+    this.cameras.main.shake(400,0.015);
+    this.add.rectangle(this.W/2,this.H/2,this.W,this.H,0x550000,0.45).setDepth(30);
+    const pd=this.playerData||{};
+    const reward=Math.floor(this.score*0.3);
+    if(reward>0) pd.gold=(pd.gold||0)+reward;
+    this._resultBanner('💥 力尽きた…', '#ff8888', 'SCORE '+this.score+(reward>0?'   報酬 💰'+reward+'G':'')+' (ペナルティなし)');
+  }
+  _resultBanner(title,color,sub){
+    this.add.rectangle(this.W/2,this.H*0.42,Math.min(this.W*0.9,460),150,0x000000,0.75).setDepth(40).setStrokeStyle(3,0xffffff,0.5);
+    this.add.text(this.W/2,this.H*0.42-30,title,{fontSize:'32px',fontFamily:'Arial',color:color,fontStyle:'bold',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setDepth(41);
+    this.add.text(this.W/2,this.H*0.42+12,sub,{fontSize:'13px',fontFamily:'Arial',color:'#fff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(41);
+    const tap=this.add.text(this.W/2,this.H*0.42+44,'▼ タップで帰還',{fontSize:'13px',fontFamily:'Arial',color:'#aaddff'}).setOrigin(0.5).setDepth(41);
+    this.tweens.add({targets:tap,alpha:0.4,duration:500,yoyo:true,repeat:-1});
+    this._canLeave=false; this.time.delayedCall(600,()=>{ this._canLeave=true; });
+  }
+  _return(){
+    try{stopBGM();}catch(e){}
+    this.scene.start('Game',{playerData:this.playerData,stage:this.returnStage,currentSlot:this.currentSlot,customSpawnX:this.returnX,customSpawnY:this.returnY});
+  }
+
+  // ── 仮素材テクスチャ ──
+  _makeShooterTex(){
+    const mk=(key,wd,ht,fn)=>{ if(this.textures.exists(key))return; const g=this.make.graphics({add:false}); fn(g); g.generateTexture(key,wd,ht); g.destroy(); };
+    mk('sht_arrow',8,20,g=>{ g.fillStyle(0xffcc33,1); g.fillRect(3,4,2,16); g.fillStyle(0xffee88,1); g.fillTriangle(4,0,0,8,8,8); });
+    mk('sht_beam',18,44,g=>{ g.fillStyle(0x66eeff,0.5); g.fillRoundedRect(0,0,18,44,8); g.fillStyle(0xaaf6ff,0.9); g.fillRoundedRect(5,0,8,44,4); g.fillStyle(0xffffff,1); g.fillRect(8,0,2,44); });
+    mk('sht_enemy0',38,38,g=>{ g.fillStyle(0xcc4444,1); g.fillCircle(19,19,17); g.lineStyle(2,0x661111,1); g.strokeCircle(19,19,17); g.fillStyle(0xffffff,1); g.fillCircle(13,16,4); g.fillCircle(25,16,4); g.fillStyle(0x111111,1); g.fillCircle(13,17,2); g.fillCircle(25,17,2); });
+    mk('sht_enemy1',46,46,g=>{ g.fillStyle(0x9944cc,1); g.fillCircle(23,23,21); g.lineStyle(2,0x441166,1); g.strokeCircle(23,23,21); g.fillStyle(0xffee44,1); g.fillTriangle(23,3,17,15,29,15); g.fillStyle(0xffffff,1); g.fillCircle(16,22,5); g.fillCircle(30,22,5); g.fillStyle(0x111111,1); g.fillCircle(16,23,2); g.fillCircle(30,23,2); });
+    mk('sht_enemy2',54,54,g=>{ g.fillStyle(0x338855,1); g.fillCircle(27,27,25); g.lineStyle(3,0x114422,1); g.strokeCircle(27,27,25); g.fillStyle(0xff4444,1); g.fillCircle(18,24,5); g.fillCircle(36,24,5); g.fillStyle(0xffffff,1); g.fillRect(16,37,22,4); });
+    mk('sht_ebullet',14,14,g=>{ g.fillStyle(0xff66cc,0.4); g.fillCircle(7,7,7); g.fillStyle(0xff3399,1); g.fillCircle(7,7,4); g.fillStyle(0xffccee,1); g.fillCircle(6,6,2); });
+    mk('sht_grass',64,64,g=>{ g.fillStyle(0x4a7a3a,1); g.fillRect(0,0,64,64); g.fillStyle(0x3f6b32,1); for(let i=0;i<10;i++){ const x=(i*23+7)%60, y=(i*37+5)%60; g.fillRect(x,y,5,5);} g.fillStyle(0x568a44,1); for(let i=0;i<8;i++){ const x=(i*31+15)%58, y=(i*19+25)%58; g.fillRect(x,y,4,4);} });
+    mk('sht_item_speed',30,30,g=>{ g.fillStyle(0x2288ff,1); g.fillCircle(15,15,14); g.lineStyle(2,0xffffff,0.9); g.strokeCircle(15,15,14); g.fillStyle(0xffffff,1); g.fillTriangle(8,9,8,21,17,15); g.fillTriangle(14,9,14,21,23,15); });
+    mk('sht_item_multi',30,30,g=>{ g.fillStyle(0xeebb22,1); g.fillCircle(15,15,14); g.lineStyle(2,0xffffff,0.9); g.strokeCircle(15,15,14); g.fillStyle(0xffffff,1); for(let j=0;j<3;j++){ const dx=(j-1)*6; g.fillRect(14+dx,8,2,12); g.fillTriangle(15+dx,5,11+dx,11,19+dx,11);} });
+    mk('sht_item_beam',30,30,g=>{ g.fillStyle(0xff3344,1); g.fillCircle(15,15,14); g.lineStyle(2,0xffffff,0.9); g.strokeCircle(15,15,14); g.fillStyle(0xffffff,1); g.fillRect(12,6,6,18); g.fillStyle(0xffee88,1); g.fillRect(13,7,4,16); });
+  }
+}
+
+// ============================================================
 //  起動
 // ============================================================
 const _game=new Phaser.Game({
@@ -20419,7 +20810,7 @@ const _game=new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene,ImpactScene]
+  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene,ImpactScene,ShooterScene]
 });
 
 // 画面回転・リサイズ時にUIシーンを再起動
@@ -20475,6 +20866,8 @@ window.debug = {
   warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
   // インパクト戦(パワーインパクト)を直接起動: debug.impact('gigant') で敵指定
   impact: (enemyId)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined,enemyId:enemyId||'test'});},
+  // 射撃訓練(縦シューティング)を直接起動
+  shooter: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Shooter',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
