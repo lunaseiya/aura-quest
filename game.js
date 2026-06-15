@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-14-v6'; // 更新日付
+const GAME_VERSION = '2026-06-15-v3'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -740,6 +740,9 @@ class BootScene extends Phaser.Scene{
     this.load.spritesheet('player_mage', BASE+'players/final_sprite_sheet.png', {frameWidth:128,frameHeight:128});
     // bomber はスプライトシート
     this.load.spritesheet('player_bomber', BASE+'players/final_sheet_cc.png', {frameWidth:64,frameHeight:64});
+    // 鷹神弓士(アーチャー覚醒)・水魔導士(マジシャン覚醒)の専用スプライト (256×256px, 5×3=15コマ)
+    this.load.spritesheet('player_hawkgod', BASE+'players/hawkgod_sprite_sheet.png', {frameWidth:256,frameHeight:256});
+    this.load.spritesheet('player_waterwiz', BASE+'players/waterwiz_sprite_sheet.png', {frameWidth:256,frameHeight:256});
     // 全敵キャラはコード描画テクスチャを使用（PNGロード不要）
     // タイル・オブジェクトはコード生成に変更
     // ['bridge','cliff',...] load.image廃止
@@ -864,6 +867,18 @@ class BootScene extends Phaser.Scene{
         key:a.key,
         frames:a.frames.map(f=>({key:'player_archer',frame:f})),
         frameRate:a.rate, repeat:a.rep,
+      });
+    });
+    // 鷹神弓士・水魔導士の覚醒スプライト(専用シート・archerと同じ5×3フレーム構成)
+    [['hawkgod','player_hawkgod'],['waterwiz','player_waterwiz']].forEach(pair=>{
+      const pf=pair[0], texKey=pair[1];
+      [['front_idle',[0],2,-1],['front_walk',[1,2],8,-1],['front_atk',[3,4],10,0],
+       ['back_idle',[5],2,-1],['back_walk',[6,7],8,-1],['back_atk',[8,9],10,0],
+       ['side_idle',[10],2,-1],['side_walk',[11,12],8,-1],['side_atk',[13,14],10,0]
+      ].forEach(d=>{
+        const k=pf+'_'+d[0];
+        if(this.anims.exists(k)) return;
+        this.anims.create({key:k, frames:d[1].map(f=>({key:texKey,frame:f})), frameRate:d[2], repeat:d[3]});
       });
     });
     // ソードマン スプライトアニメーション定義 (sprite_sheet_sordman.png, 5列×3行=15フレーム)
@@ -5952,10 +5967,9 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'mage',
     requiresEquip: 'riviary_staff',
-    sprite:'player_mage', animPrefix:'mage',          // 仮: player_mage を流用
+    sprite:'player_waterwiz', animPrefix:'waterwiz',  // 専用スプライト(waterwiz_sprite_sheet.png)
     baseSprite:'player_mage', baseAnimPrefix:'mage',
     auraColor:0x1144ff, facingFlip:'none',
-    tintColor:0x4488ff,                                // setTint で青く着色して差別化
     // ── スキルタブのセル色(濃い青) ──
     cellBg: 0x0a1438, cellStroke: 0x4488ff, cellText: '#88ccff',
     statMul: {
@@ -6910,8 +6924,8 @@ class GameScene extends Phaser.Scene{
         busters: 'player_buster',  // 専用スプライト(sprite_sheet_buster.png)
         youma:   'player_youma',
         spirit:  'player_elf',
-        hawk:    'player_archer',  // 仮: アーチャースプライトを流用、金tintで差別化
-        abyss:   'player_mage',   // 仮: マジシャンスプライトを流用、青tintで差別化
+        hawk:    'player_hawkgod', // 専用スプライト
+        abyss:   'player_waterwiz',// 専用スプライト
       };
       const awakAnimPrefix = {
         samurai: 'samurai',
@@ -6919,8 +6933,8 @@ class GameScene extends Phaser.Scene{
         busters: 'buster',
         youma:   'youma',
         spirit:  'elf',
-        hawk:    'archer',
-        abyss:   'mage',
+        hawk:    'hawkgod',
+        abyss:   'waterwiz',
       };
       const tex = awakSpriteMap[pd.awakened];
       const prefix = awakAnimPrefix[pd.awakened];
@@ -7047,13 +7061,16 @@ class GameScene extends Phaser.Scene{
             this.time.delayedCall(extra*120 + 200, ()=>{ this.showTotalDamage(lastPos.x, lastPos.y, total); });
           }
         }
-        // 鷹神弓士「鷹眼の加護」(命中時に確率発動)
-        if(pdA.awakened==='hawk'){
+        // 鷹神弓士「鷹眼の加護」(命中時に確率発動・パッシブ)
+        // アーチャーは覚醒前でも習得済み(sk1 Lv>0)なら発動。覚醒後ももちろん発動。
+        {
           const hlv = (pdA.awakSkillLv && pdA.awakSkillLv.hawk && pdA.awakSkillLv.hawk.sk1) || 0;
-          const procRate = Math.min(60, 12 + (pdA.luk||0)*1.5);  // LUKで発動率UP(上限60%)
-          if(Math.random()*100 < procRate){
-            const cnt = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
-            this._hawkStrike(cnt, {label:'🦅 鷹眼の加護'});
+          if(hlv > 0 && (pdA.cls==='archer' || pdA.awakened==='hawk')){
+            const procRate = Math.min(60, 12 + (pdA.luk||0)*1.5 + hlv*2);  // LUK+スキルLvで発動率UP(上限60%)
+            if(Math.random()*100 < procRate){
+              const cnt = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
+              this._hawkStrike(cnt, {label:'🦅 鷹眼の加護'});
+            }
           }
         }
       }
