@@ -5969,7 +5969,7 @@ const AWAKENINGS = {
     requiresEquip: 'riviary_staff',
     sprite:'player_waterwiz', animPrefix:'waterwiz',  // 専用スプライト(waterwiz_sprite_sheet.png)
     baseSprite:'player_mage', baseAnimPrefix:'mage',
-    auraColor:0x1144ff, facingFlip:'none',
+    auraColor:0x1144ff, facingFlip:'right',             // 横スプライト(w11-15)が左向きソースなので右移動で反転
     // ── スキルタブのセル色(濃い青) ──
     cellBg: 0x0a1438, cellStroke: 0x4488ff, cellText: '#88ccff',
     statMul: {
