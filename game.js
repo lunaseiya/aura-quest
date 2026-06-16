@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-16-v1'; // 更新日付
+const GAME_VERSION = '2026-06-16-v2'; // 更新日付(射撃訓練を横スクロール化)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -6772,7 +6772,7 @@ class GameScene extends Phaser.Scene{
     if(testMode && this.stage === 0){
       this._spawnTestNpc();
       this._spawnImpactNpc(); // パワーインパクト(インパクト戦ミニゲーム入口)
-      this._spawnShooterNpc(); // 射撃訓練(縦シューティングミニゲーム入口)
+      this._spawnShooterNpc(); // 射撃訓練(横スクロールシューティングミニゲーム入口)
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -13828,7 +13828,7 @@ class GameScene extends Phaser.Scene{
   }
 
   // ─────────────────────────────────────────
-  // 射撃訓練場 NPC(縦シューティングミニゲーム入口・テストモード時にセントラルへ出現)
+  // 射撃訓練場 NPC(横スクロールシューティングミニゲーム入口・テストモード時にセントラルへ出現)
   // ─────────────────────────────────────────
   _spawnShooterNpc(){
     const x = 1048, y = 377;  // パワーインパクトの右隣
@@ -20516,11 +20516,12 @@ class ImpactScene extends Phaser.Scene{
 }
 
 // ============================================================
-//  Shooter Scene（アーチャー縦シューティング・ミニゲーム）
+//  Shooter Scene（アーチャー横スクロールシューティング・ミニゲーム）
 // ============================================================
-// ツインビー風の縦STG。空ではなく「自動スクロールで前進(歩行)」する設定。
-// 自機=アーチャー(奥向き歩行)、矢は自動連射。敵撃破で宝玉ドロップ→拾うと強化。
+// パロディウス風の横STG。本編と同じ横画面のまま「右へ前進(歩行)」する設定。
+// 自機=アーチャー(右向き歩行)、矢は右へ自動連射。敵は右から来る。撃破で宝玉ドロップ→拾うと強化。
 // 操作: 画面をなぞって自機移動 / 🔵速度UP・🟡矢が増える・🔴ビーム
+// ※横画面前提なので縦持ち警告(#rotate-prompt)は本編同様そのまま機能させる(専用案内は廃止)。
 class ShooterScene extends Phaser.Scene{
   constructor(){super('Shooter')}
   init(data){
@@ -20535,10 +20536,7 @@ class ShooterScene extends Phaser.Scene{
     const w=this.scale.width, h=this.scale.height;
     this.W=w; this.H=h;
     const pd=this.playerData||{}; const lv=pd.lv||1;
-    // 本編は横画面前提で index.html の #rotate-prompt が縦向き時に画面を覆う。
-    // 射撃訓練は縦推奨なので、このシーンの間だけ HTML 警告を抑制する(shutdownで復元)。
-    this._rotatePromptEl=(typeof document!=='undefined')?document.getElementById('rotate-prompt'):null;
-    if(this._rotatePromptEl) this._rotatePromptEl.style.display='none';
+    // 横画面前提。縦持ちは本編同様 index.html の #rotate-prompt がそのまま覆うので特別な処理は不要。
     // ── ステート/パラメータ ──
     this._resizing=false; // restartロック(回転検知が詰まらないよう毎create必ずリセット)
     this.state='play';
@@ -20550,16 +20548,17 @@ class ShooterScene extends Phaser.Scene{
     this.score=0;
     this.dist=0; this.distGoal=45000; // 45秒踏破でクリア
     this._makeShooterTex();
-    // 背景(草地タイル・下へ流れて前進感)
+    // 背景(草地タイル・左へ流れて右前進感)
     this.bg=this.add.tileSprite(w/2, h/2, w, h, 'sht_grass').setDepth(-10);
     // 物理グループ
     this.arrows=this.physics.add.group();
     this.enemies=this.physics.add.group();
     this.ebullets=this.physics.add.group();
     this.items=this.physics.add.group();
-    // 自機(アーチャー・奥向き歩行)
-    this.player=this.physics.add.sprite(w/2, h*0.78, 'player_archer').setDepth(6).setDisplaySize(72,72);
-    if(this.anims.exists('archer_back_walk')) this.player.play('archer_back_walk');
+    // 自機(アーチャー・右向き歩行)。横スクロールなので画面左に配置し右を向く。
+    this.player=this.physics.add.sprite(w*0.16, h/2, 'player_archer').setDepth(6).setDisplaySize(72,72);
+    this.player.setFlipX(true); // archer横スプライトはソース左向き→右を向かせる
+    if(this.anims.exists('archer_side_walk')) this.player.play('archer_side_walk');
     this.player.body.setSize(40,40).setImmovable(true);
     // 当たり判定
     this.physics.add.overlap(this.arrows, this.enemies, this._hitEnemy, null, this);
@@ -20585,16 +20584,13 @@ class ShooterScene extends Phaser.Scene{
     });
     this._buildHUD();
     try{startBGM('east');}catch(e){}
-    // 縦持ちならゲーム開始、横持ちなら「縦にして」案内(回転で自動的にrestart→開始)
-    if(this.H >= this.W){ this._startGame(); }
-    else{ this._showRotateNotice(); }
+    // 本編と同じ横画面でそのまま開始(縦持ちは #rotate-prompt が覆う)
+    this._startGame();
     // リサイズ/回転でレイアウトを作り直す
     this._onResize=()=>this._restartOnce();
     this.scale.on('resize', this._onResize);
     this.events.once('shutdown', ()=>{
       this.scale.off('resize', this._onResize);
-      // HTML の縦持ち警告を復元(本編は横画面前提なので元に戻す)
-      if(this._rotatePromptEl) this._rotatePromptEl.style.display='';
     });
   }
 
@@ -20612,42 +20608,6 @@ class ShooterScene extends Phaser.Scene{
     this._banner('🎯 射撃訓練 開始!', '#aaffcc', 1200);
   }
 
-  // 横持ち時の「縦にして」案内(回転すると_onResize→restartで自動的に開始へ)
-  _showRotateNotice(){
-    this.state='rotate';
-    const W=this.W, H=this.H;
-    const c=this.add.container(0,0).setDepth(60);
-    c.add(this.add.rectangle(W/2,H/2,W,H,0x05140d,0.97));
-    const ph=this.add.text(W/2,H/2-46,'📱',{fontSize:'56px'}).setOrigin(0.5);
-    this.tweens.add({targets:ph, angle:-90, duration:1000, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
-    c.add(ph);
-    c.add(this.add.text(W/2,H/2+30,'スマホを縦にして\nプレイしてください',{
-      fontSize:'18px',fontFamily:'Arial',color:'#aaffcc',fontStyle:'bold',
-      align:'center',lineSpacing:6,stroke:'#000',strokeThickness:4
-    }).setOrigin(0.5));
-    // 今のまま(横持ち)始める — 回転ロック中などで縦にできない場合の逃げ道
-    const sy=H-92;
-    const sbg=this.add.rectangle(W/2,sy,200,38,0x2e8b57,0.95).setStrokeStyle(2,0x99ffcc,0.85).setInteractive({useHandCursor:true});
-    const stx=this.add.text(W/2,sy,'▶ 今のまま始める',{fontSize:'13px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
-    sbg.on('pointerdown',()=>{
-      try{SE('click');}catch(e){}
-      if(this._orientWatch){ this._orientWatch.remove(false); this._orientWatch=null; }
-      if(this._rotateUI){ this._rotateUI.destroy(); this._rotateUI=null; }
-      this._startGame();
-    });
-    // セントラルへ戻る
-    const by=H-46;
-    const bg=this.add.rectangle(W/2,by,200,38,0x223344,0.95).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
-    const tx=this.add.text(W/2,by,'🏳 セントラルへ戻る',{fontSize:'13px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
-    bg.on('pointerdown',()=>{ try{SE('click');}catch(e){} this._return(); });
-    c.add([sbg,stx,bg,tx]);
-    this._rotateUI=c;
-    // 縦に回したら自動で開始。resizeイベントの取りこぼしに備え向きをポーリング監視
-    this._orientWatch=this.time.addEvent({delay:250, loop:true, callback:()=>{
-      if(this.scale.height >= this.scale.width) this._restartOnce();
-    }});
-  }
-
   _startFire(){
     if(this._fireTimer) this._fireTimer.remove(false);
     this._fireTimer=this.time.addEvent({delay:this.fireRate, loop:true, callback:()=>this._fire()});
@@ -20655,7 +20615,7 @@ class ShooterScene extends Phaser.Scene{
 
   update(t, dt){
     if(this.state==='play'){
-      this.bg.tilePositionY -= dt*0.18; // 景色が下へ流れる=前進
+      this.bg.tilePositionX += dt*0.18; // 景色が左へ流れる=右へ前進
       this.dist += dt;
       if(this._distBar) this._distBar.width=this._distBarW*Math.min(1, this.dist/this.distGoal);
       if(this.dist>=this.distGoal){ this._win(); return; }
@@ -20665,25 +20625,26 @@ class ShooterScene extends Phaser.Scene{
         if(e.shootP && Math.random()<e.shootP) this._enemyShoot(e);
       });
     }
-    // 画面外の掃除
+    // 画面外の掃除(横スクロール: 矢は右へ、敵/アイテムは左へ抜ける)
     const H=this.H, W=this.W;
-    this.arrows.children.iterate(a=>{ if(a&&a.active&&(a.y<-40||a.x<-40||a.x>W+40)) a.destroy(); });
-    this.enemies.children.iterate(e=>{ if(e&&e.active&&e.y>H+50) e.destroy(); });
+    this.arrows.children.iterate(a=>{ if(a&&a.active&&(a.x>W+40||a.y<-40||a.y>H+40)) a.destroy(); });
+    this.enemies.children.iterate(e=>{ if(e&&e.active&&e.x<-50) e.destroy(); });
     this.ebullets.children.iterate(b=>{ if(b&&b.active&&(b.y>H+40||b.y<-50||b.x<-50||b.x>W+50)) b.destroy(); });
-    this.items.children.iterate(it=>{ if(it&&it.active&&it.y>H+50) it.destroy(); });
+    this.items.children.iterate(it=>{ if(it&&it.active&&it.x<-50) it.destroy(); });
   }
 
   // ── 発射 ──
   _fire(){
     if(this.state!=='play') return;
     const beam=this.time.now<this.beamUntil;
+    const mx=this.player.x+26, my=this.player.y; // 銃口=自機の右
     if(beam){
-      this._spawnArrow(this.player.x, this.player.y-26, 0, true);
+      this._spawnArrow(mx, my, 0, true);
     }else{
       const n=this.shots, spread=13;
       for(let i=0;i<n;i++){
         const off=(i-(n-1)/2)*spread;
-        this._spawnArrow(this.player.x, this.player.y-26, off, false);
+        this._spawnArrow(mx, my, off, false);
       }
       try{SE('arrow');}catch(e){}
     }
@@ -20693,9 +20654,10 @@ class ShooterScene extends Phaser.Scene{
     if(!a) return;
     a.pierce=beam; a.dmg=beam?3:1; a.setDepth(4);
     const spd=beam?1000:640;
-    const rad=Phaser.Math.DegToRad(angleDeg-90); // -90°=真上
+    const rad=Phaser.Math.DegToRad(angleDeg); // 0°=真右
     a.setVelocity(Math.cos(rad)*spd, Math.sin(rad)*spd);
-    a.body.setSize(beam?14:6, beam?40:18);
+    a.setAngle(angleDeg+90); // テクスチャは上向き→+90°回転で右向き
+    a.body.setSize(beam?40:18, beam?14:6); // 横向きなので幅と高さを入替
     if(beam) a.setBlendMode(Phaser.BlendModes.ADD);
   }
 
@@ -20708,14 +20670,14 @@ class ShooterScene extends Phaser.Scene{
     if(r < 0.58 - t*0.25) d={tex:'sht_enemy0',hp:1,spd:140,score:10,shoot:0,touch:2};
     else if(r < 0.86 - t*0.12) d={tex:'sht_enemy1',hp:3,spd:104,score:25,shoot:0.008,touch:2};
     else d={tex:'sht_enemy2',hp:6,spd:80,score:50,shoot:0.014,touch:3};
-    const x=Phaser.Math.Between(38, this.W-38);
-    const e=this.enemies.create(x, -40, d.tex);
+    const y=Phaser.Math.Between(50, this.H-50);
+    const e=this.enemies.create(this.W+40, y, d.tex);
     if(!e) return;
     e.hp=d.hp; e.score=d.score; e.shootP=d.shoot; e.touchDmg=d.touch;
-    e.setVelocityY(d.spd); e.setDepth(5);
+    e.setVelocityX(-d.spd); e.setDepth(5);
   }
   _enemyShoot(e){
-    const b=this.ebullets.create(e.x, e.y+14, 'sht_ebullet');
+    const b=this.ebullets.create(e.x-14, e.y, 'sht_ebullet');
     if(!b) return;
     const ang=Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
     const spd=235;
@@ -20765,7 +20727,7 @@ class ShooterScene extends Phaser.Scene{
     const k=kinds[Phaser.Math.Between(0,2)];
     const it=this.items.create(x,y,'sht_item_'+k);
     if(!it) return;
-    it.kind=k; it.setVelocityY(95); it.setDepth(5);
+    it.kind=k; it.setVelocityX(-95); it.setDepth(5);
     this.tweens.add({targets:it, angle:360, duration:1600, repeat:-1});
   }
   _getItem(player, item){
@@ -20951,7 +20913,7 @@ window.debug = {
   warp: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Game',{playerData:gs.playerData,stage:stage});},
   // インパクト戦(パワーインパクト)を直接起動: debug.impact('gigant') で敵指定
   impact: (enemyId)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined,enemyId:enemyId||'test'});},
-  // 射撃訓練(縦シューティング)を直接起動
+  // 射撃訓練(横スクロールシューティング)を直接起動
   shooter: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Shooter',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
