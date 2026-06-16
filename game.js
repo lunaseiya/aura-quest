@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-15-v3'; // 更新日付
+const GAME_VERSION = '2026-06-16-v1'; // 更新日付
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -5920,7 +5920,7 @@ const AWAKENINGS = {
     requiresEquip: 'hawk_bow',
     sprite:'player_hawkgod', animPrefix:'hawkgod',      // 専用スプライト(hawkgod_sprite_sheet.png)
     baseSprite:'player_archer', baseAnimPrefix:'archer',
-    auraColor:0xffcc44, facingFlip:'right',             // 横スプライト(e11-15)が左向きソースなので右移動で反転
+    auraColor:0xffcc44, facingFlip:'left',              // 横スプライト(e11-15)が右向きソースなので左移動で反転
     cellBg: 0x3a2c08, cellStroke: 0xffcc44, cellText: '#ffdd88',
     statMul: {
       hit: 1.2,    // 命中 +20%(鷹眼)
@@ -7065,7 +7065,7 @@ class GameScene extends Phaser.Scene{
         {
           const hlv = (pdA.awakSkillLv && pdA.awakSkillLv.hawk && pdA.awakSkillLv.hawk.sk1) || 0;
           if(hlv > 0 && (pdA.cls==='archer' || pdA.awakened==='hawk')){
-            const procRate = Math.min(60, 12 + (pdA.luk||0)*1.5 + hlv*2);  // LUK+スキルLvで発動率UP(上限60%)
+            const procRate = Math.min(70, 28 + (pdA.luk||0)*1.5 + hlv*3);  // LUK+スキルLvで発動率UP(上限70%・パッシブ)
             if(Math.random()*100 < procRate){
               const cnt = 4 + Math.floor(hlv/2);  // 基本4連撃、Lv2毎に+1
               this._hawkStrike(cnt, {label:'🦅 鷹眼の加護'});
