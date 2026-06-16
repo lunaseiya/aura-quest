@@ -64,10 +64,12 @@
       0%, 100% { transform: rotate(-12deg); }
       50%      { transform: rotate(78deg);  }
     }
-    /* 縦向きの時だけオーバーレイを出してキャンバスを隠す */
+    /* 縦向きの時だけオーバーレイを出す。
+       #rotate-prompt は z-index:9999・不透明で全画面を覆うので canvas を隠す必要はない。
+       canvas{visibility:hidden} を付けると射撃訓練(縦推奨ミニゲーム)の表示と競合して
+       黒画面になるため使わない。射撃訓練中は game.js が #rotate-prompt を display:none にする。 */
     @media (orientation: portrait){
       #rotate-prompt{ display:flex; }
-      canvas{ visibility:hidden; }
     }
   </style>
 </head>
