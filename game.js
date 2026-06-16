@@ -5918,10 +5918,9 @@ const AWAKENINGS = {
     deactivateLabel: '解除',
     baseClass: 'archer',
     requiresEquip: 'hawk_bow',
-    sprite:'player_archer', animPrefix:'archer',        // 仮: アーチャースプライトを流用、金tintで差別化
+    sprite:'player_hawkgod', animPrefix:'hawkgod',      // 専用スプライト(hawkgod_sprite_sheet.png)
     baseSprite:'player_archer', baseAnimPrefix:'archer',
-    auraColor:0xffcc44, facingFlip:'right',             // アーチャースプライト流用のため通常アーチャーと同基準(vx>0で反転)
-    tintColor:0xffdd66,                                 // setTint で金色に着色して差別化
+    auraColor:0xffcc44, facingFlip:'right',             // 横スプライト(e11-15)が左向きソースなので右移動で反転
     cellBg: 0x3a2c08, cellStroke: 0xffcc44, cellText: '#ffdd88',
     statMul: {
       hit: 1.2,    // 命中 +20%(鷹眼)
