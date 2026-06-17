@@ -20606,7 +20606,7 @@ class ShooterScene extends Phaser.Scene{
     // 入力(相対ドラッグ): タッチ位置を基準に、動かした分だけ自機が動く。
     // 指を離して別の場所を触っても基準が更新されるだけでワープしない。
     this._minX=30; this._maxX=this.W-30; this._minY=70; this._maxY=this.H-40;
-    this._dragSens=1.15;
+    this._dragSens=0.82; // 開始時はやや遅め。連射UPで上がる
     this.input.on('pointerdown', p=>{
       if(this.state!=='play') return;
       // 発動/退却ボタンの上で始まったタッチはドラッグ移動にしない(誤爆防止)
@@ -20859,7 +20859,7 @@ class ShooterScene extends Phaser.Scene{
     try{SE('boost');}catch(e){}
     if(g===1){ this.beamUntil=now+6000; this._banner('🔵 ビーム!', '#66ccff', 900); }
     else if(g===2){ this.wideBeamUntil=now+5000; this._banner('🔵 広範囲ビーム!', '#66eeff', 900); }
-    else if(g===3){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+')', '#ffee66', 900); }
+    else if(g===3){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._dragSens=Math.min(1.5, this._dragSens+0.12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+'・機動UP)', '#ffee66', 900); }
     else if(g===4){ this._hawkAttack(); this._banner('🦅 鷹アタック!', '#ffcc66', 900); }
     else if(g===5){ this._activateBarrier(); this._banner('🛡 バリア展開!', '#88aaff', 900); }
     else if(g===6){ this.invUntil=now+20000; this._invVis=false; this._banner('✨ 無敵 20秒!', '#ffe680', 1100); }
