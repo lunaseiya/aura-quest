@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-16-v3'; // 更新日付(射撃訓練: 編隊+パワーアップゲージ+3ステージ+ボス)
+const GAME_VERSION = '2026-06-17-v4'; // 更新日付(射撃訓練: 速度/連射分離・鷹継続化・ボス/広範囲調整)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20542,14 +20542,14 @@ class ImpactScene extends Phaser.Scene{
 // 射撃訓練の3ステージ定義(NPCで選択)。tierで難易度、bossで各ステージのボス。
 const SHOOTER_STAGES = [
   { name:'草原の風',   bgKey:'sht_grass', bgmKey:'east', themeCol:'#88ffaa', waveDelay:1700, bossDist:32000, tier:0,
-    boss:{ name:'森の梟王 オウルケイン', tex:'sht_boss0', hp:140, fire:920, pattern:'spread', touch:4 } },
+    boss:{ name:'森の梟王 オウルケイン', tex:'sht_boss0', hp:110, fire:1080, pattern:'spread', touch:4 } },
   { name:'地下水脈',   bgKey:'sht_cave',  bgmKey:'east', themeCol:'#88ccff', waveDelay:1500, bossDist:38000, tier:1,
     boss:{ name:'岩窟主 ゴルガノス', tex:'sht_boss1', hp:230, fire:760, pattern:'aim3', touch:5 } },
   { name:'天空回廊',   bgKey:'sht_sky',   bgmKey:'east', themeCol:'#ffcc66', waveDelay:1350, bossDist:44000, tier:2,
     boss:{ name:'蒼穹竜 ヴェイルドラ', tex:'sht_boss2', hp:340, fire:620, pattern:'rain', touch:6 } },
 ];
 // パワーアップゲージ(グラディウス式カーソル)の6段
-const SHOOTER_GAUGE = ['ビーム','広範囲','連射','鷹','バリア','無敵'];
+const SHOOTER_GAUGE = ['速度','ビーム','広範囲','連射','鷹','バリア','無敵'];
 
 class ShooterScene extends Phaser.Scene{
   constructor(){super('Shooter')}
@@ -20691,7 +20691,7 @@ class ShooterScene extends Phaser.Scene{
     const now=this.time.now;
     const mx=this.player.x+26, my=this.player.y; // 銃口=自機の右
     if(now<this.wideBeamUntil){
-      for(let dy=-64; dy<=64; dy+=32) this._spawnArrow(mx, my+dy, 0, true);
+      for(let dy=-64; dy<=64; dy+=32){ const a=this._spawnArrow(mx, my+dy, 0, true); if(a) a.dmg=1; } // 広範囲は威力=矢
     }else if(now<this.beamUntil){
       this._spawnArrow(mx, my, 0, true);
     }else{
@@ -20705,7 +20705,7 @@ class ShooterScene extends Phaser.Scene{
   }
   _spawnArrow(x,y,angleDeg,beam){
     const a=this.arrows.create(x,y,beam?'sht_beam':'sht_arrow');
-    if(!a) return;
+    if(!a) return null;
     a.pierce=beam; a.dmg=beam?3:1; a.setDepth(4);
     const spd=beam?1000:640;
     const rad=Phaser.Math.DegToRad(angleDeg); // 0°=真右
@@ -20713,6 +20713,7 @@ class ShooterScene extends Phaser.Scene{
     a.setAngle(angleDeg+90); // テクスチャは上向き→+90°回転で右向き
     a.body.setSize(beam?40:18, beam?14:6); // 横向きなので幅と高さを入替
     if(beam) a.setBlendMode(Phaser.BlendModes.ADD);
+    return a;
   }
 
   // ── 編隊(連なって進み、斜めに撤退。全機撃破でパワーアップカプセル) ──
@@ -20844,7 +20845,7 @@ class ShooterScene extends Phaser.Scene{
     if(!item.active) return;
     item.destroy();
     try{SE('potion');}catch(e){}
-    this.gauge=Math.min(6, this.gauge+1);
+    this.gauge=Math.min(7, this.gauge+1);
     this._updateGauge();
     this._float(player.x, player.y-42, '⚡ '+SHOOTER_GAUGE[this.gauge-1], '#ffe066');
     this._updateHUD();
@@ -20857,24 +20858,34 @@ class ShooterScene extends Phaser.Scene{
     if(g<=0){ this._float(this.player.x, this.player.y-40, 'ゲージ無し', '#999999'); try{SE('click');}catch(e){} return; }
     this.gauge=0; this._updateGauge();
     try{SE('boost');}catch(e){}
-    if(g===1){ this.beamUntil=now+6000; this._banner('🔵 ビーム!', '#66ccff', 900); }
-    else if(g===2){ this.wideBeamUntil=now+5000; this._banner('🔵 広範囲ビーム!', '#66eeff', 900); }
-    else if(g===3){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._dragSens=Math.min(1.5, this._dragSens+0.12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+'・機動UP)', '#ffee66', 900); }
-    else if(g===4){ this._hawkAttack(); this._banner('🦅 鷹アタック!', '#ffcc66', 900); }
-    else if(g===5){ this._activateBarrier(); this._banner('🛡 バリア展開!', '#88aaff', 900); }
-    else if(g===6){ this.invUntil=now+20000; this._invVis=false; this._banner('✨ 無敵 20秒!', '#ffe680', 1100); }
+    if(g===1){ this._dragSens=Math.min(1.7, this._dragSens+0.16); this._banner('🟢 スピードUP!', '#88ffaa', 900); }
+    else if(g===2){ this.beamUntil=now+6000; this._banner('🔵 ビーム!', '#66ccff', 900); }
+    else if(g===3){ this.wideBeamUntil=now+5000; this._banner('🔵 広範囲ビーム!', '#66eeff', 900); }
+    else if(g===4){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+')', '#ffee66', 900); }
+    else if(g===5){ this._hawkAttack(); this._banner('🦅 鷹アタック!', '#ffcc66', 900); }
+    else if(g===6){ this._activateBarrier(); this._banner('🛡 バリア展開!', '#88aaff', 900); }
+    else if(g===7){ this.invUntil=now+20000; this._invVis=false; this._banner('✨ 無敵 20秒!', '#ffe680', 1100); }
     this._updateHUD();
   }
   _hawkAttack(){
-    for(let i=0;i<4;i++){
-      const a=this.arrows.create(this.player.x+20, this.player.y+(i-1.5)*34, 'sht_hawk');
-      if(!a) continue;
-      a.pierce=true; a.dmg=5; a.setDepth(6);
-      a.setVelocity(880, (i-1.5)*40);
-      a.body.setSize(42,26);
-      a.setBlendMode(Phaser.BlendModes.ADD);
-    }
+    this.hawkUntil=this.time.now+7000;       // 7秒間 鷹が飛び回って連続攻撃
+    if(this._hawkTimer) this._hawkTimer.remove(false);
+    this._hawkTimer=this.time.addEvent({delay:220, loop:true, callback:()=>this._spawnHawk()});
+    this._spawnHawk();
     this.cameras.main.flash(120, 255, 220, 120);
+  }
+  _spawnHawk(){
+    if(this.state!=='play' || this.time.now>=this.hawkUntil){
+      if(this._hawkTimer){ this._hawkTimer.remove(false); this._hawkTimer=null; }
+      return;
+    }
+    const y=Phaser.Math.Clamp(this.player.y+Phaser.Math.Between(-130,130), 36, this.H-36);
+    const a=this.arrows.create(this.player.x+10, y, 'sht_hawk');
+    if(!a) return;
+    a.pierce=true; a.dmg=3; a.setDepth(6);
+    a.setVelocity(740, Phaser.Math.Between(-110,110));  // ランダムな上下成分で飛び回る
+    a.body.setSize(42,26);
+    a.setBlendMode(Phaser.BlendModes.ADD);
   }
   _activateBarrier(){
     this.barrierHits=3;
@@ -20905,8 +20916,8 @@ class ShooterScene extends Phaser.Scene{
     });
     // ── パワーアップゲージ(グラディウス式カーソル) ──
     this._gaugeCells=[];
-    const gW=Math.min(this.W*0.6, 348), cellW=gW/6, gx0=14, gy=this.H-24;
-    for(let i=0;i<6;i++){
+    const gW=Math.min(this.W*0.64, 392), cellW=gW/7, gx0=14, gy=this.H-24;
+    for(let i=0;i<7;i++){
       const cx=gx0+cellW*i+cellW/2;
       const bg=this.add.rectangle(cx, gy, cellW-3, 22, 0x0d1a14, 0.85).setDepth(24).setStrokeStyle(1,0x2c4a3a,1);
       const tx=this.add.text(cx, gy, SHOOTER_GAUGE[i], {fontSize:'9px',fontFamily:'Arial',color:'#6a8a78',fontStyle:'bold'}).setOrigin(0.5).setDepth(25);
@@ -20921,7 +20932,7 @@ class ShooterScene extends Phaser.Scene{
   }
   _updateGauge(){
     if(!this._gaugeCells) return;
-    for(let i=0;i<6;i++){
+    for(let i=0;i<7;i++){
       const c=this._gaugeCells[i]; const on=i<this.gauge; const sel=(i===this.gauge-1);
       c.bg.setFillStyle(sel?0x3a78ff:(on?0x1c3a52:0x0d1a14), sel?0.95:0.85);
       c.tx.setColor(sel?'#ffffff':(on?'#bcdcff':'#6a8a78'));
@@ -20982,7 +20993,7 @@ class ShooterScene extends Phaser.Scene{
     const bx=this.boss.x-40, by=this.boss.y;
     if(pattern==='spread'){
       const base=Phaser.Math.Angle.Between(bx,by,this.player.x,this.player.y);
-      for(let i=-2;i<=2;i++) this._bossBullet(bx,by, base+i*0.20, 230);
+      for(let i=-2;i<=2;i++) this._bossBullet(bx,by, base+i*0.20, 180);
     }else if(pattern==='aim3'){
       const base=Phaser.Math.Angle.Between(bx,by,this.player.x,this.player.y);
       for(let i=-1;i<=1;i++) this._bossBullet(bx,by, base+i*0.13, 260);
