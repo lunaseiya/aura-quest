@@ -20668,7 +20668,7 @@ class ShooterScene extends Phaser.Scene{
       // 編隊: 撤退タイミングの到来で斜め離脱 + 敵の射撃
       this.enemies.children.iterate(e=>{
         if(!e||!e.active) return;
-        if(!e.isBoss && !e._retreating && e.retreatAt && now>=e.retreatAt){
+        if(!e.isBoss && !e._retreating && e.retreatX!==undefined && e.x<=e.retreatX){
           e._retreating=true; e.setVelocity(e.retreatVX, e.retreatVY);
         }
         if(e.shootP && Math.random()<e.shootP) this._enemyShoot(e);
@@ -20732,9 +20732,9 @@ class ShooterScene extends Phaser.Scene{
     const ed=pool[pick];
     const spd=104+tier*16;
     const baseY=Phaser.Math.Between(100, H-140);
-    const dir=(baseY<H/2)?1:-1;                 // 上側→下へ / 下側→上へ斜め撤退
-    const retreatAt=now+Phaser.Math.Between(1500,2200);
-    const rvx=spd*0.55, rvy=dir*spd*1.05;       // 撤退ベクトル(右斜め)
+    const dir=(baseY<H/2)?1:-1;                 // 上側→下へ / 下側→上へ斜め離脱
+    const retreatX=Phaser.Math.Between(70,150);  // 画面左端付近まで進んでから撤退
+    const rvx=-spd*0.25, rvy=dir*spd*1.35;       // 撤退ベクトル(左斜め=上下へ抜ける)
     for(let i=0;i<n;i++){
       let dx=0, dy=0;
       if(shape==='row'){ dx=i*36; dy=0; }
@@ -20746,7 +20746,7 @@ class ShooterScene extends Phaser.Scene{
       if(!e) continue;
       e.hp=ed.hp; e.score=ed.score; e.touchDmg=ed.touch;
       e.shootP=(tier>0?0.003*tier:0);
-      e.formId=id; e.retreatAt=retreatAt; e.retreatVX=rvx; e.retreatVY=rvy; e._retreating=false;
+      e.formId=id; e.retreatX=retreatX; e.retreatVX=rvx; e.retreatVY=rvy; e._retreating=false;
       e.setVelocityX(-spd); e.setDepth(5);
     }
     this._forms[id]={total:n, killed:0, escaped:0, lastX:W*0.55, lastY:baseY};
