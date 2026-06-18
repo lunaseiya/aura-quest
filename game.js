@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-18-v6'; // 更新日付(射撃訓練: 連射を速度のみ強化に変更)
+const GAME_VERSION = '2026-06-18-v7'; // 更新日付(射撃訓練: ビーム/広範囲/連射の複合化)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20574,8 +20574,7 @@ class ShooterScene extends Phaser.Scene{
     this._resizing=false; // restartロック(回転検知が詰まらないよう毎create必ずリセット)
     this.state='play';
     this.mhp=8; this.hp=this.mhp;
-    this.shots=1;            // 前方の矢は常時1本(連射は速度のみ強化。縦の広がりは広範囲レーンで)
-    this.fireRate=240;       // 連射間隔ms
+    this.fireRate=240;       // 連射間隔ms(連射スキルで短縮)
     this.beamOn=false;       // ビーム: 恒久(中央に貫通ビームを常時追加)
     this.spreadLanes=0;      // 広範囲: 縦並列レーンの追加数(恒久・重ねがけで増える)
     this.invUntil=0;         // 無敵終了時刻(被弾後 or 無敵スキル)
@@ -20689,18 +20688,14 @@ class ShooterScene extends Phaser.Scene{
   _fire(){
     if(this.state!=='play') return;
     const mx=this.player.x+26, my=this.player.y; // 銃口=自機の右
-    const n=this.shots, spread=13;
-    for(let i=0;i<n;i++){
-      const off=(i-(n-1)/2)*spread;
-      this._spawnArrow(mx, my, off, false);
-    }
-    // 広範囲: 縦に並列レーンを追加(各レーン=まっすぐな矢1本・貫通なし・威力=通常矢)。横は増やさない
+    // 複合効果: ビーム装備中は全弾(中央+広範囲レーン)が貫通ビーム化。連射=発射間隔なので全弾に効く
+    const beam=this.beamOn;
+    this._spawnArrow(mx, my, 0, beam); // 中央
+    // 広範囲: 縦の並列レーン(ビーム中はレーンもビーム=ビームのまま弾が増える)
     for(let k=1;k<=this.spreadLanes;k++){
-      this._spawnArrow(mx, my + k*26, 0, false);
-      this._spawnArrow(mx, my - k*26, 0, false);
+      this._spawnArrow(mx, my + k*26, 0, beam);
+      this._spawnArrow(mx, my - k*26, 0, beam);
     }
-    // ビーム(恒久): 中央に貫通ビームを1本追加
-    if(this.beamOn) this._spawnArrow(mx, my, 0, true);
     try{SE('arrow');}catch(e){}
   }
   _spawnArrow(x,y,angleDeg,beam){
