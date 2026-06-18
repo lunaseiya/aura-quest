@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-17-v4'; // 更新日付(射撃訓練: 速度/連射分離・鷹継続化・ボス/広範囲調整)
+const GAME_VERSION = '2026-06-18-v5'; // 更新日付(射撃訓練: ビーム恒久化・広範囲縦レーン・ST3序盤難易度緩和)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20576,8 +20576,8 @@ class ShooterScene extends Phaser.Scene{
     this.mhp=8; this.hp=this.mhp;
     this.shots=1;            // 矢の本数(連射UPで増える)
     this.fireRate=240;       // 連射間隔ms
-    this.beamUntil=0;        // ビーム終了時刻
-    this.wideBeamUntil=0;    // 広範囲ビーム終了時刻
+    this.beamOn=false;       // ビーム: 恒久(中央に貫通ビームを常時追加)
+    this.spreadLanes=0;      // 広範囲: 縦並列レーンの追加数(恒久・重ねがけで増える)
     this.invUntil=0;         // 無敵終了時刻(被弾後 or 無敵スキル)
     this.barrierHits=0;      // バリア残り回数
     this.gauge=0;            // パワーアップゲージのカーソル(0〜6)
@@ -20688,20 +20688,20 @@ class ShooterScene extends Phaser.Scene{
   // ── 発射 ──
   _fire(){
     if(this.state!=='play') return;
-    const now=this.time.now;
     const mx=this.player.x+26, my=this.player.y; // 銃口=自機の右
-    if(now<this.wideBeamUntil){
-      for(let dy=-64; dy<=64; dy+=32){ const a=this._spawnArrow(mx, my+dy, 0, true); if(a) a.dmg=1; } // 広範囲は威力=矢
-    }else if(now<this.beamUntil){
-      this._spawnArrow(mx, my, 0, true);
-    }else{
-      const n=this.shots, spread=13;
-      for(let i=0;i<n;i++){
-        const off=(i-(n-1)/2)*spread;
-        this._spawnArrow(mx, my, off, false);
-      }
-      try{SE('arrow');}catch(e){}
+    const n=this.shots, spread=13;
+    for(let i=0;i<n;i++){
+      const off=(i-(n-1)/2)*spread;
+      this._spawnArrow(mx, my, off, false);
     }
+    // 広範囲: 縦に並列レーンを追加(各レーン=まっすぐな矢1本・貫通なし・威力=通常矢)。横は増やさない
+    for(let k=1;k<=this.spreadLanes;k++){
+      this._spawnArrow(mx, my + k*26, 0, false);
+      this._spawnArrow(mx, my - k*26, 0, false);
+    }
+    // ビーム(恒久): 中央に貫通ビームを1本追加
+    if(this.beamOn) this._spawnArrow(mx, my, 0, true);
+    try{SE('arrow');}catch(e){}
   }
   _spawnArrow(x,y,angleDeg,beam){
     const a=this.arrows.create(x,y,beam?'sht_beam':'sht_arrow');
@@ -20722,6 +20722,7 @@ class ShooterScene extends Phaser.Scene{
     const W=this.W, H=this.H, now=this.time.now;
     const tier=this.stageDef.tier;
     const id=++this._formId;
+    const prog=Math.min(1, this.dist/this.distGoal); // ステージ進行度(0=序盤 → 1=ボス直前)
     const shapes=['row','col','arc','vee']; const shape=shapes[Phaser.Math.Between(0,3)];
     const n=Phaser.Math.Between(4,6);
     const pool=[
@@ -20729,9 +20730,11 @@ class ShooterScene extends Phaser.Scene{
       {tex:'sht_enemy1',hp:2+tier,score:25,touch:3},
       {tex:'sht_enemy2',hp:4+tier,score:50,touch:3},
     ];
-    const pick=Math.min(2, Phaser.Math.Between(0,1)+(Math.random()<0.25+tier*0.12?1:0));
+    // 敵の硬さは「tier + 進行度」で決定。序盤は弱い敵中心 → 編隊を全滅させやすくカプセルが出る
+    const r=Math.random(), hardChance=0.08+tier*0.05+prog*0.45;
+    let pick=0; if(r<hardChance) pick=1; if(r<hardChance*0.4) pick=2;
     const ed=pool[pick];
-    const spd=104+tier*16;
+    const spd=92+tier*10+prog*40; // 序盤はゆっくり、進むほど速く
     const baseY=Phaser.Math.Between(100, H-140);
     const dir=(baseY<H/2)?1:-1;                 // 上側→下へ / 下側→上へ斜め離脱
     const retreatX=Phaser.Math.Between(70,150);  // 画面左端付近まで進んでから撤退
@@ -20746,7 +20749,7 @@ class ShooterScene extends Phaser.Scene{
       const e=this.enemies.create(W+40+dx, y, ed.tex);
       if(!e) continue;
       e.hp=ed.hp; e.score=ed.score; e.touchDmg=ed.touch;
-      e.shootP=(tier>0?0.003*tier:0);
+      e.shootP=(tier>0?0.0025*tier*(0.4+prog*0.6):0); // 序盤は撃ってこない寄り
       e.formId=id; e.retreatX=retreatX; e.retreatVX=rvx; e.retreatVY=rvy; e._retreating=false;
       e.setVelocityX(-spd); e.setDepth(5);
     }
@@ -20859,8 +20862,8 @@ class ShooterScene extends Phaser.Scene{
     this.gauge=0; this._updateGauge();
     try{SE('boost');}catch(e){}
     if(g===1){ this._dragSens=Math.min(1.7, this._dragSens+0.16); this._banner('🟢 スピードUP!', '#88ffaa', 900); }
-    else if(g===2){ this.beamUntil=now+6000; this._banner('🔵 ビーム!', '#66ccff', 900); }
-    else if(g===3){ this.wideBeamUntil=now+5000; this._banner('🔵 広範囲ビーム!', '#66eeff', 900); }
+    else if(g===2){ this.beamOn=true; this._banner('🔵 ビーム 装備!(恒久)', '#66ccff', 1000); }
+    else if(g===3){ this.spreadLanes=Math.min(6, this.spreadLanes+1); this._banner('🔵 広範囲! 縦レーン+1 (計'+(1+this.spreadLanes*2)+'本)', '#66eeff', 1000); }
     else if(g===4){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+')', '#ffee66', 900); }
     else if(g===5){ this._hawkAttack(); this._banner('🦅 鷹アタック!', '#ffcc66', 900); }
     else if(g===6){ this._activateBarrier(); this._banner('🛡 バリア展開!', '#88aaff', 900); }
@@ -20945,7 +20948,8 @@ class ShooterScene extends Phaser.Scene{
     if(this.powTxt){
       const now=this.time.now;
       let s='矢x'+this.shots;
-      if(now<this.wideBeamUntil) s+=' 広範囲ビーム'; else if(now<this.beamUntil) s+=' ビーム';
+      if(this.spreadLanes>0) s+=' 広範囲'+this.spreadLanes;
+      if(this.beamOn) s+=' ビーム';
       if(this.barrierHits>0) s+=' 🛡x'+this.barrierHits;
       if((this.invUntil-now)>1500) s+=' ✨無敵';
       this.powTxt.setText(s);
