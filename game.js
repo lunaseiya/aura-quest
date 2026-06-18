@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-18-v5'; // 更新日付(射撃訓練: ビーム恒久化・広範囲縦レーン・ST3序盤難易度緩和)
+const GAME_VERSION = '2026-06-18-v6'; // 更新日付(射撃訓練: 連射を速度のみ強化に変更)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -20574,7 +20574,7 @@ class ShooterScene extends Phaser.Scene{
     this._resizing=false; // restartロック(回転検知が詰まらないよう毎create必ずリセット)
     this.state='play';
     this.mhp=8; this.hp=this.mhp;
-    this.shots=1;            // 矢の本数(連射UPで増える)
+    this.shots=1;            // 前方の矢は常時1本(連射は速度のみ強化。縦の広がりは広範囲レーンで)
     this.fireRate=240;       // 連射間隔ms
     this.beamOn=false;       // ビーム: 恒久(中央に貫通ビームを常時追加)
     this.spreadLanes=0;      // 広範囲: 縦並列レーンの追加数(恒久・重ねがけで増える)
@@ -20864,7 +20864,7 @@ class ShooterScene extends Phaser.Scene{
     if(g===1){ this._dragSens=Math.min(1.7, this._dragSens+0.16); this._banner('🟢 スピードUP!', '#88ffaa', 900); }
     else if(g===2){ this.beamOn=true; this._banner('🔵 ビーム 装備!(恒久)', '#66ccff', 1000); }
     else if(g===3){ this.spreadLanes=Math.min(6, this.spreadLanes+1); this._banner('🔵 広範囲! 縦レーン+1 (計'+(1+this.spreadLanes*2)+'本)', '#66eeff', 1000); }
-    else if(g===4){ this.shots=Math.min(8, this.shots+1); this.fireRate=Math.max(110, this.fireRate-12); this._startFire(); this._banner('🟡 連射UP! (矢x'+this.shots+')', '#ffee66', 900); }
+    else if(g===4){ this.fireRate=Math.max(75, this.fireRate-32); this._startFire(); this._banner('🟡 連射速度UP! ('+Math.round(1000/this.fireRate)+'発/秒)', '#ffee66', 900); }
     else if(g===5){ this._hawkAttack(); this._banner('🦅 鷹アタック!', '#ffcc66', 900); }
     else if(g===6){ this._activateBarrier(); this._banner('🛡 バリア展開!', '#88aaff', 900); }
     else if(g===7){ this.invUntil=now+20000; this._invVis=false; this._banner('✨ 無敵 20秒!', '#ffe680', 1100); }
@@ -20947,7 +20947,7 @@ class ShooterScene extends Phaser.Scene{
     if(this.scoreTxt) this.scoreTxt.setText('SCORE '+this.score);
     if(this.powTxt){
       const now=this.time.now;
-      let s='矢x'+this.shots;
+      let s='連射'+Math.round(1000/this.fireRate)+'/s';
       if(this.spreadLanes>0) s+=' 広範囲'+this.spreadLanes;
       if(this.beamOn) s+=' ビーム';
       if(this.barrierHits>0) s+=' 🛡x'+this.barrierHits;
