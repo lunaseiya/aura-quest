@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-26-v9'; // 更新日付(バグ報告に全削除ボタン追加・テストNPC再配置)
+const GAME_VERSION = '2026-06-26-v10'; // 更新日付(アスレチックNPCを左隣へ移動・右端UI回避)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13869,7 +13869,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _spawnPlatformerNpc(){
-    const x = 1168, y = 440;  // 射撃訓練場の右隣
+    const x = 648, y = 440;  // テスト助手の左隣(右端のセーブ/バトルUIと被らない位置へ)
     // NPCテクスチャ(キノコ風)をその場生成
     if(!this.textures.exists('npc_platformer')){
       const g=this.make.graphics({add:false});
