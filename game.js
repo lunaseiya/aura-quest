@@ -13559,7 +13559,7 @@ class GameScene extends Phaser.Scene{
     //     Phaser のシーン再利用でフラグが残り、転職復帰時にスポーンされない
     //     バグになっていたため削除。create() は1シーン起動につき1回しか呼ばれ
     //     ないので、ここに到達した時点で常にスポーンしてよい。
-    const x = 808, y = 377;  // セントラル上部・宿屋とギルドの間の道沿い
+    const x = 778, y = 440;  // セントラル(バグ報告の指定位置・ミニゲームNPC群の起点)
     const sprite = this.add.sprite(x, y, 'npc_test').setDepth(5).setDisplaySize(96, 96);
     sprite.setInteractive({useHandCursor:true});
     // 浮遊アニメ(ふわふわ)で目立たせる
@@ -13706,7 +13706,7 @@ class GameScene extends Phaser.Scene{
   // パワーインパクト NPC(インパクト戦ミニゲーム入口・テストモード時にセントラルへ出現)
   // ─────────────────────────────────────────
   _spawnImpactNpc(){
-    const x = 928, y = 377;  // テスト助手の右隣・道沿い
+    const x = 908, y = 440;  // テスト助手の右隣
     const sprite = this.add.sprite(x, y, 'npc_impact').setDepth(5).setDisplaySize(96, 96);
     sprite.setInteractive({useHandCursor:true});
     // 機械らしくカタカタ小刻みに揺れるアニメ
@@ -13832,7 +13832,7 @@ class GameScene extends Phaser.Scene{
   // 射撃訓練場 NPC(横スクロールシューティングミニゲーム入口・テストモード時にセントラルへ出現)
   // ─────────────────────────────────────────
   _spawnShooterNpc(){
-    const x = 1048, y = 377;  // パワーインパクトの右隣
+    const x = 1038, y = 440;  // パワーインパクトの右隣
     const sprite = this.add.sprite(x, y, 'npc_shooter').setDepth(5).setDisplaySize(96, 96);
     sprite.setInteractive({useHandCursor:true});
     this.tweens.add({targets:sprite, y:y-5, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
@@ -13853,7 +13853,7 @@ class GameScene extends Phaser.Scene{
   }
 
   _spawnPlatformerNpc(){
-    const x = 1190, y = 377;  // 射撃訓練場の右隣
+    const x = 1168, y = 440;  // 射撃訓練場の右隣
     // NPCテクスチャ(キノコ風)をその場生成
     if(!this.textures.exists('npc_platformer')){
       const g=this.make.graphics({add:false});
