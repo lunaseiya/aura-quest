@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-18-v7'; // 更新日付(射撃訓練: ビーム/広範囲/連射の複合化)
+const GAME_VERSION = '2026-06-25-v8'; // 更新日付(マリオ風 横スクロールアクション新モード追加)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -6773,6 +6773,7 @@ class GameScene extends Phaser.Scene{
       this._spawnTestNpc();
       this._spawnImpactNpc(); // パワーインパクト(インパクト戦ミニゲーム入口)
       this._spawnShooterNpc(); // 射撃訓練(横スクロールシューティングミニゲーム入口)
+      this._spawnPlatformerNpc(); // マリオ風横スクロールアクション入口
     }
     // 分岐ポータル(sidePortal): 別ルートへの入り口
     if(cfg.sidePortal){
@@ -13849,6 +13850,66 @@ class GameScene extends Phaser.Scene{
       if(dist < 120) this._openShooterNpcDialog(x, y);
     });
     this.npcs.push({def:{id:'shooter_npc', x, y, name:'🎯 射撃訓練場'}, sprite, nameTag, promptTxt});
+  }
+
+  _spawnPlatformerNpc(){
+    const x = 1190, y = 377;  // 射撃訓練場の右隣
+    // NPCテクスチャ(キノコ風)をその場生成
+    if(!this.textures.exists('npc_platformer')){
+      const g=this.make.graphics({add:false});
+      g.fillStyle(0xffe0b0,1); g.fillRoundedRect(30,52,36,34,8);                       // 体
+      g.fillStyle(0x222222,1); g.fillCircle(40,66,3); g.fillCircle(56,66,3);           // 目
+      g.fillStyle(0xdd3333,1); g.fillEllipse(48,42,72,44);                             // 赤い傘
+      g.fillStyle(0xffffff,1); g.fillCircle(30,40,7); g.fillCircle(60,38,8); g.fillCircle(48,28,6); g.fillCircle(44,48,5); // 白斑
+      g.generateTexture('npc_platformer',96,96); g.destroy();
+    }
+    const sprite = this.add.sprite(x, y, 'npc_platformer').setDepth(5).setDisplaySize(96, 96);
+    sprite.setInteractive({useHandCursor:true});
+    this.tweens.add({targets:sprite, y:y-5, duration:1200, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    const nameTag = this.add.text(x, y-60, '🍄 アスレチック', {
+      fontSize:'13px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold', stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6);
+    const promptTxt = this.add.text(x, y+60, '💬 タップで話す', {
+      fontSize:'12px', fontFamily:'Arial', color:'#ffff88', fontStyle:'bold', stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(6).setVisible(false);
+    this.tweens.add({targets:promptTxt, alpha:0.6, duration:600, yoyo:true, repeat:-1});
+    sprite.on('pointerdown', ()=>{
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y);
+      if(dist < 120) this._openPlatformerNpcDialog(x, y);
+    });
+    this.npcs.push({def:{id:'platformer_npc', x, y, name:'🍄 アスレチック'}, sprite, nameTag, promptTxt});
+  }
+
+  _openPlatformerNpcDialog(npcX, npcY){
+    if(this._npcDialogOpen) return;
+    this._npcDialogOpen = true;
+    try{SE('open');}catch(e){}
+    if(this.player && this.player.body) this.player.body.setVelocity(0,0);
+    const w = this.scale.width, h = this.scale.height;
+    const overlay = this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.5).setScrollFactor(0).setDepth(100).setInteractive();
+    const boxW = Math.min(w * 0.85, 520), boxH = 200;
+    const boxX = w/2, boxY = h/2;
+    const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x14201c, 0.96).setScrollFactor(0).setDepth(101).setStrokeStyle(3, 0xffaa55, 0.9);
+    const title = this.add.text(boxX, boxY - boxH/2 + 26, '🍄 アスレチックコース', {fontSize:'18px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    const desc = this.add.text(boxX, boxY - 14, '横スクロールのジャンプアクション!\nコインを集めてゴールの旗を目指そう。\n左下=移動 / 右下=ジャンプ', {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:6}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    const goY = boxY + boxH/2 - 30;
+    const goBg = this.add.rectangle(boxX - boxW/4 + 6, goY, boxW/2 - 28, 40, 0xc6702a, 0.95).setScrollFactor(0).setDepth(102).setStrokeStyle(2, 0xffcc88, 0.9).setInteractive({useHandCursor:true});
+    const goTx = this.add.text(goBg.x, goY, '▶ あそぶ', {fontSize:'15px', fontFamily:'Arial', color:'#fff', fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    const noBg = this.add.rectangle(boxX + boxW/4 - 6, goY, boxW/2 - 28, 40, 0x223344, 0.95).setScrollFactor(0).setDepth(102).setStrokeStyle(2, 0x88aacc, 0.8).setInteractive({useHandCursor:true});
+    const noTx = this.add.text(noBg.x, goY, 'やめておく', {fontSize:'15px', fontFamily:'Arial', color:'#fff', fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    const allEls = [overlay, box, title, desc, goBg, goTx, noBg, noTx];
+    goBg.on('pointerdown', ()=>{
+      try{SE('boost');}catch(e){}
+      this._closeNpcDialog(allEls);
+      this.scene.start('Platformer', {
+        playerData: this.playerData,
+        currentSlot: this.currentSlot,
+        returnStage: this.stage,
+        returnX: npcX, returnY: npcY + 90,
+      });
+    });
+    noBg.on('pointerdown', ()=>{ try{SE('click');}catch(e){} this._closeNpcDialog(allEls); });
+    overlay.on('pointerdown', ()=>{ try{SE('click');}catch(e){} this._closeNpcDialog(allEls); });
   }
 
   _openShooterNpcDialog(npcX, npcY){
@@ -21102,6 +21163,392 @@ class ShooterScene extends Phaser.Scene{
 }
 
 // ============================================================
+//  Platformer Scene（マリオ風 横スクロールアクション・ミニゲーム）
+//  ・このシーンのワールドにだけ重力を設定(本編は gravity.y=0 のまま)
+//  ・仮素材は pf_* テクスチャをコード生成。アセット追加不要
+//  ・モバイル前提: 左下=移動ボタン / 右下=ジャンプボタン + キーボード対応
+// ============================================================
+class PlatformerScene extends Phaser.Scene{
+  constructor(){super('Platformer')}
+  init(data){
+    this.playerData=data.playerData;
+    this.currentSlot=data.currentSlot!==undefined?data.currentSlot:null;
+    this.returnStage=data.returnStage!==undefined?data.returnStage:0;
+    this.returnX=data.returnX; this.returnY=data.returnY;
+    this._initData=data;
+  }
+
+  create(){
+    const W=this.scale.width, H=this.scale.height;
+    this.W=W; this.H=H;
+    this._T=40;                 // タイル
+    this.WW=5200;               // ワールド全長
+    this.groundTop=H-64;        // 地面の上端
+    this.SPEED=230; this.JUMP=-680; this.ENEMY_SPEED=70;
+    this._resizing=false;
+    this.state='play';
+    this.hp=3; this.mhp=3;
+    this.coinsGot=0; this.score=0;
+    this._invUntil=0; this._coyoteUntil=0; this._jumpBufUntil=0; this._jPrev=false; this._jumpHeld=false;
+    this._canLeave=false;
+    this._pfTex();
+
+    // ── このシーン専用の重力・ワールド境界 ──
+    this.physics.world.gravity.y=1500;
+    this.physics.world.setBounds(0,0,this.WW,H+600);
+
+    // ── 背景(空・遠景の丘・雲) ──
+    this.cameras.main.setBackgroundColor('#5c94fc');
+    this.far=this.add.tileSprite(W/2, this.groundTop-8, W, 92, 'pf_far').setOrigin(0.5,1).setScrollFactor(0).setDepth(1);
+    for(let x=100;x<this.WW;x+=560){
+      const y=40+((x*0.13)%90);
+      this.add.image(x, y, 'pf_cloud').setDepth(0).setScrollFactor(0.6).setAlpha(0.95);
+    }
+
+    // ── 物理グループ ──
+    this._solids=[];
+    this.coins=this.physics.add.group({allowGravity:false, immovable:true});
+    this.enemies=this.physics.add.group();
+
+    // ── プレイヤー(先に作る: ゴール/敵の overlap で参照するため) ──
+    const gt=this.groundTop;
+    this._safeX=90; this._safeY=gt-40;
+    this.player=this.physics.add.sprite(90, gt-60, 'pf_hero').setDepth(6);
+    this.player.body.setSize(24,42).setOffset(6,4);
+    this.player.setCollideWorldBounds(true);
+
+    // ── レベル構築 ──
+    this._buildLevel();
+
+    // ── 当たり判定 ──
+    this.physics.add.collider(this.player, this._solids);
+    this.physics.add.collider(this.enemies, this._solids);
+    this.physics.add.overlap(this.player, this.coins, this._getCoin, null, this);
+    this.physics.add.overlap(this.player, this.enemies, this._hitGoomba, null, this);
+    if(this.goalZone) this.physics.add.overlap(this.player, this.goalZone, ()=>this._win(), null, this);
+
+    // ── カメラ ──
+    this.cameras.main.setBounds(0,0,this.WW,H);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    this.cameras.main.setDeadzone(W*0.28, H);
+
+    // ── 操作(タッチボタン + キーボード) ──
+    this._buildControls();
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this._buildHUD();
+
+    // 結果画面のタップで帰還
+    this.input.on('pointerdown', ()=>{ if(this.state!=='play' && this._canLeave) this._return(); });
+
+    try{startBGM('east');}catch(e){}
+    this._banner('🍄 スタート!ゴールの旗を目指せ!', '#ffffff', 1500);
+
+    // リサイズ/回転で作り直し
+    this._onResize=()=>this._restartOnce();
+    this.scale.on('resize', this._onResize);
+    this.events.once('shutdown', ()=>{ this.scale.off('resize', this._onResize); });
+  }
+
+  _restartOnce(){
+    if(this._resizing) return;
+    this._resizing=true;
+    this.time.delayedCall(140, ()=>{ if(this.scene&&this.scene.restart) this.scene.restart(this._initData); });
+  }
+
+  // ── レベル構築 ──
+  _buildLevel(){
+    const gt=this.groundTop, H=this.H;
+    // 地面セグメント(隙間=ピット)
+    const grounds=[[0,1300],[1450,2550],[2700,3550],[3700,5200]];
+    grounds.forEach(([x0,x1])=>this._mkGround(x0,x1));
+    // 浮き足場 [中心x, gtからの上オフセット, 幅]
+    const plats=[
+      [700,-130,120],[1375,-100,130],[1900,-140,150],[2625,-110,130],
+      [3000,-145,120],[3625,-110,130],[4100,-140,150],[4380,-220,140],
+    ];
+    plats.forEach(([cx,oy,w])=>this._mkBrick(cx, gt+oy, w));
+    // 土管 [x, 高さタイル数]
+    [[1100,2],[2250,3],[4750,2]].forEach(([x,h])=>this._mkPipe(x,h));
+    // コイン
+    const coinRow=(x0,n,gap,y)=>{ for(let i=0;i<n;i++) this._mkCoin(x0+i*gap,y); };
+    const coinArc=(cx,gap,n,yTop)=>{ for(let i=0;i<n;i++){ const t=i-(n-1)/2; this._mkCoin(cx+t*gap, yTop+Math.abs(t)*18); } };
+    coinRow(300,4,55, gt-44);
+    coinRow(650,3,40, gt-205);
+    coinArc(1375,42,5, gt-205);
+    coinRow(1855,3,45, gt-215);
+    coinArc(2625,42,5, gt-195);
+    coinRow(2960,3,40, gt-245);
+    coinArc(3625,42,5, gt-205);
+    coinRow(4055,3,45, gt-215);
+    coinRow(4340,3,40, gt-258);
+    [[2300,gt-44],[3450,gt-44],[4650,gt-44]].forEach(([x,y])=>this._mkCoin(x,y));
+    // 敵(クリボー風) [x, 巡回minX, 巡回maxX]
+    [[950,780,1240],[1700,1480,2050],[2350,2150,2540],[3100,2720,3530],[3950,3720,4200],[4600,4250,4950]]
+      .forEach(([x,a,b])=>this._mkGoomba(x,a,b));
+    // ゴールの旗
+    const gx=5020;
+    this.add.rectangle(gx, gt, 8, 270, 0xeeeeee).setOrigin(0.5,1).setDepth(2);
+    this.add.circle(gx, gt-270, 9, 0xffdd33).setDepth(2);
+    this.add.triangle(gx+26, gt-252, 0,0, 0,26, 42,13, 0x33cc44).setDepth(2);
+    this.add.rectangle(gx, gt, 70, 36, 0x886644).setOrigin(0.5,1).setDepth(2).setStrokeStyle(2,0x553311); // 台座
+    this.goalZone=this.add.zone(gx, gt-135, 54, 270);
+    this.physics.add.existing(this.goalZone, true);
+  }
+  _mkGround(x0,x1){
+    const gt=this.groundTop, w=x1-x0, h=(this.H-gt)+560, cx=x0+w/2;
+    const dirt=this.add.tileSprite(cx, gt+h/2, w, h, 'pf_dirt').setDepth(2);
+    this.add.tileSprite(cx, gt+7, w, 14, 'pf_grasstop').setDepth(3);
+    this.physics.add.existing(dirt, true);
+    this._solids.push(dirt);
+  }
+  _mkBrick(cx,cy,w){
+    const ts=this.add.tileSprite(cx, cy, w, 28, 'pf_brick').setDepth(3);
+    this.physics.add.existing(ts, true);
+    this._solids.push(ts);
+  }
+  _mkPipe(x,hTiles){
+    const gt=this.groundTop, ph=hTiles*this._T, cy=gt-ph/2;
+    const body=this.add.rectangle(x, cy, 56, ph, 0x2aa844).setDepth(3).setStrokeStyle(3,0x176a2a);
+    const lip=this.add.rectangle(x, gt-ph+8, 70, 18, 0x2aa844).setDepth(3).setStrokeStyle(3,0x176a2a);
+    this.physics.add.existing(body, true); this._solids.push(body);
+    this.physics.add.existing(lip, true);  this._solids.push(lip);
+  }
+  _mkCoin(x,y){
+    const c=this.coins.create(x, y, 'pf_coin'); if(!c) return;
+    c.setDepth(4); c.body.setAllowGravity(false);
+    this.tweens.add({targets:c, y:y-6, duration:680, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+  }
+  _mkGoomba(x,minX,maxX){
+    const e=this.enemies.create(x, this.groundTop-30, 'pf_goomba'); if(!e) return;
+    e.setDepth(5); e.body.setSize(34,30).setOffset(3,4);
+    e.minX=minX; e.maxX=maxX; e.dir=Math.random()<0.5?-1:1; e._dead=false;
+    e.setVelocityX(e.dir*this.ENEMY_SPEED);
+  }
+
+  // ── 操作 ──
+  _buildControls(){
+    const W=this.W, H=this.H;
+    const mk=(x,y,w,h,label,col)=>{
+      const b=this.add.rectangle(x,y,w,h,col,0.32).setScrollFactor(0).setDepth(55).setStrokeStyle(3,0xffffff,0.5);
+      this.add.text(x,y,label,{fontSize:'30px',fontFamily:'Arial',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(56);
+      return {x,y,w,h};
+    };
+    this.btnL=mk(64, H-66, 86, 86, '◀', 0x223355);
+    this.btnR=mk(168, H-66, 86, 86, '▶', 0x223355);
+    this.btnJ=mk(W-92, H-78, 116, 116, '⤒', 0x553322);
+  }
+  _hit(b,x,y){ return b && x>=b.x-b.w/2 && x<=b.x+b.w/2 && y>=b.y-b.h/2 && y<=b.y+b.h/2; }
+  _readControls(){
+    let L=false,R=false,J=false;
+    const ps=this.input.manager.pointers||[];
+    for(const p of ps){ if(!p||!p.isDown) continue;
+      if(this._hit(this.btnL,p.x,p.y)) L=true;
+      if(this._hit(this.btnR,p.x,p.y)) R=true;
+      if(this._hit(this.btnJ,p.x,p.y)) J=true;
+    }
+    const c=this.cursors;
+    if(c){ if(c.left.isDown)L=true; if(c.right.isDown)R=true; if(c.up.isDown||c.space.isDown)J=true; }
+    return {L,R,J};
+  }
+
+  update(t,dt){
+    if(this.far) this.far.tilePositionX=this.cameras.main.scrollX*0.4;
+    if(!this.player||!this.player.body) return;
+    const now=this.time.now;
+    // 敵の巡回
+    this.enemies.children.iterate(e=>{
+      if(!e||!e.active) return;
+      if(e.y>this.H+120){ e.destroy(); return; }
+      if(e._dead) return;
+      if(e.x<=e.minX) e.dir=1; else if(e.x>=e.maxX) e.dir=-1;
+      if(e.body.blocked.left) e.dir=1; else if(e.body.blocked.right) e.dir=-1;
+      e.setVelocityX(e.dir*this.ENEMY_SPEED); e.setFlipX(e.dir>0);
+    });
+    if(this.state!=='play') return;
+
+    // 入力 → 移動
+    const ct=this._readControls();
+    let vx=0;
+    if(ct.L){ vx=-this.SPEED; this.player.setFlipX(true); }
+    else if(ct.R){ vx=this.SPEED; this.player.setFlipX(false); }
+    this.player.setVelocityX(vx);
+
+    // ジャンプ(コヨーテ時間 + 先行入力バッファ + 可変高)
+    const onGround=this.player.body.blocked.down;
+    if(onGround){ this._coyoteUntil=now+90; this._safeX=this.player.x; this._safeY=this.player.y; }
+    if(ct.J && !this._jPrev) this._jumpBufUntil=now+110;
+    this._jPrev=ct.J;
+    if(this._jumpBufUntil>now && this._coyoteUntil>now){
+      this.player.setVelocityY(this.JUMP);
+      this._coyoteUntil=0; this._jumpBufUntil=0; this._jumpHeld=true;
+      try{SE('boost');}catch(e){}
+    }
+    if(this._jumpHeld && !ct.J){ this._jumpHeld=false; if(this.player.body.velocity.y<-220) this.player.setVelocityY(-220); }
+
+    // ピット落下
+    if(this.player.y>this.H+120) this._fall();
+  }
+
+  // ── 衝突処理 ──
+  _hitGoomba(player, enemy){
+    if(this.state!=='play' || !enemy.active || enemy._dead) return;
+    const pb=player.body, eb=enemy.body;
+    const stomp=(pb.velocity.y>40) && (pb.bottom<=eb.top+16);
+    if(stomp){
+      enemy._dead=true; enemy.setVelocity(0,0); if(enemy.body) enemy.body.enable=false;
+      enemy.setTexture('pf_goomba_flat');
+      this.time.delayedCall(360, ()=>{ if(enemy.active) enemy.destroy(); });
+      player.setVelocityY(-380);
+      this.score+=200; this._float(enemy.x, enemy.y-20, '+200', '#ffee66');
+      try{SE('explode');}catch(e){}
+    }else{
+      this._damage(enemy.x);
+    }
+  }
+  _getCoin(player, coin){
+    if(!coin.active) return;
+    coin.destroy();
+    this.coinsGot++; this.score+=100; this._updateHUD();
+    try{SE('coin');}catch(e){}
+    this._float(player.x, player.y-30, '🪙', '#ffee66');
+  }
+  _damage(srcX){
+    if(this.time.now<this._invUntil || this.state!=='play') return;
+    this.hp--; this._updateHUD(); this._invUntil=this.time.now+1200;
+    const dir=(this.player.x<srcX)?-1:1;
+    this.player.setVelocity(dir*180, -300);
+    this._blink();
+    try{SE('hit');}catch(e){}
+    if(this.hp<=0) this._lose();
+  }
+  _fall(){
+    this.hp--; this._updateHUD();
+    if(this.hp<=0){ this._lose(); return; }
+    this._invUntil=this.time.now+1200; this._blink();
+    this.player.setVelocity(0,0);
+    this.player.setPosition(this._safeX, this._safeY-40);
+    this._float(this._safeX, this._safeY-60, 'ミス!', '#ff8888');
+  }
+  _blink(){
+    this.tweens.add({targets:this.player, alpha:0.3, duration:120, yoyo:true, repeat:5,
+      onComplete:()=>{ if(this.player) this.player.setAlpha(1); }});
+  }
+
+  // ── HUD ──
+  _buildHUD(){
+    const W=this.W;
+    this.heartTxt=this.add.text(12,10,'',{fontSize:'18px',fontFamily:'Arial',color:'#ff8888',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setScrollFactor(0).setDepth(60);
+    this.coinTxt=this.add.text(W/2,10,'',{fontSize:'16px',fontFamily:'Arial',color:'#ffee66',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5,0).setScrollFactor(0).setDepth(60);
+    this.backBtn=this.add.rectangle(W-50,24,86,30,0x223344,0.9).setScrollFactor(0).setDepth(60).setStrokeStyle(2,0x88aacc,0.8).setInteractive({useHandCursor:true});
+    this.backTx=this.add.text(W-50,24,'🏳 退却',{fontSize:'12px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(61);
+    this._backArmed=false;
+    this.backBtn.on('pointerdown',()=>{
+      if(this.state!=='play') return;
+      try{SE('click');}catch(e){}
+      if(this._backArmed){ this._return(); return; }
+      this._backArmed=true; this.backTx.setText('本当に?'); this.backBtn.setFillStyle(0x884422,0.95);
+      this.time.delayedCall(2000,()=>{ if(this.backTx&&this.backTx.active){ this._backArmed=false; this.backTx.setText('🏳 退却'); this.backBtn.setFillStyle(0x223344,0.9); } });
+    });
+    this._updateHUD();
+  }
+  _updateHUD(){
+    if(this.heartTxt) this.heartTxt.setText('❤'.repeat(Math.max(0,this.hp))+'🖤'.repeat(Math.max(0,this.mhp-this.hp)));
+    if(this.coinTxt) this.coinTxt.setText('🪙 '+this.coinsGot);
+  }
+
+  // ── 演出 ──
+  _float(x,y,txt,color){
+    const t=this.add.text(x,y,''+txt,{fontSize:'18px',fontFamily:'Arial',color:color,fontStyle:'bold',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setDepth(36);
+    this.tweens.add({targets:t, y:y-44, alpha:0, duration:650, ease:'Quad.easeOut', onComplete:()=>t.destroy()});
+  }
+  _banner(txt,color,ms){
+    const b=this.add.text(this.W/2, this.H*0.3, txt, {fontSize:'20px',fontFamily:'Arial',color:color,fontStyle:'bold',align:'center',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setScrollFactor(0).setDepth(58).setAlpha(0);
+    this.tweens.add({targets:b, alpha:1, duration:150, yoyo:true, hold:ms, onComplete:()=>b.destroy()});
+  }
+
+  // ── 勝敗 ──
+  _win(){
+    if(this.state!=='play') return;
+    this.state='win';
+    this.player.setVelocity(0,0);
+    try{SE('clear');}catch(e){}
+    const pd=this.playerData||{};
+    pd.platformerCleared=true;
+    const reward=300+this.coinsGot*20;
+    pd.gold=(pd.gold||0)+reward;
+    this._result('🏁 ゴール!クリア!', '#aaffaa', '🪙'+this.coinsGot+'   報酬 💰'+reward+'G');
+  }
+  _lose(){
+    if(this.state!=='play') return;
+    this.state='lose';
+    this.player.setVelocity(0,0);
+    try{SE('explode');}catch(e){}
+    this.cameras.main.shake(300,0.012);
+    const pd=this.playerData||{};
+    const reward=Math.floor(this.coinsGot*8);
+    if(reward>0) pd.gold=(pd.gold||0)+reward;
+    this._result('💀 ゲームオーバー', '#ff8888', '🪙'+this.coinsGot+(reward>0?'   💰'+reward+'G':'')+' (ペナルティなし)');
+  }
+  _result(title,color,sub){
+    this.add.rectangle(this.W/2,this.H*0.42,Math.min(this.W*0.9,460),150,0x000000,0.75).setScrollFactor(0).setDepth(70).setStrokeStyle(3,0xffffff,0.5);
+    this.add.text(this.W/2,this.H*0.42-30,title,{fontSize:'30px',fontFamily:'Arial',color:color,fontStyle:'bold',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setScrollFactor(0).setDepth(71);
+    this.add.text(this.W/2,this.H*0.42+12,sub,{fontSize:'13px',fontFamily:'Arial',color:'#fff',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setScrollFactor(0).setDepth(71);
+    const tap=this.add.text(this.W/2,this.H*0.42+46,'▼ タップで帰還',{fontSize:'13px',fontFamily:'Arial',color:'#aaddff'}).setOrigin(0.5).setScrollFactor(0).setDepth(71);
+    this.tweens.add({targets:tap, alpha:0.4, duration:500, yoyo:true, repeat:-1});
+    this._canLeave=false; this.time.delayedCall(600, ()=>{ this._canLeave=true; });
+  }
+  _return(){
+    try{stopBGM();}catch(e){}
+    this.scene.start('Game',{playerData:this.playerData, stage:this.returnStage, currentSlot:this.currentSlot, customSpawnX:this.returnX, customSpawnY:this.returnY});
+  }
+
+  // ── 仮素材テクスチャ ──
+  _pfTex(){
+    const mk=(key,wd,ht,fn)=>{ if(this.textures.exists(key))return; const g=this.make.graphics({add:false}); fn(g); g.generateTexture(key,wd,ht); g.destroy(); };
+    // ヒーロー(右向き)
+    mk('pf_hero',36,46,g=>{
+      g.fillStyle(0x5a3a1a,1); g.fillRoundedRect(4,40,12,6,2); g.fillRoundedRect(20,40,12,6,2); // 靴
+      g.fillStyle(0x2244cc,1); g.fillRect(8,28,20,14);                                            // ズボン
+      g.fillStyle(0xdd3322,1); g.fillRect(6,20,24,12);                                            // シャツ
+      g.fillStyle(0x2244cc,1); g.fillRect(12,20,4,10); g.fillRect(20,20,4,10);                    // つりひも
+      g.fillStyle(0xffcc22,1); g.fillCircle(14,24,2); g.fillCircle(22,24,2);                      // ボタン
+      g.fillStyle(0xdd3322,1); g.fillRect(2,22,5,9); g.fillRect(29,22,5,9);                       // 腕
+      g.fillStyle(0xffd9a0,1); g.fillRect(2,30,5,4); g.fillRect(29,30,5,4);                       // 手
+      g.fillStyle(0xffd9a0,1); g.fillRoundedRect(9,8,18,14,4);                                    // 顔
+      g.fillStyle(0xdd3322,1); g.fillRoundedRect(7,2,22,8,3); g.fillRect(24,7,11,4);              // 帽子
+      g.fillStyle(0x222222,1); g.fillRect(19,12,3,5);                                             // 目
+      g.fillStyle(0x4a2a10,1); g.fillRect(14,18,12,3);                                            // ヒゲ
+      g.fillStyle(0xe8b080,1); g.fillCircle(25,16,3);                                             // 鼻
+    });
+    // 地面(土) / 草の上端
+    mk('pf_dirt',40,40,g=>{ g.fillStyle(0xb5651d,1); g.fillRect(0,0,40,40); g.fillStyle(0x9a5417,1); g.fillRect(0,0,40,3);
+      g.lineStyle(2,0x7a4010,0.5); g.strokeRect(2,2,18,18); g.strokeRect(20,20,18,18);
+      g.fillStyle(0x8a4a14,1); for(let i=0;i<6;i++){ const x=(i*13+4)%36, y=(i*9+6)%34; g.fillRect(x,y,3,3);} });
+    mk('pf_grasstop',40,14,g=>{ g.fillStyle(0x4caa36,1); g.fillRect(0,4,40,10); g.fillStyle(0x6ad04a,1); g.fillRect(0,0,40,6);
+      g.fillStyle(0x3c8a2a,1); for(let i=0;i<8;i++){ g.fillRect(i*5+1,9,3,5);} });
+    // 浮き足場(レンガ)
+    mk('pf_brick',40,28,g=>{ g.fillStyle(0xc6702a,1); g.fillRect(0,0,40,28); g.lineStyle(2,0x000000,0.25);
+      g.strokeRect(0,0,40,14); g.strokeRect(0,14,40,14); g.lineBetween(20,0,20,14); g.lineBetween(10,14,10,28); g.lineBetween(30,14,30,28);
+      g.fillStyle(0xe0934a,1); g.fillRect(0,0,40,4); });
+    // コイン
+    mk('pf_coin',24,24,g=>{ g.fillStyle(0xffcc33,1); g.fillCircle(12,12,10); g.lineStyle(2,0xffefa0,1); g.strokeCircle(12,12,10); g.fillStyle(0xe0a020,1); g.fillRect(10,5,4,14); });
+    // クリボー風
+    mk('pf_goomba',40,34,g=>{
+      g.fillStyle(0x3a2010,1); g.fillRoundedRect(4,28,12,6,2); g.fillRoundedRect(24,28,12,6,2);
+      g.fillStyle(0x9a5a2a,1); g.fillEllipse(20,16,34,26);
+      g.fillStyle(0xc88a4a,1); g.fillEllipse(20,22,28,16);
+      g.fillStyle(0xffffff,1); g.fillEllipse(13,14,8,10); g.fillEllipse(27,14,8,10);
+      g.fillStyle(0x000000,1); g.fillEllipse(14,15,3,5); g.fillEllipse(26,15,3,5);
+      g.fillStyle(0x2a1606,1); g.fillTriangle(8,8,18,13,8,13); g.fillTriangle(32,8,22,13,32,13);
+    });
+    mk('pf_goomba_flat',40,14,g=>{ g.fillStyle(0x9a5a2a,1); g.fillEllipse(20,9,36,10); g.fillStyle(0x3a2010,1); g.fillRect(4,11,10,3); g.fillRect(26,11,10,3); });
+    // 雲 / 遠景の丘
+    mk('pf_cloud',80,40,g=>{ g.fillStyle(0xffffff,0.95); g.fillEllipse(28,26,40,26); g.fillEllipse(52,24,44,30); g.fillEllipse(40,16,36,24); });
+    mk('pf_far',120,90,g=>{ g.fillStyle(0x3a8a4a,1); g.fillEllipse(30,90,90,70); g.fillEllipse(95,90,80,60); g.fillStyle(0x4a9a55,1); g.fillEllipse(60,90,70,50); });
+  }
+}
+
+// ============================================================
 //  起動
 // ============================================================
 const _game=new Phaser.Game({
@@ -21118,7 +21565,7 @@ const _game=new Phaser.Game({
     touch:{capture:true},
   },
   physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
-  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene,ImpactScene,ShooterScene]
+  scene:[BootScene,TitleScene,SaveSelectScene,ClassSelectScene,LevelUpScene,GameScene,GameClearScene,ImpactScene,ShooterScene,PlatformerScene]
 });
 
 // 画面回転・リサイズ時にUIシーンを再起動
@@ -21176,6 +21623,8 @@ window.debug = {
   impact: (enemyId)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Impact',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined,enemyId:enemyId||'test'});},
   // 射撃訓練(横スクロールシューティング)を直接起動
   shooter: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Shooter',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
+  // マリオ風横スクロールアクションを直接起動
+  platformer: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Platformer',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
