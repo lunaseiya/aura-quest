@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-25-v8'; // 更新日付(マリオ風 横スクロールアクション新モード追加)
+const GAME_VERSION = '2026-06-26-v9'; // 更新日付(バグ報告に全削除ボタン追加・テストNPC再配置)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13307,6 +13307,13 @@ class GameScene extends Phaser.Scene{
         badd(this.add.text(cbX, cbY, '📋 全コピー',
           {fontSize:'11px',fontFamily:'Arial',color:'#88ccff'}).setOrigin(0.5));
         cb.on('pointerdown', ()=>{ try{ SE('click'); }catch(e){} copyBugReportsToClipboard(); });
+        // 🗑 全削除 ボタン(全コピーの左・確認ダイアログ付き)
+        const daW=90, daX=cbX-cbW/2-4-daW/2, daY=cbY;
+        const da = badd(this.add.rectangle(daX, daY, daW, 24, 0xff4444, 0.25)
+          .setStrokeStyle(1, 0xff4444).setInteractive({useHandCursor:true}));
+        badd(this.add.text(daX, daY, '🗑 全削除',
+          {fontSize:'11px',fontFamily:'Arial',color:'#ff9999'}).setOrigin(0.5));
+        da.on('pointerdown', ()=>{ try{ SE('click'); }catch(e){} confirmDeleteAllBugs(); });
       }
       // 空メッセージ
       if(arr.length === 0){
@@ -13404,6 +13411,15 @@ class GameScene extends Phaser.Scene{
       arr.splice(idx, 1);
       saveBugReports(arr);
       if(_bugScrollOffset > 0 && _bugScrollOffset >= arr.length) _bugScrollOffset = Math.max(0, arr.length-1);
+      buildBugList();
+    };
+    const confirmDeleteAllBugs = ()=>{
+      const arr = loadBugReports();
+      if(!arr.length){ window.alert('報告がありません'); return; }
+      const ok = window.confirm('バグ報告 '+arr.length+' 件をすべて削除しますか?\nこの操作は取り消せません。');
+      if(!ok) return;
+      saveBugReports([]);
+      _bugScrollOffset = 0;
       buildBugList();
     };
     const copyBugReportsToClipboard = ()=>{
