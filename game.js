@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-26-v10'; // 更新日付(アスレチックNPCを左隣へ移動・右端UI回避)
+const GAME_VERSION = '2026-06-27-v11'; // 更新日付(アスレチック: 剣士化・ジョイスティック・攻撃ボタン・梯子迷路)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -13907,7 +13907,7 @@ class GameScene extends Phaser.Scene{
     const boxX = w/2, boxY = h/2;
     const box = this.add.rectangle(boxX, boxY, boxW, boxH, 0x14201c, 0.96).setScrollFactor(0).setDepth(101).setStrokeStyle(3, 0xffaa55, 0.9);
     const title = this.add.text(boxX, boxY - boxH/2 + 26, '🍄 アスレチックコース', {fontSize:'18px', fontFamily:'Arial', color:'#ffcc88', fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
-    const desc = this.add.text(boxX, boxY - 14, '横スクロールのジャンプアクション!\nコインを集めてゴールの旗を目指そう。\n左下=移動 / 右下=ジャンプ', {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:6}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
+    const desc = this.add.text(boxX, boxY - 14, '剣士で挑む横スクロール・アクション!\n梯子を登り、敵を斬ってゴールの旗へ。\n左=移動スティック / 右=ジャンプ・⚔攻撃', {fontSize:'13px', fontFamily:'Arial', color:'#ffffff', align:'center', lineSpacing:6}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
     const goY = boxY + boxH/2 - 30;
     const goBg = this.add.rectangle(boxX - boxW/4 + 6, goY, boxW/2 - 28, 40, 0xc6702a, 0.95).setScrollFactor(0).setDepth(102).setStrokeStyle(2, 0xffcc88, 0.9).setInteractive({useHandCursor:true});
     const goTx = this.add.text(goBg.x, goY, '▶ あそぶ', {fontSize:'15px', fontFamily:'Arial', color:'#fff', fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(103);
@@ -21197,67 +21197,79 @@ class PlatformerScene extends Phaser.Scene{
   create(){
     const W=this.scale.width, H=this.scale.height;
     this.W=W; this.H=H;
-    this._T=40;                 // タイル
-    this.WW=5200;               // ワールド全長
-    this.groundTop=H-64;        // 地面の上端
-    this.SPEED=230; this.JUMP=-680; this.ENEMY_SPEED=70;
+    this._T=40;
+    this.WW=4200;                                  // ワールド全長
+    this.WORLD_H=Math.max(H, 1240);                // 縦長ワールド(梯子で上下移動)
+    this.groundY=this.WORLD_H-80;                  // 地面の上端
+    this.SPEED=230; this.JUMP=-680; this.CLIMB=175; this.ENEMY_SPEED=70;
     this._resizing=false;
     this.state='play';
     this.hp=3; this.mhp=3;
     this.coinsGot=0; this.score=0;
-    this._invUntil=0; this._coyoteUntil=0; this._jumpBufUntil=0; this._jPrev=false; this._jumpHeld=false;
-    this._canLeave=false;
+    this._invUntil=0; this._coyoteUntil=0; this._jumpBufUntil=0;
+    this._jPrev=false; this._aPrev=false; this._jumpHeld=false;
+    this._climbing=false; this._faceDir=1; this._canLeave=false;
+    // 剣士=プレイヤーのクラス(ルナフロのキャラを反映)。無効ならwarrior
+    let cls=(this.playerData&&this.playerData.cls)||'warrior';
+    if(!['warrior','archer','mage','bomber','novice'].includes(cls)) cls='warrior';
+    this.cls=cls;
     this._pfTex();
 
     // ── このシーン専用の重力・ワールド境界 ──
     this.physics.world.gravity.y=1500;
-    this.physics.world.setBounds(0,0,this.WW,H+600);
+    this.physics.world.setBounds(0,0,this.WW,this.WORLD_H+400);
 
-    // ── 背景(空・遠景の丘・雲) ──
+    // ── 背景(空・雲) ──
     this.cameras.main.setBackgroundColor('#5c94fc');
-    this.far=this.add.tileSprite(W/2, this.groundTop-8, W, 92, 'pf_far').setOrigin(0.5,1).setScrollFactor(0).setDepth(1);
-    for(let x=100;x<this.WW;x+=560){
-      const y=40+((x*0.13)%90);
-      this.add.image(x, y, 'pf_cloud').setDepth(0).setScrollFactor(0.6).setAlpha(0.95);
+    for(let x=150;x<this.WW;x+=520){
+      const y=110+((x*0.27)%(this.WORLD_H*0.45));
+      this.add.image(x, y, 'pf_cloud').setDepth(0).setScrollFactor(0.7).setAlpha(0.9);
     }
 
     // ── 物理グループ ──
-    this._solids=[];
+    this._solids=[]; this._oneways=[]; this._ladders=[];
     this.coins=this.physics.add.group({allowGravity:false, immovable:true});
     this.enemies=this.physics.add.group();
 
-    // ── プレイヤー(先に作る: ゴール/敵の overlap で参照するため) ──
-    const gt=this.groundTop;
-    this._safeX=90; this._safeY=gt-40;
-    this.player=this.physics.add.sprite(90, gt-60, 'pf_hero').setDepth(6);
-    this.player.body.setSize(24,42).setOffset(6,4);
+    // ── プレイヤー(剣士: 本編のクラススプライト+アニメを流用) ──
+    const gy=this.groundY;
+    this._safeX=200; this._safeY=gy-40;
+    const tex='player_'+this.cls;
+    this.player=this.physics.add.sprite(200, gy-70, this.textures.exists(tex)?tex:'pf_hero').setDepth(6);
+    this.player.setDisplaySize(64,64);
+    this.player.body.setSize(44,84).setOffset(42,40);
     this.player.setCollideWorldBounds(true);
+    if(this.anims.exists(this.cls+'_side_idle')) this.player.play(this.cls+'_side_idle');
 
     // ── レベル構築 ──
     this._buildLevel();
 
-    // ── 当たり判定 ──
+    // ── 当たり判定(地面=実体 / 足場=一方通行) ──
     this.physics.add.collider(this.player, this._solids);
+    this.physics.add.collider(this.player, this._oneways, null, this._oneWayCheck, this);
     this.physics.add.collider(this.enemies, this._solids);
+    this.physics.add.collider(this.enemies, this._oneways, null, this._oneWayCheck, this);
     this.physics.add.overlap(this.player, this.coins, this._getCoin, null, this);
     this.physics.add.overlap(this.player, this.enemies, this._hitGoomba, null, this);
     if(this.goalZone) this.physics.add.overlap(this.player, this.goalZone, ()=>this._win(), null, this);
 
-    // ── カメラ ──
-    this.cameras.main.setBounds(0,0,this.WW,H);
+    // ── カメラ(縦横追従) ──
+    this.cameras.main.setBounds(0,0,this.WW,this.WORLD_H);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.cameras.main.setDeadzone(W*0.28, H);
+    this.cameras.main.setDeadzone(W*0.25, H*0.3);
 
-    // ── 操作(タッチボタン + キーボード) ──
-    this._buildControls();
+    // ── 操作(ジョイスティック + ジャンプ/攻撃ボタン + キーボード) ──
+    this._buildJoystick();
+    this._buildButtons();
     this.cursors=this.input.keyboard.createCursorKeys();
+    this._keyAtk=this.input.keyboard.addKey('X');
     this._buildHUD();
 
     // 結果画面のタップで帰還
     this.input.on('pointerdown', ()=>{ if(this.state!=='play' && this._canLeave) this._return(); });
 
     try{startBGM('east');}catch(e){}
-    this._banner('🍄 スタート!ゴールの旗を目指せ!', '#ffffff', 1500);
+    this._banner('⚔ 出陣! 梯子を登ってゴールの旗へ!', '#ffffff', 1600);
 
     // リサイズ/回転で作り直し
     this._onResize=()=>this._restartOnce();
@@ -21271,110 +21283,132 @@ class PlatformerScene extends Phaser.Scene{
     this.time.delayedCall(140, ()=>{ if(this.scene&&this.scene.restart) this.scene.restart(this._initData); });
   }
 
-  // ── レベル構築 ──
+  // ── レベル構築(梯子で繋ぐ多層の迷路) ──
   _buildLevel(){
-    const gt=this.groundTop, H=this.H;
-    // 地面セグメント(隙間=ピット)
-    const grounds=[[0,1300],[1450,2550],[2700,3550],[3700,5200]];
-    grounds.forEach(([x0,x1])=>this._mkGround(x0,x1));
-    // 浮き足場 [中心x, gtからの上オフセット, 幅]
-    const plats=[
-      [700,-130,120],[1375,-100,130],[1900,-140,150],[2625,-110,130],
-      [3000,-145,120],[3625,-110,130],[4100,-140,150],[4380,-220,140],
-    ];
-    plats.forEach(([cx,oy,w])=>this._mkBrick(cx, gt+oy, w));
-    // 土管 [x, 高さタイル数]
-    [[1100,2],[2250,3],[4750,2]].forEach(([x,h])=>this._mkPipe(x,h));
-    // コイン
-    const coinRow=(x0,n,gap,y)=>{ for(let i=0;i<n;i++) this._mkCoin(x0+i*gap,y); };
-    const coinArc=(cx,gap,n,yTop)=>{ for(let i=0;i<n;i++){ const t=i-(n-1)/2; this._mkCoin(cx+t*gap, yTop+Math.abs(t)*18); } };
-    coinRow(300,4,55, gt-44);
-    coinRow(650,3,40, gt-205);
-    coinArc(1375,42,5, gt-205);
-    coinRow(1855,3,45, gt-215);
-    coinArc(2625,42,5, gt-195);
-    coinRow(2960,3,40, gt-245);
-    coinArc(3625,42,5, gt-205);
-    coinRow(4055,3,45, gt-215);
-    coinRow(4340,3,40, gt-258);
-    [[2300,gt-44],[3450,gt-44],[4650,gt-44]].forEach(([x,y])=>this._mkCoin(x,y));
-    // 敵(クリボー風) [x, 巡回minX, 巡回maxX]
-    [[950,780,1240],[1700,1480,2050],[2350,2150,2540],[3100,2720,3530],[3950,3720,4200],[4600,4250,4950]]
-      .forEach(([x,a,b])=>this._mkGoomba(x,a,b));
-    // ゴールの旗
-    const gx=5020;
-    this.add.rectangle(gx, gt, 8, 270, 0xeeeeee).setOrigin(0.5,1).setDepth(2);
-    this.add.circle(gx, gt-270, 9, 0xffdd33).setDepth(2);
-    this.add.triangle(gx+26, gt-252, 0,0, 0,26, 42,13, 0x33cc44).setDepth(2);
-    this.add.rectangle(gx, gt, 70, 36, 0x886644).setOrigin(0.5,1).setDepth(2).setStrokeStyle(2,0x553311); // 台座
-    this.goalZone=this.add.zone(gx, gt-135, 54, 270);
+    const gy=this.groundY;
+    const yL=(L)=>gy - L*200;            // L0=地面, L1〜L3
+    // 地面(穴あき=ピット)
+    [[0,1450],[1600,2700],[2850,4200]].forEach(([a,b])=>this._mkGround(a,b));
+    // タワー(各列に L1〜L3 の一方通行床 + ジグザグ梯子)
+    this.towers=[900,2050,3300];
+    this.towers.forEach((X)=>{
+      [1,2,3].forEach(L=>this._mkOneway(X, yL(L), 240));
+      this._mkLadder(X-90, yL(0), yL(1));   // 地面→L1
+      this._mkLadder(X+90, yL(1), yL(2));   // L1→L2
+      this._mkLadder(X-90, yL(2), yL(3));   // L2→L3
+      // 段上のコイン
+      this._mkCoin(X, yL(1)-30); this._mkCoin(X-45, yL(2)-30); this._mkCoin(X+45, yL(2)-30); this._mkCoin(X, yL(3)-30);
+      // 梯子沿いのコイン
+      for(let cy=yL(0)-50; cy>yL(1); cy-=60) this._mkCoin(X-90, cy);
+      for(let cy=yL(2)-50; cy>yL(3); cy-=60) this._mkCoin(X-90, cy);
+    });
+    // 地上のコイン
+    for(let x=320;x<4100;x+=150){ if((x>1450&&x<1600)||(x>2700&&x<2850)) continue; this._mkCoin(x, gy-46); }
+    // 敵(クリボー風) [x, y, 巡回min, 巡回max]
+    this._mkGoomba(1250, gy-30, 1050, 1420);
+    this._mkGoomba(2350, gy-30, 2200, 2620);
+    this._mkGoomba(3050, gy-30, 2900, 3250);
+    this._mkGoomba(900,  yL(1)-30, 800, 1000);
+    this._mkGoomba(2050, yL(1)-30, 1950, 2150);
+    // ゴール(タワー3の最上段)
+    const gx=3300, gt3=yL(3);
+    this.add.rectangle(gx, gt3, 8, 200, 0xeeeeee).setOrigin(0.5,1).setDepth(3);
+    this.add.circle(gx, gt3-200, 9, 0xffdd33).setDepth(3);
+    this.add.triangle(gx+26, gt3-182, 0,0, 0,26, 42,13, 0x33cc44).setDepth(3);
+    this.goalZone=this.add.zone(gx, gt3-100, 54, 200);
     this.physics.add.existing(this.goalZone, true);
   }
   _mkGround(x0,x1){
-    const gt=this.groundTop, w=x1-x0, h=(this.H-gt)+560, cx=x0+w/2;
-    const dirt=this.add.tileSprite(cx, gt+h/2, w, h, 'pf_dirt').setDepth(2);
-    this.add.tileSprite(cx, gt+7, w, 14, 'pf_grasstop').setDepth(3);
+    const gy=this.groundY, w=x1-x0, h=(this.WORLD_H-gy)+200, cx=x0+w/2;
+    const dirt=this.add.tileSprite(cx, gy+h/2, w, h, 'pf_dirt').setDepth(2);
+    this.add.tileSprite(cx, gy+7, w, 14, 'pf_grasstop').setDepth(3);
     this.physics.add.existing(dirt, true);
     this._solids.push(dirt);
   }
-  _mkBrick(cx,cy,w){
-    const ts=this.add.tileSprite(cx, cy, w, 28, 'pf_brick').setDepth(3);
+  _mkOneway(cx,cy,w){
+    // 上端を cy(段の床面)に合わせた一方通行の板
+    const ts=this.add.tileSprite(cx, cy+12, w, 24, 'pf_plat').setDepth(3);
     this.physics.add.existing(ts, true);
-    this._solids.push(ts);
+    this._oneways.push(ts);
   }
-  _mkPipe(x,hTiles){
-    const gt=this.groundTop, ph=hTiles*this._T, cy=gt-ph/2;
-    const body=this.add.rectangle(x, cy, 56, ph, 0x2aa844).setDepth(3).setStrokeStyle(3,0x176a2a);
-    const lip=this.add.rectangle(x, gt-ph+8, 70, 18, 0x2aa844).setDepth(3).setStrokeStyle(3,0x176a2a);
-    this.physics.add.existing(body, true); this._solids.push(body);
-    this.physics.add.existing(lip, true);  this._solids.push(lip);
+  _mkLadder(x, yBottom, yTop){
+    const h=yBottom-yTop;
+    this.add.tileSprite(x, (yBottom+yTop)/2, 28, h, 'pf_ladder').setDepth(2);
+    this._ladders.push({x:x, top:yTop, bottom:yBottom, w:28});
   }
   _mkCoin(x,y){
     const c=this.coins.create(x, y, 'pf_coin'); if(!c) return;
     c.setDepth(4); c.body.setAllowGravity(false);
     this.tweens.add({targets:c, y:y-6, duration:680, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
   }
-  _mkGoomba(x,minX,maxX){
-    const e=this.enemies.create(x, this.groundTop-30, 'pf_goomba'); if(!e) return;
+  _mkGoomba(x,y,minX,maxX){
+    const e=this.enemies.create(x, y, 'pf_goomba'); if(!e) return;
     e.setDepth(5); e.body.setSize(34,30).setOffset(3,4);
     e.minX=minX; e.maxX=maxX; e.dir=Math.random()<0.5?-1:1; e._dead=false;
     e.setVelocityX(e.dir*this.ENEMY_SPEED);
   }
 
-  // ── 操作 ──
-  _buildControls(){
-    const W=this.W, H=this.H;
-    const mk=(x,y,w,h,label,col)=>{
-      const b=this.add.rectangle(x,y,w,h,col,0.32).setScrollFactor(0).setDepth(55).setStrokeStyle(3,0xffffff,0.5);
-      this.add.text(x,y,label,{fontSize:'30px',fontFamily:'Arial',color:'#ffffff'}).setOrigin(0.5).setScrollFactor(0).setDepth(56);
-      return {x,y,w,h};
-    };
-    this.btnL=mk(64, H-66, 86, 86, '◀', 0x223355);
-    this.btnR=mk(168, H-66, 86, 86, '▶', 0x223355);
-    this.btnJ=mk(W-92, H-78, 116, 116, '⤒', 0x553322);
+  // ── 操作: ジョイスティック(左)・本編と同じフローティング式 ──
+  _buildJoystick(){
+    const W=this.W, H=this.H, JX=80, JY=H-80, R=46;
+    this.joyDx=0; this.joyDy=0; this.joyId=null;
+    this._joyHome={x:JX,y:JY}; this._joyR=R; this._joyCx=JX; this._joyCy=JY;
+    this.joyBase=this.add.circle(JX,JY,54,0x000000,0.45).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0x44aaff,0.9);
+    this.joyKnob=this.add.circle(JX,JY,26,0x44aaff,0.9).setScrollFactor(0).setDepth(51);
+    this.joyLabel=this.add.text(JX,JY,'移動',{fontSize:'10px',fontFamily:'Arial',color:'#fff'}).setOrigin(0.5).setScrollFactor(0).setDepth(52);
+    this.input.on('pointerdown',(p)=>{
+      if(this.joyId!==null) return;
+      if(p.x < W*0.45 && p.y > H*0.28){   // 左側・上部UIを避ける
+        this.joyId=p.id; this._joyCx=p.x; this._joyCy=p.y;
+        this.joyBase.setPosition(p.x,p.y); this.joyKnob.setPosition(p.x,p.y); this.joyLabel.setPosition(p.x,p.y);
+      }
+    });
+    this.input.on('pointermove',(p)=>{
+      if(p.id!==this.joyId) return;
+      const dx=p.x-this._joyCx, dy=p.y-this._joyCy, d=Math.sqrt(dx*dx+dy*dy), m=this._joyR;
+      const kx=d>m?this._joyCx+dx/d*m:p.x, ky=d>m?this._joyCy+dy/d*m:p.y;
+      this.joyKnob.setPosition(kx,ky); this.joyLabel.setPosition(kx,ky);
+      this.joyDx=d>8?dx/Math.max(d,m):0; this.joyDy=d>8?dy/Math.max(d,m):0;
+    });
+    const up=(p)=>{ if(p.id!==this.joyId) return; this.joyId=null; this.joyDx=0; this.joyDy=0;
+      this.joyBase.setPosition(this._joyHome.x,this._joyHome.y); this.joyKnob.setPosition(this._joyHome.x,this._joyHome.y); this.joyLabel.setPosition(this._joyHome.x,this._joyHome.y); };
+    this.input.on('pointerup',up); this.input.on('pointercancel',up);
   }
-  _hit(b,x,y){ return b && x>=b.x-b.w/2 && x<=b.x+b.w/2 && y>=b.y-b.h/2 && y<=b.y+b.h/2; }
+  _buildButtons(){
+    const W=this.W, H=this.H;
+    // ジャンプ(右下)
+    this.btnJ={x:W-76, y:H-80, r:54};
+    this.add.circle(this.btnJ.x,this.btnJ.y,this.btnJ.r,0x33aa55,0.32).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0xffffff,0.5);
+    this.add.text(this.btnJ.x,this.btnJ.y,'ジャンプ',{fontSize:'12px',fontFamily:'Arial',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setScrollFactor(0).setDepth(51);
+    // 攻撃(ジャンプの左)
+    this.btnA={x:W-176, y:H-66, r:46};
+    this.add.circle(this.btnA.x,this.btnA.y,this.btnA.r,0xaa3333,0.32).setScrollFactor(0).setDepth(50).setStrokeStyle(3,0xffffff,0.5);
+    this.add.text(this.btnA.x,this.btnA.y,'⚔',{fontSize:'30px',fontFamily:'Arial',color:'#fff'}).setOrigin(0.5).setScrollFactor(0).setDepth(51);
+  }
+  _hitC(b,x,y){ return b && ((x-b.x)*(x-b.x)+(y-b.y)*(y-b.y)) <= b.r*b.r; }
   _readControls(){
-    let L=false,R=false,J=false;
+    let L=false,R=false,U=false,D=false,J=false,A=false;
+    const dx=this.joyDx||0, dy=this.joyDy||0;
+    if(dx<-0.3)L=true; else if(dx>0.3)R=true;
+    if(dy<-0.4)U=true; else if(dy>0.4)D=true;
     const ps=this.input.manager.pointers||[];
     for(const p of ps){ if(!p||!p.isDown) continue;
-      if(this._hit(this.btnL,p.x,p.y)) L=true;
-      if(this._hit(this.btnR,p.x,p.y)) R=true;
-      if(this._hit(this.btnJ,p.x,p.y)) J=true;
+      if(this._hitC(this.btnJ,p.x,p.y)) J=true;
+      if(this._hitC(this.btnA,p.x,p.y)) A=true;
     }
     const c=this.cursors;
-    if(c){ if(c.left.isDown)L=true; if(c.right.isDown)R=true; if(c.up.isDown||c.space.isDown)J=true; }
-    return {L,R,J};
+    if(c){ if(c.left.isDown)L=true; if(c.right.isDown)R=true; if(c.up.isDown)U=true; if(c.down.isDown)D=true; if(c.space.isDown)J=true; }
+    if(this._keyAtk&&this._keyAtk.isDown) A=true;
+    return {L,R,U,D,J,A};
   }
 
   update(t,dt){
-    if(this.far) this.far.tilePositionX=this.cameras.main.scrollX*0.4;
     if(!this.player||!this.player.body) return;
     const now=this.time.now;
     // 敵の巡回
     this.enemies.children.iterate(e=>{
       if(!e||!e.active) return;
-      if(e.y>this.H+120){ e.destroy(); return; }
+      if(e.y>this.WORLD_H+140){ e.destroy(); return; }
       if(e._dead) return;
       if(e.x<=e.minX) e.dir=1; else if(e.x>=e.maxX) e.dir=-1;
       if(e.body.blocked.left) e.dir=1; else if(e.body.blocked.right) e.dir=-1;
@@ -21382,44 +21416,95 @@ class PlatformerScene extends Phaser.Scene{
     });
     if(this.state!=='play') return;
 
-    // 入力 → 移動
     const ct=this._readControls();
-    let vx=0;
-    if(ct.L){ vx=-this.SPEED; this.player.setFlipX(true); }
-    else if(ct.R){ vx=this.SPEED; this.player.setFlipX(false); }
-    this.player.setVelocityX(vx);
+    const jumpEdge = ct.J && !this._jPrev; this._jPrev=ct.J;
+    const atkEdge  = ct.A && !this._aPrev; this._aPrev=ct.A;
+    if(atkEdge) this._attack();
 
-    // ジャンプ(コヨーテ時間 + 先行入力バッファ + 可変高)
-    const onGround=this.player.body.blocked.down;
-    if(onGround){ this._coyoteUntil=now+90; this._safeX=this.player.x; this._safeY=this.player.y; }
-    if(ct.J && !this._jPrev) this._jumpBufUntil=now+110;
-    this._jPrev=ct.J;
-    if(this._jumpBufUntil>now && this._coyoteUntil>now){
-      this.player.setVelocityY(this.JUMP);
-      this._coyoteUntil=0; this._jumpBufUntil=0; this._jumpHeld=true;
-      try{SE('boost');}catch(e){}
+    // 梯子判定
+    let onLadder=null;
+    const px=this.player.x, py=this.player.y;
+    for(const lr of this._ladders){
+      if(Math.abs(px-lr.x)<lr.w/2+8 && py>lr.top-14 && py<lr.bottom+14){ onLadder=lr; break; }
     }
-    if(this._jumpHeld && !ct.J){ this._jumpHeld=false; if(this.player.body.velocity.y<-220) this.player.setVelocityY(-220); }
+    if(this._climbing && !onLadder) this._endClimb();
+    if(!this._climbing && onLadder && (ct.U||ct.D)){ this._climbing=true; this.player.body.setAllowGravity(false); this.player.setVelocity(0,0); }
+
+    if(this._climbing){
+      this.player.body.setAllowGravity(false);
+      if(ct.L) this.player.setVelocityX(-this.SPEED*0.7);
+      else if(ct.R) this.player.setVelocityX(this.SPEED*0.7);
+      else { this.player.setVelocityX(0); if(onLadder) this.player.x += (onLadder.x - this.player.x)*0.3; }
+      this.player.setVelocityY(ct.U?-this.CLIMB:ct.D?this.CLIMB:0);
+      if(jumpEdge){ this._endClimb(); this.player.setVelocityY(this.JUMP); }
+      this._swordAnim(ct.L?-1:ct.R?1:0, (ct.U||ct.D));
+    } else {
+      let vx=0;
+      if(ct.L) vx=-this.SPEED; else if(ct.R) vx=this.SPEED;
+      this.player.setVelocityX(vx);
+      const onGround=this.player.body.blocked.down;
+      if(onGround){ this._coyoteUntil=now+90; this._safeX=this.player.x; this._safeY=this.player.y; }
+      if(jumpEdge) this._jumpBufUntil=now+110;
+      if(this._jumpBufUntil>now && this._coyoteUntil>now){
+        this.player.setVelocityY(this.JUMP); this._coyoteUntil=0; this._jumpBufUntil=0; this._jumpHeld=true; try{SE('boost');}catch(e){}
+      }
+      if(this._jumpHeld && !ct.J){ this._jumpHeld=false; if(this.player.body.velocity.y<-220) this.player.setVelocityY(-220); }
+      this._swordAnim(vx, vx!==0);
+    }
 
     // ピット落下
-    if(this.player.y>this.H+120) this._fall();
+    if(this.player.y>this.WORLD_H+140) this._fall();
   }
 
   // ── 衝突処理 ──
+  _oneWayCheck(mover, plat){
+    // 上から乗る時だけ衝突(下/横からはすり抜け→梯子で登れる)
+    return mover.body.velocity.y >= 0 && (mover.body.bottom - 12) <= (plat.body.top + 2);
+  }
+  _endClimb(){
+    this._climbing=false;
+    if(this.player&&this.player.body) this.player.body.setAllowGravity(true);
+  }
   _hitGoomba(player, enemy){
     if(this.state!=='play' || !enemy.active || enemy._dead) return;
     const pb=player.body, eb=enemy.body;
     const stomp=(pb.velocity.y>40) && (pb.bottom<=eb.top+16);
-    if(stomp){
-      enemy._dead=true; enemy.setVelocity(0,0); if(enemy.body) enemy.body.enable=false;
-      enemy.setTexture('pf_goomba_flat');
-      this.time.delayedCall(360, ()=>{ if(enemy.active) enemy.destroy(); });
-      player.setVelocityY(-380);
-      this.score+=200; this._float(enemy.x, enemy.y-20, '+200', '#ffee66');
-      try{SE('explode');}catch(e){}
-    }else{
-      this._damage(enemy.x);
-    }
+    if(stomp) this._killGoomba(enemy, true);
+    else this._damage(enemy.x);
+  }
+  _killGoomba(e, bounce){
+    e._dead=true; e.setVelocity(0,0); if(e.body) e.body.enable=false;
+    e.setTexture('pf_goomba_flat');
+    this.time.delayedCall(360, ()=>{ if(e.active) e.destroy(); });
+    if(bounce) this.player.setVelocityY(-380);
+    this.score+=200; this._float(e.x, e.y-20, '+200', '#ffee66');
+    try{SE('explode');}catch(err){}
+  }
+  _attack(){
+    if(this.state!=='play') return;
+    const now=this.time.now;
+    if(now < (this._atkUntil||0)) return;
+    this._atkUntil = now+320;
+    try{ this.player.play(this.cls+'_side_atk', true); }catch(e){}
+    try{SE('slash');}catch(e){ try{SE('attack');}catch(e2){} }
+    const dir=this._faceDir||1, reach=72;
+    const sl=this.add.ellipse(this.player.x+dir*40, this.player.y, 52, 70, 0xffffff, 0.45).setDepth(7);
+    this.tweens.add({targets:sl, alpha:0, scaleX:1.3, duration:130, onComplete:()=>sl.destroy()});
+    this.enemies.children.iterate(e=>{
+      if(!e||!e.active||e._dead) return;
+      const ddx=(e.x-this.player.x)*dir, ddy=Math.abs(e.y-this.player.y);
+      if(ddx>-12 && ddx<reach && ddy<50) this._killGoomba(e, false);
+    });
+  }
+  _swordAnim(vx, moving){
+    const p=this.player, cls=this.cls;
+    const rightClass=(cls==='archer'||cls==='warrior'||cls==='novice');
+    if(vx>0.1){ this._faceDir=1; p.setFlipX(rightClass); }
+    else if(vx<-0.1){ this._faceDir=-1; p.setFlipX(!rightClass); }
+    const cur=p.anims.currentAnim;
+    if(cur && cur.key.endsWith('_side_atk') && p.anims.isPlaying) return; // 攻撃中は上書きしない
+    const key=cls+'_side_'+(moving?'walk':'idle');
+    if(this.anims.exists(key) && (!cur||cur.key!==key)){ try{p.play(key,true);}catch(e){} }
   }
   _getCoin(player, coin){
     if(!coin.active) return;
@@ -21441,6 +21526,7 @@ class PlatformerScene extends Phaser.Scene{
     this.hp--; this._updateHUD();
     if(this.hp<=0){ this._lose(); return; }
     this._invUntil=this.time.now+1200; this._blink();
+    this._endClimb();
     this.player.setVelocity(0,0);
     this.player.setPosition(this._safeX, this._safeY-40);
     this._float(this._safeX, this._safeY-60, 'ミス!', '#ff8888');
@@ -21548,6 +21634,9 @@ class PlatformerScene extends Phaser.Scene{
       g.fillStyle(0xe0934a,1); g.fillRect(0,0,40,4); });
     // コイン
     mk('pf_coin',24,24,g=>{ g.fillStyle(0xffcc33,1); g.fillCircle(12,12,10); g.lineStyle(2,0xffefa0,1); g.strokeCircle(12,12,10); g.fillStyle(0xe0a020,1); g.fillRect(10,5,4,14); });
+    // 一方通行の足場(板) / 梯子
+    mk('pf_plat',40,24,g=>{ g.fillStyle(0x9a6a3a,1); g.fillRect(0,0,40,24); g.fillStyle(0x7a4e26,1); g.fillRect(0,0,40,5); g.lineStyle(2,0x5a3a1a,0.6); g.lineBetween(13,0,13,24); g.lineBetween(27,0,27,24); g.fillStyle(0xb98a55,1); g.fillRect(0,20,40,4); });
+    mk('pf_ladder',28,40,g=>{ g.fillStyle(0x8a5a2a,1); g.fillRect(2,0,5,40); g.fillRect(21,0,5,40); g.fillStyle(0xb98a55,1); g.fillRect(2,6,24,5); g.fillRect(2,24,24,5); });
     // クリボー風
     mk('pf_goomba',40,34,g=>{
       g.fillStyle(0x3a2010,1); g.fillRoundedRect(4,28,12,6,2); g.fillRoundedRect(24,28,12,6,2);
