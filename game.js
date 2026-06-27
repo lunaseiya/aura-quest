@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-27-v15'; // 更新日付(アスレチック: 3ステージを別構成に刷新 草原マリオ風/妖怪村洞窟/天空)
+const GAME_VERSION = '2026-06-27-v16'; // 更新日付(天空に飛行敵+梯子で上下/STAGE1鎧箱の位置修正)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -21258,6 +21258,7 @@ class PlatformerScene extends Phaser.Scene{
     this.enemies=this.physics.add.group();
     this.boxes=this.physics.add.staticGroup();
     this.items=this.physics.add.group({allowGravity:false, immovable:true});
+    this.flyers=this.physics.add.group({allowGravity:false});   // 飛行敵(足場と衝突しない)
 
     // ── プレイヤー(剣士: 本編のクラススプライト+アニメを流用) ──
     const gy=this.groundY;
@@ -21279,6 +21280,7 @@ class PlatformerScene extends Phaser.Scene{
     this.physics.add.collider(this.enemies, this._oneways, null, this._oneWayCheck, this);
     this.physics.add.overlap(this.player, this.coins, this._getCoin, null, this);
     this.physics.add.overlap(this.player, this.enemies, this._hitGoomba, null, this);
+    this.physics.add.overlap(this.player, this.flyers, this._hitGoomba, null, this);
     this.physics.add.collider(this.player, this.boxes, this._hitBox, null, this);
     this.physics.add.overlap(this.player, this.items, this._getArmor, null, this);
     if(this.goalZone) this.physics.add.overlap(this.player, this.goalZone, ()=>this._win(), null, this);
@@ -21326,8 +21328,8 @@ class PlatformerScene extends Phaser.Scene{
     [[0,1500],[1650,2600],[2750,3700],[3850,5200]].forEach(([a,b])=>this._mkGround(a,b,'pf_dirt','pf_grasstop'));
     this._mkPipe(950,2); this._mkPipe(1380,3); this._mkPipe(2250,2); this._mkPipe(3300,3);
     const brickRow=(x0,n,y)=>{ for(let i=0;i<n;i++) this._mkSolidBlock(x0+i*42, y, 42, 30, 'pf_brick'); };
-    brickRow(640,3, gy-150); brickRow(1760,4, gy-160); brickRow(2880,3, gy-150);
-    this._mkBox(1900, gy-160);                       // 空中の?ブロック
+    brickRow(640,3, gy-150); brickRow(1700,3, gy-160); brickRow(2880,3, gy-150);
+    this._mkBox(2080, gy-150);                       // 空中の?ブロック(レンガ列と被らない開けた位置)
     const coinRow=(x0,n,gap,y)=>{ for(let i=0;i<n;i++) this._mkCoin(x0+i*gap,y); };
     const coinArc=(cx,gap,n,yTop)=>{ for(let i=0;i<n;i++){ const t=i-(n-1)/2; this._mkCoin(cx+t*gap, yTop+Math.abs(t)*20); } };
     coinRow(300,5,46, gy-46); coinRow(660,3,42, gy-200); coinRow(1790,3,42, gy-210);
@@ -21364,23 +21366,31 @@ class PlatformerScene extends Phaser.Scene{
     this._mkEnemy(1,2000,yL(1)-28,1900,2100);
     this._buildGoal(3300, yL(3));
   }
-  // STAGE3: 天空・夕焼け(地面なし。浮き雲を飛び移って上へ。落下=即ミス)
+  // STAGE3: 天空・夕焼け(地面なし。浮き雲を飛び移り、梯子で上下に渡る。落下=即ミス)
   _buildSky(){
     const gy=this.groundY;
     this._deathY = gy+40;
+    // 登り降りを織り交ぜた雲。1250/2360 は縦に重なり梯子で繋ぐ
     const C=[
-      [200,gy-40,200],[480,gy-110,170],[760,gy-190,170],[1040,gy-150,170],
-      [1340,gy-240,170],[1640,gy-330,170],[1940,gy-270,170],[2240,gy-370,170],
-      [2540,gy-300,170],[2860,gy-400,180],[3180,gy-360,170],[3520,gy-470,260],
+      [200,gy-40,200],[470,gy-120,160],[740,gy-200,150],[1000,gy-110,160],[1250,gy-50,170],
+      [1250,gy-260,160],[1530,gy-330,150],[1800,gy-250,150],[2080,gy-150,160],[2360,gy-90,170],
+      [2360,gy-330,160],[2660,gy-400,150],[2950,gy-320,150],[3250,gy-430,160],[3550,gy-500,240],
     ];
     C.forEach(([cx,cy,w])=>this._mkOneway(cx, cy, w, 'pf_cloudblock'));
     C.forEach(([cx,cy])=>this._mkCoin(cx, cy-34));
-    for(let i=0;i<C.length-1;i++){ const mx=(C[i][0]+C[i+1][0])/2, my=Math.min(C[i][1],C[i+1][1])-40; this._mkCoin(mx,my); }
-    this._mkBox(1340, gy-240-86);
-    this._mkEnemy(0, 760, gy-190-28, 700, 820);
-    this._mkEnemy(1, 1940, gy-270-28, 1880, 2000);
-    this._mkEnemy(0, 2540, gy-300-28, 2480, 2600);
-    this._buildGoal(3520, gy-470);
+    // 縦の梯子(上下に渡る)
+    this._mkLadder(1250, gy-50, gy-260, 0xffffff);
+    this._mkLadder(2360, gy-90, gy-330, 0xffffff);
+    for(let y=gy-90; y>gy-250; y-=50) this._mkCoin(1250, y);
+    for(let y=gy-130; y>gy-320; y-=50) this._mkCoin(2360, y);
+    // 飛行する敵(蜂): 空中を巡回しつつ上下に揺れる
+    this._mkFlyer(600,  gy-150, 470, 760, 40);
+    this._mkFlyer(1650, gy-300, 1500, 1820, 50);
+    this._mkFlyer(2500, gy-220, 2250, 2700, 55);
+    this._mkFlyer(3100, gy-380, 2900, 3300, 45);
+    // 序盤の高い雲の上空に鎧ボックス
+    this._mkBox(740, gy-200-86);
+    this._buildGoal(3550, gy-500);
   }
   _buildGoal(gx, gy3){
     // 台座(石)
@@ -21458,6 +21468,18 @@ class PlatformerScene extends Phaser.Scene{
     e.hp=d.hp; e.maxhp=d.hp; e.score=d.score; e._spd=d.spd;
     e.minX=minX; e.maxX=maxX; e.dir=Math.random()<0.5?-1:1; e._dead=false;
     e.setVelocityX(e.dir*d.spd);
+  }
+  // 飛行する敵(蜂): 重力なし・横巡回 + 上下に揺れる。踏み/斬撃でダメージ
+  _mkFlyer(x,y,minX,maxX,amp){
+    const key=this.textures.exists('enemy_hornet')?'enemy_hornet':'pf_goomba';
+    const e=this.flyers.create(x,y,key); if(!e) return;
+    e.setDisplaySize(46,46).setDepth(5);
+    e.body.setSize(e.width*0.6, e.height*0.6, true);
+    e.body.setAllowGravity(false);
+    e.hp=2; e.maxhp=2; e.score=180; e._spd=80;
+    e.minX=minX; e.maxX=maxX; e.dir=Math.random()<0.5?-1:1; e._dead=false;
+    e._baseY=y; e._amp=amp||40; e._phase=Math.random()*6.28;
+    e.setVelocityX(e.dir*e._spd);
   }
   // ── アイテムボックス(下から叩く)→ 鎧ドロップ → 取得で攻撃力UP ──
   _mkBox(x,y){
@@ -21573,6 +21595,14 @@ class PlatformerScene extends Phaser.Scene{
       if(e.body.blocked.left) e.dir=1; else if(e.body.blocked.right) e.dir=-1;
       e.setVelocityX(e.dir*(e._spd||this.ENEMY_SPEED)); e.setFlipX(e.dir>0);
     });
+    // 飛行敵: 横巡回 + 上下サイン揺れ(速度で動かす)
+    if(this.flyers) this.flyers.children.iterate(e=>{
+      if(!e||!e.active||e._dead) return;
+      if(e.x<=e.minX) e.dir=1; else if(e.x>=e.maxX) e.dir=-1;
+      e.setVelocityX(e.dir*(e._spd||70)); e.setFlipX(e.dir>0);
+      const ty=e._baseY + Math.sin(this.time.now*0.003 + e._phase)*e._amp;
+      e.setVelocityY((ty - e.y)*5);
+    });
     if(this.state!=='play') return;
 
     const ct=this._readControls();
@@ -21656,11 +21686,11 @@ class PlatformerScene extends Phaser.Scene{
     const dir=this._faceDir||1, reach=72;
     const sl=this.add.ellipse(this.player.x+dir*40, this.player.y, 52, 70, 0xffffff, 0.45).setDepth(7);
     this.tweens.add({targets:sl, alpha:0, scaleX:1.3, duration:130, onComplete:()=>sl.destroy()});
-    this.enemies.children.iterate(e=>{
-      if(!e||!e.active||e._dead) return;
+    const swing=(e)=>{ if(!e||!e.active||e._dead) return;
       const ddx=(e.x-this.player.x)*dir, ddy=Math.abs(e.y-this.player.y);
-      if(ddx>-12 && ddx<reach && ddy<50) this._damageEnemy(e, false, this._atkPower||1);
-    });
+      if(ddx>-12 && ddx<reach && ddy<50) this._damageEnemy(e, false, this._atkPower||1); };
+    this.enemies.children.iterate(swing);
+    if(this.flyers) this.flyers.children.iterate(swing);
   }
   _swordAnim(vx, moving){
     const p=this.player, cls=this.cls;
