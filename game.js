@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-27-v11'; // 更新日付(アスレチック: 剣士化・ジョイスティック・攻撃ボタン・梯子迷路)
+const GAME_VERSION = '2026-06-27-v12'; // 更新日付(アスレチック: ゴール刷新・梯子は背面アニメ・本編敵3種(HP制))
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -21304,18 +21304,34 @@ class PlatformerScene extends Phaser.Scene{
     });
     // 地上のコイン
     for(let x=320;x<4100;x+=150){ if((x>1450&&x<1600)||(x>2700&&x<2850)) continue; this._mkCoin(x, gy-46); }
-    // 敵(クリボー風) [x, y, 巡回min, 巡回max]
-    this._mkGoomba(1250, gy-30, 1050, 1420);
-    this._mkGoomba(2350, gy-30, 2200, 2620);
-    this._mkGoomba(3050, gy-30, 2900, 3250);
-    this._mkGoomba(900,  yL(1)-30, 800, 1000);
-    this._mkGoomba(2050, yL(1)-30, 1950, 2150);
+    // 敵(本編から3種: スライム/ビートル/オーク戦士) [type, x, y, 巡回min, 巡回max]
+    this._mkEnemy(0, 700,  gy-28, 480, 1300);
+    this._mkEnemy(1, 1250, gy-28, 1050, 1420);
+    this._mkEnemy(2, 2350, gy-28, 2160, 2620);
+    this._mkEnemy(0, 3050, gy-28, 2900, 3250);
+    this._mkEnemy(1, 3650, gy-28, 3420, 3980);
+    this._mkEnemy(0, 900,  yL(1)-28, 800, 1000);
+    this._mkEnemy(2, 2050, yL(1)-28, 1950, 2150);
     // ゴール(タワー3の最上段)
-    const gx=3300, gt3=yL(3);
-    this.add.rectangle(gx, gt3, 8, 200, 0xeeeeee).setOrigin(0.5,1).setDepth(3);
-    this.add.circle(gx, gt3-200, 9, 0xffdd33).setDepth(3);
-    this.add.triangle(gx+26, gt3-182, 0,0, 0,26, 42,13, 0x33cc44).setDepth(3);
-    this.goalZone=this.add.zone(gx, gt3-100, 54, 200);
+    this._buildGoal(3300, yL(3));
+  }
+  _buildGoal(gx, gy3){
+    // 台座(石)
+    this.add.rectangle(gx, gy3, 70, 30, 0x6a4a2a).setOrigin(0.5,1).setDepth(3).setStrokeStyle(2,0x3a2a16);
+    this.add.rectangle(gx, gy3-28, 54, 8, 0x8a6a3a).setOrigin(0.5,1).setDepth(3);
+    // ポール(金)
+    this.add.rectangle(gx, gy3-30, 7, 226, 0xffd24a).setOrigin(0.5,1).setDepth(3).setStrokeStyle(1,0xbb8a1a);
+    // 頂点の玉
+    this.add.circle(gx, gy3-258, 10, 0xffe680).setDepth(4).setStrokeStyle(2,0xbb8a1a);
+    // 旗(布・波打つ)
+    const flag=this.add.triangle(gx, gy3-244, 0,0, 0,42, 66,21, 0x2eb85c).setOrigin(0,0.5).setDepth(4).setStrokeStyle(2,0x1f7a3e);
+    this.add.circle(gx+24, gy3-244, 8, 0xfff0a0).setDepth(5).setStrokeStyle(2,0xe0b020); // 紋章
+    this.tweens.add({targets:flag, scaleX:0.82, duration:700, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
+    // 光る GOAL
+    const gtx=this.add.text(gx, gy3-284, 'GOAL', {fontSize:'16px',fontFamily:'Arial',color:'#ffffff',fontStyle:'bold',stroke:'#1f7a3e',strokeThickness:4}).setOrigin(0.5).setDepth(5);
+    this.tweens.add({targets:gtx, alpha:0.5, duration:600, yoyo:true, repeat:-1});
+    // 当たり判定
+    this.goalZone=this.add.zone(gx, gy3-110, 56, 220);
     this.physics.add.existing(this.goalZone, true);
   }
   _mkGround(x0,x1){
@@ -21341,11 +21357,21 @@ class PlatformerScene extends Phaser.Scene{
     c.setDepth(4); c.body.setAllowGravity(false);
     this.tweens.add({targets:c, y:y-6, duration:680, yoyo:true, repeat:-1, ease:'Sine.easeInOut'});
   }
-  _mkGoomba(x,y,minX,maxX){
-    const e=this.enemies.create(x, y, 'pf_goomba'); if(!e) return;
-    e.setDepth(5); e.body.setSize(34,30).setOffset(3,4);
+  _mkEnemy(typeIdx,x,y,minX,maxX){
+    // 本編の敵テクスチャを流用(踏み/斬撃でHPを削る)
+    const T=[
+      {id:'slime',       hp:1, spd:60, size:46, score:100},
+      {id:'beetle',      hp:2, spd:95, size:48, score:160},
+      {id:'orc_warrior', hp:3, spd:52, size:58, score:280},
+    ];
+    const d=T[typeIdx]||T[0];
+    const key=this.textures.exists('enemy_'+d.id)?('enemy_'+d.id):'pf_goomba';
+    const e=this.enemies.create(x, y, key); if(!e) return;
+    e.setDisplaySize(d.size, d.size).setDepth(5);
+    e.body.setSize(e.width*0.66, e.height*0.6, true);
+    e.hp=d.hp; e.maxhp=d.hp; e.score=d.score; e._spd=d.spd;
     e.minX=minX; e.maxX=maxX; e.dir=Math.random()<0.5?-1:1; e._dead=false;
-    e.setVelocityX(e.dir*this.ENEMY_SPEED);
+    e.setVelocityX(e.dir*d.spd);
   }
 
   // ── 操作: ジョイスティック(左)・本編と同じフローティング式 ──
@@ -21412,7 +21438,7 @@ class PlatformerScene extends Phaser.Scene{
       if(e._dead) return;
       if(e.x<=e.minX) e.dir=1; else if(e.x>=e.maxX) e.dir=-1;
       if(e.body.blocked.left) e.dir=1; else if(e.body.blocked.right) e.dir=-1;
-      e.setVelocityX(e.dir*this.ENEMY_SPEED); e.setFlipX(e.dir>0);
+      e.setVelocityX(e.dir*(e._spd||this.ENEMY_SPEED)); e.setFlipX(e.dir>0);
     });
     if(this.state!=='play') return;
 
@@ -21437,7 +21463,7 @@ class PlatformerScene extends Phaser.Scene{
       else { this.player.setVelocityX(0); if(onLadder) this.player.x += (onLadder.x - this.player.x)*0.3; }
       this.player.setVelocityY(ct.U?-this.CLIMB:ct.D?this.CLIMB:0);
       if(jumpEdge){ this._endClimb(); this.player.setVelocityY(this.JUMP); }
-      this._swordAnim(ct.L?-1:ct.R?1:0, (ct.U||ct.D));
+      this._climbAnim(ct.U||ct.D);
     } else {
       let vx=0;
       if(ct.L) vx=-this.SPEED; else if(ct.R) vx=this.SPEED;
@@ -21469,15 +21495,22 @@ class PlatformerScene extends Phaser.Scene{
     if(this.state!=='play' || !enemy.active || enemy._dead) return;
     const pb=player.body, eb=enemy.body;
     const stomp=(pb.velocity.y>40) && (pb.bottom<=eb.top+16);
-    if(stomp) this._killGoomba(enemy, true);
+    if(stomp) this._damageEnemy(enemy, true);
     else this._damage(enemy.x);
   }
-  _killGoomba(e, bounce){
+  _damageEnemy(e, fromStomp){
+    if(!e||!e.active||e._dead) return;
+    if(fromStomp) this.player.setVelocityY(-380);   // 踏んだら必ず跳ねる(生存でも安全)
+    e.hp=(e.hp||1)-1;
+    if(e.hp>0){
+      e.setTint(0xff7777); this.time.delayedCall(110,()=>{ if(e.active&&!e._dead) e.clearTint(); });
+      this._float(e.x, e.y-22, 'HIT', '#ffffff');
+      try{SE('hit');}catch(err){}
+      return;
+    }
     e._dead=true; e.setVelocity(0,0); if(e.body) e.body.enable=false;
-    e.setTexture('pf_goomba_flat');
-    this.time.delayedCall(360, ()=>{ if(e.active) e.destroy(); });
-    if(bounce) this.player.setVelocityY(-380);
-    this.score+=200; this._float(e.x, e.y-20, '+200', '#ffee66');
+    this.score += e.score||100; this._float(e.x, e.y-20, '+'+(e.score||100), '#ffee66');
+    this.tweens.add({targets:e, alpha:0, scaleY:e.scaleY*0.35, angle:18, duration:300, onComplete:()=>{ if(e.active) e.destroy(); }});
     try{SE('explode');}catch(err){}
   }
   _attack(){
@@ -21493,7 +21526,7 @@ class PlatformerScene extends Phaser.Scene{
     this.enemies.children.iterate(e=>{
       if(!e||!e.active||e._dead) return;
       const ddx=(e.x-this.player.x)*dir, ddy=Math.abs(e.y-this.player.y);
-      if(ddx>-12 && ddx<reach && ddy<50) this._killGoomba(e, false);
+      if(ddx>-12 && ddx<reach && ddy<50) this._damageEnemy(e, false);
     });
   }
   _swordAnim(vx, moving){
@@ -21504,6 +21537,16 @@ class PlatformerScene extends Phaser.Scene{
     const cur=p.anims.currentAnim;
     if(cur && cur.key.endsWith('_side_atk') && p.anims.isPlaying) return; // 攻撃中は上書きしない
     const key=cls+'_side_'+(moving?'walk':'idle');
+    if(this.anims.exists(key) && (!cur||cur.key!==key)){ try{p.play(key,true);}catch(e){} }
+  }
+  // 梯子中は背面(上向き)アニメ
+  _climbAnim(moving){
+    const p=this.player, cls=this.cls;
+    const cur=p.anims.currentAnim;
+    if(cur && cur.key.endsWith('_side_atk') && p.anims.isPlaying) return;
+    p.setFlipX(false);
+    let key=cls+'_back_'+(moving?'walk':'idle');
+    if(!this.anims.exists(key)) key=cls+'_side_'+(moving?'walk':'idle');
     if(this.anims.exists(key) && (!cur||cur.key!==key)){ try{p.play(key,true);}catch(e){} }
   }
   _getCoin(player, coin){
