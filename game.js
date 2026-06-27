@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-27-v14'; // 更新日付(アスレチック: 鎧取得でノービス→剣士にグラフィック変身)
+const GAME_VERSION = '2026-06-27-v15'; // 更新日付(アスレチック: 3ステージを別構成に刷新 草原マリオ風/妖怪村洞窟/天空)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -21192,20 +21192,11 @@ class ShooterScene extends Phaser.Scene{
   }
 }
 
-// ステージ定義(雰囲気を変えた3コース)。enemies=[type, x, level(0=地上), 巡回min, 巡回max]
+// ステージ定義(構成・雰囲気を全く別物にした3コース)。レイアウトは _buildGrass/_buildCave/_buildSky に記述
 const PF_STAGES=[
-  { name:'草原', bg:'#5c94fc', bgm:'east', WW:4200,
-    cloud:null, cloudA:0.9, dirt:null, grass:null, plat:null, ladder:null,
-    grounds:[[0,1450],[1600,2700],[2850,4200]], towers:[900,2050,3300], goal:2, box:{x:860,lvl:1},
-    enemies:[[0,700,0,480,1300],[1,1250,0,1050,1420],[2,2350,0,2160,2620],[0,3050,0,2900,3250],[1,3650,0,3420,3980],[0,900,1,800,1000],[2,2050,1,1950,2150]] },
-  { name:'洞窟', bg:'#181426', bgm:'mine', WW:4000,
-    cloud:0x40406a, cloudA:0.3, dirt:0x6a6478, grass:0x55506a, plat:0x7a6a5a, ladder:0xbbbbcc,
-    grounds:[[0,1300],[1450,2500],[2650,4000]], towers:[800,1900,3100], goal:2, box:{x:760,lvl:1},
-    enemies:[[1,650,0,450,1250],[2,1200,0,1000,1380],[1,2150,0,1950,2440],[2,3000,0,2740,3380],[1,800,1,700,900],[2,1900,1,1800,2000],[2,3100,1,3000,3220]] },
-  { name:'夕焼け空', bg:'#e07a3a', bgm:'sky', WW:4400,
-    cloud:0xffe2c0, cloudA:0.85, dirt:0xc98a4a, grass:0xe8b060, plat:0xffcf9a, ladder:0xe8c090,
-    grounds:[[0,1200],[1350,2350],[2500,3450],[3600,4400]], towers:[700,1750,2950,3950], goal:3, box:{x:660,lvl:1},
-    enemies:[[0,500,0,350,1150],[1,1000,0,820,1180],[0,1900,0,1700,2300],[1,2750,0,2540,3400],[0,3750,0,3620,4350],[0,1750,1,1650,1850],[1,2950,1,2850,3050]] },
+  { name:'草原 (マリオ風)', bg:'#5c94fc', bgm:'east', WW:5200, cloud:null,     cloudA:0.9  },
+  { name:'妖怪村 (洞窟)',   bg:'#15101f', bgm:'mine', WW:4600, cloud:0x2a2440, cloudA:0.25 },
+  { name:'天空 (夕焼け)',   bg:'#ef9a5a', bgm:'sky',  WW:4400, cloud:0xffe0c0, cloudA:0.9  },
 ];
 
 // ============================================================
@@ -21308,7 +21299,7 @@ class PlatformerScene extends Phaser.Scene{
     this.input.on('pointerdown', ()=>{ if(this.state!=='play' && this._canLeave) this._return(); });
 
     try{startBGM(sd.bgm||'east');}catch(e){}
-    this._banner('⚔ '+sd.name+' 出陣! 梯子を登ってゴールへ!', '#ffffff', 1600);
+    this._banner('⚔ '+sd.name+' 出陣! ゴールを目指せ!', '#ffffff', 1600);
 
     // リサイズ/回転で作り直し
     this._onResize=()=>this._restartOnce();
@@ -21322,32 +21313,74 @@ class PlatformerScene extends Phaser.Scene{
     this.time.delayedCall(140, ()=>{ if(this.scene&&this.scene.restart) this.scene.restart(this._initData); });
   }
 
-  // ── レベル構築(梯子で繋ぐ多層の迷路・ステージ駆動) ──
+  // ── レベル構築(ステージごとに全く別構成へ分岐) ──
   _buildLevel(){
-    const gy=this.groundY, sd=this.stageDef;
-    const yL=(L)=>gy - L*200;            // L0=地面, L1〜L3
-    const onGnd=(x)=>sd.grounds.some(([a,b])=>x>=a&&x<=b);
-    // 地面(穴あき=ピット)
-    sd.grounds.forEach(([a,b])=>this._mkGround(a,b));
-    // タワー(各列に L1〜L3 の一方通行床 + ジグザグ梯子)
-    this.towers=sd.towers.slice();
-    this.towers.forEach((X)=>{
-      [1,2,3].forEach(L=>this._mkOneway(X, yL(L), 240));
-      this._mkLadder(X-90, yL(0), yL(1));   // 地面→L1
-      this._mkLadder(X+90, yL(1), yL(2));   // L1→L2
-      this._mkLadder(X-90, yL(2), yL(3));   // L2→L3
+    this._deathY = this.WORLD_H+120;
+    if(this.stageIdx===1) this._buildCave();
+    else if(this.stageIdx===2) this._buildSky();
+    else this._buildGrass();
+  }
+  // STAGE1: 草原・マリオ風(横スクロール中心。土管/レンガ/階段/ゴール旗)
+  _buildGrass(){
+    const gy=this.groundY;
+    [[0,1500],[1650,2600],[2750,3700],[3850,5200]].forEach(([a,b])=>this._mkGround(a,b,'pf_dirt','pf_grasstop'));
+    this._mkPipe(950,2); this._mkPipe(1380,3); this._mkPipe(2250,2); this._mkPipe(3300,3);
+    const brickRow=(x0,n,y)=>{ for(let i=0;i<n;i++) this._mkSolidBlock(x0+i*42, y, 42, 30, 'pf_brick'); };
+    brickRow(640,3, gy-150); brickRow(1760,4, gy-160); brickRow(2880,3, gy-150);
+    this._mkBox(1900, gy-160);                       // 空中の?ブロック
+    const coinRow=(x0,n,gap,y)=>{ for(let i=0;i<n;i++) this._mkCoin(x0+i*gap,y); };
+    const coinArc=(cx,gap,n,yTop)=>{ for(let i=0;i<n;i++){ const t=i-(n-1)/2; this._mkCoin(cx+t*gap, yTop+Math.abs(t)*20); } };
+    coinRow(300,5,46, gy-46); coinRow(660,3,42, gy-200); coinRow(1790,3,42, gy-210);
+    coinArc(1575,46,5, gy-150); coinArc(2675,46,5, gy-150); coinArc(3775,46,5, gy-150);
+    coinRow(4150,4,46, gy-46);
+    for(let i=0;i<4;i++){ const h=44*(i+1); this._mkSolidBlock(4500+i*46, gy-h, 46, h, 'pf_brick'); } // 階段
+    this._mkEnemy(0,520,gy-28,360,900);
+    this._mkEnemy(1,1780,gy-28,1680,2050);
+    this._mkEnemy(0,2950,gy-28,2780,3300);
+    this._mkEnemy(1,4150,gy-28,3900,4450);
+    this._buildGoal(5060, gy);                       // ゴール旗(右端・地上)
+  }
+  // STAGE2: 妖怪村・洞窟(縦の梯子迷路。石の地面/木の足場/提灯)
+  _buildCave(){
+    const gy=this.groundY, yL=(L)=>gy-L*200, LAD=0xc0c0d0;
+    [[0,1400],[1550,2900],[3050,4600]].forEach(([a,b])=>this._mkGround(a,b,'pf_stone','pf_stonetop'));
+    const towers=[800,2000,3300];
+    towers.forEach((X)=>{
+      [1,2,3].forEach(L=>this._mkOneway(X, yL(L), 240, 'pf_wood'));
+      this._mkLadder(X-90, yL(0), yL(1), LAD);
+      this._mkLadder(X+90, yL(1), yL(2), LAD);
+      this._mkLadder(X-90, yL(2), yL(3), LAD);
+      this._mkLantern(X-120, yL(1)-4); this._mkLantern(X+120, yL(2)-4);
       this._mkCoin(X, yL(1)-30); this._mkCoin(X-45, yL(2)-30); this._mkCoin(X+45, yL(2)-30); this._mkCoin(X, yL(3)-30);
       for(let cy=yL(0)-50; cy>yL(1); cy-=60) this._mkCoin(X-90, cy);
-      for(let cy=yL(2)-50; cy>yL(3); cy-=60) this._mkCoin(X-90, cy);
     });
-    // 地上のコイン(ピットは飛ばす)
-    for(let x=320;x<sd.WW-120;x+=150){ if(onGnd(x)) this._mkCoin(x, gy-46); }
-    // 敵(本編から3種) [type, x, level, min, max]
-    sd.enemies.forEach(([ty,ex,lv,mn,mx])=>this._mkEnemy(ty, ex, (lv>0?yL(lv):gy)-28, mn, mx));
-    // アイテムボックス(梯子を登ったあたり)
-    if(sd.box) this._mkBox(sd.box.x, yL(sd.box.lvl)-82);
-    // ゴール(指定タワーの最上段)
-    this._buildGoal(this.towers[sd.goal], yL(3));
+    this._mkBox(760, yL(1)-82);
+    for(let x=320;x<4500;x+=160){ if((x>1400&&x<1550)||(x>2900&&x<3050)) continue; this._mkCoin(x, gy-46); }
+    this._mkEnemy(2,650,gy-28,450,1300);
+    this._mkEnemy(1,1100,gy-28,950,1350);
+    this._mkEnemy(2,2150,gy-28,1900,2840);
+    this._mkEnemy(1,3500,gy-28,3100,3950);
+    this._mkEnemy(2,800,yL(1)-28,700,900);
+    this._mkEnemy(1,2000,yL(1)-28,1900,2100);
+    this._buildGoal(3300, yL(3));
+  }
+  // STAGE3: 天空・夕焼け(地面なし。浮き雲を飛び移って上へ。落下=即ミス)
+  _buildSky(){
+    const gy=this.groundY;
+    this._deathY = gy+40;
+    const C=[
+      [200,gy-40,200],[480,gy-110,170],[760,gy-190,170],[1040,gy-150,170],
+      [1340,gy-240,170],[1640,gy-330,170],[1940,gy-270,170],[2240,gy-370,170],
+      [2540,gy-300,170],[2860,gy-400,180],[3180,gy-360,170],[3520,gy-470,260],
+    ];
+    C.forEach(([cx,cy,w])=>this._mkOneway(cx, cy, w, 'pf_cloudblock'));
+    C.forEach(([cx,cy])=>this._mkCoin(cx, cy-34));
+    for(let i=0;i<C.length-1;i++){ const mx=(C[i][0]+C[i+1][0])/2, my=Math.min(C[i][1],C[i+1][1])-40; this._mkCoin(mx,my); }
+    this._mkBox(1340, gy-240-86);
+    this._mkEnemy(0, 760, gy-190-28, 700, 820);
+    this._mkEnemy(1, 1940, gy-270-28, 1880, 2000);
+    this._mkEnemy(0, 2540, gy-300-28, 2480, 2600);
+    this._buildGoal(3520, gy-470);
   }
   _buildGoal(gx, gy3){
     // 台座(石)
@@ -21368,27 +21401,42 @@ class PlatformerScene extends Phaser.Scene{
     this.goalZone=this.add.zone(gx, gy3-110, 56, 220);
     this.physics.add.existing(this.goalZone, true);
   }
-  _mkGround(x0,x1){
-    const gy=this.groundY, w=x1-x0, h=(this.WORLD_H-gy)+200, cx=x0+w/2, sd=this.stageDef;
-    const dirt=this.add.tileSprite(cx, gy+h/2, w, h, 'pf_dirt').setDepth(2);
-    const grass=this.add.tileSprite(cx, gy+7, w, 14, 'pf_grasstop').setDepth(3);
-    if(sd.dirt) dirt.setTint(sd.dirt);
-    if(sd.grass) grass.setTint(sd.grass);
+  _mkGround(x0,x1,dirtTex,grassTex){
+    const gy=this.groundY, w=x1-x0, h=(this.WORLD_H-gy)+200, cx=x0+w/2;
+    const dirt=this.add.tileSprite(cx, gy+h/2, w, h, dirtTex||'pf_dirt').setDepth(2);
+    this.add.tileSprite(cx, gy+7, w, 14, grassTex||'pf_grasstop').setDepth(3);
     this.physics.add.existing(dirt, true);
     this._solids.push(dirt);
   }
-  _mkOneway(cx,cy,w){
-    // 上端を cy(段の床面)に合わせた一方通行の板
-    const ts=this.add.tileSprite(cx, cy+12, w, 24, 'pf_plat').setDepth(3);
-    if(this.stageDef.plat) ts.setTint(this.stageDef.plat);
+  _mkSolidBlock(cx, topY, w, h, tex){
+    const ts=this.add.tileSprite(cx, topY+h/2, w, h, tex||'pf_brick').setDepth(3);
+    this.physics.add.existing(ts, true);
+    this._solids.push(ts);
+  }
+  _mkPipe(x,hT){
+    const gy=this.groundY, ph=hT*40, cy=gy-ph/2;
+    const body=this.add.rectangle(x, cy, 54, ph, 0x2aa844).setDepth(3).setStrokeStyle(3,0x176a2a);
+    const lip=this.add.rectangle(x, gy-ph+9, 70, 18, 0x3ac85a).setDepth(3).setStrokeStyle(3,0x176a2a);
+    this.physics.add.existing(body, true); this._solids.push(body);
+    this.physics.add.existing(lip, true);  this._solids.push(lip);
+  }
+  _mkOneway(cx,cy,w,tex){
+    // 上端を cy(段の床面)に合わせた一方通行の足場
+    const ts=this.add.tileSprite(cx, cy+11, w, 22, tex||'pf_plat').setDepth(3);
     this.physics.add.existing(ts, true);
     this._oneways.push(ts);
   }
-  _mkLadder(x, yBottom, yTop){
+  _mkLadder(x, yBottom, yTop, tint){
     const h=yBottom-yTop;
-    const ts=this.add.tileSprite(x, (yBottom+yTop)/2, 28, h, 'pf_ladder').setDepth(2);
-    if(this.stageDef.ladder) ts.setTint(this.stageDef.ladder);
-    this._ladders.push({x:x, top:yTop, bottom:yBottom, w:28});
+    const ts=this.add.tileSprite(x, (yBottom+yTop)/2, 26, h, 'pf_ladder').setDepth(2);
+    if(tint) ts.setTint(tint);
+    this._ladders.push({x:x, top:yTop, bottom:yBottom, w:26});
+  }
+  _mkLantern(x,y){
+    this.add.rectangle(x, y-15, 2, 12, 0x222222).setDepth(3);
+    this.add.circle(x, y, 15, 0xff8866, 0.16).setDepth(2);
+    const l=this.add.circle(x, y, 9, 0xff5544, 0.95).setDepth(3).setStrokeStyle(2,0x882222);
+    this.tweens.add({targets:l, alpha:0.6, duration:900, yoyo:true, repeat:-1});
   }
   _mkCoin(x,y){
     const c=this.coins.create(x, y, 'pf_coin'); if(!c) return;
@@ -21519,7 +21567,7 @@ class PlatformerScene extends Phaser.Scene{
     // 敵の巡回
     this.enemies.children.iterate(e=>{
       if(!e||!e.active) return;
-      if(e.y>this.WORLD_H+140){ e.destroy(); return; }
+      if(e.y>this._deathY+80){ e.destroy(); return; }
       if(e._dead) return;
       if(e.x<=e.minX) e.dir=1; else if(e.x>=e.maxX) e.dir=-1;
       if(e.body.blocked.left) e.dir=1; else if(e.body.blocked.right) e.dir=-1;
@@ -21563,8 +21611,8 @@ class PlatformerScene extends Phaser.Scene{
       this._swordAnim(vx, vx!==0);
     }
 
-    // ピット落下
-    if(this.player.y>this.WORLD_H+140) this._fall();
+    // 落下(ピット/空中)
+    if(this.player.y>this._deathY) this._fall();
   }
 
   // ── 衝突処理 ──
@@ -21783,6 +21831,18 @@ class PlatformerScene extends Phaser.Scene{
       g.lineStyle(2,0x5a6e84,1); g.strokeRoundedRect(6,8,20,18,4);
       g.fillStyle(0xffd24a,1); g.fillRect(11,5,10,4);
       g.fillStyle(0xffffff,0.8); g.fillCircle(11,13,2); });
+    // 洞窟の石ブロック / 苔つき上端 / 木の足場
+    mk('pf_stone',40,40,g=>{ g.fillStyle(0x3a3548,1); g.fillRect(0,0,40,40); g.fillStyle(0x2c2838,1); g.fillRect(0,0,40,3);
+      g.lineStyle(2,0x232030,0.7); g.strokeRect(2,2,18,18); g.strokeRect(20,20,18,18); g.strokeRect(20,2,18,18); g.strokeRect(2,20,18,18);
+      g.fillStyle(0x47415a,1); for(let i=0;i<5;i++){ const x=(i*13+5)%34, y=(i*9+7)%34; g.fillRect(x,y,3,3);} });
+    mk('pf_stonetop',40,14,g=>{ g.fillStyle(0x4a4560,1); g.fillRect(0,4,40,10); g.fillStyle(0x5a5475,1); g.fillRect(0,0,40,5);
+      g.fillStyle(0x6a8a4a,1); for(let i=0;i<7;i++){ g.fillRect(i*6+1,2,3,4);} });
+    mk('pf_wood',40,22,g=>{ g.fillStyle(0x8a5e34,1); g.fillRect(0,0,40,22); g.fillStyle(0x6e4824,1); g.fillRect(0,0,40,4);
+      g.lineStyle(2,0x5a3a1c,0.6); g.lineBetween(0,11,40,11); g.fillStyle(0xa6794a,1); g.fillRect(0,5,40,2);
+      g.fillStyle(0x4a2e16,1); g.fillCircle(6,15,1.5); g.fillCircle(34,7,1.5); });
+    // 天空の雲の足場
+    mk('pf_cloudblock',48,24,g=>{ g.fillStyle(0xffffff,0.97); g.fillRoundedRect(0,5,48,17,8); g.fillEllipse(12,9,22,16); g.fillEllipse(30,7,24,16); g.fillEllipse(42,11,16,12);
+      g.fillStyle(0xd8e6f4,1); g.fillRect(2,18,44,4); });
     // クリボー風
     mk('pf_goomba',40,34,g=>{
       g.fillStyle(0x3a2010,1); g.fillRoundedRect(4,28,12,6,2); g.fillRoundedRect(24,28,12,6,2);
