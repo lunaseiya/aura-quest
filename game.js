@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-27-v13'; // 更新日付(アスレチック: 鎧パワーアップ箱・3ステージ(雰囲気別)・ステージ選択)
+const GAME_VERSION = '2026-06-27-v14'; // 更新日付(アスレチック: 鎧取得でノービス→剣士にグラフィック変身)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -21439,6 +21439,10 @@ class PlatformerScene extends Phaser.Scene{
     item.destroy();
     if(this._atkPower>=3) return;   // すでに装備済み
     this._atkPower=3;
+    // 鎧装備 → 剣士(warrior)にグラフィック変身(ノービス等から)
+    this.cls='warrior';
+    if(this.anims.exists('warrior_side_idle')) this.player.play('warrior_side_idle');
+    else if(this.textures.exists('player_warrior')) this.player.setTexture('player_warrior');
     this._updateHUD();
     this._armorEffect();
   }
@@ -21451,8 +21455,7 @@ class PlatformerScene extends Phaser.Scene{
     this.tweens.add({targets:ring, scale:3.6, alpha:0, duration:500, onComplete:()=>ring.destroy()});
     for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; const s=this.add.circle(px,py,4,0xffee88,1).setDepth(20);
       this.tweens.add({targets:s, x:px+Math.cos(a)*52, y:py+Math.sin(a)*52, alpha:0, duration:480, onComplete:()=>s.destroy()}); }
-    this.player.setTint(0xfff0a0);   // 鎧の輝き(以降ずっと)
-    this._banner('🛡 鎧装備! 攻撃力 3 にパワーアップ!', '#ffe680', 1500);
+    this._banner('🛡 剣士に変身! 攻撃力 3!', '#ffe680', 1500);
     try{SE('clear');}catch(e){ try{SE('boost');}catch(e2){} }
   }
 
