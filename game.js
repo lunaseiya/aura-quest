@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-30-v17'; // 更新日付(STAGE1大改修: 約12画面/動く足場/ワープ隠し通路/宝箱2/中ボス)
+const GAME_VERSION = '2026-06-30-v18'; // 更新日付(ジャンプ力UP+足場高さ見直しで全足場を到達可能に)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -21225,7 +21225,7 @@ class PlatformerScene extends Phaser.Scene{
     this.WW=this.stageDef.WW;                       // ワールド全長(ステージ別)
     this.WORLD_H=Math.max(H, 1240);                // 縦長ワールド(梯子で上下移動)
     this.groundY=this.WORLD_H-80;                  // 地面の上端
-    this.SPEED=230; this.JUMP=-680; this.CLIMB=175; this.ENEMY_SPEED=70;
+    this.SPEED=230; this.JUMP=-720; this.CLIMB=175; this.ENEMY_SPEED=70;
     this._resizing=false;
     this.state='play';
     this.hp=3; this.mhp=3;
@@ -21337,8 +21337,8 @@ class PlatformerScene extends Phaser.Scene{
 
     // ── 序盤(やさしい・導入) ──
     this._mkPipe(900,2); this._mkPipe(1500,2);
-    brickRow(650,3, gy-150); brickRow(1850,3, gy-160);
-    this._mkBox(1150, gy-150);                          // 鎧?ブロック(序盤で取れる)
+    brickRow(650,3, gy-140); brickRow(1850,3, gy-140);
+    this._mkBox(1150, gy-140);                          // 鎧?ブロック(序盤で取れる)
     coinRow(300,6,44, gy-46); coinRow(680,3,42, gy-200); coinRow(1880,3,42, gy-210); coinArc(2625,44,5, gy-150);
     this._mkEnemy(0,520, gy-28,360,820);
     this._mkEnemy(0,1250,gy-28,1080,1450);
@@ -21350,7 +21350,7 @@ class PlatformerScene extends Phaser.Scene{
     this._mkMover(4190, gy-10, 120, 'h', 120, 95);     // 動く足場#2(穴2を横断)
     this._mkPipe(3050,3);
     this._mkWarpPipe(3500, gy-80, 80, {x:3470, y:210}); // 青い土管=隠し通路へ
-    brickRow(3200,3, gy-160); brickRow(4500,4, gy-150);
+    brickRow(3200,3, gy-140); brickRow(4500,4, gy-140);
     coinRow(2780,3,42, gy-46); coinRow(3700,4,44, gy-200); coinRow(4520,3,42, gy-210);
     this._mkEnemy(0,2900,gy-28,2760,3020);
     this._mkEnemy(1,3300,gy-28,3120,3480);
@@ -21366,8 +21366,8 @@ class PlatformerScene extends Phaser.Scene{
 
     // ── 終盤(密度UP・硬い敵・大きな穴・中ボス) ──
     this._mkPipe(6600,3); this._mkPipe(7100,2);
-    brickRow(6800,3, gy-160);
-    this._mkSolidBlock(7700, gy-150, 70, 24, 'pf_brick'); // 穴4の中継足場
+    brickRow(6800,3, gy-140);
+    this._mkSolidBlock(7700, gy-140, 70, 24, 'pf_brick'); // 穴4の中継足場
     coinArc(7700,40,5, gy-176); coinRow(6000,4,44, gy-46); coinRow(8000,3,44, gy-46);
     this._mkEnemy(1,5950,gy-28,5880,6500);
     this._mkEnemy(2,6700,gy-28,6620,7050);
@@ -21377,10 +21377,10 @@ class PlatformerScene extends Phaser.Scene{
     this._mkEnemy(2,7900,gy-28,7820,8060);
     // 中ボス(ゴール前) + 回避ルート(上の足場で飛び越えてゴールへ)
     this._mkEnemy(3, 8350, gy-50, 8120, 8600);
-    this._mkSolidBlock(8120, gy-140, 90, 24, 'pf_brick');
-    this._mkSolidBlock(8350, gy-200, 90, 24, 'pf_brick');
-    this._mkSolidBlock(8580, gy-140, 90, 24, 'pf_brick');
-    coinRow(8330,3,40, gy-240);
+    this._mkSolidBlock(8120, gy-130, 90, 24, 'pf_brick');
+    this._mkSolidBlock(8350, gy-185, 90, 24, 'pf_brick');
+    this._mkSolidBlock(8580, gy-130, 90, 24, 'pf_brick');
+    coinRow(8330,3,40, gy-225);
     this._mkEnemy(1,8750,gy-28,8660,8850);
     this._buildGoal(8900, gy);
 
