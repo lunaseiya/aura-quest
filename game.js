@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-30-v18'; // 更新日付(ジャンプ力UP+足場高さ見直しで全足場を到達可能に)
+const GAME_VERSION = '2026-06-30-v19'; // 更新日付(剣士の新覚醒「聖騎士」追加: 聖剣/3スキル/聖属性バフ/被弾回復)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -581,6 +581,7 @@ function makePlayerData(cls){
     // 各覚醒形態(samurai/heavy/spirit/youma)ごとに sk1/sk2/sk3 のLvを管理
     awakSkillLv:{
       samurai:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒の習得状況
+      paladin:{sk1:0,sk2:0,sk3:0},  // 剣士覚醒(聖騎士)
       heavy:  {sk1:0,sk2:0,sk3:0},  // ボマー覚醒(重装兵器)
       busters:{sk1:0,sk2:0,sk3:0},  // ボマー覚醒(バスターズ換装)
       spirit: {sk1:0,sk2:0,sk3:0},  // アーチャー覚醒(エルフ)
@@ -4003,6 +4004,7 @@ const EQUIP_DEFS={
   great_sword:   {name:'両手剣',    slot:'weapon_main',icon:'⚔',  desc:'両手で持つ強力な大剣',     stats:{atk:24,hit:-5},         price:350, col:0xddddff, classOnly:'warrior', twoHand:true},
   // ── 妖刀村雨(剣士専用・覚醒「侍」を発動可能にする呪われた刀) ──
   muramasa:      {name:'妖刀 村雨',  slot:'weapon_main',icon:'🗡', desc:'呪われた妖刀。装備すると侍化が可能になる',stats:{atk:18,agi:5},     price:0,   col:0xff2244, classOnly:'warrior', awakening:'samurai'},
+  holy_blade:    {name:'聖剣 ライトブリンガー',slot:'weapon_main',icon:'✝', desc:'聖なる光を宿す剣。装備すると聖騎士への覚醒が可能になる',stats:{atk:20,def:6,mag:8},price:0, col:0xffe680, classOnly:'warrior', awakening:'paladin'},
   // ── ヘヴィカスタマイズ(ボマー専用・覚醒「重装兵器」を発動可能) ──
   heavy_customize:{name:'ヘヴィカスタマイズ',slot:'weapon_main',icon:'🦾', desc:'重武装の改造装備。装備すると換装が可能になる',stats:{atk:22,def:5},price:0,col:0x4488cc, classOnly:'bomber', awakening:'heavy', twoHand:true},
   // ── バスターライフル(ボマー専用・覚醒「バスターズ換装」)──
@@ -5842,6 +5844,25 @@ const AWAKENINGS = {
       {id:'sk3', name:'鬼殺し',    cost:15, cd:6,   desc:'範囲内の敵に5回連撃'},
     ],
   },
+  // ── 聖騎士(剣士の聖なる覚醒)──
+  paladin: {
+    name: '聖騎士',
+    icon: '✝',
+    activateLabel: '聖光覚醒',
+    deactivateLabel: '解除',
+    baseClass: 'warrior',
+    requiresEquip: 'holy_blade',
+    sprite:'player_warrior', animPrefix:'warrior',        // 専用スプライト未実装のため剣士を流用+金tint
+    baseSprite:'player_warrior', baseAnimPrefix:'warrior',
+    auraColor:0xffe680, facingFlip:'right', tintColor:0xffe9a8,
+    manualDeactivate: true,
+    statMul: { atk:1.15, def:1.2, mag:1.1 },              // 攻防+回復のバランス強化
+    skills: [
+      {id:'sk1', name:'ホーリースライダー', cost:14, cd:4, desc:'聖属性の斬撃を飛ばす。以後一定時間、通常攻撃に聖属性付与+攻撃力1.2倍+射程1.5倍'},
+      {id:'sk2', name:'セイントガード',     cost:0,  cd:0, desc:'【パッシブ】被弾時20%でHP回復(INT/VITが高いほど回復量UP)'},
+      {id:'sk3', name:'ジャッジメントクロス', cost:22, cd:7, desc:'向き不問の十字範囲攻撃(十字は広め・斜めは狭め・聖属性)。以後一定時間、通常攻撃に聖属性付与+攻撃力1.2倍+射程1.5倍'},
+    ],
+  },
   // ── 換装・ヘヴィ(ボマー)──
   heavy: {
     name: '重装兵器',
@@ -6157,6 +6178,9 @@ class GameScene extends Phaser.Scene{
       }
       if(pd.awakSkillLv && !pd.awakSkillLv.hawk){
         pd.awakSkillLv.hawk = {sk1:0, sk2:0, sk3:0};
+      }
+      if(pd.awakSkillLv && !pd.awakSkillLv.paladin){
+        pd.awakSkillLv.paladin = {sk1:0, sk2:0, sk3:0};
       }
       // アーチャーキャラには hawk_bow を1本配布(まだ持っていなければ)
       if(pd.cls==='archer'){
@@ -7135,6 +7159,28 @@ class GameScene extends Phaser.Scene{
     muteBtn.on('pointerdown',()=>{setMute(!muted);muteBtn.setText(muted?'🔇':'🔊')});
   }
 
+  // 聖騎士: 聖光バフ付与(以後一定時間、通常攻撃に聖属性+攻撃1.2倍+射程1.5倍)
+  _grantHolyBuff(){
+    const pd=this.playerData, p=this.player;
+    pd._holyBuffUntil = this.time.now + 8000;
+    try{ this.showBuffTimer('聖光付与','#ffe680', 8000); }catch(e){}
+    if(p){ const ring=this.add.circle(p.x,p.y,46,0xffe680,0).setStrokeStyle(3,0xfff0a0,0.9).setDepth(15);
+      this.tweens.add({targets:ring, scaleX:1.5, scaleY:1.5, alpha:0, duration:500, onComplete:()=>ring.destroy()}); }
+  }
+  // 聖騎士: ジャッジメントクロスの十字エフェクト
+  _drawJudgmentCross(x,y,reach,crossW,diagReach){
+    const h=this.add.rectangle(x,y, reach*2, crossW, 0xffe680, 0.4).setDepth(18);
+    const v=this.add.rectangle(x,y, crossW, reach*2, 0xffe680, 0.4).setDepth(18);
+    [h,v].forEach(b=>this.tweens.add({targets:b, alpha:0, duration:450, onComplete:()=>b.destroy()}));
+    for(const a of [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4]){
+      const dl=this.add.rectangle(x+Math.cos(a)*diagReach*0.5, y+Math.sin(a)*diagReach*0.5, diagReach, 16, 0xfff4c0, 0.38).setRotation(a).setDepth(18);
+      this.tweens.add({targets:dl, alpha:0, duration:400, onComplete:()=>dl.destroy()});
+    }
+    const fl=this.add.circle(x,y,40,0xffffff,0.85).setDepth(19);
+    this.tweens.add({targets:fl, scaleX:2.4, scaleY:2.4, alpha:0, duration:360, onComplete:()=>fl.destroy()});
+    try{ this.cameras.main.flash(150,255,250,200); }catch(e){}
+  }
+
   // ── 職業別通常攻撃 ② ───────────────────────────
   normalAttack(){
     if(this.atkCooldown>0)return;
@@ -7224,6 +7270,31 @@ class GameScene extends Phaser.Scene{
             this.hitEnemy(ed, res.dmg, res.isCrit, false, res.elemLabel);
           }
         });
+      }else if(pd.awakened==='paladin'){
+        // 聖騎士: 聖光バフ中は射程1.5倍・攻撃1.2倍・聖属性
+        const now=this.time.now;
+        const holy = pd._holyBuffUntil && now < pd._holyBuffUntil;
+        const range = holy ? 120 : 80;        // 射程1.5倍(80→120)
+        const atkMul = holy ? 1.2 : 1.0;
+        const elem = holy ? 'light' : 'none';
+        const col = holy ? 0xfff0a0 : 0xffe6c0;
+        let closest=null, cd=range;
+        this.enemyDataList.forEach(ed=>{ if(ed.dead)return; const d=Phaser.Math.Distance.Between(p.x,p.y,ed.sprite.x,ed.sprite.y); if(d<cd){cd=d;closest=ed;} });
+        const ltP=this.getPreferredTarget();
+        if(ltP && Phaser.Math.Distance.Between(p.x,p.y,ltP.sprite.x,ltP.sprite.y)<=range) closest=ltP;
+        const ang=closest?Phaser.Math.Angle.Between(p.x,p.y,closest.sprite.x,closest.sprite.y):this.getAimAngle();
+        const slashX=p.x+Math.cos(ang)*(range*0.55), slashY=p.y+Math.sin(ang)*(range*0.55);
+        const slash=this.add.image(slashX,slashY,'fx_slash').setRotation(ang).setDisplaySize(range*0.72,range*0.72).setDepth(20).setTint(col).setAlpha(0.92);
+        this.tweens.add({targets:slash,alpha:0,scaleX:1.5,scaleY:1.5,duration:220,onComplete:()=>slash.destroy()});
+        if(holy){ const g=this.add.circle(slashX,slashY,16,0xffffff,0.7).setDepth(21); this.tweens.add({targets:g,scaleX:2,scaleY:2,alpha:0,duration:240,onComplete:()=>g.destroy()}); }
+        SE('hit');
+        const berserkMultP=pd._berserkMult||1;
+        this.atkCooldown=this._calcAtkCD(0.7)/berserkMultP;
+        this.playSpriteAtk();
+        if(!closest)return;
+        const res=rollAttack(pd,closest.def,closest.eva||0,elem,closest.element||'none');
+        if(res.miss){this.showFloat(p.x,p.y-40,'Miss','#888888','info');SE('miss');}
+        else{ let dmg=res.dmg; if(atkMul!==1) dmg=Math.max(1,Math.floor(dmg*atkMul)); this.hitEnemy(closest,dmg,res.isCrit,false,res.elemLabel); }
       }else{
         // 通常の剣士: 周囲72px最近傍1体
         let closest=null,cd=72;
@@ -10593,6 +10664,65 @@ class GameScene extends Phaser.Scene{
         try{SE('skill');SE('meteor');}catch(e){}
         this.showFloat(p.x, p.y-70, '⛧ 深淵の呪印', '#66aaff');
         this[cdKey] = sk.cd;
+      }
+      return;
+    }
+
+    // ─ 覚醒「聖騎士」 ─
+    if(pd.awakened==='paladin'){
+      if(num===1){ // ホーリースライダー: 聖属性の斬撃を飛ばす
+        const lt=this.getPreferredTarget();
+        const ang = lt ? Phaser.Math.Angle.Between(p.x,p.y,lt.sprite.x,lt.sprite.y) : this.getAimAngle();
+        const range=340, halfW=72, cos=Math.cos(ang), sin=Math.sin(ang);
+        const slash=this.add.image(p.x+cos*40, p.y+sin*40, 'fx_slash').setRotation(ang).setDisplaySize(96,96).setDepth(20).setTint(0xffe680).setAlpha(0.95);
+        this.tweens.add({targets:slash, x:p.x+cos*range, y:p.y+sin*range, alpha:0, scaleX:1.5, scaleY:1.5, duration:320, onComplete:()=>slash.destroy()});
+        const trail=this.add.line(0,0,p.x,p.y,p.x+cos*range,p.y+sin*range,0xfff0a0,0.6).setOrigin(0).setLineWidth(4).setDepth(19);
+        this.tweens.add({targets:trail, alpha:0, duration:320, onComplete:()=>trail.destroy()});
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const dx=ed.sprite.x-p.x, dy=ed.sprite.y-p.y;
+          const proj=dx*cos+dy*sin, perp=Math.abs(-dx*sin+dy*cos);
+          if(proj>-20 && proj<range && perp<halfW){
+            const base=Math.max(1,Math.floor(pd.atk*4.0));
+            const isCrit=Math.random()*100<calcCrit(pd);
+            let dmg=isCrit?base*2:base;
+            const em=getElementMult('light', ed.element||'none');
+            if(em.mult!==1) dmg=Math.max(1,Math.floor(dmg*em.mult));
+            this.hitEnemy(ed, dmg, isCrit, true, em.label);
+          }
+        });
+        this._grantHolyBuff();
+        this.showFloat(p.x,p.y-60,'✝ ホーリースライダー','#ffe680');
+        try{SE('slash');SE('skill');}catch(e){}
+        this[cdKey]=sk.cd;
+      }else if(num===2){ // セイントガード: パッシブ(常時発動)
+        this.showFloat(p.x,p.y-50,'✝ セイントガードは常時発動中','#aaffcc','info');
+        const g=this.add.circle(p.x,p.y,44,0xffffaa,0).setStrokeStyle(3,0xffe680,0.85).setDepth(15);
+        this.tweens.add({targets:g, scaleX:1.6, scaleY:1.6, alpha:0, duration:500, onComplete:()=>g.destroy()});
+        this[cdKey]=0.5;
+      }else if(num===3){ // ジャッジメントクロス: 向き不問の十字範囲(十字広め・斜め狭め)
+        const reach=210, crossW=66, diagReach=130;
+        this.enemyDataList.forEach(ed=>{
+          if(ed.dead) return;
+          const dx=ed.sprite.x-p.x, dy=ed.sprite.y-p.y, adx=Math.abs(dx), ady=Math.abs(dy);
+          let hit=false;
+          if((adx<=crossW/2 && ady<=reach) || (ady<=crossW/2 && adx<=reach)) hit=true;
+          else { const d=Math.sqrt(dx*dx+dy*dy); if(d<diagReach && Math.abs(adx-ady)<26) hit=true; }
+          if(hit){
+            const base=Math.max(1,Math.floor(pd.atk*3.0));
+            const isCrit=Math.random()*100<calcCrit(pd);
+            let dmg=isCrit?base*2:base;
+            const em=getElementMult('light', ed.element||'none');
+            if(em.mult!==1) dmg=Math.max(1,Math.floor(dmg*em.mult));
+            this.hitEnemy(ed, dmg, isCrit, true, em.label);
+          }
+        });
+        this._drawJudgmentCross(p.x,p.y,reach,crossW,diagReach);
+        this._grantHolyBuff();
+        this.cameras.main.shake(180,0.012);
+        this.showFloat(p.x,p.y-60,'✝ ジャッジメントクロス','#ffe680');
+        try{SE('skill');SE('crit');}catch(e){}
+        this[cdKey]=sk.cd;
       }
       return;
     }
@@ -14492,6 +14622,8 @@ class GameScene extends Phaser.Scene{
       flashCol=[80,30,120]; auraCol=0x6622aa; ringCol=0x9944ff;
     }else if(isAbyss){
       flashCol=[30,80,200]; auraCol=0x1144ff; ringCol=0x3366ff;
+    }else if(awakKey==='paladin'){
+      flashCol=[255,240,180]; auraCol=0xffe680; ringCol=0xfff0a0;
     }else{
       flashCol=[255,50,50]; auraCol=0xff2244; ringCol=0xff4466;
     }
@@ -14535,6 +14667,8 @@ class GameScene extends Phaser.Scene{
       title='🦅 憑依・鷹神弓士 🦅'; titleCol='#ffdd66';
     }else if(isYouma){
       title='🌑 妖魔化 🌑'; titleCol='#aa66ff';
+    }else if(awakKey==='paladin'){
+      title='✝ 聖光覚醒・聖騎士 ✝'; titleCol='#ffe680';
     }else{
       title='🗡 覚醒・侍 🗡'; titleCol='#ff4466';
     }
@@ -18271,6 +18405,17 @@ class GameScene extends Phaser.Scene{
     this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c','info');
     this.updateHUD();
     SE('hurt');
+    // 聖騎士・セイントガード(パッシブ): 被弾20%でHP回復(INT≒mag / VIT≒def の高い方で回復量UP)
+    if(pd.awakened==='paladin' && pd.hp>0 && Math.random()<0.20){
+      const stat=Math.max(pd.mag||0, pd.def||0);
+      const heal=Math.floor((pd.mhp||100)*0.06 + stat*1.5 + 8);
+      pd.hp=Math.min(pd.mhp, pd.hp+heal);
+      this.showFloat(p.x,p.y-58,'✝ セイントガード +'+heal,'#aaffcc','boost');
+      const g=this.add.circle(p.x,p.y,30,0xffffaa,0.5).setDepth(15);
+      this.tweens.add({targets:g,scaleX:2.2,scaleY:2.2,alpha:0,duration:450,onComplete:()=>g.destroy()});
+      this.updateHUD();
+      try{SE('heal');}catch(e){}
+    }
     // ── 覚醒ゲージ: 被弾で蓄積(通常時のみ、HP10%以上のダメージで+2) ──
     if(!pd.awakened && dmg >= pd.mhp * 0.05){
       pd.awakGauge = Math.min(pd.awakGaugeMax||100, (pd.awakGauge||0) + 2);
@@ -22095,6 +22240,8 @@ window.debug = {
   shooter: ()=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Shooter',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined});},
   // マリオ風横スクロールアクションを直接起動: debug.platformer(0|1|2) でステージ指定
   platformer: (stage)=>{const gs=_game.scene.getScene('Game'); gs.scene.start('Platformer',{playerData:gs.playerData,currentSlot:gs.currentSlot,returnStage:gs.stage,returnX:gs.player?gs.player.x:undefined,returnY:gs.player?gs.player.y:undefined,stageIdx:stage||0});},
+  // 聖剣(聖騎士覚醒)をアイテムに追加+覚醒ゲージMAX。メニューの装備から聖剣を装備→覚醒ボタンで聖騎士に
+  givePaladin: ()=>{const gs=_game.scene.getScene('Game'); const pd=gs&&gs.playerData; if(!pd){console.log('Game未開始');return;} pd.items=pd.items||{}; pd.items.holy_blade=(pd.items.holy_blade||0)+1; pd.awakGauge=pd.awakGaugeMax||100; console.log('✝ 聖剣ライトブリンガーを付与+覚醒ゲージMAX。装備メニューで聖剣を装備し、覚醒ボタンで聖騎士へ。');},
   bossNow: ()=>{const gs=_game.scene.getScene('Game'); gs.killCount=gs.cfg.bossThreshold; console.log('killCount を threshold に設定。次の敵撃破でボス出現');},
   spawnBoss: ()=>{const gs=_game.scene.getScene('Game'); gs.spawnBoss();},
   godMode: ()=>{const gs=_game.scene.getScene('Game'); gs.playerData.hp=gs.playerData.mhp=99999; gs.playerData.atk=999; console.log('無敵+攻撃力999');},
