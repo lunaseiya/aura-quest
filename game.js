@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-06-30-v19'; // 更新日付(剣士の新覚醒「聖騎士」追加: 聖剣/3スキル/聖属性バフ/被弾回復)
+const GAME_VERSION = '2026-07-01-v20'; // 更新日付(聖剣の入手を村雨と同様に: 剣士転職で配布+既存剣士へ補完)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -6181,6 +6181,10 @@ class GameScene extends Phaser.Scene{
       }
       if(pd.awakSkillLv && !pd.awakSkillLv.paladin){
         pd.awakSkillLv.paladin = {sk1:0, sk2:0, sk3:0};
+      }
+      // 聖剣補完: 村雨を持つ(剣士覚醒ルートの)warriorには聖剣も配布(再転職不要)
+      if(pd.cls==='warrior' && pd.items && pd.items.muramasa && !pd.items.holy_blade){
+        pd.items.holy_blade = 1;
       }
       // アーチャーキャラには hawk_bow を1本配布(まだ持っていなければ)
       if(pd.cls==='archer'){
@@ -17616,10 +17620,11 @@ class GameScene extends Phaser.Scene{
       // ジョブはリセット(新職としてやり直し)
       pd.jobLv=1; pd.jobExp=0; pd.jobExpNext=80; pd.jobPts=0;
 
-      // 剣士に転職した時、妖刀「村雨」を自動取得
+      // 剣士に転職した時、妖刀「村雨」+ 聖剣「ライトブリンガー」を自動取得
       if(newCls==='warrior'){
         if(!pd.items) pd.items={};
         pd.items['muramasa'] = (pd.items['muramasa']||0) + 1;
+        pd.items['holy_blade'] = (pd.items['holy_blade']||0) + 1;
       }
       // ボマーに転職した時、ヘヴィカスタマイズ+バスターライフルを自動取得
       if(newCls==='bomber'){
