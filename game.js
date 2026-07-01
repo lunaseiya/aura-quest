@@ -2,7 +2,7 @@
 //  LUNA FRONTIER (ルナフロンティア) - Phaser 3  game.js
 //  STEP7: ①ステータス割り振り ②職業別通常攻撃 ③命中/クリティカル
 // ============================================================
-const GAME_VERSION = '2026-07-01-v20'; // 更新日付(聖剣の入手を村雨と同様に: 剣士転職で配布+既存剣士へ補完)
+const GAME_VERSION = '2026-07-01-v21'; // 更新日付(セイントガードを受けたダメージ割合回復に変更・INT/VITで割合UP)
 console.log('%c🌙 LUNA FRONTIER ' + GAME_VERSION, 'color:#ffcc88;font-size:14px;font-weight:bold;');
 const BASE='https://lunaseiya.github.io/aura-quest/';
 const TILE=32;
@@ -5859,7 +5859,7 @@ const AWAKENINGS = {
     statMul: { atk:1.15, def:1.2, mag:1.1 },              // 攻防+回復のバランス強化
     skills: [
       {id:'sk1', name:'ホーリースライダー', cost:14, cd:4, desc:'聖属性の斬撃を飛ばす。以後一定時間、通常攻撃に聖属性付与+攻撃力1.2倍+射程1.5倍'},
-      {id:'sk2', name:'セイントガード',     cost:0,  cd:0, desc:'【パッシブ】被弾時20%でHP回復(INT/VITが高いほど回復量UP)'},
+      {id:'sk2', name:'セイントガード',     cost:0,  cd:0, desc:'【パッシブ】被弾時20%で回復。受けたダメージに対する割合で回復(INT/VITが高いほど割合UP・最大200%)'},
       {id:'sk3', name:'ジャッジメントクロス', cost:22, cd:7, desc:'向き不問の十字範囲攻撃(十字は広め・斜めは狭め・聖属性)。以後一定時間、通常攻撃に聖属性付与+攻撃力1.2倍+射程1.5倍'},
     ],
   },
@@ -18410,10 +18410,11 @@ class GameScene extends Phaser.Scene{
     this.showFloat(p.x,p.y-40,'-'+dmg,'#e74c3c','info');
     this.updateHUD();
     SE('hurt');
-    // 聖騎士・セイントガード(パッシブ): 被弾20%でHP回復(INT≒mag / VIT≒def の高い方で回復量UP)
+    // 聖騎士・セイントガード(パッシブ): 被弾20%で「受けたダメージの割合」を回復(INT≒mag / VIT≒def が高いほど割合UP)
     if(pd.awakened==='paladin' && pd.hp>0 && Math.random()<0.20){
       const stat=Math.max(pd.mag||0, pd.def||0);
-      const heal=Math.floor((pd.mhp||100)*0.06 + stat*1.5 + 8);
+      const ratio=Math.min(2.0, 0.6 + stat*0.03);   // 受けたダメージの60%〜最大200%を回復
+      const heal=Math.max(1, Math.floor(dmg * ratio));
       pd.hp=Math.min(pd.mhp, pd.hp+heal);
       this.showFloat(p.x,p.y-58,'✝ セイントガード +'+heal,'#aaffcc','boost');
       const g=this.add.circle(p.x,p.y,30,0xffffaa,0.5).setDepth(15);
